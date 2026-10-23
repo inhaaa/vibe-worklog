@@ -1,4 +1,4 @@
-# Only Maven build inputs enter the image context.
+# Only Maven build inputs and required third-party notices enter the image context.
 **
 !pom.xml
 !mvnw
@@ -6,6 +6,9 @@
 !.mvn/**
 !src/
 !src/**
+!LICENSES/
+!LICENSES/**
+!THIRD_PARTY_NOTICES.md
 **/.env
 **/.env.*
 **/*.log

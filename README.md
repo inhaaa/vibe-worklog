@@ -4,12 +4,14 @@
 
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
-- **Project Status:** Planning & Design
+- **Project Status:** Phase 4 · Local Development Foundation
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
 - 기획·지원 범위 업무 규칙·시스템 설계 문서: 작성
-- 기능 구현·개발 및 운영 환경 구축: 미착수
+- 로컬 개발 기반: 빌드·DB 격리·로그인·준비 화면 구현 및 native PostgreSQL 검증
+- Docker: 로컬 구성 작성·설정 검증, 이미지 빌드·컨테이너 기동은 미검증
+- 근태 업무 기능·운영 환경·외부 배포: 미착수
 
 ## Overview
 
@@ -34,23 +36,29 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 위 목록은 전체 제품 후보이며 구현 완료 목록이 아닙니다. 현재 MVP 방향은 고정 근무, 여러 고정 템플릿·사원별 적용일, 허용 IP 우선, 1단계 지정 승인, 종일 연차·기초 잔여 이력·승인 시 차감입니다. 자기 승인은 차단하며, 정상 지원은 당일 시작·종료하는 하루 한 근무 구간입니다. 일반 검토용 Excel 다운로드를 MVP에 포함합니다. 반차·시간 단위 휴가·자동 발생·QR·추가근무 신청·월 마감·PWA는 후속입니다. 상세 범위와 정책은 [PRD](docs/prd.md)를 따릅니다.
 
-## Tech Stack (Planned)
+## Tech Stack
 
 | Category | Technology |
 |---|---|
-| Language | Java 25 (LTS) |
+| Language | Java 25 (Eclipse Temurin 25.0.4.1+1) |
 | Backend | Spring Boot 4.1.2 |
 | Data Access | MyBatis Spring Boot Starter 4.1.0 / MyBatis 3.5.19 |
-| Database | PostgreSQL 18 |
-| Frontend | Thymeleaf, htmx, HTML/CSS/JavaScript |
+| Database | PostgreSQL 18.6 |
+| Frontend | Thymeleaf 3.1.5.RELEASE, htmx 2.0.11, HTML/CSS/JavaScript |
 | Security | Spring Security |
-| Build | Maven, Maven Wrapper |
-| Migration | Flyway |
+| Build | Maven 3.9.16, Maven Wrapper 3.3.4 |
+| Migration | Flyway 12.4.0 (웹앱과 별도 실행) |
 | Testing | Boot 관리 JUnit 6.0.3, Testcontainers |
-| Infrastructure | Docker, Docker Compose, Caddy, Linux VPS |
-| 기타 | Apache POI, Spring Boot Actuator |
+| Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
+| 기타 | Spring Boot Actuator; Apache POI는 Excel 구현 시 도입 |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 조회 근거와 선택 이유를 기록했습니다. MyBatis 연동 모듈과 본체 버전을 구분하고, 초기 JUnit 5 후보는 Boot BOM 기준 JUnit 6으로 조정했습니다. 실제 의존성 해석·JDK 빌드·PostgreSQL 통합·전체 라이선스 검증은 프로젝트 생성 단계에서 수행할 조건입니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 실제 검증 범위를 기록했습니다. Java 25 빌드·패키징, 단위·native PostgreSQL 통합 테스트 합계 25개, 패키지 앱 HTTP 확인 10개가 통과했습니다. Docker 실행 환경이 없어 이미지 빌드·Compose 기동·Testcontainers 실행은 남아 있습니다. 전이 의존성 126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)를 기록했으며 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+
+## Local Development
+
+로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 현재 화면은 로그인과 본인 준비 상태 확인까지만 구현했습니다.
+
+Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
 
 ## Architecture
 
@@ -89,6 +97,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - Business Rules: [신청·승인·정정](docs/rules/workflow.md), [계산·법령 근거·검증 사례](docs/rules/calculation.md)
 - System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
 - [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
+- [Local Development](docs/development/local.md): 로컬 실행·마이그레이션·테스트·남은 검증
+- [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
 ## Roadmap
@@ -96,7 +106,10 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 제품 요구사항·MVP 범위·역할·핵심 시나리오 문서화
 - [x] 지원 범위의 업무 규칙·테스트 사례 명세 및 미검증 항목 구분
 - [x] 아키텍처·논리 데이터 모델·보안·화면·인터페이스 설계
-- [ ] 개발 환경 및 배포 파이프라인 구성
+- [x] 빌드·native PostgreSQL·테넌트 격리·로그인·준비 화면 기반 검증
+- [x] 로컬 Docker Compose 구성·설정 검증
+- [ ] Docker 이미지 빌드·Compose 기동·Testcontainers 실행 검증
+- [ ] 운영 환경·배포 파이프라인 구성
 - [ ] 핵심 근태관리 기능 구현
 - [ ] 보안 및 성능 테스트
 - [ ] 파일럿 검증 및 서비스 개선
@@ -107,4 +120,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 기획·설계 문서 단계이며 운영 서비스가 아닙니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 법령 원문·제품·기술의 공개 자료 조회와 실제 고객 적용·인터뷰·구현 테스트는 구분합니다. 미검증 법적 예외·개인정보 처리·실행 호환성·운영 조건은 남아 있으며, 문서는 법률 적합성을 보증하지 않습니다.
+현재 로컬 개발 기반 단계이며 운영 서비스가 아닙니다. 근태 업무 기능은 아직 구현하지 않았습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·컨테이너 실행·운영 조건 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.

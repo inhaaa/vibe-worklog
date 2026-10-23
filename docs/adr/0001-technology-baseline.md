@@ -129,16 +129,34 @@ Spring 계열·JUnit·Flyway·JDBC·Testcontainers·Thymeleaf는 Boot BOM을 우
 | PostgreSQL·JDBC42.7.14 | PostgreSQL License·BSD2: [서버 라이선스](https://www.postgresql.org/about/licence/), [JDBC 고정 태그 LICENSE](https://raw.githubusercontent.com/pgjdbc/pgjdbc/REL42.7.14/LICENSE) | EDB ZIP·컨테이너 OS의 포함 구성요소는 별도 고지 |
 | htmx2.0.11 | 0BSD: [고정 태그 LICENSE](https://github.com/bigskysoftware/htmx/blob/v2.0.11/LICENSE) | 자산 버전과 출처를 유지 |
 | Apache POI6.0.0 | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/apache/poi/REL_6_0_0/legal/LICENSE) | 미도입. 향후 OOXML·전이 의존성과 NOTICE까지 재검토 |
+| 검증 도구 Docker Compose5.6.1 | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/docker/compose/v5.6.1/LICENSE) | portable CLI로 구성만 해석. Docker Desktop 라이선스·daemon 설치와 별개 |
 
 직접 구성요소의 라이선스를 확인한 것이 전체 의존성·컨테이너 OS의 라이선스 감사 완료를 뜻하지 않는다. Docker Desktop은 별도 사용 조건이 있는 제품이므로 PostgreSQL·Testcontainers·Docker Engine의 라이선스와 혼동하지 않는다. 이번에는 Docker Desktop·WSL을 새로 설치하지 않는다.
 
 ### 로컬 실행 검증 범위
 
-로컬 JDK와 portable PostgreSQL의 실행 가능 여부를 확인했다. Maven 의존성 해석·테스트의 최종 결과와 실제 사용 버전은 실행 완료 후 기록한다. 공식 문서의 지원 범위를 프로젝트 전체 통합 성공으로 바꾸어 표현하지 않는다.
+Temurin25.0.4.1+1·Maven Wrapper3.3.4/Maven3.9.16·portable PostgreSQL18.6에서 다음을 실행했다. 공식 문서의 지원 범위와 실제 프로젝트 실행 결과를 구분한다.
+
+| 검증 | 2026-10-24 실행 결과 |
+| --- | --- |
+| 의존성 트리 해석 | Boot4.1.2, MyBatis starter4.1.0/Spring4.1.0/본체3.5.19, JUnit6.0.3, Thymeleaf 엔진·spring6 어댑터3.1.5.RELEASE, Flyway12.4.0, JDBC42.7.14, Testcontainers2.0.5가 기준선과 일치 |
+| Wrapper 빌드·패키징 | Java25에서 `verify` 성공, 실행 가능한 Boot JAR 생성 |
+| 단위·실제 DB 테스트 | 암호·요청 제한3개, DB/RLS11개, 인증·웹11개: 총25개 통과, 실패·오류·건너뜀0 |
+| Flyway 독립 Maven goal | migration 역할의 `flyway:migrate`로 V1 checksum·적용 이력 검증 및 최신 상태 확인 성공 |
+| 패키지 앱 HTTP | 루프백18080에서 health·로그인·CSRF·본인 조회·htmx·테넌트 변조 차단·운영자/민감 Actuator 차단·로그아웃 등10개 확인 통과 |
+| 전이 라이선스 메타데이터 | 실제 프로젝트 의존성126개 POM·상속 POM의 좌표/범위/라이선스 출처 기록, 메타데이터 누락0. JAR 고지·빌드 플러그인·컨테이너 OS 전체 감사는 아님 |
+| Compose 설정·초기화 스크립트 | 공식 standalone Compose5.6.1의 `config` 해석, loopback 게시·비밀값 분리·앱 읽기 전용 설정 확인, Bash 문법 검증 통과 |
+| Docker 이미지·컨테이너·Testcontainers | 미실행: 호스트에 Docker daemon 없음. native DB 테스트 성공으로 대체하지 않음 |
+
+실행 명령과 경계는 [로컬 개발 안내](../development/local.md), 프로젝트 의존성 메타데이터는 [CSV](../development/dependency-licenses.csv), 포함 파일 고지는 [THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES.md)에 남긴다. 조회된 라이선스명만으로 배포물의 법률 검토를 완료했다고 판단하지 않는다.
+
+DB 명세의 `left_on`은 마지막 재직일을 포함한다. 인증의 재직 경계도 같은 의미로 적용하고 당일 허용·다음 날 거부를 실제 DB 테스트로 확인했다. 회사 코드의80자 계약, 잘못된 로그인1회당 요청 제한1회 반영, 세션 교체·회수도 검증했다. 이 결정은 근태 계산이나 휴가 정책 변경이 아니다.
+
+Maven Central의 대용량 다운로드 지연은 커밋하지 않은 작업용 Maven mirror 설정으로 우회했다. 저장소 POM·전역 Maven 설정·공식 Wrapper 배포 URL을 변경하지 않았다. 재실행 시 기본 Central 또는 조직에서 승인한 mirror를 사용한다.
 
 - 현재 호스트에는 사용 가능한 Docker 실행 환경이 없고 WSL은 비활성 상태다. Docker 이미지 빌드·Compose 기동·Testcontainers 실행을 통과했다고 기록하지 않는다.
 - 로컬 DB 검증은 루프백에 바인딩한 별도 portable PostgreSQL18.6 인스턴스와 프로젝트 전용 데이터·계정으로 수행한다. 기존 서비스·외부 서버·운영 DB에는 접근하지 않는다.
 - native DB 테스트와 Testcontainers 테스트는 같은 Flyway·인증·테넌트 경계를 검증하도록 구성하되, native 실행 성공이 컨테이너 실행 성공을 대체하지 않는다.
 - DB 연결·Flyway 이력·일반 역할의 RLS·SQL 테넌트 조건·컨텍스트 실패/재사용·기본 로그인/CSRF 검증을 구분해 결과를 남긴다. Phase5의 실제 승인 동시성·근태 계산 테스트까지 완료한 것으로 확대하지 않는다.
-- 공식 Docker 후보는 `eclipse-temurin:25.0.4.1_1-jdk-noble`, `eclipse-temurin:25.0.4.1_1-jre-noble`, [공식 PostgreSQL 목록](https://raw.githubusercontent.com/docker-library/official-images/master/library/postgres)의 `postgres:18.6-bookworm`이다. digest·이미지 실행·OS 패키지 검증은 Docker를 사용할 수 있는 환경에서 확인한다.
+- 공식 이미지 태그와 registry manifest digest를 조회해 [Dockerfile](../../Dockerfile)·[Compose](../../compose.yaml)에 고정했다. 태그는 `eclipse-temurin:25.0.4.1_1-jdk-noble`, `eclipse-temurin:25.0.4.1_1-jre-noble`, [공식 PostgreSQL 목록](https://raw.githubusercontent.com/docker-library/official-images/master/library/postgres)의 `postgres:18.6-bookworm`이다. digest 조회는 이미지 빌드·실행·OS 패키지 검증과 구분한다.
 - Caddy·HTTPS·운영 백업/복원·부하·외부 배포는 이번 로컬 환경 검증 완료와 별개다. 실제 배포는 수행하지 않는다.

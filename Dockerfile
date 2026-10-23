@@ -7,6 +7,8 @@ RUN apt-get update \
 COPY --chmod=0755 mvnw ./mvnw
 COPY .mvn/ .mvn/
 COPY pom.xml ./pom.xml
+COPY LICENSES/ LICENSES/
+COPY THIRD_PARTY_NOTICES.md ./
 COPY src/ src/
 RUN ./mvnw -B -Dmaven.test.skip=true package
 
