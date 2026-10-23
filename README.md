@@ -10,7 +10,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - **Internal Name:** `tna` (Time & Attendance)
 - 기획·지원 범위 업무 규칙·시스템 설계 문서: 작성
 - 로컬 개발 기반: 빌드·DB 격리·로그인·준비 화면 구현 및 native PostgreSQL 검증
-- Docker: 로컬 구성 작성·설정 검증, 이미지 빌드·컨테이너 기동은 미검증
+- Docker: Linux 이미지 빌드·Compose 기동·Testcontainers 검증 완료
 - 근태 업무 기능·운영 환경·외부 배포: 미착수
 
 ## Overview
@@ -52,7 +52,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; Apache POI는 Excel 구현 시 도입 |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 실제 검증 범위를 기록했습니다. Java 25 빌드·패키징, 단위·native PostgreSQL 통합 테스트 합계 25개, 패키지 앱 HTTP 확인 10개가 통과했습니다. Docker 실행 환경이 없어 이미지 빌드·Compose 기동·Testcontainers 실행은 남아 있습니다. 전이 의존성 126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)를 기록했으며 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 실제 검증 범위를 기록했습니다. Java 25 빌드·패키징과 단위·DB 통합 테스트 25개를 native PostgreSQL과 Testcontainers에서 각각 확인했습니다. Docker 이미지 빌드·Compose의 DB 초기화·Flyway·앱 기동과 HTTP 확인 10개도 통과했습니다. 이 호스트의 선택적 CA·Maven 미러 설정은 [개발 안내](docs/development/local.md)에 설명했습니다. 전이 의존성 126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 ## Local Development
 
@@ -108,7 +108,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 아키텍처·논리 데이터 모델·보안·화면·인터페이스 설계
 - [x] 빌드·native PostgreSQL·테넌트 격리·로그인·준비 화면 기반 검증
 - [x] 로컬 Docker Compose 구성·설정 검증
-- [ ] Docker 이미지 빌드·Compose 기동·Testcontainers 실행 검증
+- [x] Docker 이미지 빌드·Compose 기동·Testcontainers 실행 검증
 - [ ] 운영 환경·배포 파이프라인 구성
 - [ ] 핵심 근태관리 기능 구현
 - [ ] 보안 및 성능 테스트
@@ -120,4 +120,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 로컬 개발 기반 단계이며 운영 서비스가 아닙니다. 근태 업무 기능은 아직 구현하지 않았습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·컨테이너 실행·운영 조건 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.
+현재 로컬 개발 기반 단계이며 운영 서비스가 아닙니다. 근태 업무 기능은 아직 구현하지 않았습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.

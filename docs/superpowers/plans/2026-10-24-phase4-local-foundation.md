@@ -6,7 +6,7 @@
 
 **구조:** 기존 모듈형 모놀리스를 유지한다. 인증 전용 조회 역할과 일반 앱 역할은 같은 PostgreSQL의 별도 자격을 사용하며, 마이그레이션은 웹 프로세스 밖에서 실행한다. 업무 범위는 로그인과 본인 준비 화면까지다.
 
-**기술:** ADR-0001의 고정 버전과 공식 자료 재검증을 우선한다. 기존 PC·서비스의 전역 Java·WSL·Docker 설정은 바꾸지 않는다.
+**기술:** ADR-0001의 고정 버전과 공식 자료 재검증을 우선한다. 최초 기반 구축에서는 기존 PC·서비스의 전역 Java·WSL·Docker 설정을 바꾸지 않았다. 후속 컨테이너 검증의 설치 승인 범위는 아래 별도 절을 따른다.
 
 ## 작업 1. 기술 확인과 실행 계약
 
@@ -54,8 +54,22 @@
 
 Phase 5 근태 계산·출퇴근·휴가·승인·Excel 기능, 실제 고객 자료·계정 초대 전송, 원격 서버 접속·배포는 이번 범위에서 실행하지 않는다. Docker 호스트 설치·WSL 기능 변경·재부팅이 필요하면 해당 환경 제약을 별도로 보고한다.
 
+## 후속 작업: Docker 실행 검증
+
+2026-10-24 사용자가 필요한 Docker·WSL 설치와 환경 설정, 이미지 빌드·Compose 기동·Testcontainers 테스트, 문서 반영·검증·커밋·Push를 승인했다. 재부팅은 필요 여부를 알리고 자동 실행하지 않는다. 외부 서버 접속·배포와 Phase 5 업무 구현은 제외한다.
+
+- [x] 공식 설치 자료·서명·체크섬을 확인하고 필요한 Docker Desktop·WSL만 설치한다. 기존 배포판·컨테이너·영구 자료는 보존한다.
+- [x] 로컬 Docker daemon·Linux 컨테이너·Compose 버전과 상태를 확인한다.
+- [x] 고정 이미지로 앱·migration 이미지를 빌드한다.
+- [x] 전용 Compose 프로젝트에서 DB 초기화·Flyway 성공·앱 HTTP 응답과 자격증명 경계를 확인한다.
+- [x] native DB 우회 환경변수 없이 Testcontainers의 실제 PostgreSQL에서 전체 테스트를 실행한다.
+- [x] 실행 결과·남은 제약을 문서에 반영하고 검증 후 작업 단위별 커밋·Push한다.
+
 ## 실행 결과
 
 - Java25 Wrapper 빌드·패키징, 실제 PostgreSQL의 단위/통합 테스트25개, 패키지 앱 HTTP 확인10개, 독립 Flyway 이력 검증을 통과했다.
-- Compose 설정은 공식 standalone 도구로 해석하고 초기화 스크립트 문법을 확인했다. 이미지 build·Compose 기동·Testcontainers 실행은 Docker daemon이 없어 미실행이다. 해당 실행 검증은 남아 있다.
+- 최초에는 Compose 설정·초기화 스크립트만 검증했다. 추가 승인 후 WSL·Docker 설치, 앱·migrate 이미지 빌드, Compose DB·Flyway·앱 기동·HTTP10개 확인, 실제 Testcontainers의 동일25개 테스트를 모두 통과했다. 재부팅은 필요하지 않았다.
+- Docker 빌드에는 optional CA·Maven settings secret과 `unzip` 보완이 필요했다. TLS 검증·Wrapper ZIP 체크섬 검증은 유지했고 호스트별 설정·인증서는 Git에서 제외했다.
 - 전이 의존성126개의 라이선스 메타데이터와 포함 자산 고지를 남겼다. 실행 안내·세부 경계는 [로컬 개발 안내](../../development/local.md)와 [ADR-0001](../../adr/0001-technology-baseline.md)을 따른다.
+
+- Docker 검증용 컨테이너·네트워크는 해당 Compose 프로젝트만 종료했으며 DB 볼륨을 보존했다. 원래 프로젝트 폴더에 준비한 `.env`·선택적 CA/미러 설정은 Git에서 제외했다.
