@@ -8,6 +8,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
+- 기획·지원 범위 업무 규칙·시스템 설계 문서: 작성
 - 기능 구현·개발 및 운영 환경 구축: 미착수
 
 ## Overview
@@ -31,7 +32,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - **Multi-Tenancy:** 고객사별 데이터 격리 및 권한 관리
 - **Mobile Support:** 반응형 웹과 PWA 지원
 
-위 목록은 전체 제품 후보이며 구현 완료 목록이 아닙니다. 현재 MVP 방향은 고정 근무, 여러 고정 템플릿·사원별 적용일, 허용 IP 우선, 1단계 지정 승인, 종일 연차·기초 잔여 이력·승인 시 차감입니다. 자기 승인은 차단하며, 정상 지원은 당일 시작·종료하는 하루 한 근무 구간입니다. 반차·시간 단위 휴가·연차 자동 발생·QR은 후속 후보입니다. 조건부 기능과 세부 정책은 [PRD](docs/prd.md)를 따릅니다.
+위 목록은 전체 제품 후보이며 구현 완료 목록이 아닙니다. 현재 MVP 방향은 고정 근무, 여러 고정 템플릿·사원별 적용일, 허용 IP 우선, 1단계 지정 승인, 종일 연차·기초 잔여 이력·승인 시 차감입니다. 자기 승인은 차단하며, 정상 지원은 당일 시작·종료하는 하루 한 근무 구간입니다. 일반 검토용 Excel 다운로드를 MVP에 포함합니다. 반차·시간 단위 휴가·자동 발생·QR·추가근무 신청·월 마감·PWA는 후속입니다. 상세 범위와 정책은 [PRD](docs/prd.md)를 따릅니다.
 
 ## Tech Stack (Planned)
 
@@ -39,17 +40,17 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 |---|---|
 | Language | Java 25 (LTS) |
 | Backend | Spring Boot 4.1.2 |
-| Data Access | MyBatis 4.1.0 |
+| Data Access | MyBatis Spring Boot Starter 4.1.0 / MyBatis 3.5.19 |
 | Database | PostgreSQL 18 |
 | Frontend | Thymeleaf, htmx, HTML/CSS/JavaScript |
 | Security | Spring Security |
 | Build | Maven, Maven Wrapper |
 | Migration | Flyway |
-| Testing | JUnit 5, Testcontainers |
+| Testing | Boot 관리 JUnit 6.0.3, Testcontainers |
 | Infrastructure | Docker, Docker Compose, Caddy, Linux VPS |
 | 기타 | Apache POI, Spring Boot Actuator |
 
-위 버전은 도입 후보이며 출시·지원·호환성 검증 완료를 뜻하지 않습니다. 원격 README의 Spring Boot 4.1.2·MyBatis 4.1.0 후보를 보존했으며, kickoff의 4.1.x·4.x 계획과 함께 실제 생성 전에 공식 문서로 검증합니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 조회 근거와 선택 이유를 기록했습니다. MyBatis 연동 모듈과 본체 버전을 구분하고, 초기 JUnit 5 후보는 Boot BOM 기준 JUnit 6으로 조정했습니다. 실제 의존성 해석·JDK 빌드·PostgreSQL 통합·전체 라이선스 검증은 프로젝트 생성 단계에서 수행할 조건입니다.
 
 ## Architecture
 
@@ -84,16 +85,17 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
-- Business Rules: `docs/rules/` — 근태 계산 및 법령 기반 업무 규칙 작성 예정
-- Architecture Decisions: `docs/adr/` — 주요 기술 의사결정 기록 예정
-- System Design: `docs/design/` — 아키텍처, ERD 및 화면 설계 예정
+- [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
+- Business Rules: [신청·승인·정정](docs/rules/workflow.md), [계산·법령 근거·검증 사례](docs/rules/calculation.md)
+- System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
+- [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
 ## Roadmap
 
-- [ ] 제품 요구사항 및 MVP 범위 확정
-- [ ] 근태 업무 규칙 명세 및 테스트 케이스 작성
-- [ ] 시스템 아키텍처 및 데이터베이스 설계
+- [x] 제품 요구사항·MVP 범위·역할·핵심 시나리오 문서화
+- [x] 지원 범위의 업무 규칙·테스트 사례 명세 및 미검증 항목 구분
+- [x] 아키텍처·논리 데이터 모델·보안·화면·인터페이스 설계
 - [ ] 개발 환경 및 배포 파이프라인 구성
 - [ ] 핵심 근태관리 기능 구현
 - [ ] 보안 및 성능 테스트
@@ -105,4 +107,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 기획·설계 단계이며 운영 서비스가 아닙니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 법령 세부 기준과 기술 호환성은 별도 공식 검증이 필요하며 문서는 법률 적합성을 보증하지 않습니다.
+현재 기획·설계 문서 단계이며 운영 서비스가 아닙니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 법령 원문·제품·기술의 공개 자료 조회와 실제 고객 적용·인터뷰·구현 테스트는 구분합니다. 미검증 법적 예외·개인정보 처리·실행 호환성·운영 조건은 남아 있으며, 문서는 법률 적합성을 보증하지 않습니다.

@@ -1,5 +1,9 @@
 # vibe-attendance 프로젝트 시작 문서
 
+> 이 문서는 2026-10-23 프로젝트 시작 당시의 방향과 검토 과제를 보존한다. 아래의 Phase 0 범위·미정·미조회 표기는 당시 상태다. 2026-10-24 후속 기획에서 결정한 현재 기준은 [PRD](prd.md), [시장 조사](research/market.md), [신청·승인 규칙](rules/workflow.md), [계산 규칙](rules/calculation.md), [아키텍처](design/architecture.md), [논리 ERD](design/data-model.md), [보안](design/security.md), [화면·HTTP 계약](design/screens.md), [ADR-0001](adr/0001-technology-baseline.md)을 따른다.
+
+고정 근무 중심 MVP의 범위와 상세 설계를 문서화했으며 실제 구현·환경 구축은 미착수다. 초기 MyBatis 4.x·JUnit 5 후보는 공식 자료를 확인한 ADR에서 연동 모듈/본체 구분과 Boot 관리 JUnit 6으로 조정했다. 법률 적용·실제 고객 검증·통합 실행·운영 검증은 문서 작성과 별개로 남아 있다.
+
 ## 1. 문서 목적 및 현재 상태
 
 이 문서는 국내 중소기업 대상 근태관리 SaaS 개인 프로젝트의 방향, 설계 원칙, 기능 후보와 후속 의사결정을 정리한다. 제품 기획과 업무 규칙 명세의 출발점이며 구현 명세나 법률 검토 완료 문서가 아니다.
