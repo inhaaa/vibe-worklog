@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
+    <title>내 화면 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+    <script th:src="@{/vendor/htmx.min.js}" defer></script>
+</head>
+<body hx-history="false">
+<header class="site-header">
+    <a class="brand" th:href="@{/me/today}">tna</a>
+    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
+</header>
+<main class="content">
+    <p class="eyebrow" th:text="${employee.companyName}">회사</p>
+    <h1><span th:text="${employee.employeeName}">직원</span>님의 화면</h1>
+    <p><time th:text="${today}">2026-10-24</time> · Asia/Seoul</p>
+    <section th:replace="~{fragments/status :: status}"></section>
+    <div class="actions">
+        <button type="button" th:attr="hx-get=@{/me/today/status}" hx-target="#setup-status"
+                hx-swap="outerHTML" aria-controls="setup-status">상태 새로 고침</button>
+        <a th:href="@{/me/today}">전체 화면 새로 고침</a>
+    </div>
+    <p class="hint">현재 화면은 인증과 고객사별 본인 조회를 확인합니다. 실제 근태 자료를 입력하지 마세요.</p>
+</main>
+</body>
+</html>

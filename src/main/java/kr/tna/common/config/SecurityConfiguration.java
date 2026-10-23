@@ -1,0 +1,83 @@
+package kr.tna.common.config;
+
+import jakarta.servlet.http.HttpServletResponse;
+import java.time.Clock;
+import kr.tna.common.auth.AuthStore;
+import kr.tna.common.auth.CompanyAuthenticationDetails;
+import kr.tna.common.auth.CompanyAuthenticationProvider;
+import kr.tna.common.auth.PasswordPolicy;
+import kr.tna.common.auth.SessionValidationFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+
+@Configuration(proxyBeanMethods = false)
+public class SecurityConfiguration {
+    @Bean
+    PasswordEncoder passwordEncoder() { return PasswordPolicy.passwordEncoder(); }
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, CompanyAuthenticationProvider provider,
+                                          AuthStore authStore, Clock clock) throws Exception {
+        AuthenticationEntryPoint entryPoint = (request, response, exception) -> {
+            response.setHeader("Cache-Control", "no-store");
+            if ("true".equalsIgnoreCase(request.getHeader("HX-Request"))) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setHeader("HX-Redirect", request.getContextPath() + "/login");
+            } else {
+                response.sendRedirect(request.getContextPath() + "/login");
+            }
+        };
+        // A parent-less manager prevents a rejected attempt invoking the same provider twice.
+        http.authenticationManager(new ProviderManager(provider))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.GET, "/login", "/app.css", "/vendor/htmx.min.js",
+                                "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers("/operator/**", "/actuator/**").denyAll()
+                        .requestMatchers("/", "/me/today", "/me/today/status").authenticated()
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().denyAll())
+                .formLogin(form -> form.loginPage("/login").usernameParameter("email")
+                        .authenticationDetailsSource(CompanyAuthenticationDetails::new)
+                        .defaultSuccessUrl("/me/today", true)
+                        .failureHandler((request, response, exception) -> {
+                            response.setHeader("Cache-Control", "no-store");
+                            if (exception instanceof CompanyAuthenticationProvider.LoginRateLimitedException) {
+                                response.setStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS.value());
+                                response.setHeader("Retry-After", "300");
+                                response.setContentType("text/plain;charset=UTF-8");
+                                response.getWriter().write("로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.");
+                            } else if (exception instanceof AuthenticationServiceException) {
+                                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                                response.setContentType("text/plain;charset=UTF-8");
+                                response.getWriter().write("일시적으로 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+                            } else {
+                                response.sendRedirect(request.getContextPath() + "/login?error");
+                            }
+                        }).permitAll())
+                .logout(logout -> logout.logoutSuccessUrl("/login?logout").deleteCookies("JSESSIONID"))
+                .sessionManagement(session -> session.sessionFixation(fixation -> fixation.changeSessionId()))
+                .requestCache(cache -> cache.disable())
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(entryPoint)
+                        .accessDeniedHandler((request, response, exception) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setHeader("Cache-Control", "no-store");
+                            response.setContentType("text/plain;charset=UTF-8");
+                            response.getWriter().write("요청을 처리할 권한이 없습니다. 화면을 새로 고침한 뒤 다시 시도해 주세요.");
+                        }))
+                .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
+                        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
+                                + "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")))
+                .addFilterAfter(new SessionValidationFilter(authStore, clock, entryPoint),
+                        SecurityContextHolderFilter.class);
+        // CSRF remains enabled, including login and logout. No remember-me or HTTP Basic.
+        return http.build();
+    }
+}
