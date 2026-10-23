@@ -3,7 +3,7 @@
 ## 상태·맥락
 
 - 결정일·공식 자료 조회일: 2026-10-24, Asia/Seoul.
-- 상태: 문서 설계 기준 채택. 프로젝트 생성·의존성 해석·통합 실행·배포 검증은 미수행.
+- 상태: Phase3 문서 설계 기준 채택 당시의 검토 이력을 보존한다. Phase4의 재검증과 실행 범위는 이 문서 마지막 절에 추가한다.
 - 근거: [README](../../README.md)의 Java25·Spring Boot4.1.2·MyBatis4.1.0 후보, [kickoff](../kickoff.md)의 4.1.x·4.x 계획, [PRD](../prd.md)의 MVP와 1인 운영 제약.
 - 원래 표기의 MyBatis4.1.0은 본체 버전으로 단정할 수 없어 아티팩트를 구분한다. JUnit5 후보도 Boot 관리 버전에 맞춰 재검토한다.
 
@@ -79,4 +79,66 @@ Phase4는 사용자의 별도 요청 후에만 시작한다. 착수 전에 다�
 4. 별도 승인을 받은 DB·Docker 작업에서 PostgreSQL18·Flyway·일반 역할 RLS·커넥션 풀 실패 경로·복합 FK·동시 승인 테스트를 실행한다.
 5. 실제 패치·이미지 digest·전이 라이선스·보안 공지·백업 복원·초대 전달 수단·성능 수용 기준을 확인한다.
 
-이번 단계에서는 위 조건을 실제 수행하지 않는다. 문서 작성 완료가 프로젝트 생성·환경 설정·DB 작업·배포·외부 API 사용 승인을 뜻하지 않는다.
+위 내용은 Phase3 완료 시점의 착수 조건이다. 당시에는 이를 실제 수행하지 않았으며 문서 작성 완료를 구현·실행 승인으로 해석하지 않았다.
+
+## Phase4 공식 재검증과 로컬 환경 결정
+
+- 확인일: 2026-10-24, Asia/Seoul.
+- 승인 범위: 프로젝트·설정 파일 생성, 로컬 DB·Docker 작업, 작업 단위별 검증·커밋·일반 Push. 외부 서버 접속·배포는 제외한다.
+- 아래 표는 공식 릴리스·라이선스와 채택 좌표를 확인한 결과다. 전체 조합의 실행 성공이나 전이 의존성 전체 감사를 뜻하지 않는다.
+- Phase4는 빌드·DB 연결·인증·기본 화면의 기반을 검증한다. 근태 계산·신청·승인·휴가·Excel 업무 기능은 Phase5에 구현한다.
+
+### 고정 기준과 공식 근거
+
+| 대상 | Phase4 기준 | 확인한 근거·제약 |
+| --- | --- | --- |
+| JDK 공급자·패치 | Eclipse Temurin 25.0.4.1+1, Windows x64 ZIP | [공식 릴리스](https://github.com/adoptium/temurin25-binaries/releases/tag/jdk-25.0.4.1%2B1)의 실제 Windows 자산을 채택. 25.0.5+8 공개와 OS별 배포 완료는 구분 |
+| Maven·Wrapper | Maven 3.9.16, Maven Wrapper 3.3.4 | [지원 이력](https://maven.apache.org/docs/history.html)은 3.10.0·3.9.16을 지원 계열로 표시. 기존 안정 계열의 3.9.16을 고정하고 [Wrapper 3.3.4](https://maven.apache.org/tools/wrapper/download.cgi)를 사용. 전역 설치 불필요 |
+| Spring Boot | 4.1.2 | [요구사항](https://docs.spring.io/spring-boot/system-requirements.html): Java17~27·Maven3.6.3 이상. 지원 범위에 Java25 포함 |
+| MyBatis | starter4.1.0, MyBatis-Spring4.1.0, 본체3.5.19 | [고정 태그 POM](https://raw.githubusercontent.com/mybatis/spring-boot-starter/mybatis-spring-boot-4.1.0/pom.xml)은 Boot4.1.0 기준. Boot4.1.2와의 실제 연동은 프로젝트 테스트로 확인 |
+| Thymeleaf | 엔진·`thymeleaf-spring6` 3.1.5.RELEASE | [Boot BOM](https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html)과 [Boot4.1.2 모듈](https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.2/module/spring-boot-thymeleaf/build.gradle)이 `thymeleaf-spring6`을 사용. 이름을 근거로 미확인 `spring7` 어댑터로 대체하지 않음 |
+| JUnit·Testcontainers | Boot BOM 관리: JUnit6.0.3, Testcontainers2.0.5 | 테스트 범위만 도입. TC2 모듈 좌표는 `testcontainers-junit-jupiter`·`testcontainers-postgresql`. 컨테이너 실행 여부는 별도 기록 |
+| Flyway·PostgreSQL JDBC | Boot BOM 관리: Flyway12.4.0, JDBC42.7.14 | OSS `org.flywaydb:flyway-core`와 `flyway-database-postgresql`을 같은 버전으로 사용. [공식 DB 문서](https://documentation.red-gate.com/flyway/reference/database-driver-reference/postgresql-database)는 PostgreSQL18과 별도 모듈을 명시 |
+| PostgreSQL | 18.6 | [지원 버전](https://www.postgresql.org/support/versioning/)에서 18계열 현재 minor 확인. Windows는 [PostgreSQL 공식 안내](https://www.postgresql.org/download/windows/)가 연결한 [EDB ZIP](https://www.enterprisedb.com/download-postgresql-binaries)의 18.6-5 배포물로 로컬 검증 |
+| Spring Security·Actuator | Boot4.1.2 starter·BOM | 별도 버전 강제 없음. 로그인·세션·CSRF·헬스 노출 범위를 실행 테스트 대상으로 유지 |
+| htmx | 2.0.11 | [공식 설치 문서](https://htmx.org/docs/)의 버전 확인. 고정 자산을 애플리케이션에서 제공하고 런타임 CDN 의존을 추가하지 않음 |
+| Apache POI | 공식 릴리스6.0.0 확인, Phase4 의존성 추가 보류 | [공식 다운로드](https://poi.apache.org/download.html): 2026-10-22 릴리스. 이번에 Excel 기능을 구현하지 않으므로 라이브러리를 미리 추가하지 않음. 도입 시 Java25 실행·전이 의존성·문자열 셀·메모리 한계를 다시 검증 |
+
+Spring 계열·JUnit·Flyway·JDBC·Testcontainers·Thymeleaf는 Boot BOM을 우선한다. 관리되는 버전을 각각 임의 상향하거나 JUnit5를 함께 강제하지 않는다. 실제 해석된 트리가 위 공식 좌표와 다르면 원인을 확인하고 실행 근거를 남긴다.
+
+### JDK 패치와 다운로드 무결성
+
+25.0.5+8은 [공식 릴리스 목록](https://github.com/adoptium/temurin25-binaries/releases)에 공개됐지만, 조회 당시 해당 릴리스의 공식 API 자산에는 Windows 패키지가 없었다. [공식 Docker 이미지 목록](https://raw.githubusercontent.com/docker-library/official-images/master/library/eclipse-temurin)도 아직 25.0.4.1_1 태그를 제공했다. 로컬 Windows와 컨테이너 기준을 실제 공급되는 동일 패치로 맞추기 위해 25.0.4.1+1을 선택한다. 이를 Java25의 최신 보안 패치라고 표현하지 않는다.
+
+- 다운로드: [OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.zip](https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.zip).
+- 공식 체크섬: [ZIP SHA256](https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jdk_x64_windows_hotspot_25.0.4.1_1.zip.sha256.txt).
+- 공식 SHA256 값: `00c847d804f4a78e9f04f2683faf14fed898535b177b7fc704486cb0284e9283`.
+- portable 도구를 사용하고 시스템 전역 설치·영구 환경변수 변경을 전제로 하지 않는다. JDK 배포물의 `legal` 고지는 보존한다.
+- 25.0.5 이상 Windows·컨테이너 공급이 완료되면 패치·체크섬·이미지 digest를 함께 갱신하고 빌드·통합 테스트를 다시 실행한다. 외부 공개·배포 전에 보안 공지와 패치 적정성을 재검토한다.
+
+### 직접 라이선스 재확인
+
+| 대상 | 직접 확인한 라이선스·공식 근거 | 남은 경계 |
+| --- | --- | --- |
+| Eclipse Temurin | GPLv2 + Classpath Exception: [Adoptium FAQ](https://adoptium.net/docs/faq/) | 실제 JDK 배포물의 추가 고지·제3자 구성요소 보존 |
+| Maven·Wrapper | Apache2.0: [Maven 라이선스](https://www.apache.org/licenses/), [Wrapper 고정 태그](https://raw.githubusercontent.com/apache/maven-wrapper/maven-wrapper-3.3.4/LICENSE) | 배포되는 스크립트·NOTICE 고지 보존 |
+| Spring Boot·MyBatis | Apache2.0: 기존 고정 태그 근거와 [MyBatis-Spring4.1.0 LICENSE](https://raw.githubusercontent.com/mybatis/spring/mybatis-spring-4.1.0/LICENSE) | 해석된 전체 starter·전이 트리의 개별 라이선스 |
+| Thymeleaf3.1.5.RELEASE | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/thymeleaf/thymeleaf/thymeleaf-3.1.5.RELEASE/LICENSE.txt) | 어댑터 포함 실제 JAR 고지와 전이 라이브러리 |
+| JUnit6.0.3·Testcontainers2.0.5 | EPL2.0·MIT: [JUnit 고정 태그](https://raw.githubusercontent.com/junit-team/junit-framework/r6.0.3/LICENSE.md), [Testcontainers 고정 태그](https://raw.githubusercontent.com/testcontainers/testcontainers-java/2.0.5/LICENSE) | 테스트 의존성과 런타임 배포물을 분리 |
+| Flyway12.4.0 OSS | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/flyway/flyway/flyway-12.4.0/LICENSE.txt) | OSS 좌표만 사용. 상용 기능·별도 Redgate 배포물 조건을 일반화하지 않음 |
+| PostgreSQL·JDBC42.7.14 | PostgreSQL License·BSD2: [서버 라이선스](https://www.postgresql.org/about/licence/), [JDBC 고정 태그 LICENSE](https://raw.githubusercontent.com/pgjdbc/pgjdbc/REL42.7.14/LICENSE) | EDB ZIP·컨테이너 OS의 포함 구성요소는 별도 고지 |
+| htmx2.0.11 | 0BSD: [고정 태그 LICENSE](https://github.com/bigskysoftware/htmx/blob/v2.0.11/LICENSE) | 자산 버전과 출처를 유지 |
+| Apache POI6.0.0 | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/apache/poi/REL_6_0_0/legal/LICENSE) | 미도입. 향후 OOXML·전이 의존성과 NOTICE까지 재검토 |
+
+직접 구성요소의 라이선스를 확인한 것이 전체 의존성·컨테이너 OS의 라이선스 감사 완료를 뜻하지 않는다. Docker Desktop은 별도 사용 조건이 있는 제품이므로 PostgreSQL·Testcontainers·Docker Engine의 라이선스와 혼동하지 않는다. 이번에는 Docker Desktop·WSL을 새로 설치하지 않는다.
+
+### 로컬 실행 검증 범위
+
+로컬 JDK와 portable PostgreSQL의 실행 가능 여부를 확인했다. Maven 의존성 해석·테스트의 최종 결과와 실제 사용 버전은 실행 완료 후 기록한다. 공식 문서의 지원 범위를 프로젝트 전체 통합 성공으로 바꾸어 표현하지 않는다.
+
+- 현재 호스트에는 사용 가능한 Docker 실행 환경이 없고 WSL은 비활성 상태다. Docker 이미지 빌드·Compose 기동·Testcontainers 실행을 통과했다고 기록하지 않는다.
+- 로컬 DB 검증은 루프백에 바인딩한 별도 portable PostgreSQL18.6 인스턴스와 프로젝트 전용 데이터·계정으로 수행한다. 기존 서비스·외부 서버·운영 DB에는 접근하지 않는다.
+- native DB 테스트와 Testcontainers 테스트는 같은 Flyway·인증·테넌트 경계를 검증하도록 구성하되, native 실행 성공이 컨테이너 실행 성공을 대체하지 않는다.
+- DB 연결·Flyway 이력·일반 역할의 RLS·SQL 테넌트 조건·컨텍스트 실패/재사용·기본 로그인/CSRF 검증을 구분해 결과를 남긴다. Phase5의 실제 승인 동시성·근태 계산 테스트까지 완료한 것으로 확대하지 않는다.
+- 공식 Docker 후보는 `eclipse-temurin:25.0.4.1_1-jdk-noble`, `eclipse-temurin:25.0.4.1_1-jre-noble`, [공식 PostgreSQL 목록](https://raw.githubusercontent.com/docker-library/official-images/master/library/postgres)의 `postgres:18.6-bookworm`이다. digest·이미지 실행·OS 패키지 검증은 Docker를 사용할 수 있는 환경에서 확인한다.
+- Caddy·HTTPS·운영 백업/복원·부하·외부 배포는 이번 로컬 환경 검증 완료와 별개다. 실제 배포는 수행하지 않는다.
