@@ -1,0 +1,12 @@
+# Only Maven build inputs enter the image context.
+**
+!pom.xml
+!mvnw
+!.mvn/
+!.mvn/**
+!src/
+!src/**
+**/.env
+**/.env.*
+**/*.log
+**/target

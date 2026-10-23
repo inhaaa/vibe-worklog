@@ -1,0 +1,66 @@
+name: vibe-attendance-local
+
+services:
+  db:
+    image: postgres:18.6-bookworm@sha256:bbf83594798e144bff365a9c191c5d779f181fb3135902064ab8ff11918020fc
+    environment:
+      POSTGRES_DB: tna
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      TNA_MIGRATION_DB_PASSWORD: ${TNA_MIGRATION_DB_PASSWORD:?Set TNA_MIGRATION_DB_PASSWORD in .env}
+      TNA_APP_DB_PASSWORD: ${TNA_APP_DB_PASSWORD:?Set TNA_APP_DB_PASSWORD in .env}
+      TNA_AUTH_DB_PASSWORD: ${TNA_AUTH_DB_PASSWORD:?Set TNA_AUTH_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infra/postgres/001-roles.sh:/docker-entrypoint-initdb.d/001-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d tna"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      TNA_JDBC_URL: jdbc:postgresql://db:5432/tna
+      TNA_MIGRATION_DB_PASSWORD: ${TNA_MIGRATION_DB_PASSWORD:?Set TNA_MIGRATION_DB_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: "18080"
+      TNA_JDBC_URL: jdbc:postgresql://db:5432/tna
+      TNA_APP_DB_PASSWORD: ${TNA_APP_DB_PASSWORD:?Set TNA_APP_DB_PASSWORD in .env}
+      TNA_AUTH_DB_PASSWORD: ${TNA_AUTH_DB_PASSWORD:?Set TNA_AUTH_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:18080:18080"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  postgres-data:
