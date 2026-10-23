@@ -2,7 +2,7 @@ FROM eclipse-temurin:25.0.4.1_1-jdk-noble@sha256:ba0f0e1a33864105e1d454e88105c61
 
 WORKDIR /workspace
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl unzip \
     && rm -rf /var/lib/apt/lists/*
 COPY --chmod=0755 mvnw ./mvnw
 COPY .mvn/ .mvn/
@@ -10,7 +10,16 @@ COPY pom.xml ./pom.xml
 COPY LICENSES/ LICENSES/
 COPY THIRD_PARTY_NOTICES.md ./
 COPY src/ src/
-RUN ./mvnw -B -Dmaven.test.skip=true package
+RUN --mount=type=secret,id=local_build_ca \
+    --mount=type=secret,id=maven_settings,target=/root/.m2/settings.xml \
+    set -eu; \
+    if [ -s /run/secrets/local_build_ca ]; then \
+        cp /run/secrets/local_build_ca /usr/local/share/ca-certificates/tna-local-build-ca.crt; \
+        update-ca-certificates; \
+        keytool -importcert -noprompt -alias tna-local-build-ca -cacerts -storepass changeit \
+            -file /run/secrets/local_build_ca; \
+    fi; \
+    ./mvnw -B -Dmaven.test.skip=true package
 
 FROM build AS migrate
 CMD ["./mvnw", "-B", "flyway:migrate"]

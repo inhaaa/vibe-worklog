@@ -131,9 +131,9 @@ Spring 계열·JUnit·Flyway·JDBC·Testcontainers·Thymeleaf는 Boot BOM을 우
 | Apache POI6.0.0 | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/apache/poi/REL_6_0_0/legal/LICENSE) | 미도입. 향후 OOXML·전이 의존성과 NOTICE까지 재검토 |
 | 검증 도구 Docker Compose5.6.1 | Apache2.0: [고정 태그 LICENSE](https://raw.githubusercontent.com/docker/compose/v5.6.1/LICENSE) | portable CLI로 구성만 해석. Docker Desktop 라이선스·daemon 설치와 별개 |
 
-직접 구성요소의 라이선스를 확인한 것이 전체 의존성·컨테이너 OS의 라이선스 감사 완료를 뜻하지 않는다. Docker Desktop은 별도 사용 조건이 있는 제품이므로 PostgreSQL·Testcontainers·Docker Engine의 라이선스와 혼동하지 않는다. 이번에는 Docker Desktop·WSL을 새로 설치하지 않는다.
+직접 구성요소의 라이선스를 확인한 것이 전체 의존성·컨테이너 OS의 라이선스 감사 완료를 뜻하지 않는다. Docker Desktop은 별도 사용 조건이 있는 제품이므로 PostgreSQL·Testcontainers·Docker Engine의 라이선스와 혼동하지 않는다. 최초 기반 구축에서는 Docker Desktop·WSL을 설치하지 않았다. 후속 설치·검증은 문서 마지막 절을 따른다.
 
-### 로컬 실행 검증 범위
+### 최초 로컬 실행 검증 범위: Docker 설치 전
 
 Temurin25.0.4.1+1·Maven Wrapper3.3.4/Maven3.9.16·portable PostgreSQL18.6에서 다음을 실행했다. 공식 문서의 지원 범위와 실제 프로젝트 실행 결과를 구분한다.
 
@@ -154,9 +154,45 @@ DB 명세의 `left_on`은 마지막 재직일을 포함한다. 인증의 재직 
 
 Maven Central의 대용량 다운로드 지연은 커밋하지 않은 작업용 Maven mirror 설정으로 우회했다. 저장소 POM·전역 Maven 설정·공식 Wrapper 배포 URL을 변경하지 않았다. 재실행 시 기본 Central 또는 조직에서 승인한 mirror를 사용한다.
 
-- 현재 호스트에는 사용 가능한 Docker 실행 환경이 없고 WSL은 비활성 상태다. Docker 이미지 빌드·Compose 기동·Testcontainers 실행을 통과했다고 기록하지 않는다.
+- 최초 검증 당시 호스트에는 사용 가능한 Docker 실행 환경이 없고 WSL 런타임도 없었다. 당시에는 Docker 이미지 빌드·Compose 기동·Testcontainers 실행을 통과했다고 기록하지 않았다.
 - 로컬 DB 검증은 루프백에 바인딩한 별도 portable PostgreSQL18.6 인스턴스와 프로젝트 전용 데이터·계정으로 수행한다. 기존 서비스·외부 서버·운영 DB에는 접근하지 않는다.
 - native DB 테스트와 Testcontainers 테스트는 같은 Flyway·인증·테넌트 경계를 검증하도록 구성하되, native 실행 성공이 컨테이너 실행 성공을 대체하지 않는다.
 - DB 연결·Flyway 이력·일반 역할의 RLS·SQL 테넌트 조건·컨텍스트 실패/재사용·기본 로그인/CSRF 검증을 구분해 결과를 남긴다. Phase5의 실제 승인 동시성·근태 계산 테스트까지 완료한 것으로 확대하지 않는다.
 - 공식 이미지 태그와 registry manifest digest를 조회해 [Dockerfile](../../Dockerfile)·[Compose](../../compose.yaml)에 고정했다. 태그는 `eclipse-temurin:25.0.4.1_1-jdk-noble`, `eclipse-temurin:25.0.4.1_1-jre-noble`, [공식 PostgreSQL 목록](https://raw.githubusercontent.com/docker-library/official-images/master/library/postgres)의 `postgres:18.6-bookworm`이다. digest 조회는 이미지 빌드·실행·OS 패키지 검증과 구분한다.
 - Caddy·HTTPS·운영 백업/복원·부하·외부 배포는 이번 로컬 환경 검증 완료와 별개다. 실제 배포는 수행하지 않는다.
+
+## Docker 후속 설치·실행 검증
+
+2026-10-24 사용자가 남은 Docker 검증에 필요한 Docker·WSL 설치와 환경 설정을 추가 승인했다. 기존 실행 이력은 위에 보존하고 이후 결과를 구분한다. 외부 서버 접속·배포·Phase 5 기능 개발은 제외한다.
+
+### 호스트 도구와 설치 근거
+
+- 호스트: Windows 11 Enterprise 23H2, 빌드22631, x64. VirtualMachinePlatform과 Windows hypervisor는 이미 활성화되어 있었다. 기존 WSL 배포판·Docker Desktop은 없었다.
+- WSL3.0.3: [Microsoft 고정 릴리스](https://github.com/microsoft/WSL/releases/tag/3.0.3)의 x64 MSI를 사용했다. [공식 자산 SHA256](https://github.com/microsoft/WSL/releases/expanded_assets/3.0.3)은 `ae977286974255bd26bf925f00f40f5692c6b2084155cbc0563c09aea091f211`이며 다운로드 파일과 일치했다. Microsoft Corporation Authenticode 서명은 `Valid`였다.
+- [Microsoft 오프라인 설치](https://learn.microsoft.com/en-us/windows/wsl/install#offline-install)에 따라 관리자 MSI 설치에 `/qn /norestart REBOOT=ReallySuppress`를 사용했다. 종료코드0, WSL3.0.3.0·kernel6.18.54.1-1·기본WSL2를 확인했다. 일반 Ubuntu·WSL1 기능을 추가하지 않았다.
+- Docker Desktop4.96.3: [공식 Windows 설치 절차](https://docs.docker.com/desktop/setup/install/windows-install/)의 사용자별 `--user --quiet --accept-license --backend=wsl-2`로 설치했다. 종료코드0, Docker CLI29.9.2와 Compose5.6.1을 확인했다. 관리자 상주 서비스·Windows 컨테이너를 위한 그룹 권한 추가는 하지 않았다.
+- [Docker 공식 체크섬](https://desktop.docker.com/win/main/amd64/244472/checksums.txt)의 x64 설치 파일 SHA256 `3d8adad4f6c86583e0b00ea19a76197c51ccf5c83437c9ed775b739756452507`과 일치했고 Docker Inc Authenticode 서명은 `Valid`였다.
+- Docker Desktop은 [개인 사용의 무료 조건](https://docs.docker.com/subscription-billing/desktop-license/)을 확인했다. 사용 주체·용도가 바뀌면 약관을 다시 검토한다. WSL·Linux kernel·Docker Desktop 포함물의 고지는 설치 배포물에 보존하며, 이 기록이 전체 라이선스 감사는 아니다.
+
+설치 후 `desktop-linux`의 로컬 named pipe를 통해 Engine29.9.2(API1.56, Linux amd64) 응답을 확인했다. 기존 컨테이너·이미지는0개였다. WSL·Docker 엔진 기동에 재부팅은 필요하지 않았으며 자동 재부팅도 실행하지 않았다.
+
+### Docker 빌드에서 확인한 문제와 조정
+
+- 최초 빌드는 컨테이너 curl의 인증서 체인 검증 오류60으로 실패했다. Windows 기본 TLS 검증과 기존 Root 저장소를 확인한 공개 CA만 ignored 파일로 내보내 optional `local_build_ca` BuildKit secret으로 전달했다. TLS 검증을 해제하지 않았다. [Docker CA 안내](https://docs.docker.com/engine/network/ca-certs/)를 따른다.
+- Dockerfile에 `unzip`을 추가했다. 없으면 공식 Wrapper가 ZIP URL을 tar.gz로 바꾸므로, ZIP으로 고정한 SHA256과 다운로드 형식을 일치시켰다. Wrapper 원본 스크립트나 체크섬 검증은 변경하지 않았다.
+- Maven Central의 큰 JAR 전송이84초간 정체되어 해당 빌드만 중지하고, 앞서 사용한 로컬 미러 설정을 optional `maven_settings` BuildKit secret으로 주입했다. Maven 설정 내용은 이미지에 복사하지 않으며 migrate 실행에도 별도 read-only secret으로 전달했다. 저장소 기본 POM·Wrapper URL·전역 Maven 설정은 유지했다.
+- CA는 builder의 OS·Java 저장소와 이를 상속한 migrate 이미지에 남는다. 앱 runtime은 독립 JRE에서 JAR만 복사하므로 CA·Maven 설정을 포함하지 않는다. CA·Maven 설정·호스트별 override·비밀번호는 Git에 포함하지 않는다. [BuildKit secret](https://docs.docker.com/build/building/secrets/)의 내용 변경은 캐시를 자동 무효화하지 않으므로 변경 시 재빌드한다.
+
+### 후속 실행 결과
+
+| 검증 | 결과 |
+| --- | --- |
+| 앱·migrate 이미지 | 고정 Temurin digest로 실제 빌드 성공, 위 로컬 네트워크용 secret 사용 |
+| Compose 기동 | 전용 프로젝트 `vibe-attendance-local`, PostgreSQL18.6 healthy·Flyway V1 적용·migrate 종료0·앱 기동 성공 |
+| Compose HTTP | health UP·UTF-8/CSRF/CSP·미인증 전체/htmx 차단·존재하지 않는 합성 계정의 일반화된 실패·고정 htmx·로그아웃 CSRF 등10개 통과 |
+| DB 초기화·권한 | 최소3역할, 우회·상속·관리 권한 없음,4개 FORCE RLS, 일반 앱의 자격 테이블 접근·쓰기 차단, migration 이력1개 확인 |
+| 운영 자료·실행 경계 | 고객사/계정0, 게시 포트 loopback만, 앱 uid10001·read-only·cap_drop ALL, 관리자/migration 자격·빌드 secret 앱 미전달 확인 |
+| 이미지 분리 | 앱 runtime의 추가 CA 부재, migrate 이미지의 Maven 설정 내용 부재 확인 |
+| Testcontainers2.0.5 | native JDBC override 없이 실제 PostgreSQL18.6 컨테이너 생성·실행. 단위3·DB11·웹11, 총25개 통과·실패/오류/건너뜀0 |
+
+Compose에는 기본 사용자·데모 고객을 넣지 않았다. 성공 로그인과 고객 간 격리는 독립 Testcontainers 합성 자료로 검증했다. 검증 컨테이너는 자기 프로젝트만 종료하고 DB 볼륨과 ignored 로컬 실행 설정은 유지한다. 초기 보안·성능·백업 복원·운영 배포·법률 예외·Phase5 업무 규칙 검증이 모두 완료됐다는 뜻은 아니다. 외부 서버 접속·배포는 실행하지 않았다.
