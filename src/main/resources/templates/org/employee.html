@@ -59,8 +59,8 @@
                 <tbody>
                 <tr th:each="assignment : ${assignments}">
                     <td th:text="${assignment.organizationName}">조직 이름</td>
-                    <td><time th:datetime="${assignment.validFrom}" th:text="${assignment.validFrom}">2026-10-24</time></td>
-                    <td th:text="${assignment.validTo == null ? '종료일 없음' : assignment.validTo}">종료일 없음</td>
+                    <td><time th:datetime="${assignment.validFrom}" th:text="${@seoulTime.date(assignment.validFrom)}">2026-10-24</time></td>
+                    <td th:text="${assignment.validTo == null ? '종료일 없음' : @seoulTime.date(assignment.validTo)}">종료일 없음</td>
                     <td class="reason-cell" th:text="${assignment.reason}">등록 사유</td>
                 </tr>
                 </tbody>

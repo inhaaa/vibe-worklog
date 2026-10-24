@@ -89,8 +89,8 @@
                 <caption class="sr-only">승인자와 적용 구간, 변경 사유</caption>
                 <thead><tr><th scope="col">승인자</th><th scope="col">시작일</th><th scope="col">종료일 (제외)</th><th scope="col">상태</th><th scope="col">사유</th></tr></thead>
                 <tbody><tr th:each="assignment : ${assignments}">
-                    <td th:text="${assignment.approverName}">승인자</td><td th:text="${assignment.validFrom}">시작일</td>
-                    <td th:text="${assignment.validTo == null ? '미지정' : assignment.validTo}">종료일</td>
+                    <td th:text="${assignment.approverName}">승인자</td><td th:text="${@seoulTime.date(assignment.validFrom)}">시작일</td>
+                    <td th:text="${assignment.validTo == null ? '미지정' : @seoulTime.date(assignment.validTo)}">종료일</td>
                     <td th:text="${assignment.supersededAt != null ? '당일 교체·해제' : (assignment.validTo != null ? '종료' : (assignment.eligible ? '현재 유효' : '재지정 필요'))}">상태</td>
                     <td class="reason-cell" th:text="${assignment.reason}">사유</td>
                 </tr></tbody>

@@ -2,10 +2,10 @@ package kr.tna.clock;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.*;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Supplier;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.common.web.SeoulTimeDisplay;
 import kr.tna.clock.AttendanceSettingsData.*;
 import kr.tna.clock.ClockData.*;
 import kr.tna.org.*;
@@ -20,6 +20,7 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class AttendanceController {
+    private static final SeoulTimeDisplay TIME_DISPLAY = new SeoulTimeDisplay();
     private final AttendanceSettingsService settings;private final ClockService clocks;private final OrgCommands commands;
     public AttendanceController(AttendanceSettingsService settings,ClockService clocks,OrgCommands commands){this.settings=settings;this.clocks=clocks;this.commands=commands;}
     @GetMapping("/admin/networks") ModelAndView networks(@AuthenticationPrincipal TnaPrincipal actor){return networkPage(actor,null);}
@@ -34,7 +35,7 @@ public class AttendanceController {
     private ModelAndView calendarPage(TnaPrincipal actor,CalendarForm form){return new ModelAndView("clock/calendar").addObject("calendars",settings.calendars(actor)).addObject("form",form!=null?form:new CalendarForm(commands.today(),commands.today().plusDays(30),false,"","","",UUID.randomUUID()));}
     private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){var d=clocks.day(actor,date);return new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d)).addObject("confirmationForm",form!=null?form:confirmation(d));}
     public static ConfirmationForm confirmation(DaySnapshot d){return new ConfirmationForm(d.workDate(),d.inputRevision(),d.reviewRevision(),false,false,d.sourceFingerprint(),UUID.randomUUID());}
-    public static Map<UUID,String> times(DaySnapshot d){var f=DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS").withZone(ZoneId.of("Asia/Seoul"));Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),f.format(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),f.format(e.occurredAt()));return values;}
+    public static Map<UUID,String> times(DaySnapshot d){Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));return values;}
     private ModelAndView submit(Supplier<UUID> fn,String target,Supplier<ModelAndView> page){try{fn.get();return redirect(target);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var v=page.get().addObject("error",e.getMessage());v.setStatus(HttpStatusCode.valueOf(e.status()));return v;}}
     private ModelAndView redirect(String path){var r=new RedirectView(path,true);r.setStatusCode(HttpStatus.SEE_OTHER);return new ModelAndView(r);}
     private void check(BindingResult b){if(b.hasErrors())throw new OrgException(400,"날짜·식별자·버전 형식을 확인해 주세요.");}

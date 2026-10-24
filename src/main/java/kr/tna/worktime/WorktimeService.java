@@ -150,7 +150,7 @@ public final class WorktimeService {
             rows.add(row("고객사",company,"고객사 ID",actor.tenantId().toString()));
             rows.add(row("조회 시작일",from.toString(),"조회 종료일",to.toString(),"사원 ID",target.toString()));
             rows.add(row("스냅샷 ID",id.toString()));
-            rows.add(row("생성 시각",at.toString(),"시간대","Asia/Seoul","규칙","CALC-1"));
+            rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙","CALC-1"));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
                     "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","종일 연차(DAY)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
@@ -165,7 +165,7 @@ public final class WorktimeService {
                         day.id()==null?"미산정":day.current()?"작성 시점 현재":"오래됨 · 재집계 필요",r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
                         r.confirmedBreakMillis(),r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                         String.join(";",r.reasons().stream().sorted().toList()),day.id()==null?null:day.id().toString(),day.runId()==null?null:day.runId().toString(),
-                        day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:day.calculatedAt().toString(),
+                        day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:EXPORT_INSTANT.format(day.calculatedAt()),
                         mapper.organizationAt(actor.tenantId(),target,day.workDate()),saved==null||saved.scheduleVersionId()==null?null:saved.scheduleVersionId().toString(),
                         saved==null||saved.calendarVersionId()==null?null:saved.calendarVersionId().toString(),evidence==null?null:evidence.policyVersionId(),evidence==null?null:evidence.assessmentId(),
                         exportedEvents(saved,"IN"),exportedEvents(saved,"OUT"),exportedBreaks(saved),

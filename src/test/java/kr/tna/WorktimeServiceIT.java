@@ -71,6 +71,23 @@ class WorktimeServiceIT {
         db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision) VALUES (?,?,?,2,0)",tenant,employee.employeeId(),date);
         var before=clocks.day(employee,date);clocks.confirm(employee,new ConfirmationForm(date,2L,0L,true,true,before.sourceFingerprint(),UUID.randomUUID()));
     }
+    @Test void workbookGenerationAndCalculationTimesUseTheSameExplicitSeoulOffset() throws Exception {
+        recalculate();
+        Instant calculated=db.queryForObject("SELECT calculated_at FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=? ORDER BY result_revision DESC LIMIT 1",
+                java.sql.Timestamp.class,tenant,employee.employeeId(),date).toInstant();
+        UUID snapshot=reports.prepareExport(manager,employee.employeeId(),date,date,UUID.randomUUID(),"합성 서울 메타데이터");
+        Instant asOf=db.queryForObject("SELECT as_of FROM tna.report_snapshot WHERE tenant_id=? AND id=?",java.sql.Timestamp.class,tenant,snapshot).toInstant();
+        byte[] frozen=reports.download(manager,snapshot);String sheet=null;
+        try(var zip=new ZipInputStream(new ByteArrayInputStream(frozen),StandardCharsets.UTF_8)) {
+            for(var entry=zip.getNextEntry();entry!=null;entry=zip.getNextEntry())if(entry.getName().equals("xl/worksheets/sheet1.xml"))sheet=new String(zip.readAllBytes(),StandardCharsets.UTF_8);
+        }
+        assertNotNull(sheet);
+        var format=java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX",java.util.Locale.ROOT).withZone(ZoneId.of("Asia/Seoul"));
+        assertTrue(sheet.contains(format.format(asOf)));assertTrue(sheet.contains(format.format(calculated)));
+        assertFalse(sheet.contains(asOf.toString()));assertFalse(sheet.contains(calculated.toString()));
+        assertArrayEquals(frozen,reports.download(manager,snapshot),"다운로드는 보존한 스냅샷을 재생성하지 않아야 합니다.");
+    }
+
     @Test void resultSchemaExists() {
         assertNotNull(db.queryForObject("SELECT to_regclass('tna.day_result')::text",String.class));
         assertEquals(5,db.queryForObject("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='tna' AND c.relname IN ('work_policy_version','employment_rule_assessment','calculation_run','day_result','report_snapshot') AND c.relrowsecurity AND c.relforcerowsecurity",Integer.class));

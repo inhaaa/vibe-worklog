@@ -39,8 +39,8 @@
                 <tr th:each="employee : ${employees}">
                     <td th:text="${employee.employeeNo}">EMP</td>
                     <td><a th:href="@{/admin/employees/{id}(id=${employee.id})}" th:text="${employee.displayName}">사원 이름</a></td>
-                    <td><time th:datetime="${employee.joinedOn}" th:text="${employee.joinedOn}">2026-10-24</time></td>
-                    <td th:text="${employee.leftOn == null ? '미지정' : employee.leftOn}">미지정</td>
+                    <td><time th:datetime="${employee.joinedOn}" th:text="${@seoulTime.date(employee.joinedOn)}">2026-10-24</time></td>
+                    <td th:text="${employee.leftOn == null ? '미지정' : @seoulTime.date(employee.leftOn)}">미지정</td>
                     <td th:text="${employee.active} ? '활성' : '비활성'">활성</td>
                 </tr>
                 </tbody>
