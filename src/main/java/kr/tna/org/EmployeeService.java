@@ -31,6 +31,10 @@ public final class EmployeeService {
         return commands.read(actor, () -> mapper.list(actor.tenantId(), search, offset));
     }
 
+    public List<Employee> options(TnaPrincipal actor) {
+        return commands.read(actor, () -> mapper.options(actor.tenantId()));
+    }
+
     public Employee get(TnaPrincipal actor, UUID id) {
         return commands.read(actor, () -> requireEmployee(actor.tenantId(), id));
     }

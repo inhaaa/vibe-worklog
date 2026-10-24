@@ -25,6 +25,12 @@ public interface EmployeeAdminMapper {
 
     @Select("""
             SELECT id, employee_no, display_name, joined_on, left_on, active, version
+            FROM tna.employee WHERE tenant_id=#{tenantId} ORDER BY employee_no, id
+            """)
+    List<Employee> options(@Param("tenantId") UUID tenantId);
+
+    @Select("""
+            SELECT id, employee_no, display_name, joined_on, left_on, active, version
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     Employee get(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
