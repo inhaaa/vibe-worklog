@@ -40,8 +40,8 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/login", "/app.css", "/vendor/htmx.min.js",
                                 "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/invite/*").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/invite/*/accept").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/invite/*", "/password-reset").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**",

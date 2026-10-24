@@ -118,7 +118,9 @@ class AccountAccessSchemaIT {
                     """, scope.tenant(), token));
             return null;
         });
-        rejects("42501", authTransactions, scope, () -> auth.update("UPDATE tna.account_token SET revoked_at = now()"));
+        assertEquals(1, authTransactions.execute(scope.tenant(), () -> auth.update(
+                "UPDATE tna.account_token SET revoked_at = now() WHERE tenant_id = ? AND id = ?",
+                scope.tenant(), token)));
         appTransactions.execute(scope.tenant(), () -> app.update("""
                 UPDATE tna.account_token SET revoked_at = now() WHERE tenant_id = ? AND id = ?
                 """, scope.tenant(), token));

@@ -18,7 +18,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 허용 IP·휴일 캘린더·원천 출퇴근·퇴근 후 실제 근로 확인: 구현 및 로컬 DB 검증 완료
 - 종일 연차·기초 원장·독립 승인·취소·정정: 구현 및 로컬 검증 완료
 - 일·주·월 집계·불변 검토용 Excel·감사 조회: 로컬 검증 완료
-- 계정 복구·운영자 연결: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
+- 로컬 모의 비밀번호 재설정: 일회성 RESET·세션 회수 구현
+- 운영자 연결: 검증 중, 운영 환경·외부 배포 미착수
 
 ## Overview
 
@@ -63,7 +64,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 ## Local Development
 
-로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정·최초 고객사 온보딩은 후속입니다.
+로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 다음 단위입니다.
 
 Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
 
@@ -109,6 +110,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Worktime Engine](docs/design/worktime-engine.md): CALC-1 순수 산정과 미확정·부분합 계약
 - [Fixed Schedule](docs/design/fixed-schedule.md): 고정 템플릿·불변 버전·사원별 적용일 배정
 - [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위
+- [Password Reset](docs/design/password-reset.md): 목적·만료·일회성·세션 회수와 모의 전달
 - [Account Access](docs/design/account-access.md): 초대·역할·당일 승인자 배정 계약
 - [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
 - [Local Development](docs/development/local.md): 로컬 실행·마이그레이션·테스트·남은 검증
