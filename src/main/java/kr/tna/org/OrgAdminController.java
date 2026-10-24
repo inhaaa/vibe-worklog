@@ -1,0 +1,149 @@
+package kr.tna.org;
+
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.stereotype.Controller;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.view.RedirectView;
+
+@Controller
+public class OrgAdminController {
+    private final OrganizationService organizations;
+    private final EmployeeService employees;
+
+    public OrgAdminController(OrganizationService organizations, EmployeeService employees) {
+        this.organizations = organizations;
+        this.employees = employees;
+    }
+
+    @GetMapping("/admin/organizations")
+    ModelAndView organizations(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
+        return organizationList(actor, q, page, null);
+    }
+
+    @PostMapping("/admin/organizations")
+    ModelAndView createOrganization(@AuthenticationPrincipal TnaPrincipal actor,
+            @ModelAttribute("form") OrgData.OrganizationForm form, BindingResult binding) {
+        checkBinding(binding);
+        return submit(() -> organizations.create(actor, form), "/admin/organizations/",
+                error -> organizationList(actor, "", 0, form));
+    }
+
+    @GetMapping("/admin/organizations/{id}")
+    ModelAndView organization(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id) {
+        return organizationDetail(actor, id, null);
+    }
+
+    @PostMapping("/admin/organizations/{id}/changes")
+    ModelAndView changeOrganization(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @ModelAttribute("form") OrgData.OrganizationForm form, BindingResult binding) {
+        checkBinding(binding);
+        return submit(() -> organizations.update(actor, id, form), "/admin/organizations/",
+                error -> organizationDetail(actor, id, form));
+    }
+
+    @GetMapping("/admin/employees")
+    ModelAndView employees(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
+        return employeeList(actor, q, page, null);
+    }
+
+    @PostMapping("/admin/employees")
+    ModelAndView createEmployee(@AuthenticationPrincipal TnaPrincipal actor,
+            @ModelAttribute("form") OrgData.EmployeeForm form, BindingResult binding) {
+        checkBinding(binding);
+        return submit(() -> employees.create(actor, form), "/admin/employees/",
+                error -> employeeList(actor, "", 0, form));
+    }
+
+    @GetMapping("/admin/employees/{id}")
+    ModelAndView employee(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id) {
+        return employeeDetail(actor, id, null, null);
+    }
+
+    @PostMapping("/admin/employees/{id}/changes")
+    ModelAndView changeEmployee(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @ModelAttribute("form") OrgData.EmployeeForm form, BindingResult binding) {
+        checkBinding(binding);
+        return submit(() -> employees.update(actor, id, form), "/admin/employees/",
+                error -> employeeDetail(actor, id, form, null));
+    }
+
+    @PostMapping("/admin/employees/{id}/assignments")
+    ModelAndView assign(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @ModelAttribute("assignmentForm") OrgData.AssignmentForm form, BindingResult binding) {
+        checkBinding(binding);
+        return submit(() -> employees.assign(actor, id, form), "/admin/employees/",
+                error -> employeeDetail(actor, id, null, form));
+    }
+
+    private ModelAndView organizationList(TnaPrincipal actor, String q, int page, OrgData.OrganizationForm form) {
+        var list = organizations.list(actor, q, page);
+        var view = new ModelAndView("org/organizations")
+                .addObject("organizations", list.stream().limit(50).toList())
+                .addObject("hasNext", list.size() > 50).addObject("q", q).addObject("page", page)
+                .addObject("form", form != null ? form : new OrgData.OrganizationForm(
+                        "", "", null, true, null, "", UUID.randomUUID()));
+        return options(view, actor);
+    }
+
+    private ModelAndView organizationDetail(TnaPrincipal actor, UUID id, OrgData.OrganizationForm form) {
+        var org = organizations.get(actor, id);
+        return options(new ModelAndView("org/organization").addObject("organization", org)
+                .addObject("form", form != null ? form : new OrgData.OrganizationForm(
+                        org.code(), org.name(), org.parentId(), org.active(), org.version(), "", UUID.randomUUID())), actor);
+    }
+
+    private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form) {
+        var list = employees.list(actor, q, page);
+        return new ModelAndView("org/employees").addObject("employees", list.stream().limit(50).toList())
+                .addObject("hasNext", list.size() > 50).addObject("q", q).addObject("page", page)
+                .addObject("form", form != null ? form : new OrgData.EmployeeForm(
+                        "", "", null, null, true, null, "", UUID.randomUUID()));
+    }
+
+    private ModelAndView employeeDetail(TnaPrincipal actor, UUID id,
+            OrgData.EmployeeForm form, OrgData.AssignmentForm assignmentForm) {
+        var employee = employees.get(actor, id);
+        return options(new ModelAndView("org/employee").addObject("employee", employee)
+                .addObject("assignments", employees.assignments(actor, id))
+                .addObject("form", form != null ? form : new OrgData.EmployeeForm(
+                        employee.employeeNo(), employee.displayName(), employee.joinedOn(), employee.leftOn(),
+                        employee.active(), employee.version(), "", UUID.randomUUID()))
+                .addObject("assignmentForm", assignmentForm != null ? assignmentForm : new OrgData.AssignmentForm(
+                        null, null, employee.version(), "", UUID.randomUUID())), actor);
+    }
+
+    private ModelAndView options(ModelAndView view, TnaPrincipal actor) {
+        var options = organizations.options(actor);
+        return view.addObject("options", options).addObject("orgNames", options.stream().collect(
+                Collectors.toMap(OrgData.Organization::id, OrgData.Organization::name)));
+    }
+
+    private ModelAndView submit(Supplier<UUID> action, String path, Function<OrgException, ModelAndView> invalid) {
+        try {
+            RedirectView redirect = new RedirectView(path + action.get(), true);
+            redirect.setStatusCode(HttpStatus.SEE_OTHER);
+            return new ModelAndView(redirect);
+        } catch (OrgException exception) {
+            if (exception.status() != 409 && exception.status() != 422) throw exception;
+            ModelAndView view = invalid.apply(exception);
+            view.addObject("error", exception.getMessage());
+            view.setStatus(HttpStatusCode.valueOf(exception.status()));
+            return view;
+        }
+    }
+
+    private void checkBinding(BindingResult binding) {
+        if (binding.hasErrors()) throw new OrgException(400, "날짜·식별자·버전의 입력 형식을 확인해 주세요.");
+    }
+}

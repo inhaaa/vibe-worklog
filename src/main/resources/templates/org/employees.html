@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>사원 관리 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<header class="site-header admin-header">
+    <a class="brand" th:href="@{/me/today}">tna</a>
+    <nav aria-label="주 메뉴">
+        <a th:href="@{/me/today}">내 화면</a>
+        <a th:href="@{/admin/organizations}">조직 관리</a>
+        <a th:href="@{/admin/employees}" aria-current="page">사원 관리</a>
+    </nav>
+    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
+</header>
+<main class="content admin-shell">
+    <p class="eyebrow">조직·사원 관리</p>
+    <h1>사원 관리</h1>
+    <section class="panel" aria-labelledby="employee-list-title">
+        <h2 id="employee-list-title">사원 목록</h2>
+        <form th:action="@{/admin/employees}" method="get" class="search-form" role="search">
+            <div>
+                <label for="employee-query">사원 검색</label>
+                <input id="employee-query" name="q" type="search" th:value="${q}" placeholder="사번 또는 이름">
+            </div>
+            <button type="submit">검색</button>
+            <a th:href="@{/admin/employees}">전체 보기</a>
+        </form>
+        <p th:if="${#lists.isEmpty(employees)}" class="notice"
+           th:text="${#strings.isEmpty(q)} ? '등록된 사원이 없습니다. 아래에서 첫 사원을 등록해 주세요.' : '검색 결과가 없습니다. 검색어를 확인해 주세요.'">등록된 사원이 없습니다.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(employees)}" role="region" aria-label="사원 목록" tabindex="0">
+            <table>
+                <caption class="sr-only">사번, 이름, 재직일과 활성 상태</caption>
+                <thead><tr><th scope="col">사번</th><th scope="col">이름</th><th scope="col">입사일</th><th scope="col">마지막 재직일</th><th scope="col">상태</th></tr></thead>
+                <tbody>
+                <tr th:each="employee : ${employees}">
+                    <td th:text="${employee.employeeNo}">EMP</td>
+                    <td><a th:href="@{/admin/employees/{id}(id=${employee.id})}" th:text="${employee.displayName}">사원 이름</a></td>
+                    <td><time th:datetime="${employee.joinedOn}" th:text="${employee.joinedOn}">2026-10-24</time></td>
+                    <td th:text="${employee.leftOn == null ? '미지정' : employee.leftOn}">미지정</td>
+                    <td th:text="${employee.active} ? '활성' : '비활성'">활성</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <nav class="actions pagination" aria-label="사원 목록 페이지">
+            <a th:if="${page > 0}" th:href="@{/admin/employees(q=${q},page=${page - 1})}">이전 페이지</a>
+            <span th:text="|${page + 1}페이지|">1페이지</span>
+            <a th:if="${hasNext}" th:href="@{/admin/employees(q=${q},page=${page + 1})}">다음 페이지</a>
+        </nav>
+    </section>
+    <section class="panel" aria-labelledby="employee-create-title">
+        <h2 id="employee-create-title">사원 등록</h2>
+        <p class="hint">사원을 등록해도 로그인 계정은 자동으로 생성되지 않습니다.</p>
+        <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">입력 내용을 확인해 주세요.</p>
+        <form th:action="@{/admin/employees}" method="post" class="admin-form">
+            <input type="hidden" name="commandId" th:value="${form.commandId}">
+            <label for="employee-number">사번</label>
+            <input id="employee-number" name="employeeNo" type="text" th:value="${form.employeeNo}" maxlength="40" required aria-describedby="employee-number-help">
+            <p id="employee-number-help" class="hint">등록 후 변경하거나 다른 사원에게 재사용할 수 없습니다.</p>
+            <label for="employee-name">이름</label>
+            <input id="employee-name" name="displayName" type="text" th:value="${form.displayName}" maxlength="120" required>
+            <fieldset class="form-row">
+                <legend>재직 기간</legend>
+                <div><label for="employee-joined">입사일</label><input id="employee-joined" name="joinedOn" type="date" th:value="${form.joinedOn}" required></div>
+                <div><label for="employee-left">마지막 재직일 (선택)</label><input id="employee-left" name="leftOn" type="date" th:value="${form.leftOn}" aria-describedby="employee-left-help"></div>
+            </fieldset>
+            <p id="employee-left-help" class="hint">마지막 재직일 당일까지 재직으로 처리합니다. 미정이면 비워 두세요.</p>
+            <input type="hidden" name="_active" value="on">
+            <label class="checkbox-label" for="employee-active"><input id="employee-active" name="active" type="checkbox" value="true" th:checked="${form.active}">활성 사원</label>
+            <label for="employee-reason">등록 사유</label>
+            <textarea id="employee-reason" name="reason" rows="3" maxlength="500" required aria-describedby="employee-reason-help" th:text="${form.reason}"></textarea>
+            <p id="employee-reason-help" class="hint">500자 이내로 입력하세요. 불필요한 개인정보는 적지 마세요.</p>
+            <div class="actions"><button type="submit">사원 등록</button></div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${organization.name} + ' · 조직 · tna'">조직 상세 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<header class="site-header admin-header">
+    <a class="brand" th:href="@{/me/today}">tna</a>
+    <nav aria-label="주 메뉴">
+        <a th:href="@{/me/today}">내 화면</a>
+        <a th:href="@{/admin/organizations}" aria-current="page">조직 관리</a>
+        <a th:href="@{/admin/employees}">사원 관리</a>
+    </nav>
+    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
+</header>
+<main class="content admin-shell">
+    <a th:href="@{/admin/organizations}">조직 목록으로</a>
+    <p class="eyebrow">조직 상세</p>
+    <h1 th:text="${organization.name}">조직 이름</h1>
+    <section class="panel" aria-labelledby="organization-change-title">
+        <h2 id="organization-change-title">조직 정보 변경</h2>
+        <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">입력 내용을 확인해 주세요.</p>
+        <form th:action="@{/admin/organizations/{id}/changes(id=${organization.id})}" method="post" class="admin-form">
+            <input type="hidden" name="commandId" th:value="${form.commandId}">
+            <input type="hidden" name="expectedVersion" th:value="${form.expectedVersion}">
+            <label for="organization-code">조직 코드</label>
+            <input id="organization-code" name="code" type="text" th:value="${form.code}" maxlength="40" readonly aria-describedby="organization-code-help">
+            <p id="organization-code-help" class="hint">등록한 코드는 변경할 수 없습니다.</p>
+            <label for="organization-name">조직 이름</label>
+            <input id="organization-name" name="name" type="text" th:value="${form.name}" maxlength="120" required>
+            <label for="organization-parent">상위 조직</label>
+            <select id="organization-parent" name="parentId" aria-describedby="organization-parent-help">
+                <option value="">없음 (최상위 조직)</option>
+                <option th:each="option : ${options}" th:if="${(option.active and option.id != organization.id) or option.id == form.parentId}" th:value="${option.id}"
+                        th:selected="${option.id == form.parentId}" th:text="${option.name + (option.active ? '' : ' (비활성)')}">상위 조직</option>
+            </select>
+            <p id="organization-parent-help" class="hint">새 상위 조직은 활성 조직을 선택하세요. 비활성 조직은 기존 부모를 유지해 이름을 수정할 수 있지만 부모가 비활성이면 재활성화할 수 없습니다. 하위 조직을 상위 조직으로 지정할 수 없습니다.</p>
+            <input type="hidden" name="_active" value="on">
+            <label class="checkbox-label" for="organization-active"><input id="organization-active" name="active" type="checkbox" value="true" th:checked="${form.active}">활성 조직</label>
+            <p class="hint">활성 하위 조직이나 오늘·미래의 소속이 남아 있으면 비활성화할 수 없습니다.</p>
+            <label for="organization-reason">변경 사유</label>
+            <textarea id="organization-reason" name="reason" rows="3" maxlength="500" required aria-describedby="organization-reason-help" th:text="${form.reason}"></textarea>
+            <p id="organization-reason-help" class="hint">500자 이내로 입력하세요. 불필요한 개인정보는 적지 마세요.</p>
+            <div class="actions"><button type="submit">조직 정보 저장</button><a th:href="@{/admin/organizations/{id}(id=${organization.id})}">입력 취소</a></div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

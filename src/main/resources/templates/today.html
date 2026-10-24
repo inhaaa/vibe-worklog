@@ -11,6 +11,10 @@
 <body hx-history="false">
 <header class="site-header">
     <a class="brand" th:href="@{/me/today}">tna</a>
+    <nav th:if="${attendanceAdmin}" aria-label="근태 관리">
+        <a th:href="@{/admin/organizations}">조직 관리</a>
+        <a th:href="@{/admin/employees}">사원 관리</a>
+    </nav>
     <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
 </header>
 <main class="content">

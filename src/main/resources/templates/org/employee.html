@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${employee.displayName} + ' · 사원 · tna'">사원 상세 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<header class="site-header admin-header">
+    <a class="brand" th:href="@{/me/today}">tna</a>
+    <nav aria-label="주 메뉴">
+        <a th:href="@{/me/today}">내 화면</a>
+        <a th:href="@{/admin/organizations}">조직 관리</a>
+        <a th:href="@{/admin/employees}" aria-current="page">사원 관리</a>
+    </nav>
+    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
+</header>
+<main class="content admin-shell">
+    <a th:href="@{/admin/employees}">사원 목록으로</a>
+    <p class="eyebrow">사원 상세</p>
+    <h1 th:text="${employee.displayName}">사원 이름</h1>
+    <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">입력 내용을 확인해 주세요.</p>
+    <section class="panel" aria-labelledby="employee-change-title">
+        <h2 id="employee-change-title">기본정보·재직 변경</h2>
+        <form th:action="@{/admin/employees/{id}/changes(id=${employee.id})}" method="post" class="admin-form">
+            <input type="hidden" name="commandId" th:value="${form.commandId}">
+            <input type="hidden" name="expectedVersion" th:value="${form.expectedVersion}">
+            <label for="employee-number">사번</label>
+            <input id="employee-number" name="employeeNo" type="text" th:value="${form.employeeNo}" maxlength="40" readonly aria-describedby="employee-number-help">
+            <p id="employee-number-help" class="hint">등록한 사번은 변경할 수 없습니다.</p>
+            <label for="employee-name">이름</label>
+            <input id="employee-name" name="displayName" type="text" th:value="${form.displayName}" maxlength="120" required>
+            <fieldset class="form-row">
+                <legend>재직 기간</legend>
+                <div><label for="employee-joined">입사일</label><input id="employee-joined" name="joinedOn" type="date" th:value="${form.joinedOn}" required></div>
+                <div><label for="employee-left">마지막 재직일 (선택)</label><input id="employee-left" name="leftOn" type="date" th:value="${form.leftOn}" aria-describedby="employee-left-help"></div>
+            </fieldset>
+            <p id="employee-left-help" class="hint">마지막 재직일 당일까지 재직으로 처리합니다. 미정이면 비워 두세요.</p>
+            <input type="hidden" name="_active" value="on">
+            <label class="checkbox-label" for="employee-active"><input id="employee-active" name="active" type="checkbox" value="true" th:checked="${form.active}">활성 사원</label>
+            <p class="hint">재직일이나 활성 상태를 변경하면 연결된 계정의 기존 로그인이 종료됩니다.</p>
+            <label for="employee-reason">변경 사유</label>
+            <textarea id="employee-reason" name="reason" rows="3" maxlength="500" required aria-describedby="employee-reason-help" th:text="${form.reason}"></textarea>
+            <p id="employee-reason-help" class="hint">500자 이내로 입력하세요. 불필요한 개인정보는 적지 마세요.</p>
+            <div class="actions"><button type="submit">사원 정보 저장</button><a th:href="@{/admin/employees/{id}(id=${employee.id})}">입력 취소</a></div>
+        </form>
+    </section>
+    <section class="panel" aria-labelledby="assignment-history-title">
+        <h2 id="assignment-history-title">소속 이력</h2>
+        <p class="hint">시작일은 포함하고 종료일은 포함하지 않습니다. 종료일에 새 소속이 시작됩니다.</p>
+        <p th:if="${#lists.isEmpty(assignments)}" class="notice">등록된 소속이 없습니다. 아래에서 첫 소속을 등록해 주세요.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(assignments)}" role="region" aria-label="소속 이력" tabindex="0">
+            <table>
+                <caption class="sr-only">조직, 적용 시작일, 종료일과 등록 사유</caption>
+                <thead><tr><th scope="col">조직</th><th scope="col">시작일 (포함)</th><th scope="col">종료일 (제외)</th><th scope="col">사유</th></tr></thead>
+                <tbody>
+                <tr th:each="assignment : ${assignments}">
+                    <td th:text="${assignment.organizationName}">조직 이름</td>
+                    <td><time th:datetime="${assignment.validFrom}" th:text="${assignment.validFrom}">2026-10-24</time></td>
+                    <td th:text="${assignment.validTo == null ? '종료일 없음' : assignment.validTo}">종료일 없음</td>
+                    <td class="reason-cell" th:text="${assignment.reason}">등록 사유</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <section class="panel" aria-labelledby="assignment-create-title">
+        <h2 id="assignment-create-title">소속 등록·이동</h2>
+        <p class="hint" id="assignment-date-help">적용일은 오늘부터 선택할 수 있으며 입사일부터 마지막 재직일까지여야 합니다. 기존 이력이 있으면 마지막 시작일보다 늦은 날만 선택할 수 있습니다. 과거 이력 수정·같은 날 재배정·예약 취소는 제공하지 않습니다.</p>
+        <form th:action="@{/admin/employees/{id}/assignments(id=${employee.id})}" method="post" class="admin-form">
+            <input type="hidden" name="commandId" th:value="${assignmentForm.commandId}">
+            <input type="hidden" name="expectedVersion" th:value="${assignmentForm.expectedVersion}">
+            <label for="assignment-organization">새 소속 조직</label>
+            <select id="assignment-organization" name="organizationId" required aria-describedby="assignment-organization-help">
+                <option value="">조직을 선택하세요</option>
+                <option th:each="option : ${options}" th:if="${option.active}" th:value="${option.id}"
+                        th:selected="${option.id == assignmentForm.organizationId}" th:text="${option.name}">소속 조직</option>
+            </select>
+            <p class="hint" id="assignment-organization-help">활성 조직만 선택할 수 있습니다. 조직이 없으면 <a th:href="@{/admin/organizations}">조직 관리</a>에서 등록해 주세요.</p>
+            <label for="assignment-from">적용 시작일</label>
+            <input id="assignment-from" name="validFrom" type="date" th:value="${assignmentForm.validFrom}" required aria-describedby="assignment-date-help">
+            <label for="assignment-reason">소속 등록·이동 사유</label>
+            <textarea id="assignment-reason" name="reason" rows="3" maxlength="500" required aria-describedby="assignment-reason-help" th:text="${assignmentForm.reason}"></textarea>
+            <p id="assignment-reason-help" class="hint">500자 이내로 입력하세요. 불필요한 개인정보는 적지 마세요. 기존 소속 이력은 보존됩니다.</p>
+            <div class="actions"><button type="submit">소속 등록·이동</button></div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

@@ -4,14 +4,15 @@
 
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
-- **Project Status:** Phase 4 · Local Development Foundation
+- **Project Status:** Phase 5 · Organization & Employee Management
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
 - 기획·지원 범위 업무 규칙·시스템 설계 문서: 작성
 - 로컬 개발 기반: 빌드·DB 격리·로그인·준비 화면 구현 및 native PostgreSQL 검증
 - Docker: Linux 이미지 빌드·Compose 기동·Testcontainers 검증 완료
-- 근태 업무 기능·운영 환경·외부 배포: 미착수
+- 조직·사원·적용일별 소속 관리: 첫 구현 단위 및 로컬 검증 완료
+- 출퇴근·휴가·승인·집계·운영 환경·외부 배포: 미착수
 
 ## Overview
 
@@ -52,11 +53,11 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; Apache POI는 Excel 구현 시 도입 |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 실제 검증 범위를 기록했습니다. Java 25 빌드·패키징과 단위·DB 통합 테스트 25개를 native PostgreSQL과 Testcontainers에서 각각 확인했습니다. Docker 이미지 빌드·Compose의 DB 초기화·Flyway·앱 기동과 HTTP 확인 10개도 통과했습니다. 이 호스트의 선택적 CA·Maven 미러 설정은 [개발 안내](docs/development/local.md)에 설명했습니다. 전이 의존성 126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 Phase 4 검증을 기록했습니다. Phase 5 첫 단위까지 Java 25 빌드·패키징, 실제 PostgreSQL Testcontainers의 전체 테스트81개, Docker 이미지·기존 V1 볼륨의 V2 적용·앱 기동을 확인했습니다. 권한·테넌트 격리·동시 수정·감사 롤백·웹 폼 흐름을 포함합니다. 상세 결과와 이 호스트의 선택적 CA·Maven 미러 설정은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 ## Local Development
 
-로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 현재 화면은 로그인과 본인 준비 상태 확인까지만 구현했습니다.
+로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속 관리 화면을 제공합니다. 계정 초대·역할/승인자 배정은 후속이며, 사원 등록으로 로그인 계정을 자동 생성하지 않습니다.
 
 Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
 
@@ -96,6 +97,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
 - Business Rules: [신청·승인·정정](docs/rules/workflow.md), [계산·법령 근거·검증 사례](docs/rules/calculation.md)
 - System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
+- [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위
 - [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
 - [Local Development](docs/development/local.md): 로컬 실행·마이그레이션·테스트·남은 검증
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
@@ -109,6 +111,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 빌드·native PostgreSQL·테넌트 격리·로그인·준비 화면 기반 검증
 - [x] 로컬 Docker Compose 구성·설정 검증
 - [x] Docker 이미지 빌드·Compose 기동·Testcontainers 실행 검증
+- [x] 조직 계층·사원 재직·적용일별 소속 관리 첫 단위 검증
+- [ ] 계정 초대·역할·승인자 배정
 - [ ] 운영 환경·배포 파이프라인 구성
 - [ ] 핵심 근태관리 기능 구현
 - [ ] 보안 및 성능 테스트
@@ -120,4 +124,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 로컬 개발 기반 단계이며 운영 서비스가 아닙니다. 근태 업무 기능은 아직 구현하지 않았습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.
+현재 로컬 MVP 개발 단계이며 운영 서비스가 아닙니다. 조직·사원 관리부터 순차 구현하며 출퇴근·휴가·승인·집계는 후속입니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.

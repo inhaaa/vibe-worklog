@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>요청 확인 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<main class="content">
+    <section class="panel" aria-labelledby="problem-title">
+        <p class="eyebrow" th:text="|요청 상태 ${status}|">요청 상태</p>
+        <h1 id="problem-title">요청을 처리할 수 없습니다</h1>
+        <p class="notice error" role="alert" th:text="${message}">요청 내용을 확인해 주세요.</p>
+        <p th:if="${traceId != null}" class="hint">문의 번호: <span th:text="${traceId}">문의 번호</span></p>
+        <div class="actions">
+            <a th:href="@{/admin/organizations}">조직 목록</a>
+            <a th:href="@{/admin/employees}">사원 목록</a>
+            <a th:href="@{/me/today}">내 화면</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

@@ -32,7 +32,8 @@ class DatabaseFoundationIT {
                 WHERE n.nspname = 'tna' AND c.relkind = 'r' AND c.relrowsecurity AND c.relforcerowsecurity
                 ORDER BY c.relname
                 """, String.class);
-        assertEquals(List.of("employee", "role_grant", "tenant_account"), protectedTables);
+        assertEquals(List.of("employee", "employee_assignment", "org_audit_event", "organization",
+                "role_grant", "tenant_account"), protectedTables);
     }
 
     @Test
@@ -71,7 +72,7 @@ class DatabaseFoundationIT {
                 VALUES (?, ?, 'BLOCKED', 'Blocked', DATE '2026-01-01', true)
                 """, DatabaseFixture.TENANT_A, UUID.randomUUID()));
         assertThrows(DataAccessException.class,
-                () -> app.queryForObject("SELECT count(*) FROM tna.tenant_account", Integer.class));
+                () -> app.queryForList("SELECT password_hash FROM tna.tenant_account"));
         assertThrows(DataAccessException.class,
                 () -> app.queryForObject("SELECT count(*) FROM public.flyway_schema_history", Integer.class));
     }
@@ -80,7 +81,8 @@ class DatabaseFoundationIT {
     void authenticationRoleMustResolveTenantBeforeReadingIdentity() {
         database.seedIdentity("synthetic-test-hash");
         JdbcTemplate auth = new JdbcTemplate(database.authDataSource());
-        assertEquals(2, auth.queryForObject("SELECT count(*) FROM platform.tenant_registry", Integer.class));
+        assertEquals(2, auth.queryForObject("SELECT count(*) FROM platform.tenant_registry WHERE id IN (?, ?)",
+                Integer.class, DatabaseFixture.TENANT_A, DatabaseFixture.TENANT_B));
         assertEquals(0, auth.queryForObject("SELECT count(*) FROM tna.tenant_account", Integer.class));
         TenantTransactions transactions = new TenantTransactions(database.authDataSource());
         assertEquals(1, transactions.execute(DatabaseFixture.TENANT_A, () -> auth.queryForObject("""

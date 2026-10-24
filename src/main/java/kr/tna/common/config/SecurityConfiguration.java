@@ -41,6 +41,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/login", "/app.css", "/vendor/htmx.min.js",
                                 "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
+                        .requestMatchers("/admin/organizations", "/admin/organizations/**",
+                                "/admin/employees", "/admin/employees/**").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers("/", "/me/today", "/me/today/status").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())

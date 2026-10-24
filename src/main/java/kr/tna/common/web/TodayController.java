@@ -39,6 +39,7 @@ public class TodayController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         model.addAttribute("employee", employee);
+        model.addAttribute("attendanceAdmin", principal.roles().contains("ATTENDANCE_ADMIN"));
         model.addAttribute("today", LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
         return "today";
     }
