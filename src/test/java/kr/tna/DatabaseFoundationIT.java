@@ -32,9 +32,13 @@ class DatabaseFoundationIT {
                 WHERE n.nspname = 'tna' AND c.relkind = 'r' AND c.relrowsecurity AND c.relforcerowsecurity
                 ORDER BY c.relname
                 """, String.class);
-        assertEquals(List.of("account_token", "allowed_network", "approver_assignment", "attendance_event", "calendar_day", "calendar_version", "day_input_revision", "employee", "employee_assignment", "org_audit_event", "organization",
-                "role_grant", "schedule_assignment", "schedule_break", "schedule_day", "schedule_template",
-                "schedule_version", "tenant_account", "work_confirmation"), protectedTables);
+        assertEquals(List.of("account_token", "allowed_network", "approval_event", "approval_request",
+                "approver_assignment", "attendance_event", "calendar_day", "calendar_version",
+                "correction_detail", "day_input_revision", "employee", "employee_assignment",
+                "leave_bucket", "leave_ledger", "leave_request_day", "org_audit_event",
+                "organization", "request_effect", "role_grant", "schedule_assignment",
+                "schedule_break", "schedule_day", "schedule_template", "schedule_version",
+                "tenant_account", "work_confirmation"), protectedTables);
     }
 
     @Test

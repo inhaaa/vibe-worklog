@@ -2,13 +2,16 @@ package kr.tna.clock;
 
 import static kr.tna.org.OrgCommands.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
@@ -56,7 +59,10 @@ public final class ClockService {
         if(calendar.size()==1){calendarVersion=calendar.getFirst().versionId();dayKind=calendar.getFirst().kind();}
         var revision=mapper.revision(tenantId,employeeId,date);
         long input=revision==null?0:revision.inputRevision(),review=revision==null?0:revision.reviewRevision();
+        var correction=mapper.currentCorrection(tenantId,employeeId,date);
+        List<Event> effectiveEvents=correction==null?events:project(correction,date);
         String source=fingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
+        if(correction!=null)source=fingerprint(source,correction.effectId(),effectiveEvents);
         var saved=mapper.findConfirmation(tenantId,employeeId,date,input,source);Confirmation confirmation=null;
         if(saved!=null) {
             try {confirmation=new Confirmation(saved.id(),saved.confirmedInputRevision(),saved.reviewRevision(),
@@ -64,7 +70,8 @@ public final class ClockService {
                     List.copyOf(Arrays.asList(json.readValue(saved.breakSnapshot(),Interval[].class))),saved.confirmedAt());}
             catch(JacksonException exception){throw new OrgException(503,"근로 확인 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
         }
-        return new DaySnapshot(employeeId,date,events,schedule,scheduleVersion,calendarVersion,dayKind,input,review,confirmation,source);
+        if(confirmation==null&&correction!=null)confirmation=correctionConfirmation(correction,input,review,source,scheduleVersion,calendarVersion);
+        return new DaySnapshot(employeeId,date,events,schedule,scheduleVersion,calendarVersion,dayKind,input,review,confirmation,source,effectiveEvents);
     }
     public UUID record(TnaPrincipal actor,String kind,UUID commandId,String remoteAddress) {
         if(kind==null||!Set.of("IN","OUT").contains(kind))throw OrgException.invalid("출근 또는 퇴근 기록을 선택해 주세요.");
@@ -93,8 +100,8 @@ public final class ClockService {
             if(!day.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("기록·일정·휴일이 변경되었습니다. 최신 내용을 확인해 주세요.");
             if(day.workDate().isAfter(LocalDate.now(clock.withZone(SEOUL)))||!form.presenceAsWork()||!form.breaksMatch())
                 throw OrgException.invalid("실제 근로·예정 휴게가 일치하는지 확인하고 차이가 있으면 정정을 신청해 주세요.");
-            var ins=day.events().stream().filter(e->e.kind().equals("IN")).toList();
-            var outs=day.events().stream().filter(e->e.kind().equals("OUT")).toList();
+            var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
+            var outs=day.effectiveEvents().stream().filter(e->e.kind().equals("OUT")).toList();
             if(ins.size()!=1||outs.size()!=1||day.schedule()==null||day.calendarVersionId()==null)
                 throw OrgException.invalid("유일한 출퇴근과 유효 일정·휴일 확인이 필요합니다. 누락·중복은 정정을 신청해 주세요.");
             Instant start=ins.getFirst().occurredAt(),end=outs.getFirst().occurredAt();
@@ -112,5 +119,47 @@ public final class ClockService {
             return new Change(id,null,new Confirmation(id,day.inputRevision(),day.reviewRevision()+1,true,true,day.sourceFingerprint(),breaks,at));
         });
     }
+    private List<Event> project(ClockMapper.CorrectionRow correction,LocalDate date) {
+        try {
+            var before=json.readTree(correction.beforeSnapshot());
+            var values=before.get("effectiveEvents");
+            if(values==null||values.isNull())values=before.get("events");
+            if(values==null||!values.isArray())throw new IllegalArgumentException("Missing correction snapshot");
+            List<Event> base=Arrays.asList(json.readValue(values.toString(),Event[].class));
+            var result=new ArrayList<Event>();
+            projectKind(result,base,correction.effectId(),date,"IN",correction.inAction(),correction.requestedInAt());
+            projectKind(result,base,correction.effectId(),date,"OUT",correction.outAction(),correction.requestedOutAt());
+            return List.copyOf(result);
+        }catch(JacksonException|IllegalArgumentException exception){throw new OrgException(503,"승인 정정 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
+    }
+    private void projectKind(List<Event> result,List<Event> base,UUID effect,LocalDate date,String kind,String action,Instant proposed) {
+        switch(action) {
+            case "CLEAR" -> { }
+            case "SET" -> {
+                if(proposed==null)throw new IllegalArgumentException("Missing correction time");
+                result.add(new Event(projectedId(effect,kind,0),kind,proposed,date));
+            }
+            case "KEEP" -> {
+                int index=0;
+                for(Event old:base)if(old.kind().equals(kind))result.add(new Event(projectedId(effect,kind,index++),kind,old.occurredAt(),date));
+            }
+            default -> throw new IllegalArgumentException("Unsupported correction action");
+        }
+    }
+    private Confirmation correctionConfirmation(ClockMapper.CorrectionRow correction,long input,long review,String source,UUID scheduleVersion,UUID calendarVersion) {
+        try {
+            var values=json.readValue(correction.validatedInputRefs(),CorrectionEvidence[].class);
+            if(values.length==0)return null;
+            var evidence=values[0];
+            if(!evidence.confirmed()||evidence.inputRevision()!=input||!correction.requestId().equals(evidence.requestId())
+                    ||!Objects.equals(evidence.scheduleVersionId(),scheduleVersion)||!Objects.equals(evidence.calendarVersionId(),calendarVersion))return null;
+            if(evidence.actualBreaks()==null)throw new IllegalArgumentException("Missing correction break evidence");
+            return new Confirmation(correction.effectId(),input,review,true,true,source,List.copyOf(evidence.actualBreaks()),correction.effectiveAt());
+        }catch(JacksonException|IllegalArgumentException exception){throw new OrgException(503,"승인 정정 확인 근거를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
+    }
+    private static UUID projectedId(UUID effect,String kind,int index) {
+        return UUID.nameUUIDFromBytes((effect+":"+kind+":"+index).getBytes(StandardCharsets.US_ASCII));
+    }
+    private record CorrectionEvidence(long inputRevision,long reviewRevision,UUID requestId,boolean confirmed,List<Interval> actualBreaks,UUID scheduleVersionId,UUID calendarVersionId) { }
     private static void changed(int count){if(count!=1)throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 내용을 확인해 주세요.");}
 }

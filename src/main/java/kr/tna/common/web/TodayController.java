@@ -42,6 +42,7 @@ public class TodayController {
         }
         model.addAttribute("employee", employee);
         model.addAttribute("attendanceAdmin", principal.roles().contains("ATTENDANCE_ADMIN"));
+        model.addAttribute("approver",principal.roles().contains("APPROVER"));
         model.addAttribute("today", LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
         var day=clocks.day(principal,LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
         model.addAttribute("day",day);

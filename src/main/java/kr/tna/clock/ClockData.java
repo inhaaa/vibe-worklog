@@ -15,7 +15,7 @@ public final class ClockData {
             boolean breaksMatch,String sourceFingerprint,List<Interval> breaks,Instant confirmedAt) { }
     public record DaySnapshot(UUID employeeId,LocalDate workDate,List<Event> events,ScheduleData.Day schedule,
             UUID scheduleVersionId,UUID calendarVersionId,String dayKind,long inputRevision,long reviewRevision,
-            Confirmation confirmation,String sourceFingerprint) { }
+            Confirmation confirmation,String sourceFingerprint,List<Event> effectiveEvents) { }
     public record ConfirmationForm(@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate workDate,
             Long baseInputRevision,Long expectedReviewRevision,boolean presenceAsWork,boolean breaksMatch,
             String sourceFingerprint,UUID commandId) { }

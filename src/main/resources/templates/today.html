@@ -16,13 +16,16 @@
         <a th:href="@{/admin/employees}">사원 관리</a>
         <a th:href="@{/admin/schedules}">근무 템플릿</a>
         <a th:href="@{/admin/networks}">허용 IP·휴일</a>
+        <a th:href="@{/admin/leave-balances}">기초 연차·신청</a>
     </nav>
+    <nav th:if="${approver}" aria-label="승인 업무"><a th:href="@{/approvals}">지정 승인함</a></nav>
     <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
 </header>
 <main class="content">
     <p class="eyebrow" th:text="${employee.companyName}">회사</p>
     <h1><span th:text="${employee.employeeName}">직원</span>님의 화면</h1>
     <p><time th:text="${today}">2026-10-24</time> · Asia/Seoul</p>
+    <p><a th:href="@{/me/requests}">내 연차·정정 신청</a></p>
     <section class="panel"><h2>오늘 출퇴근</h2><p>허용 네트워크에서 서버 시각으로 원천을 저장합니다. 실제 근로 확정은 퇴근 후 확인이 필요합니다.</p><div class="actions"><form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="IN"><input type="hidden" name="commandId" th:value="${inCommand}"><button type="submit">출근 기록</button></form><form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="OUT"><input type="hidden" name="commandId" th:value="${outCommand}"><button type="submit">퇴근 기록</button></form><a th:href="@{/me/attendance}">날짜별 내역</a></div></section>
     <section th:replace="~{clock/day :: record}"></section>
     <section th:replace="~{fragments/status :: status}"></section>

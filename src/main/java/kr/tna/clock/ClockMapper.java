@@ -91,6 +91,19 @@ public interface ClockMapper {
                      @Param("date") LocalDate date,@Param("inputRevision") long inputRevision,@Param("reviewRevision") long reviewRevision,
                      @Param("fingerprint") String fingerprint,@Param("at") Instant at,@Param("actorId") UUID actorId,
                      @Param("breaks") String breaks,@Param("commandId") UUID commandId);
+    @Select("""
+            SELECT f.id AS effect_id,f.request_id,d.in_action,d.out_action,d.requested_in_at,d.requested_out_at,
+                   d.before_snapshot::text AS before_snapshot,f.validated_input_refs::text AS validated_input_refs,f.effective_at
+            FROM tna.request_effect f
+            JOIN tna.approval_request r ON r.tenant_id=f.tenant_id AND r.id=f.request_id AND r.target_employee_id=f.employee_id
+            JOIN tna.correction_detail d ON d.tenant_id=f.tenant_id AND d.request_id=f.request_id AND d.work_date=f.work_date
+            WHERE f.tenant_id=#{tenantId} AND f.employee_id=#{employeeId} AND f.work_date=#{date}
+              AND f.effect_kind='CORRECTION' AND f.effect_status='EFFECTIVE'
+              AND r.kind='ATTENDANCE_CORRECTION' AND r.status='APPROVED'
+            """)
+    CorrectionRow currentCorrection(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    record CorrectionRow(UUID effectId,UUID requestId,String inAction,String outAction,Instant requestedInAt,Instant requestedOutAt,
+                         String beforeSnapshot,String validatedInputRefs,Instant effectiveAt) { }
     record ScheduleRow(UUID scheduleVersionId,int weekday,boolean workday,LocalTime startTime,LocalTime endTime) { }
     record CalendarRow(UUID versionId,String kind) { }
     record Revision(long inputRevision,long reviewRevision) { }
