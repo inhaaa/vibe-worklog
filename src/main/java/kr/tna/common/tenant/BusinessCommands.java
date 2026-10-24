@@ -35,7 +35,13 @@ public final class BusinessCommands {
     }
     public <T> T read(TnaPrincipal actor,Supplier<T> action) {
         if(actor==null)throw OrgException.forbidden();
-        try {return transactions.execute(actor.tenantId(),()->{requireCurrent(actor,"EMPLOYEE");return action.get();});}
+        try {return transactions.execute(actor.tenantId(),()->{
+            requireCurrent(actor,"EMPLOYEE");
+            T result=action.get();
+            // A read may have waited behind a committed account or role revocation.
+            requireCurrent(actor,"EMPLOYEE");
+            return result;
+        });}
         catch(OrgException e){failure(e);throw e;}
         catch(DataAccessException e){LOG.error("event=business_command outcome=storage_unavailable");throw new OrgException(503,"업무 자료를 확인할 수 없습니다. 잠시 후 다시 조회해 주세요.");}
     }

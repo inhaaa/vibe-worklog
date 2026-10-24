@@ -15,6 +15,7 @@
 - work_confirmation은 employee/date/confirmed_input_revision/review_revision,source_fingerprint,실제 근로/휴게일치,확인자/시각,break_snapshot을 불변 저장한다. fingerprint는 실제 사건·일정버전·캘린더버전을 포함하므로 이후 설정 변경 때 옛 증거를 재사용하지 않는다.
 - 확인은 정확한 같은날 IN<OUT 한 쌍과 유효 일정·명시 캘린더가 있어야 하며 실제근로·예정휴게 일치를 모두 명시해야 한다. 예정휴게가 실제 출퇴근 구간 밖이면 정정을 안내한다. 사실/검토 개정 불일치는409다. 확인 전 실근로는 null이다.
 - 직원 업무는 TenantTransactions의 현재 계정·재직·auth_version·역할 재확인과 기존 tenant 잠금 순서를 사용하는 BusinessCommands 경계를 둔다. OrgCommands의 관리자 요구를 완화하지 않는다.
+- Phase 6에서는 본인 조회와 담당자 예외 스냅샷 조회 모두 공통 read 경계의 시작 전·자료 반환 전 권한 확인을 적용한다. 테넌트 잠금 대기 중 계정·필수 역할 회수가 커밋되면 이미 시작한 조회도 403으로 끝내고 스냅샷을 반환하지 않는다. 상세 계약과 결정적 동시성 회귀는 [보안 설계](security.md)의 조회 중 권한 회수 경계를 따른다.
 - 새 업무표는 tenant 복합FK·FORCE RLS·최소 INSERT/허용 열 UPDATE만 허용한다. 원천·확인·캘린더는 UPDATE/DELETE를 허용하지 않는다. 모든 명령은 감사·효과를 같은 트랜잭션에서 반영한다.
 
 ## 화면과 검증

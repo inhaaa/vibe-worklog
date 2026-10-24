@@ -39,7 +39,13 @@ public final class OrgCommands {
 
     public <T> T read(TnaPrincipal actor, Supplier<T> action) {
         if (actor == null) throw OrgException.forbidden();
-        return transactions.execute(actor.tenantId(), () -> { requireAdmin(actor); return action.get(); });
+        return transactions.execute(actor.tenantId(), () -> {
+            requireAdmin(actor);
+            T result = action.get();
+            // Administrative snapshots must not escape after a revocation committed while waiting.
+            requireAdmin(actor);
+            return result;
+        });
     }
 
     public UUID execute(TnaPrincipal actor, UUID commandId, String action, String kind,
