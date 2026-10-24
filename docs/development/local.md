@@ -484,4 +484,8 @@ docker compose -f compose.yaml -f compose.operator.yaml up -d --no-build
 
 migrate는 build 상속 대신 완성 JAR·독립 JRE·uid10001을 사용한다. 새 전용 tmpfs DB의 V1~V10 최초 적용과 보존 V10의 no-op, 앱/DB 경계·기본 HTTP24개를 실제 확인했다. 기존 CA·Maven 미러를 쓰던 runtime secret 마운트는 새 override에서 제외했으며 기존 ignored 설정 파일을 삭제하지 않았다. 기본 앱은 빈 Compose DB와 loopback 포트를 유지한다.
 
-전체126개 프로젝트 JAR·160개 플러그인 JAR·52개 Maven JAR과 이미지4종을 로컬 검사했다. 앱/migrate의 Java archive 검출0은 OS·개발 도구까지 취약점이 없다는 의미가 아니다. 공급자 평가 대기·미수정 항목과 도달성 미검증은 그대로 남긴다. 실제 HTTP 지속 부하의 최종 결과는 후속 보고서에 별도 기록한다.
+전체126개 프로젝트 JAR·160개 플러그인 JAR·52개 Maven JAR과 이미지4종을 로컬 검사했다. 앱/migrate의 Java archive 검출0은 OS·개발 도구까지 취약점이 없다는 의미가 아니다. 공급자 평가 대기·미수정 항목과 도달성 미검증은 그대로 남긴다.
+
+후속 실제 HTTP는 새 합성 DB·18개 로그인 세션으로33분·15,471요청·오류0·예상 거부1,043건, 전체p95 619.469ms를 확인했다. ramp60초 뒤32분 steady는15,360요청=8.000요청/초였다. 출퇴근 실제18개 명령은 각 원천1건·중복0이고 연차 승인340·대기6건은 초기/smoke/마감 중단 수와 일치했다. 15초 자원132표본·작업별 지연과 한계는 후속 보고서/분 단위 CSV를 따른다. HTTP7·수집12개 Python 도구 테스트도 통과했다.
+
+임시 합성 앱/DB는 정상 종료했고 기본 빈 Compose 앱/DB만 loopback에서 유지한다. 종료 뒤 DB 경계·HTTP24개를 다시 확인했다. 부하 도구는 기본 verify에 자동 추가하지 않으며 [재현 명령](../quality/http-soak-vulnerability.md#재실행)을 따른다. 운영 TLS·900명 동시 집계·로그인 폭주·수일 부하·침투·오프사이트 복원은 이 결과가 아니다.
