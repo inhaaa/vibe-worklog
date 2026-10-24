@@ -4,7 +4,7 @@
 
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
-- **Project Status:** Phase 5 · Organization & Account Access
+- **Project Status:** Phase 5 · Fixed Schedule & MVP Development
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
@@ -13,7 +13,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - Docker: Linux 이미지 빌드·Compose 기동·Testcontainers 검증 완료
 - 조직·사원·적용일별 소속 관리: 첫 구현 단위 및 로컬 검증 완료
 - 계정 초대·수락·역할·당일 승인자 배정: 로컬 모의 전달 구현 및 검증 완료
-- 출퇴근·휴가·신청 처리·집계·운영 환경·외부 배포: 미착수
+- 고정 근무 템플릿·불변 버전·사원별 적용일 배정: 구현 및 PostgreSQL 검증 완료
+- 출퇴근·휴가·신청 처리·집계: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
 
 ## Overview
 
@@ -98,6 +99,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
 - Business Rules: [신청·승인·정정](docs/rules/workflow.md), [계산·법령 근거·검증 사례](docs/rules/calculation.md)
 - System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
+- [Fixed Schedule](docs/design/fixed-schedule.md): 고정 템플릿·불변 버전·사원별 적용일 배정
 - [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위
 - [Account Access](docs/design/account-access.md): 초대·역할·당일 승인자 배정 계약
 - [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
@@ -115,7 +117,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] Docker 이미지 빌드·Compose 기동·Testcontainers 실행 검증
 - [x] 조직 계층·사원 재직·적용일별 소속 관리 첫 단위 검증
 - [x] 로컬 모의 계정 초대·수락·역할·당일 승인자 배정 검증
-- [ ] 고정 근무 템플릿·사원별 적용일 배정
+- [x] 고정 근무 템플릿·사원별 적용일 배정
 - [ ] 운영 환경·배포 파이프라인 구성
 - [ ] 핵심 근태관리 기능 구현
 - [ ] 보안 및 성능 테스트

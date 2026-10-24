@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>고정 근무 · tna</title><link rel="stylesheet" th:href="@{/app.css}"></head><body>
+<header class="site-header admin-header"><a class="brand" th:href="@{/me/today}">tna</a><nav aria-label="주 메뉴"><a th:href="@{/admin/schedules}">근무 템플릿</a><a th:href="@{/admin/employees}">사원 관리</a></nav><form th:action="@{/logout}" method="post"><button type="submit" class="secondary">로그아웃</button></form></header>
+<main class="content admin-shell"><p th:if="${error != null}" role="alert" class="notice error" th:text="${error}"></p>
+<a th:href="@{/admin/schedules}">템플릿 목록</a><h1 th:text="${template.name}"></h1>
+<section class="panel"><h2>불변 버전 이력</h2><article th:each="v:${versions}"><h3 th:text="${'버전 '+v.revision+' · 사용 시작 '+v.validFrom}"></h3><p th:text="${v.reason}"></p>
+<div class="table-scroll"><table><thead><tr><th>요일</th><th>구분</th><th>시작</th><th>종료</th><th>예정 휴게</th></tr></thead><tbody><tr th:each="day:${versionDays[v.id]}"><td th:text="${day.weekday}"></td><td th:text="${day.workday?'근로일':'비근로일'}"></td><td th:text="${day.startTime}"></td><td th:text="${day.endTime}"></td><td><span th:each="pause:${day.breaks}" th:text="${pause.startTime+'–'+pause.endTime+' '}"></span></td></tr></tbody></table></div></article></section>
+<section class="panel"><h2>새 버전 추가</h2><p>기존 버전과 배정은 유지합니다. 사원별 새 적용일 배정이 필요합니다.</p><form th:action="@{/admin/schedules/{id}/versions(id=${template.id})}" method="post" class="admin-form"><div th:replace="~{schedule/form :: fields}"></div></form></section></main></body></html>

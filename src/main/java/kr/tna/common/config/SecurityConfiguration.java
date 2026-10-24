@@ -45,7 +45,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**",
-                                "/admin/approver-assignments").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers("/", "/me/today", "/me/today/status").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())

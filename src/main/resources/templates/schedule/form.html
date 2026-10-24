@@ -1,0 +1,15 @@
+<!DOCTYPE html><html lang="ko" xmlns:th="http://www.thymeleaf.org"><body><div th:fragment="fields">
+<input type="hidden" name="commandId" th:value="${form.commandId}"><input type="hidden" name="expectedVersion" th:value="${form.expectedVersion}">
+<label for="template-code">템플릿 코드</label><input id="template-code" name="code" maxlength="40" th:value="${form.code}" th:readonly="${template != null}" required>
+<label for="template-name">이름</label><input id="template-name" name="name" maxlength="120" th:value="${form.name}" th:readonly="${template != null}" required>
+<label for="valid-from">버전 사용 시작일</label><input id="valid-from" type="date" name="validFrom" th:value="${form.validFrom}" th:min="${today}" required>
+<p class="hint">당일 시작·종료하는 하루 한 구간입니다. 예정 휴게는 실제 휴게 증거가 아닙니다. 복수 휴게는 12:00-13:00,15:00-15:10처럼 입력하세요.</p>
+<div class="table-scroll" role="region" aria-label="요일별 근무와 예정 휴게" tabindex="0"><table><thead><tr><th>요일</th><th>근로일</th><th>시작</th><th>종료</th><th>예정 휴게</th></tr></thead><tbody>
+<tr th:each="day, stat : ${form.days}"><td><span th:text="${{'월','화','수','목','금','토','일'}[stat.index]}"></span><input type="hidden" th:name="${'days['+stat.index+'].weekday'}" th:value="${day.weekday}"></td>
+<td><input type="hidden" th:name="${'_days['+stat.index+'].workday'}" value="on"><input type="checkbox" th:name="${'days['+stat.index+'].workday'}" value="true" th:checked="${day.workday}" th:aria-label="${day.weekday+'요일 근로일'}"></td>
+<td><input type="text" th:name="${'days['+stat.index+'].startTime'}" th:value="${day.startTime}" placeholder="09:00" maxlength="12" th:aria-label="${day.weekday+'요일 시작'}"></td>
+<td><input type="text" th:name="${'days['+stat.index+'].endTime'}" th:value="${day.endTime}" placeholder="18:00" maxlength="12" th:aria-label="${day.weekday+'요일 종료'}"></td>
+<td><input type="text" th:name="${'days['+stat.index+'].breaks'}" th:value="${day.breaks}" maxlength="1000" th:aria-label="${day.weekday+'요일 예정 휴게'}"></td></tr>
+</tbody></table></div><label for="reason">등록·변경 사유</label><textarea id="reason" name="reason" maxlength="500" rows="2" th:text="${form.reason}" required></textarea>
+<p class="hint">비근로일은 시각·휴게를 모두 비우세요. 법정 휴게·근로시간 적합성을 자동 보증하지 않습니다.</p><button type="submit">불변 버전 저장</button>
+</div></body></html>

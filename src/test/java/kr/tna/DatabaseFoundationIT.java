@@ -33,7 +33,8 @@ class DatabaseFoundationIT {
                 ORDER BY c.relname
                 """, String.class);
         assertEquals(List.of("account_token", "approver_assignment", "employee", "employee_assignment", "org_audit_event", "organization",
-                "role_grant", "tenant_account"), protectedTables);
+                "role_grant", "schedule_assignment", "schedule_break", "schedule_day", "schedule_template",
+                "schedule_version", "tenant_account"), protectedTables);
     }
 
     @Test

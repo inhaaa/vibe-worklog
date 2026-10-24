@@ -22,6 +22,7 @@
     <h1 th:text="${employee.displayName}">사원 이름</h1>
     <p><a th:href="@{/admin/employees/{id}/access(id=${employee.id})}">계정 초대·역할·승인자 관리</a></p>
     <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">입력 내용을 확인해 주세요.</p>
+    <p><a th:href="@{/admin/employees/{id}/schedule(id=${employee.id})}">고정 근무 템플릿 배정</a></p>
     <section class="panel" aria-labelledby="employee-change-title">
         <h2 id="employee-change-title">기본정보·재직 변경</h2>
         <form th:action="@{/admin/employees/{id}/changes(id=${employee.id})}" method="post" class="admin-form">
