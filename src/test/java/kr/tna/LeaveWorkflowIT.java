@@ -213,9 +213,24 @@ class LeaveWorkflowIT {
         assertEquals("PENDING",workflow.get(employee,request).request().status());assertEquals(1,balance(bucket));
         assertEquals(0,count("tna.request_effect","request_id='"+request+"'"));
     }
+    @Test void zeroDayPrefixDoesNotBlockCancellationBeforeTheFirstChargedDay() {
+        UUID bucket=bucket(2),original=leave(bucket,date);approve(original);
+        db.update("UPDATE tna.approval_request SET from_date=? WHERE tenant_id=? AND id=?",today.minusDays(1),tenant,original);
+        db.update("""
+            INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason)
+            SELECT tenant_id,?,request_id,?,0,schedule_version_id,calendar_version_id,'합성 비차감일'
+            FROM tna.leave_request_day WHERE tenant_id=? AND request_id=? AND quantity_days=1
+            """,UUID.randomUUID(),today.minusDays(1),tenant,original);
+        UUID cancellation=assertDoesNotThrow(()->workflow.requestCancellation(employee,original,new CancelForm(false,1L,"첫 차감일 전 취소",UUID.randomUUID())));
+        assertEquals(1,balance(bucket));
+        assertDoesNotThrow(()->approve(cancellation));
+        assertEquals(2,balance(bucket));
+        assertEquals("CANCELED",workflow.get(employee,original).request().effectStatus());
+    }
     @Test void alreadyStartedLeaveNeedsAnAdministrativeExceptionalCancellation() {
         UUID bucket=bucket(1),original=leave(bucket,date);approve(original);
         db.update("UPDATE tna.approval_request SET from_date=?,to_date=? WHERE tenant_id=? AND id=?",today.minusDays(1),today.minusDays(1),tenant,original);
+        db.update("UPDATE tna.leave_request_day SET leave_date=? WHERE tenant_id=? AND request_id=?",today.minusDays(1),tenant,original);
         assertStatus(422,()->workflow.requestCancellation(employee,original,new CancelForm(false,1L,"사용 뒤 일반 취소",UUID.randomUUID())));
         UUID exceptional=workflow.requestCancellation(manager,original,new CancelForm(true,1L,"과거 사실 근거 검토",UUID.randomUUID()));
         assertNotNull(exceptional);approve(exceptional);assertEquals(1,balance(bucket));

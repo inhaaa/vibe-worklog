@@ -311,10 +311,11 @@ public final class LeaveWorkflowService {
     }
     private String action(String value) {if(value==null||!ACTIONS.contains(value))throw OrgException.invalid("KEEP·SET·CLEAR 중 하나를 선택해 주세요.");return value;}
     private boolean started(UUID tenant,RequestView original) {
-        if(original.fromDate().isBefore(today()))return true;if(original.fromDate().isAfter(today()))return false;
+        LocalDate currentDate=today();
         var days=mapper.requestDays(tenant,original.id());
         for(var d:days)if(d.quantityDays()==1) {
-            if(d.leaveDate().isAfter(today()))return false;
+            if(d.leaveDate().isBefore(currentDate))return true;
+            if(d.leaveDate().isAfter(currentDate))return false;
             var snapshot=clocks.snapshot(tenant,original.targetEmployeeId(),d.leaveDate());
             return snapshot.schedule()==null||snapshot.schedule().startTime()==null
                     ||!clock.instant().isBefore(d.leaveDate().atTime(snapshot.schedule().startTime()).atZone(SEOUL).toInstant());
