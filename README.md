@@ -4,7 +4,7 @@
 
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
-- **Project Status:** Phase 5 · Fixed Schedule & MVP Development
+- **Project Status:** Phase 6 · Local Quality Validation
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
@@ -60,7 +60,9 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 현재 Java 25 빌드·패키징과 실제 PostgreSQL Testcontainers 전체368개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 로컬 Docker·브라우저 검증과 남은 수용 조건은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 현재 Java 25 빌드·패키징과 실제 PostgreSQL Testcontainers 전체383개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·보안·부하·논리 복원 결과와 한계는 [품질 보고서](docs/quality/phase6-report.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+
+Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
 ## Local Development
 
@@ -134,7 +136,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 계산 당시 입력·정책·실행 근거 상세와 현재성·버전 구분
 - [x] 안전한 감사 전후 상세·추적 ID·양방향 커서 페이지 탐색
 - [x] 기존 화면·새 검토용 출력의 서울 시각·밀리초 표시 통일
-- [ ] 보안 및 성능 테스트
+- [x] 로컬 MVP 시나리오·격리·동시성·보안·성능·논리 복원 검증
+- [ ] 운영 사양의 HTTP/장기 부하·전체 취약점 검사·오프사이트 복구
 - [ ] 파일럿 검증 및 서비스 개선
 
 ## Disclaimer
@@ -143,4 +146,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 로컬 MVP 개발 단계이며 운영 서비스가 아닙니다. 조직·사원·계정·일정·출퇴근·종일 연차·신청 승인·검토 집계를 로컬에서 연결했습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.
+현재 로컬 MVP 품질 검증 단계이며 운영 서비스가 아닙니다. 조직·사원·계정·일정·출퇴근·종일 연차·신청 승인·검토 집계를 로컬에서 연결했습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·실제 HTTP 장기 부하·오프사이트 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.

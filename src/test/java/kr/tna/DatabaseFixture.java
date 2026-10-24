@@ -41,6 +41,7 @@ public final class DatabaseFixture {
     private final DataSource migration;
     private final DataSource authentication;
     private final HikariDataSource application;
+    private final PostgreSQLContainer ownedContainer;
 
     private DatabaseFixture() throws SQLException {
         String suppliedUrl = System.getProperty("tna.test.jdbc-url", System.getenv("TNA_TEST_JDBC_URL"));
@@ -75,7 +76,7 @@ public final class DatabaseFixture {
         pool.setMinimumIdle(0);
         pool.setPoolName("tenant-isolation-test");
         application = new HikariDataSource(pool);
-        PostgreSQLContainer ownedContainer = container;
+        ownedContainer = container;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             application.close();
             if (ownedContainer != null) {
@@ -97,6 +98,13 @@ public final class DatabaseFixture {
 
     public String jdbcUrl() {
         return jdbcUrl;
+    }
+
+    public PostgreSQLContainer ownedContainer() {
+        if (ownedContainer == null) {
+            throw new IllegalStateException("A fixture-owned Testcontainers database is required");
+        }
+        return ownedContainer;
     }
 
     public DataSource appDataSource() {

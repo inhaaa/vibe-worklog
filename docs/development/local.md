@@ -468,3 +468,15 @@ docker compose -f compose.yaml -f compose.operator.yaml up -d --no-build
 별도 PostgreSQL18.6 Testcontainers, Windows Java25, 앱 풀5개, 합성3고객사×300명·2026-08의31일 원천55,800건으로 측정했다. 8개 worker·48개 샘플의 동일 고객사 월 조회 p95는2286.20→847.23ms였다. 같은 최종 실행에서3고객사 월 조회761.63ms,3개 worker·9샘플 재집계616.41ms, Excel 준비+다운로드634.20ms, 전체498개 측정 오류0이다. 동일 출퇴근 명령16개를 동시에 재시도해 원천·감사·반환 ID가 각각1개임을 확인했다. 원천/감사 SQL은 기존 인덱스를 사용했다.
 
 `Phase6LoadProbe`는 새 합성 DB에서만 실행한다. 각 고객사에서 실제 근로 확인 및 계산 저장 대상은1명이고 법 적용은 미확정이다. 900명 전체 동시 집계·SLA·운영 VPS 용량을 입증하지 않는다. 워밍업3회·데이터 준비·worker 큐 대기는 제외하며 lock/pool 대기는 포함한다.9샘플의 nearest-rank p95는 max와 같으며 단일 호스트2회 비교의 변동성이 있다. 실행·재현 안내와 전체 품질 결과는 최종 Phase 6 보고서에 정리한다.
+
+## Phase 6 최종 로컬 검증 (2026-10-25)
+
+[품질 보고서](../quality/phase6-report.md)에 PRD S01~S10·SEC-01~12의 자동 검증 증거·발견3건·실제 성능 수치·재실행 방법·운영 전 남은 조건을 정리했다. 보고서의 범위를 넘어 출시/법적 적정성/운영 용량을 선언하지 않는다.
+
+- 전체383개(단위39·실제 PostgreSQL 통합344), 실패·오류·건너뜀0. 초대부터 불변 출력/감사를 연결한 시나리오1개와 권한 회수/300명 선택/공유 잠금/컨텍스트 생명주기14개가 신규다.
+- 최종 Linux app/migrate 이미지 빌드·Compose 기동 성공, V10 유지. FORCE RLS34개·최소4역할·고객/계정/운영자0·loopback·uid10001·read-only·관리 자격 미주입·운영자 비활성 재확인.
+- 체크인한 `scripts/verify-local-http.py`로 HTTP24개·CSRF/CSP/비저장/미인증/htmx/Actuator·운영자 기본 차단, 프록시 환경 우회와 parser self-check 통과. 같은 체크를 반복 실행한 수를 합산하지 않는다.
+- 별도 부하498개 오류0, 동일 명령16회 동시 재시도는 원천/감사/반환 ID 각각1개. 월 조회 p95 개선은 앞 절과 보고서의 로컬 측정 범위다.
+- 새 Testcontainers의 같은 클러스터 새 DB에 논리 복원 성공. 원본 불변·행 수·SHA14개·34 FORCE RLS·역할/테넌트 격리·인증 목적 유지. dump262ms·restore299ms는 소규모 로컬 결과이며 운영 RPO/RTO가 아니다.
+
+부하/복원 도구는 기본 `verify`에서 자동 실행하지 않는다. 재실행은 보고서의 명령을 따른다. 실행 로그·JSON·합성 덤프·raw manifest는 ignored `target/phase6-*`에만 둔다. 실제 메일·실고객·외부 서버 접속·배포는 하지 않았다. 기본 Compose의 빈 DB와 loopback 앱만 유지하고 임시 Testcontainers는 종료했다.
