@@ -45,8 +45,8 @@ public class SecurityConfiguration {
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**",
-                                "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**").hasRole("ATTENDANCE_ADMIN")
-                        .requestMatchers("/", "/me/today", "/me/today/status").authenticated()
+                                "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())
                 .formLogin(form -> form.loginPage("/login").usernameParameter("email")

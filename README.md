@@ -15,7 +15,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 계정 초대·수락·역할·당일 승인자 배정: 로컬 모의 전달 구현 및 검증 완료
 - 고정 근무 템플릿·불변 버전·사원별 적용일 배정: 구현 및 PostgreSQL 검증 완료
 - CALC-1 순수 시간 계산 엔진: 27개 단위 검증, DB·현황 연결은 후속
-- 출퇴근·휴가·신청 처리·집계: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
+- 허용 IP·휴일 캘린더·원천 출퇴근·퇴근 후 실제 근로 확인: 구현 및 로컬 DB 검증 완료
+- 휴가·신청 처리·집계: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
 
 ## Overview
 
@@ -100,6 +101,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
 - Business Rules: [신청·승인·정정](docs/rules/workflow.md), [계산·법령 근거·검증 사례](docs/rules/calculation.md)
 - System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
+- [Attendance Recording](docs/design/attendance-recording.md): 허용망·휴일·원천·사실/검토 개정·본인 확인
 - [Worktime Engine](docs/design/worktime-engine.md): CALC-1 순수 산정과 미확정·부분합 계약
 - [Fixed Schedule](docs/design/fixed-schedule.md): 고정 템플릿·불변 버전·사원별 적용일 배정
 - [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위

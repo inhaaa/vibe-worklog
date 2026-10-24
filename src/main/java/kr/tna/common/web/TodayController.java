@@ -18,11 +18,13 @@ public class TodayController {
     private final TenantTransactions transactions;
     private final EmployeeMapper employees;
     private final Clock clock;
+    private final kr.tna.clock.ClockService clocks;
 
-    public TodayController(TenantTransactions transactions, EmployeeMapper employees, Clock clock) {
+    public TodayController(TenantTransactions transactions, EmployeeMapper employees, Clock clock, kr.tna.clock.ClockService clocks) {
         this.transactions = transactions;
         this.employees = employees;
         this.clock = clock;
+        this.clocks = clocks;
     }
 
     @GetMapping("/")
@@ -41,6 +43,11 @@ public class TodayController {
         model.addAttribute("employee", employee);
         model.addAttribute("attendanceAdmin", principal.roles().contains("ATTENDANCE_ADMIN"));
         model.addAttribute("today", LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
+        var day=clocks.day(principal,LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
+        model.addAttribute("day",day);
+        model.addAttribute("eventTimes",kr.tna.clock.AttendanceController.times(day));
+        model.addAttribute("confirmationForm",kr.tna.clock.AttendanceController.confirmation(day));
+        model.addAttribute("inCommand",java.util.UUID.randomUUID());model.addAttribute("outCommand",java.util.UUID.randomUUID());
         return "today";
     }
 
