@@ -196,3 +196,21 @@ Maven Central의 대용량 다운로드 지연은 커밋하지 않은 작업용 
 | Testcontainers2.0.5 | native JDBC override 없이 실제 PostgreSQL18.6 컨테이너 생성·실행. 단위3·DB11·웹11, 총25개 통과·실패/오류/건너뜀0 |
 
 Compose에는 기본 사용자·데모 고객을 넣지 않았다. 성공 로그인과 고객 간 격리는 독립 Testcontainers 합성 자료로 검증했다. 검증 컨테이너는 자기 프로젝트만 종료하고 DB 볼륨과 ignored 로컬 실행 설정은 유지한다. 초기 보안·성능·백업 복원·운영 배포·법률 예외·Phase5 업무 규칙 검증이 모두 완료됐다는 뜻은 아니다. 외부 서버 접속·배포는 실행하지 않았다.
+
+### 2026-10-25 MyBatis 내부 OGNL 보안 패치
+
+이미지 SBOM에서 `mybatis-3.5.19.jar` 내부의 relocated OGNL3.4.4를 확인했다. [공식 GHSA-crwc-vw2r-qr6m](https://github.com/orphan-oss/ognl/security/advisories/GHSA-crwc-vw2r-qr6m)은 reflection proxy를 이용한 stricter-invocation 우회와3.4.13 수정 버전을 명시한다. 별도 OGNL 의존성 추가로는 MyBatis 내부 사본이 교체되지 않는다. 실제 shaded `OgnlRuntime`에서 차단된 메서드의 반사 우회 회귀가 기존 버전에서 실패했다. 프로세스 실행/파일 생성 없이 `Runtime.getRuntime`만 사용했다.
+
+[MyBatis3.6.0 공식 릴리스](https://github.com/mybatis/mybatis-3/releases/tag/mybatis-3.6.0)와 [해당 tag POM](https://github.com/mybatis/mybatis-3/blob/mybatis-3.6.0/pom.xml)의 OGNL3.4.16·Java11 최소·Apache-2.0을 확인하고 core만 dependencyManagement로3.6.0 고정한다. Java25는 최소 요건을 충족한다. Starter4.1.0의 공식 표에 core3.6 조합 전체 지원이 명시됐다고 주장하지 않으며, 이 저장소의 전체 회귀/실제 PostgreSQL·HTTP·재스캔 결과로 확인한다. 검증 결과는 후속 품질 보고서에 기록한다.
+
+현재 Mapper의 OGNL 식은 코드가 소유하며 사용자가 제공한 식을 평가하는 경로를 확인하지 못했다. 검출된 취약 사본의 존재와 원격 악용 가능성을 구분한다. 신뢰되지 않은 OGNL/SQL/Mapper 식의 동적 평가는 허용하지 않는다.
+
+### 2026-10-25 빌드 플러그인과 마이그레이션 이미지 경계
+
+전체 플러그인 실체 검사에서 super-POM의 Site3.12.1과 Compiler/Clean/Resources/Boot의 구버전 전이 라이브러리를 확인했다. 앱 dependencyManagement가 플러그인 class realm을 바꾸지 않으므로 [Maven의 plugin dependencies 규칙](https://maven.apache.org/guides/mini/guide-configuring-plugins.html#using-the-dependencies-tag)에 따라 범위를 분리한다. Maven3용 정식 Compiler3.16.0·Install/Deploy3.2.0·Site3.22.0을 고정하고, Clean의 Plexus4.0.3·Resources/Boot의 Plexus3.6.1·Boot의 Lang3.20.0을 각 plugin에 적용한다. Plexus3.x/4.x를 원래 major 안에서 교체하고 Java25/Maven3.9.16의 기존 빌드로 검증한다. Site/Install/Deploy는 선언된 플러그인 검사 범위이며 실제 게시·원격 deploy를 실행하지 않는다.
+
+기존 migrate stage는 전체 build를 상속해 테스트용 DockerJava 내부 HTTP와 빌드 캐시를 포함했다. 새 migrate stage는 기존 JRE·완성 JAR만 사용하고 `migrate` 명령에서 Spring 웹 기동 없이 기존 Flyway API를 직접 실행한다. 고정 tna_migration 역할·독립 관리 비밀번호·classpath SQL·fail closed를 유지한다. Maven/테스트 캐시는 실제 이미지에서 제거하며, 테스트용 shaded HTTP의 미수정 취약점은 전체 개발 의존성 검사에서 계속 보고한다.
+
+MyBatis3.6의 파라미터/JDBC 타입 해석 변경으로 PostgreSQL UUID의 암묵 fallback에 의존하던 기존 조회·변경이 실패했다. 실제 registry/일반 앱 역할/UUID·null·tenant 격리 회귀를 먼저 추가하고 UUID에만 JDBC OTHER를 매핑하는 표준 TypeHandler bean을 등록한다. DB UUID 컬럼·SQL·테넌트 조건·다른 OTHER 타입을 문자열로 바꾸거나 완화하지 않는다. [공식 변경 PR3379](https://github.com/mybatis/mybatis-3/pull/3379)와 Starter의 TypeHandler bean 등록을 근거로 삼는다.
+
+추가 플러그인 실체 재검사에서 Flyway Maven realm의 Jackson3.1.1을 발견해 Boot와 같은3.1.7(core/databind)로 고정하고 Site의 BeanUtils1.11.0·jsoup1.23.2 패치를 적용한다. Site의 Jetty9.4.58과 Testcontainers의 DockerJava 내부 HTTP는 공식 안정 배포에서 고정 버전을 확인할 수 없어 별도 잔여로 보고한다. Site 서버·Install/Deploy는 실행하지 않으며, 검사 수를 줄이기 위한 일괄 무시나 임의 SNAPSHOT 교체는 하지 않는다.

@@ -1,6 +1,6 @@
 # 로컬 개발 환경
 
-Phase 4 기반과 Phase 5 조직·사원·적용일별 소속 관리, 로컬 모의 계정 초대·역할·당일 승인자 배정을 실행하는 안내다. 출퇴근·근무 일정·휴가·실제 신청과 승인·계산·Excel은 후속이다. 제품 범위는 [PRD](../prd.md), 구현 범위는 [조직 관리 계약](../design/org-management.md)과 [계정 접근 계약](../design/account-access.md), 버전·라이선스 근거는 [ADR-0001](../adr/0001-technology-baseline.md)을 따른다.
+Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하는 안내다. 아래 날짜별 결과는 당시 이력이며 최신 보안 패치·검사 범위는 [HTTP·취약점 후속 보고서](../quality/http-soak-vulnerability.md)를 따른다. 제품 범위는 [PRD](../prd.md), 업무별 구현 계약은 연결된 `design` 문서, 버전·라이선스 근거는 [ADR-0001](../adr/0001-technology-baseline.md)을 따른다.
 
 ## 준비 사항과 실행 경계
 
@@ -96,7 +96,7 @@ if (-not (Test-Path -LiteralPath .env)) {
 
 이번 이미지 빌드에서는 호스트의 TLS 중계 루트 CA를 컨테이너가 신뢰하지 않아 `curl: (60)`이 발생했다. Windows 기본 `SslStream`의 인증서 체인 검증과 기존 Root 저장소의 신뢰를 모두 확인한 **공개 CA 인증서만 PEM 형식으로** `target/local-build-ca.crt` 같은 ignored 파일에 내보낸다. 개인키를 내보내거나 조직명·인증서 지문·인증서 파일을 Git 또는 문서에 넣지 않는다. `curl -k`·Maven TLS 검증 해제로 우회하지 않는다.
 
-[Dockerfile](../../Dockerfile)의 선택적 `local_build_ca` secret은 builder의 OS·Java 신뢰 저장소에 CA를 등록한다. CA는 build·migrate 이미지에 남으며, 독립된 JRE에서 JAR만 복사하는 runtime 이미지에는 포함되지 않는다. Maven Central의 큰 JAR 전송도 약 84초간 정체되어, 기존 로컬 설정의 Central 전용 Google 미러 `https://maven-central.storage-download.googleapis.com/maven2`를 선택적으로 사용했다. `maven_settings`는 빌드 중 `/root/.m2/settings.xml`에만 마운트되며 설정 내용을 이미지에 보존하지 않는다. Flyway가 실행되는 migrate 컨테이너에도 같은 파일을 별도 마운트한다. [BuildKit secret 안내](https://docs.docker.com/build/building/secrets/)를 따른다.
+[Dockerfile](../../Dockerfile)의 선택적 `local_build_ca` secret은 builder의 OS·Java 신뢰 저장소에 CA를 등록한다. CA는 build 이미지에 남으며, 독립된 JRE에서 JAR만 복사하는 runtime·migrate 이미지에는 포함되지 않는다. Maven Central의 큰 JAR 전송도 약 84초간 정체되어, 기존 로컬 설정의 Central 전용 Google 미러 `https://maven-central.storage-download.googleapis.com/maven2`를 선택적으로 사용했다. `maven_settings`는 빌드 중 `/root/.m2/settings.xml`에만 마운트되며 설정 내용을 이미지에 보존하지 않는다. 현재 migrate는 Maven 없이 완성 JAR의 Flyway API를 사용하므로 실행 시 빌드 secret을 마운트하지 않는다. [BuildKit secret 안내](https://docs.docker.com/build/building/secrets/)를 따른다.
 
 필요할 때만 ignored 파일 `target/compose.network.yaml`에 아래 override를 작성한다. 둘 중 필요하지 않은 secret의 선언·참조는 제외한다. 기본 Compose 파일과 `.env`는 그대로 사용하고 설정 파일·인증서를 커밋하거나 출력하지 않는다.
 
@@ -112,9 +112,6 @@ services:
       secrets:
         - local_build_ca
         - maven_settings
-    secrets:
-      - source: maven_settings
-        target: /root/.m2/settings.xml
 secrets:
   local_build_ca:
     file: ./target/local-build-ca.crt
@@ -144,7 +141,7 @@ docker compose logs migrate
 실행 순서는 다음과 같다.
 
 1. `db`: PostgreSQL 18.6을 기동하고 빈 전용 볼륨의 최초 초기화 때 migration·app·auth·operator 네 역할을 만든다.
-2. `migrate`: DB 헬스체크 성공 후 `tna_migration`으로 Flyway를 실행하고 종료한다.
+2. `migrate`: DB 헬스체크 성공 후 독립 JRE의 `java -jar /app/application.jar migrate`로 Flyway를 실행하고 종료한다. 웹 Spring 컨텍스트 없이 `TNA_JDBC_URL`·`TNA_MIGRATION_DB_PASSWORD`와 고정 `tna_migration` 역할만 사용한다. JDBC URL의 사용자 정보·query/fragment·추가 CLI 인수는 거부한다. 연결 추가 옵션이 필요하면 별도 검증 후 계약을 변경한다.
 3. `app`: 마이그레이션 성공 후 일반 업무·인증 역할만 전달받아 실행한다. 인증 역할은 자격 조회와 V3의 제한된 초대 수락에 사용한다. 관리자·마이그레이션 비밀번호는 앱에 전달하지 않는다.
 
 Compose 프로젝트 이름은 `vibe-attendance-local`, DB 이름은 `tna`다. 호스트에는 앱 `127.0.0.1:18080`, DB `127.0.0.1:15432`만 게시한다. PostgreSQL 18 공식 이미지 데이터 볼륨은 `/var/lib/postgresql`에 연결한다. 이미지 태그와 digest는 [Dockerfile](../../Dockerfile)·[compose.yaml](../../compose.yaml)에 고정했다.
@@ -480,3 +477,11 @@ docker compose -f compose.yaml -f compose.operator.yaml up -d --no-build
 - 새 Testcontainers의 같은 클러스터 새 DB에 논리 복원 성공. 원본 불변·행 수·SHA14개·34 FORCE RLS·역할/테넌트 격리·인증 목적 유지. dump262ms·restore299ms는 소규모 로컬 결과이며 운영 RPO/RTO가 아니다.
 
 부하/복원 도구는 기본 `verify`에서 자동 실행하지 않는다. 재실행은 보고서의 명령을 따른다. 실행 로그·JSON·합성 덤프·raw manifest는 ignored `target/phase6-*`에만 둔다. 실제 메일·실고객·외부 서버 접속·배포는 하지 않았다. 기본 Compose의 빈 DB와 loopback 앱만 유지하고 임시 Testcontainers는 종료했다.
+
+## 전체 의존성·이미지 보안 후속 검증 (2026-10-25)
+
+[후속 보고서](../quality/http-soak-vulnerability.md)에 검사 도구/DB 고정값·대상별 실체·전후 수치·잔여 취약점과 [원시 검토 원장](../quality/vulnerability-review.csv)을 기록했다. MyBatis3.6.0의 내부 OGNL 패치·UUID TypeHandler와 빌드 plugin realm 패치를 적용하고 전체396개(단위46·실제 PostgreSQL 통합350), 실패·오류·건너뜀0을 확인했다. 수집 도구의 stdlib 테스트12개도 통과했다.
+
+migrate는 build 상속 대신 완성 JAR·독립 JRE·uid10001을 사용한다. 새 전용 tmpfs DB의 V1~V10 최초 적용과 보존 V10의 no-op, 앱/DB 경계·기본 HTTP24개를 실제 확인했다. 기존 CA·Maven 미러를 쓰던 runtime secret 마운트는 새 override에서 제외했으며 기존 ignored 설정 파일을 삭제하지 않았다. 기본 앱은 빈 Compose DB와 loopback 포트를 유지한다.
+
+전체126개 프로젝트 JAR·160개 플러그인 JAR·52개 Maven JAR과 이미지4종을 로컬 검사했다. 앱/migrate의 Java archive 검출0은 OS·개발 도구까지 취약점이 없다는 의미가 아니다. 공급자 평가 대기·미수정 항목과 도달성 미검증은 그대로 남긴다. 실제 HTTP 지속 부하의 최종 결과는 후속 보고서에 별도 기록한다.

@@ -9,7 +9,7 @@
 - 출처: [공식 고정 태그](https://github.com/apache/maven-wrapper/tree/maven-wrapper-3.3.4).
 - 라이선스: Apache License 2.0. [라이선스 전문](LICENSES/Apache-2.0.txt)과 [원본 NOTICE](LICENSES/maven-wrapper-NOTICE.txt)를 함께 보존한다. NOTICE의 행 끝 공백만 정리했다.
 - Wrapper가 내려받는 Maven은 3.9.16으로 고정하며 공식 배포 ZIP의 SHA256을 Wrapper 설정에서 검증한다.
-- Docker의 build·migrate 단계에도 이 고지와 `LICENSES`를 복사한다. 최종 앱 이미지는 Maven Wrapper를 포함하지 않는다.
+- Docker의 build 단계에 이 고지와 `LICENSES`를 복사한다. JRE·완성 JAR만 사용하는 최종 앱·migrate 이미지는 Maven Wrapper를 포함하지 않는다.
 
 ## htmx
 
@@ -22,7 +22,7 @@
 
 ## Maven 의존성 조사
 
-2026-10-24 실제 해석한 프로젝트 의존성 126개(테스트 포함)의 좌표·범위·라이선스 메타데이터를 [CSV](docs/development/dependency-licenses.csv)에 기록했다. 각 아티팩트의 POM과 상속한 parent POM의 `licenses`를 사용했으며, 라이선스를 명시한 POM 좌표도 함께 남겼다. 조사 당시 라이선스 메타데이터가 없는 항목은 0개였다.
+2026-10-24 실제 해석한 프로젝트 의존성 126개(테스트 포함)의 좌표·범위·라이선스 메타데이터를 [CSV](docs/development/dependency-licenses.csv)에 기록했다. 2026-10-25 보안 패치로 MyBatis3.6.0 및 라이선스를 선언한 parent POM 좌표를 갱신하고 전체126개 좌표·scope를 다시 대조했다. 각 아티팩트의 POM과 상속한 parent POM의 `licenses`를 사용했으며, 라이선스를 명시한 POM 좌표도 함께 남겼다. 조사 당시 라이선스 메타데이터가 없는 항목은 0개였다.
 
 이는 프로젝트 의존성의 메타데이터 목록이다. 여러 라이선스 표기의 선택·적용 조건, 각 JAR의 LICENSE/NOTICE·포함 코드, 빌드 플러그인 의존성, JDK·컨테이너 OS 구성요소까지 검토한 법률 감사는 아니다. 실제 배포 전 해당 배포물의 고지와 적용 조건을 별도로 확인하고, 의존성을 변경하면 목록을 갱신한다. 테스트 전용 구성요소와 서비스 배포 구성요소는 구분한다.
 

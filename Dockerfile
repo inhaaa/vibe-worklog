@@ -21,8 +21,15 @@ RUN --mount=type=secret,id=local_build_ca \
     fi; \
     ./mvnw -B -Dmaven.test.skip=true package
 
-FROM build AS migrate
-CMD ["./mvnw", "-B", "flyway:migrate"]
+FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS migrate
+
+RUN groupadd --gid 10001 tna \
+    && useradd --uid 10001 --gid tna --system --no-create-home --no-log-init tna
+WORKDIR /app
+COPY --from=build --chown=10001:10001 /workspace/target/*.jar /app/application.jar
+USER 10001:10001
+ENTRYPOINT ["java", "-jar", "/app/application.jar"]
+CMD ["migrate"]
 
 FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS runtime
 

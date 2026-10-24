@@ -50,7 +50,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 |---|---|
 | Language | Java 25 (Eclipse Temurin 25.0.4.1+1) |
 | Backend | Spring Boot 4.1.2 |
-| Data Access | MyBatis Spring Boot Starter 4.1.0 / MyBatis 3.5.19 |
+| Data Access | MyBatis Spring Boot Starter 4.1.0 / MyBatis 3.6.0 (보안 패치·저장소 회귀 검증) |
 | Database | PostgreSQL 18.6 |
 | Frontend | Thymeleaf 3.1.5.RELEASE, htmx 2.0.11, HTML/CSS/JavaScript |
 | Security | Spring Security |
@@ -60,7 +60,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 현재 Java 25 빌드·패키징과 실제 PostgreSQL Testcontainers 전체383개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·보안·부하·논리 복원 결과와 한계는 [품질 보고서](docs/quality/phase6-report.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 현재 Java 25 빌드·패키징과 실제 PostgreSQL Testcontainers 전체396개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·부하·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
