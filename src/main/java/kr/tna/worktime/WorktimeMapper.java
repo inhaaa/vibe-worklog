@@ -88,6 +88,23 @@ public interface WorktimeMapper {
         ORDER BY work_date,result_revision DESC
         """)
     List<ResultRow> latest(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("from") LocalDate from,@Param("to") LocalDate to);
+    @Select("""
+        SELECT id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+          source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
+          outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,leave_days,
+          reason_codes::text AS reason_codes,calculated_at
+        FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{id}
+          AND(employee_id=#{employeeId} OR #{administrator})
+        """)
+    ResultRow result(@Param("tenantId") UUID tenantId,@Param("id") UUID id,
+        @Param("employeeId") UUID employeeId,@Param("administrator") boolean administrator);
+    @Select("SELECT input_refs::text FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{id}")
+    String resultInput(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    @Select("""
+        SELECT id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version,status,started_at,finished_at
+        FROM tna.calculation_run WHERE tenant_id=#{tenantId} AND id=#{id} AND employee_id=#{employeeId}
+        """)
+    RunEvidence run(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("employeeId") UUID employeeId);
     @Insert("""
         INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
         VALUES(#{tenantId},#{employeeId},#{date},#{input},#{review},false)

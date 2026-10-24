@@ -49,6 +49,28 @@ public final class WorktimeService {
             BusinessCommands commands,OrgCommands administration,Clock clock) {
         this.mapper=mapper;this.employees=employees;this.clocks=clocks;this.commands=commands;this.administration=administration;this.clock=clock;
     }
+    public ResultDetail detail(TnaPrincipal actor,UUID resultId) {
+        if(actor==null)throw OrgException.forbidden();if(resultId==null)throw OrgException.notFound();
+        boolean administrator=actor.roles().contains("ATTENDANCE_ADMIN");
+        return read(actor,actor.employeeId(),()->{
+            Supplier<ResultDetail> load=()->{
+                var stored=mapper.result(actor.tenantId(),resultId,actor.employeeId(),administrator);
+                if(stored==null)throw OrgException.notFound();
+                var person=employee(actor.tenantId(),stored.employeeId());
+                var current=input(actor.tenantId(),person,stored.workDate());
+                var result=storedResult(stored);
+                boolean currentSource=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())
+                        &&stored.sourceFingerprint().equals(current.source());
+                var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
+                var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
+                var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
+                return new ResultDetail(storedDay(person,stored,result,currentSource),stored.id().equals(latest.id()),latest.id(),run,
+                        frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
+            };
+            return administrator?administration.read(actor,load):load.get();
+        });
+    }
+
     public List<EmployeeChoice> employees(TnaPrincipal actor) {
         if(actor==null)throw OrgException.forbidden();
         if(actor.roles().contains("ATTENDANCE_ADMIN"))return administration.read(actor,()->mapper.employees(actor.tenantId()));
@@ -207,12 +229,60 @@ public final class WorktimeService {
                         current.clock().inputRevision(),current.clock().reviewRevision(),Set.of("NOT_CALCULATED","LEGAL_OVERTIME_UNDETERMINED"));
                 days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing));
             }else {
-                var result=new DayResult(date,Status.valueOf(r.status()),r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),r.confirmedBreakMillis(),
-                        r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
+                var result=storedResult(r);
                 boolean matches=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())&&r.sourceFingerprint().equals(current.source());
-                days.add(new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),date,r.resultRevision(),r.ruleVersion(),r.calculatedAt(),r.sourceFingerprint(),matches,result));
+                days.add(storedDay(employee,r,result,matches));
             }
         }return List.copyOf(days);
+    }
+    private DayResult storedResult(WorktimeMapper.ResultRow r) {
+        return new DayResult(r.workDate(),Status.valueOf(r.status()),r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),r.confirmedBreakMillis(),
+                r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
+                Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
+    }
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current) {
+        return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
+                r.calculatedAt(),r.sourceFingerprint(),current,result);
+    }
+    private FrozenEvidence frozenEvidence(String value,UUID employeeId,LocalDate date) {
+        try {
+            var refs=json.readTree(value);
+            if(!refs.isArray()||refs.size()!=1||!refs.get(0).isObject())return FrozenEvidence.missing();
+            var body=refs.get(0);
+            if(!body.has("policy")||!body.has("assessment")||body.get("leaveEffects")==null||!body.get("leaveEffects").isArray()
+                    ||body.get("pendingCorrections")==null||!body.get("pendingCorrections").isArray())return FrozenEvidence.missing();
+            var clockNode=body.get("clock");var employmentNode=body.get("employment");
+            if(clockNode==null||clockNode.isNull()||employmentNode==null||employmentNode.isNull())return FrozenEvidence.missing();
+            var saved=json.readValue(clockNode.toString(),ClockData.DaySnapshot.class);
+            var employment=json.readValue(employmentNode.toString(),EmploymentEvidence.class);
+            if(!employeeId.equals(saved.employeeId())||!date.equals(saved.workDate())||employment.joinedOn()==null
+                    ||saved.events()==null||saved.effectiveEvents()==null
+                    ||saved.confirmation()!=null&&saved.confirmation().breaks()==null
+                    ||saved.schedule()!=null&&saved.schedule().breaks()==null)return FrozenEvidence.missing();
+            PolicyEvidence policy=null;AssessmentEvidence assessment=null;
+            if(body.get("policy")!=null&&!body.get("policy").isNull()) {
+                var p=json.readValue(body.get("policy").toString(),PolicyReview.class);
+                if(p.id()==null||p.revision()<1||p.validFrom()==null||date.isBefore(p.validFrom())
+                        ||p.validTo()!=null&&!date.isBefore(p.validTo()))return FrozenEvidence.missing();
+                policy=new PolicyEvidence(p.id(),p.revision(),p.validFrom(),p.validTo(),p.mondayWeekReviewed());
+            }
+            if(body.get("assessment")!=null&&!body.get("assessment").isNull()) {
+                var a=json.readValue(body.get("assessment").toString(),AssessmentReview.class);
+                if(a.id()==null||a.revision()<1||a.validFrom()==null||!employeeId.equals(a.employeeId())||date.isBefore(a.validFrom())
+                        ||a.validTo()!=null&&!date.isBefore(a.validTo()))return FrozenEvidence.missing();
+                assessment=new AssessmentEvidence(a.id(),a.revision(),a.validFrom(),a.validTo(),a.generalRuleReviewed());
+            }
+            var leave=referenceIds(body.get("leaveEffects"));var pending=referenceIds(body.get("pendingCorrections"));
+            return new FrozenEvidence(saved,policy,assessment,employment,leave,pending,true);
+        }catch(tools.jackson.core.JacksonException|IllegalArgumentException e){return FrozenEvidence.missing();}
+    }
+    private List<String> referenceIds(tools.jackson.databind.JsonNode node) {
+        if(node==null||node.isNull())return List.of();
+        return Arrays.stream(json.readValue(node.toString(),String[].class)).map(UUID::fromString).map(UUID::toString).toList();
+    }
+    private record FrozenEvidence(ClockData.DaySnapshot clock,PolicyEvidence policy,AssessmentEvidence assessment,
+            EmploymentEvidence employment,List<String> leave,List<String> pending,boolean complete) {
+        static FrozenEvidence missing(){return new FrozenEvidence(null,null,null,null,List.of(),List.of(),false);}
     }
     private Input input(UUID tenant,Employee employee,LocalDate date) {
         var snapshot=clocks.snapshot(tenant,employee.id(),date);var policy=mapper.policy(tenant,date);var assessment=mapper.assessment(tenant,employee.id(),date);

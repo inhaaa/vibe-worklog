@@ -22,6 +22,14 @@ public class WorktimeController {
     public WorktimeController(WorktimeService worktime,OrgCommands commands){this.worktime=worktime;this.commands=commands;}
     @GetMapping("/admin/attendance") ModelAndView overview(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) UUID employeeId,@RequestParam(required=false) @DateTimeFormat(pattern="uuuu-MM") YearMonth month){return monthPage(a,employeeId==null?a.employeeId():employeeId,month==null?YearMonth.from(commands.today()):month,true);}
     @GetMapping("/me/worktime") ModelAndView mine(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) @DateTimeFormat(pattern="uuuu-MM") YearMonth month){return monthPage(a,a.employeeId(),month==null?YearMonth.from(commands.today()):month,false);}
+    @GetMapping("/worktime/results/{id}") ModelAndView result(@AuthenticationPrincipal TnaPrincipal actor,@PathVariable UUID id){
+        var detail=worktime.detail(actor,id);var r=detail.day().result();var times=new LinkedHashMap<String,String>();
+        times.put("소정근로",duration(r.scheduledMillis()));times.put("체류",duration(r.presenceMillis()));times.put("확인 실근로",duration(r.actualWorkMillis()));
+        times.put("확인 휴게",duration(r.confirmedBreakMillis()));times.put("일정 밖",duration(r.outsideScheduleMillis()));times.put("일8시간 초과 참고",duration(r.over8hMillis()));
+        times.put("야간",duration(r.nightWorkMillis()));times.put("휴일",duration(r.holidayWorkMillis()));times.put("법정 최종 연장",duration(r.legalOvertimeMillis()));
+        return new ModelAndView("worktime/result").addObject("detail",detail).addObject("times",times).addObject("month",YearMonth.from(detail.day().workDate()))
+                .addObject("admin",actor.roles().contains("ATTENDANCE_ADMIN"));
+    }
     @PostMapping("/admin/calculations") ModelAndView calculate(@AuthenticationPrincipal TnaPrincipal a,@RequestParam UUID employeeId,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,@RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,@RequestParam UUID commandId,@RequestParam String reason){return submit(()->worktime.recalculate(a,employeeId,from,to,commandId,reason),()->monthPage(a,employeeId,YearMonth.from(from),true),"/admin/attendance?employeeId="+employeeId+"&month="+YearMonth.from(from),false);}
     @GetMapping("/admin/work-policies") ModelAndView policies(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) UUID employeeId){return policyPage(a,employeeId==null?a.employeeId():employeeId,null,null);}
     @PostMapping("/admin/work-policies") ModelAndView policy(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("policyForm") PolicyForm f,BindingResult b){check(b);return submit(()->worktime.reviewPolicy(a,f),()->policyPage(a,a.employeeId(),f,null),"/admin/work-policies",false);}
