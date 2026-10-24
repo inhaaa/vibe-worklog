@@ -13,6 +13,19 @@ public interface WorktimeMapper {
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
     String companyName(@Param("tenantId") UUID tenantId);
+    @Select("""
+        SELECT o.name FROM tna.employee_assignment a
+        JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
+        WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId} AND a.valid_from<=#{date}
+          AND(a.valid_to IS NULL OR a.valid_to>#{date})
+        """)
+    String organizationAt(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    @Select("""
+        SELECT (input_refs->0->'clock')::text AS clock_json,
+          input_refs#>>'{0,policy,id}' AS policy_version_id,input_refs#>>'{0,assessment,id}' AS assessment_id
+        FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{resultId}
+        """)
+    ExportEvidence exportEvidence(@Param("tenantId") UUID tenantId,@Param("resultId") UUID resultId);
     @Select("SELECT id,employee_no,display_name FROM tna.employee WHERE tenant_id=#{tenantId} ORDER BY employee_no,id")
     List<EmployeeChoice> employees(@Param("tenantId") UUID tenantId);
     @Select("SELECT id,revision,valid_from,valid_to,monday_week_reviewed,basis,created_at FROM tna.work_policy_version WHERE tenant_id=#{tenantId} ORDER BY revision DESC")
@@ -91,6 +104,7 @@ public interface WorktimeMapper {
     SnapshotRow snapshot(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("SELECT id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at FROM tna.org_audit_event WHERE tenant_id=#{tenantId} ORDER BY occurred_at DESC,id LIMIT 100")
     List<AuditRow> audits(@Param("tenantId") UUID tenantId);
+    record ExportEvidence(String clockJson,String policyVersionId,String assessmentId) { }
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,

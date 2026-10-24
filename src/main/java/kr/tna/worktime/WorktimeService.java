@@ -7,6 +7,8 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,6 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public final class WorktimeService {
     private static final ZoneId SEOUL=ZoneId.of("Asia/Seoul");
+    private static final DateTimeFormatter EXPORT_INSTANT=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX",Locale.ROOT).withZone(SEOUL);
     private final WorktimeMapper mapper;
     private final EmployeeAdminMapper employees;
     private final ClockService clocks;
@@ -128,23 +131,34 @@ public final class WorktimeService {
             rows.add(row("생성 시각",at.toString(),"시간대","Asia/Seoul","규칙","CALC-1"));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
-                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","종일 연차(DAY)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각"));
+                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","종일 연차(DAY)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
+                    "소속","일정 버전 ID","휴일 버전 ID","정책 버전 ID","적용 검토 ID","유효 출근","유효 퇴근","확인 휴게 구간",
+                    "소정(HH:mm:ss.SSS)","체류(HH:mm:ss.SSS)","확인 실근로(HH:mm:ss.SSS)","확인 휴게(HH:mm:ss.SSS)",
+                    "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)"));
+            rows.add(row("일자별 입력 근거는 저장된 결과 당시 값입니다. 소속은 출력 시점에 확인한 근무일별 적용 소속입니다."));
             for(var day:days) {
+                var evidence=day.id()==null?null:mapper.exportEvidence(actor.tenantId(),day.id());
+                var saved=evidence==null||evidence.clockJson()==null?null:json.readValue(evidence.clockJson(),ClockData.DaySnapshot.class);
                 var r=day.result();rows.add(row(day.employeeNo(),day.employeeName(),day.workDate().toString(),r.status().name(),
                         day.id()==null?"미산정":day.current()?"작성 시점 현재":"오래됨 · 재집계 필요",r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
                         r.confirmedBreakMillis(),r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                         String.join(";",r.reasons().stream().sorted().toList()),day.id()==null?null:day.id().toString(),day.runId()==null?null:day.runId().toString(),
-                        day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:day.calculatedAt().toString()));
+                        day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:day.calculatedAt().toString(),
+                        mapper.organizationAt(actor.tenantId(),target,day.workDate()),saved==null||saved.scheduleVersionId()==null?null:saved.scheduleVersionId().toString(),
+                        saved==null||saved.calendarVersionId()==null?null:saved.calendarVersionId().toString(),evidence==null?null:evidence.policyVersionId(),evidence==null?null:evidence.assessmentId(),
+                        exportedEvents(saved,"IN"),exportedEvents(saved,"OUT"),exportedBreaks(saved),
+                        humanDuration(r.scheduledMillis()),humanDuration(r.presenceMillis()),humanDuration(r.actualWorkMillis()),humanDuration(r.confirmedBreakMillis()),
+                        humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis())));
             }
             long sum=days.stream().filter(DayView::current).map(DayView::result).filter(r->r.actualWorkMillis()!=null).mapToLong(DayResult::actualWorkMillis).sum();
             long unresolved=days.stream().filter(d->!d.current()||d.result().actualWorkMillis()==null).count();
-            rows.add(row("작성 시점 현재 확인 부분합(ms)",sum,"미확정·오래됨 일수",unresolved));
+            rows.add(row("작성 시점 현재 확인 부분합(ms)",sum,"미확정·오래됨 일수",unresolved,"작성 시점 현재 확인 부분합(HH:mm:ss.SSS)",humanDuration(sum)));
             rows.add(row("주간 참고량은 선택 기간 밖의 같은 주 전체 일자를 포함합니다. 월요일 주 기산점·일반 적용과 일 결과가 모두 확인되어야 주40시간 참고값을 표시합니다."));
-            rows.add(row("주 시작일","주 종료일 (포함)","주 확인 실근로 부분합(ms)","주 미확정 일수","주 40시간 초과 참고(ms)","주 상태","생성 당시 주 최신성","주 사유 코드"));
+            rows.add(row("주 시작일","주 종료일 (포함)","주 확인 실근로 부분합(ms)","주 미확정 일수","주 40시간 초과 참고(ms)","주 상태","생성 당시 주 최신성","주 사유 코드","주 확인 실근로 부분합(HH:mm:ss.SSS)","주 40시간 초과 참고(HH:mm:ss.SSS)"));
             for(var week:weeks) {
                 var result=week.result();rows.add(row(week.from().toString(),week.to().minusDays(1).toString(),result.confirmedWorkMillis(),
                         result.unconfirmedDays(),result.over40hMillis(),result.status().name(),week.current()?"작성 시점 현재":"미산정·재집계 필요",
-                        String.join(";",result.reasons().stream().sorted().toList())));
+                        String.join(";",result.reasons().stream().sorted().toList()),humanDuration(result.confirmedWorkMillis()),humanDuration(result.over40hMillis())));
             }
             var refs=all.stream().map(d->{var ref=new LinkedHashMap<String,Object>();ref.put("workDate",d.workDate());ref.put("resultId",d.id());
                     ref.put("inputRevision",d.result().inputRevision());ref.put("reviewRevision",d.result().reviewRevision());ref.put("current",d.current());ref.put("sourceFingerprint",d.sourceFingerprint());return ref;}).toList();
@@ -166,6 +180,22 @@ public final class WorktimeService {
         administration.execute(actor,UUID.randomUUID(),action,"TENANT",fingerprint(action,actor==null?null:actor.tenantId()),"감사 목록 조회",()->{
             rows.set(List.copyOf(mapper.audits(actor.tenantId())));return new Change(actor.tenantId(),null,Map.of("returnedCount",rows.get().size()));
         });return rows.get();
+    }
+    private static String humanDuration(Long millis) {
+        if(millis==null)return null;
+        return String.format(Locale.ROOT,"%02d:%02d:%02d.%03d",millis/3_600_000,millis/60_000%60,millis/1_000%60,millis%1_000);
+    }
+    private static String exportedEvents(ClockData.DaySnapshot saved,String kind) {
+        if(saved==null)return null;
+        var events=saved.effectiveEvents()==null?saved.events():saved.effectiveEvents();
+        var selected=events.stream().filter(e->e.kind().equals(kind)).map(e->EXPORT_INSTANT.format(e.occurredAt())).toList();
+        return selected.isEmpty()?null:String.join("; ",selected);
+    }
+    private static String exportedBreaks(ClockData.DaySnapshot saved) {
+        if(saved==null||saved.confirmation()==null)return null;
+        var breaks=saved.confirmation().breaks();
+        if(breaks.isEmpty())return "확인된 휴게 없음";
+        return String.join("; ",breaks.stream().map(b->EXPORT_INSTANT.format(b.startAt())+" / "+EXPORT_INSTANT.format(b.endAt())).toList());
     }
     private List<DayView> readDays(UUID tenant,Employee employee,LocalDate from,LocalDate to) {
         var stored=new HashMap<LocalDate,WorktimeMapper.ResultRow>();for(var r:mapper.latest(tenant,employee.id(),from,to))stored.put(r.workDate(),r);

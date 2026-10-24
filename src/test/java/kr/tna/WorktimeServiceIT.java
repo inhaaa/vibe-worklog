@@ -179,6 +179,39 @@ class WorktimeServiceIT {
         assertTrue(db.queryForObject("SELECT jsonb_array_length(result_refs) FROM tna.report_snapshot WHERE tenant_id=? AND id=?",Integer.class,tenant,snapshot)>=7,
                 "선택 기간 밖의 같은 주 입력 참조도 스냅샷에 포함해야 합니다.");
     }
+    @Test void workbookExportsDatedOrganizationFrozenInputsAndLosslessHumanDurations() throws Exception {
+        UUID organization=UUID.randomUUID(),futureOrganization=UUID.randomUUID();
+        for(UUID id:List.of(organization,futureOrganization))db.update("INSERT INTO tna.organization(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,?,?,?,?)",tenant,id,id.toString(),id.equals(organization)?"합성 당시 소속":"합성 미래 소속",manager.accountId(),manager.accountId());
+        db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,valid_to,reason,created_by,updated_by) VALUES (?,?,?,?,?,?,'출력하면 안 되는 소속 자유 사유',?,?)",tenant,UUID.randomUUID(),employee.employeeId(),organization,date.minusYears(1),date.plusDays(1),manager.accountId(),manager.accountId());
+        db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'합성 미래 배정',?,?)",tenant,UUID.randomUUID(),employee.employeeId(),futureOrganization,date.plusDays(1),manager.accountId(),manager.accountId());
+        Instant preciseOut=date.atTime(18,0).atZone(ZoneId.of("Asia/Seoul")).toInstant().plusMillis(123);
+        db.update("UPDATE tna.attendance_event SET occurred_at=? WHERE tenant_id=? AND employee_id=? AND assigned_work_date=? AND event_kind='OUT'",java.sql.Timestamp.from(preciseOut),tenant,employee.employeeId(),date);
+        var actual=clocks.day(employee,date);clocks.confirm(employee,new ConfirmationForm(date,actual.inputRevision(),actual.reviewRevision(),true,true,actual.sourceFingerprint(),UUID.randomUUID()));
+        UUID network=db.queryForObject("SELECT id FROM tna.allowed_network WHERE tenant_id=?",UUID.class,tenant);
+        for(int offset=1;offset<=3;offset++) {
+            LocalDate earlier=date.minusDays(offset);
+            for(String kind:List.of("IN","OUT")) {
+                var at=java.sql.Timestamp.from(earlier.atTime(kind.equals("IN")?9:18,0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+                db.update("INSERT INTO tna.attendance_event(tenant_id,id,employee_id,event_kind,occurred_at,received_at,client_command_id,source,validated_ip,network_id,assigned_work_date) VALUES (?,?,?,?,?,?,?,'IP',CAST('127.0.0.1' AS inet),?,?)",tenant,UUID.randomUUID(),employee.employeeId(),kind,at,at,UUID.randomUUID(),network,earlier);
+            }
+            db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision) VALUES (?,?,?,2,0)",tenant,employee.employeeId(),earlier);
+            var before=clocks.day(employee,earlier);clocks.confirm(employee,new ConfirmationForm(earlier,2L,0L,true,true,before.sourceFingerprint(),UUID.randomUUID()));
+        }
+        UUID policy=reports.reviewPolicy(manager,new PolicyForm(date.minusDays(7),date.plusDays(7),true,"출력 금지 정책 자유 근거","검토 등록",UUID.randomUUID()));
+        UUID assessment=reports.assess(manager,new AssessmentForm(employee.employeeId(),date.minusDays(7),date.plusDays(7),true,"출력 금지 개인 자유 근거","검토 등록",UUID.randomUUID()));
+        reports.recalculate(manager,employee.employeeId(),date.minusDays(3),date,UUID.randomUUID(),"합성 정밀도 검토");
+        UUID schedule=db.queryForObject("SELECT schedule_version_id FROM tna.schedule_assignment WHERE tenant_id=? AND employee_id=?",UUID.class,tenant,employee.employeeId());
+        db.update("UPDATE tna.attendance_event SET occurred_at=? WHERE tenant_id=? AND employee_id=? AND assigned_work_date=? AND event_kind='OUT'",java.sql.Timestamp.from(preciseOut.plusSeconds(3600)),tenant,employee.employeeId(),date);
+        UUID snapshot=reports.prepareExport(manager,employee.employeeId(),date.minusDays(3),date,UUID.randomUUID(),"합성 입력 근거 출력");
+        String sheet=null;
+        try(var zip=new ZipInputStream(new ByteArrayInputStream(reports.download(manager,snapshot)),StandardCharsets.UTF_8)) {
+            for(var entry=zip.getNextEntry();entry!=null;entry=zip.getNextEntry())if(entry.getName().equals("xl/worksheets/sheet1.xml"))sheet=new String(zip.readAllBytes(),StandardCharsets.UTF_8);
+        }
+        assertNotNull(sheet);
+        for(String expected:List.of("소속","합성 당시 소속","일정 버전 ID",schedule.toString(),"정책 버전 ID",policy.toString(),"적용 검토 ID",assessment.toString(),
+                "유효 출근","유효 퇴근","확인 휴게 구간",date+"T09:00:00.000+09:00",date+"T18:00:00.123+09:00",date+"T12:00:00.000+09:00",date+"T13:00:00.000+09:00", "08:00:00.123","01:00:00.000","24:00:00.000","28800123","미확정"))assertTrue(sheet.contains(expected),"검토용 근거 또는 정밀도 누락: "+expected);
+        for(String forbidden:List.of("합성 미래 소속","출력하면 안 되는 소속 자유 사유","출력 금지 정책 자유 근거","출력 금지 개인 자유 근거","127.0.0.1","@example.test",date+"T19:00:00.123+09:00"))assertFalse(sheet.contains(forbidden),"현재 사실 혼합 또는 비공개 정보 출력: "+forbidden);
+    }
     @Test void monthUsesFullBoundaryWeeksAndAuditViewingIsItselfAudited() {
         assertNotNull(recalculate());var month=reports.month(employee,employee.employeeId(),java.time.YearMonth.from(date));
         assertNotNull(month);assertEquals(java.time.YearMonth.from(date).lengthOfMonth(),month.days().size());

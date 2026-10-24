@@ -54,6 +54,45 @@ class LeaveWorkflowWebIT {
         mvc.perform(post(cancelUrl+"/approve").session(managerSession).with(csrf()).param("expectedVersion","0").param("reason","취소 독립 승인").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther());
         assertEquals(2,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
     }
+    @Test void generalCancellationButtonIsLimitedToTheOwningAuthorWhileAdminExceptionRemainsAvailable() throws Exception {
+        var f=approvedLeave();String path="/requests/"+f.requestId();
+        mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString(path+"/cancellations")));
+        mvc.perform(get(path).session(login(f.company(),f.manager().accountId()+"@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(not(containsString("action=\""+path+"/cancellations\""))))
+                .andExpect(content().string(containsString("/admin/requests/"+f.requestId()+"/cancellation-exceptions")));
+    }
+    @Test void alreadyStartedLeaveHidesGeneralCancellationButKeepsTheAdminException() throws Exception {
+        var f=approvedLeave();String path="/requests/"+f.requestId();LocalDate past=LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+        db.update("UPDATE tna.approval_request SET from_date=?,to_date=? WHERE tenant_id=? AND id=?",past,past,f.manager().tenantId(),f.requestId());
+        db.update("UPDATE tna.leave_request_day SET leave_date=? WHERE tenant_id=? AND request_id=?",past,f.manager().tenantId(),f.requestId());
+        mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(not(containsString("action=\""+path+"/cancellations\""))));
+        mvc.perform(get(path).session(login(f.company(),f.manager().accountId()+"@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("/admin/requests/"+f.requestId()+"/cancellation-exceptions")));
+    }
+    @Test void zeroDayRangePrefixDoesNotHideCancellationBeforeTheFirstChargedDay() throws Exception {
+        var f=approvedLeave();String path="/requests/"+f.requestId();
+        LocalDate yesterday=LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
+        db.update("UPDATE tna.approval_request SET from_date=? WHERE tenant_id=? AND id=?",yesterday,f.manager().tenantId(),f.requestId());
+        mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
+                .andExpect(status().isOk()).andExpect(content().string(containsString("action=\""+path+"/cancellations\"")));
+    }
+    private ApprovedLeave approvedLeave(){
+        LocalDate today=LocalDate.now(ZoneId.of("Asia/Seoul")),date=today.plusDays(2);UUID tenant=UUID.randomUUID();String company="BUTTON-"+tenant.toString().toUpperCase(Locale.ROOT);
+        db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 취소 버튼')",tenant,company);
+        var manager=member(tenant,Set.of("EMPLOYEE","ATTENDANCE_ADMIN","APPROVER"));var worker=member(tenant,Set.of("EMPLOYEE"));
+        approvers.set(manager,new AccountData.ApproverForm(worker.employeeId(),manager.employeeId(),today,0L,"합성 배정",UUID.randomUUID()));
+        var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
+        UUID template=schedules.create(manager,new TemplateForm(UUID.randomUUID().toString(),"합성 일정",today,days,null,"합성 일정",UUID.randomUUID()));
+        schedules.assign(manager,worker.employeeId(),new AssignmentForm(schedules.versions(manager,template).getFirst().id(),today,1L,"합성 배정",UUID.randomUUID()));
+        settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 근거","","합성 검토",UUID.randomUUID()));
+        UUID bucket=flow.openBucket(manager,new BucketForm(worker.employeeId(),today,today,today.plusDays(30),2,"합성 기초 근거","합성 기초",UUID.randomUUID()));
+        UUID request=flow.submitLeave(worker,new LeaveForm(bucket,date,date,null,"합성 연차",UUID.randomUUID()));
+        flow.decide(manager,request,new DecisionForm("APPROVE",0L,"합성 독립 승인",UUID.randomUUID()));
+        return new ApprovedLeave(company,manager,worker,request);
+    }
+    private record ApprovedLeave(String company,TnaPrincipal manager,TnaPrincipal worker,UUID requestId) { }
     private TnaPrincipal member(UUID tenant,Set<String> roles){UUID e=UUID.randomUUID(),a=UUID.randomUUID();db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'합성 웹 사원',DATE '2020-01-01')",tenant,e,e.toString());db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,?)",tenant,a,e,a+"@example.test",PasswordPolicy.passwordEncoder().encode(PASSWORD));for(String role:roles)db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)",tenant,a,role);return new TnaPrincipal(tenant,a,e,1,roles,Instant.now());}
     private MockHttpSession login(String company,String email) throws Exception{return(MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);}
 }

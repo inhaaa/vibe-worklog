@@ -28,5 +28,11 @@ class WorktimeWebIT {
         mvc.perform(get(url).session(session)).andExpect(status().isOk()).andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).andExpect(header().string("Cache-Control",containsString("no-store"))).andExpect(r->{var bytes=r.getResponse().getContentAsByteArray();org.junit.jupiter.api.Assertions.assertEquals('P',bytes[0]);org.junit.jupiter.api.Assertions.assertEquals('K',bytes[1]);});
         mvc.perform(get(url).session(login(false))).andExpect(status().isForbidden());
     }
+    @Test void weeklyRangesDisplayTheInclusiveSundayInsteadOfTheNextMonday() throws Exception {
+        mvc.perform(get("/me/worktime").session(login(false)).param("month","2026-10"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("2026-09-28 ~ 2026-10-04")))
+                .andExpect(content().string(not(containsString("2026-09-28 ~ 2026-10-05"))));
+    }
     private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);}
 }

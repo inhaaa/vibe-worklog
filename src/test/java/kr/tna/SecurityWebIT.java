@@ -82,7 +82,7 @@ class SecurityWebIT {
                 .andExpect(content().string(not(containsString("직원 B"))))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(content().string(containsString("historyCacheSize")))
-                .andExpect(content().string(containsString("준비 중")));
+                .andExpect(content().string(containsString("setup-status")));
         mvc.perform(get("/me/today").session(companyB))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("직원 B")));
         mvc.perform(get("/me/today/status").session(companyA).header("HX-Request", "true"))

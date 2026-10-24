@@ -18,8 +18,8 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class RequestController {
-    private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;
-    public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;}
+    private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;private final Clock clock;
+    public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;}
     @GetMapping("/me/requests") ModelAndView mine(@AuthenticationPrincipal TnaPrincipal a){return minePage(a,null);}
     @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a){return listing("지정 승인함",flow.inbox(a));}
     @GetMapping("/admin/requests") ModelAndView adminRequests(@AuthenticationPrincipal TnaPrincipal a){return listing("고객사 신청 현황",flow.adminRequests(a));}
@@ -42,7 +42,27 @@ public class RequestController {
     private long bucketVersion(TnaPrincipal a,UUID employee,UUID id){return flow.buckets(a,employee).stream().filter(x->x.id().equals(id)).findFirst().orElseThrow(OrgException::notFound).version();}
     private ModelAndView minePage(TnaPrincipal a,LeaveForm f){return new ModelAndView("request/mine").addObject("requests",flow.mine(a)).addObject("buckets",flow.buckets(a,a.employeeId())).addObject("form",f!=null?f:new LeaveForm(null,commands.today().plusDays(1),commands.today().plusDays(1),null,"",UUID.randomUUID()));}
     private ModelAndView listing(String title,List<RequestView> requests){return new ModelAndView("request/list").addObject("title",title).addObject("requests",requests);}
-    private ModelAndView detailPage(TnaPrincipal a,UUID id){var detail=flow.get(a,id);var r=detail.request();boolean admin=a.roles().contains("ATTENDANCE_ADMIN");boolean pending=r.status().equals("PENDING");return new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin).addObject("canDecide",pending&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId())).addObject("canWithdraw",pending&&a.accountId().equals(r.authorAccountId())).addObject("canCancel",r.kind().equals("LEAVE_DAY")&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE")).addObject("candidates",admin?approvers.candidates(a):List.of());}
+    private ModelAndView detailPage(TnaPrincipal a,UUID id){
+        var detail=flow.get(a,id);var r=detail.request();boolean admin=a.roles().contains("ATTENDANCE_ADMIN");boolean pending=r.status().equals("PENDING");
+        boolean cancelableEffect=r.kind().equals("LEAVE_DAY")&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE");
+        boolean owningAuthor=a.accountId().equals(r.authorAccountId())&&a.employeeId().equals(r.targetEmployeeId());
+        return new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin)
+                .addObject("canDecide",pending&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId()))
+                .addObject("canWithdraw",pending&&a.accountId().equals(r.authorAccountId()))
+                .addObject("canCancel",cancelableEffect&&owningAuthor&&beforeLeaveStarts(a,detail))
+                .addObject("canCancelException",admin&&cancelableEffect).addObject("candidates",admin?approvers.candidates(a):List.of());
+    }
+    private boolean beforeLeaveStarts(TnaPrincipal actor,RequestDetail detail){
+        LocalDate today=commands.today();
+        for(var day:detail.days())if(day.quantityDays()==1){
+            if(day.leaveDate().isBefore(today))return false;
+            if(day.leaveDate().isAfter(today))return true;
+            var snapshot=clocks.day(actor,day.leaveDate());
+            return snapshot.schedule()!=null&&snapshot.schedule().startTime()!=null
+                    &&clock.instant().isBefore(day.leaveDate().atTime(snapshot.schedule().startTime()).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+        }
+        return false;
+    }
     private ModelAndView balancesPage(TnaPrincipal a,UUID id,BucketForm f){var employee=employees.get(a,id);return new ModelAndView("request/balances").addObject("employee",employee).addObject("employees",employees.list(a,"",0)).addObject("buckets",flow.buckets(a,id)).addObject("form",f!=null?f:new BucketForm(id,commands.today(),commands.today(),commands.today().plusYears(1),null,"","",UUID.randomUUID()));}
     private ModelAndView correctionPage(TnaPrincipal a,UUID employee,LocalDate date,boolean exceptional,CorrectionForm f){if(employee==null||date==null)throw OrgException.invalid("대상 사원과 날짜가 필요합니다.");var day=exceptional?commands.read(a,()->clocks.snapshot(a.tenantId(),employee,date)):clocks.day(a,date);return new ModelAndView("request/correction").addObject("actions",List.of("KEEP","SET","CLEAR")).addObject("day",day).addObject("exceptional",exceptional).addObject("eventTimes",AttendanceController.times(day)).addObject("form",f!=null?f:new CorrectionForm(exceptional?employee:null,date,day.inputRevision(),day.sourceFingerprint(),"KEEP","","KEEP","",false,false,"",null,null,exceptional,"",UUID.randomUUID()));}
     private CorrectionForm correctionForm(CorrectionForm f,UUID target,boolean exceptional){return new CorrectionForm(target,f.workDate(),f.baseInputRevision(),f.sourceFingerprint(),f.inAction(),f.requestedInAt(),f.outAction(),f.requestedOutAt(),f.presenceAsWork(),f.breaksConfirmed(),f.actualBreaks(),f.replacesRequestId(),f.predecessorRequestId(),exceptional,f.reason(),f.commandId());}
