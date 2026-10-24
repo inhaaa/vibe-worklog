@@ -31,5 +31,9 @@ public final class WorktimeData {
             EmploymentEvidence employment,List<String> leaveEffects,List<String> pendingCorrections,boolean completeEvidence) { }
     public record PeriodView(LocalDate from,LocalDate to,boolean current,WorktimeCalculator.PeriodResult result,List<UUID> dayResultIds) { }
     public record MonthView(YearMonth month,List<DayView> days,List<PeriodView> weeks,PeriodView summary) { }
+    public record AuditPage(List<AuditRow> rows,UUID previousCursor,UUID nextCursor) { }
+    public record AuditDetail(UUID id,UUID commandId,UUID requestTraceId,UUID actorAccountId,String action,
+            String targetKind,UUID targetId,String reason,Instant at,java.util.Map<String,String> beforeSummary,
+            java.util.Map<String,String> afterSummary) { }
     public record AuditRow(UUID id,UUID actorAccountId,String action,String targetKind,UUID targetId,String reason,Instant at) { }
 }

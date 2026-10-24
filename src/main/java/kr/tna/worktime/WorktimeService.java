@@ -197,6 +197,38 @@ public final class WorktimeService {
             workbook.set(snapshot.workbook().clone());return new Change(snapshotId,null,Map.of("purpose","REVIEW","asOf",snapshot.asOf()));
         });return workbook.get();
     }
+    public AuditPage audits(TnaPrincipal actor,UUID before,UUID after) {
+        if(before!=null&&after!=null)throw new OrgException(400,"이전·다음 커서를 동시에 지정할 수 없습니다.");
+        var result=new AtomicReference<AuditPage>();String action="AUDIT_VIEW";
+        administration.execute(actor,UUID.randomUUID(),action,"TENANT",fingerprint(action,before,after),"감사 목록 조회",()->{
+            UUID cursorId=before!=null?before:after;
+            AuditRow cursor=cursorId==null?null:mapper.auditCursor(actor.tenantId(),cursorId);
+            if(cursorId!=null&&cursor==null)throw OrgException.notFound();
+            var found=after==null?mapper.auditOlder(actor.tenantId(),cursor==null?null:cursor.at(),cursorId)
+                    :mapper.auditNewer(actor.tenantId(),cursor.at(),cursorId);
+            var rows=new ArrayList<>(found.subList(0,Math.min(50,found.size())));
+            if(after!=null)java.util.Collections.reverse(rows);
+            UUID previous=null,next=null;
+            if(!rows.isEmpty()){
+                var first=rows.getFirst();var last=rows.getLast();
+                boolean newer=after!=null?found.size()>50:mapper.auditHasNewer(actor.tenantId(),first.at(),first.id());
+                boolean older=after==null?found.size()>50:mapper.auditHasOlder(actor.tenantId(),last.at(),last.id());
+                if(newer)previous=first.id();if(older)next=last.id();
+            }
+            result.set(new AuditPage(List.copyOf(rows),previous,next));
+            return new Change(actor.tenantId(),null,Map.of("returnedCount",rows.size()));
+        });return result.get();
+    }
+    public AuditDetail auditDetail(TnaPrincipal actor,UUID id) {
+        if(id==null)throw OrgException.notFound();
+        var result=new AtomicReference<AuditDetail>();String action="AUDIT_DETAIL_VIEW";
+        administration.execute(actor,UUID.randomUUID(),action,"AUDIT_EVENT",fingerprint(action,id),"감사 상세 조회",()->{
+            var row=mapper.auditDetailRow(actor.tenantId(),id);if(row==null)throw OrgException.notFound();
+            result.set(new AuditDetail(row.id(),row.commandId(),row.requestTraceId(),row.actorAccountId(),row.action(),
+                    row.targetKind(),row.targetId(),row.reason(),row.at(),AuditSummary.project(row.beforeJson()),AuditSummary.project(row.afterJson())));
+            return new Change(id,null,Map.of("auditedEventId",id));
+        });return result.get();
+    }
     public List<AuditRow> audits(TnaPrincipal actor) {
         var rows=new AtomicReference<List<AuditRow>>();String action="AUDIT_VIEW";
         administration.execute(actor,UUID.randomUUID(),action,"TENANT",fingerprint(action,actor==null?null:actor.tenantId()),"감사 목록 조회",()->{

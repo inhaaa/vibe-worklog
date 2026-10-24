@@ -121,6 +121,27 @@ public interface WorktimeMapper {
     SnapshotRow snapshot(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("SELECT id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at FROM tna.org_audit_event WHERE tenant_id=#{tenantId} ORDER BY occurred_at DESC,id LIMIT 100")
     List<AuditRow> audits(@Param("tenantId") UUID tenantId);
+    @Select("SELECT id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at FROM tna.org_audit_event WHERE tenant_id=#{tenantId} AND id=#{id}")
+    AuditRow auditCursor(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    @Select({"<script>",
+        "SELECT id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at FROM tna.org_audit_event WHERE tenant_id=#{tenantId}",
+        "<if test='cursorAt != null'>AND (occurred_at,id) &lt; (#{cursorAt},#{cursorId})</if>",
+        "ORDER BY occurred_at DESC,id DESC LIMIT 51", "</script>"})
+    List<AuditRow> auditOlder(@Param("tenantId") UUID tenantId,@Param("cursorAt") Instant cursorAt,@Param("cursorId") UUID cursorId);
+    @Select("SELECT id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at FROM tna.org_audit_event WHERE tenant_id=#{tenantId} AND (occurred_at,id)>(#{cursorAt},#{cursorId}) ORDER BY occurred_at ASC,id ASC LIMIT 51")
+    List<AuditRow> auditNewer(@Param("tenantId") UUID tenantId,@Param("cursorAt") Instant cursorAt,@Param("cursorId") UUID cursorId);
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.org_audit_event WHERE tenant_id=#{tenantId} AND (occurred_at,id)<(#{at},#{id}))")
+    boolean auditHasOlder(@Param("tenantId") UUID tenantId,@Param("at") Instant at,@Param("id") UUID id);
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.org_audit_event WHERE tenant_id=#{tenantId} AND (occurred_at,id)>(#{at},#{id}))")
+    boolean auditHasNewer(@Param("tenantId") UUID tenantId,@Param("at") Instant at,@Param("id") UUID id);
+    @Select("""
+        SELECT id,command_id,request_trace_id,actor_account_id,action,target_kind,target_id,reason,occurred_at AS at,
+            before_state::text AS before_json,after_state::text AS after_json
+        FROM tna.org_audit_event WHERE tenant_id=#{tenantId} AND id=#{id}
+        """)
+    AuditDetailRow auditDetailRow(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    record AuditDetailRow(UUID id,UUID commandId,UUID requestTraceId,UUID actorAccountId,String action,
+            String targetKind,UUID targetId,String reason,Instant at,String beforeJson,String afterJson) { }
     record ExportEvidence(String clockJson,String policyVersionId,String assessmentId) { }
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
