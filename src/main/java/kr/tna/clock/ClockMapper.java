@@ -16,7 +16,7 @@ import org.apache.ibatis.annotations.Update;
 public interface ClockMapper {
     @Select("SELECT current_setting('app.tenant_id',true)")
     String currentTenant();
-    @Select("SELECT pg_advisory_xact_lock(hashtextextended(CAST(#{tenantId} AS text),0))")
+    @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT EXISTS(SELECT 1 FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{employeeId})")
     boolean employeeExists(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId);

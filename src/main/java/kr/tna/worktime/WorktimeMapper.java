@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface WorktimeMapper {
-    @Select("SELECT pg_advisory_xact_lock(hashtextextended(CAST(#{tenantId} AS text),0))")
+    @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
     String companyName(@Param("tenantId") UUID tenantId);
