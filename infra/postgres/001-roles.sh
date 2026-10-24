@@ -4,7 +4,7 @@ set -euo pipefail
 : "${POSTGRES_USER:?POSTGRES_USER is required}"
 : "${POSTGRES_DB:?POSTGRES_DB is required}"
 
-password_names=(POSTGRES_PASSWORD TNA_MIGRATION_DB_PASSWORD TNA_APP_DB_PASSWORD TNA_AUTH_DB_PASSWORD)
+password_names=(POSTGRES_PASSWORD TNA_MIGRATION_DB_PASSWORD TNA_APP_DB_PASSWORD TNA_AUTH_DB_PASSWORD TNA_OPERATOR_DB_PASSWORD)
 passwords=()
 for name in "${password_names[@]}"; do
     value="${!name-}"
@@ -27,6 +27,7 @@ psql --no-psqlrc --set=ON_ERROR_STOP=1 \
     --set=database_name="$POSTGRES_DB" \
     --set=migration_password="$TNA_MIGRATION_DB_PASSWORD" \
     --set=app_password="$TNA_APP_DB_PASSWORD" \
+    --set=operator_password="$TNA_OPERATOR_DB_PASSWORD" \
     --set=auth_password="$TNA_AUTH_DB_PASSWORD" <<'SQL'
 BEGIN;
 
@@ -37,9 +38,12 @@ CREATE ROLE tna_app LOGIN PASSWORD :'app_password'
 CREATE ROLE tna_auth LOGIN PASSWORD :'auth_password'
     NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
 
+CREATE ROLE tna_operator LOGIN PASSWORD :'operator_password'
+    NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;
+
 REVOKE ALL ON DATABASE :"database_name" FROM PUBLIC;
 GRANT CONNECT, CREATE ON DATABASE :"database_name" TO tna_migration;
-GRANT CONNECT ON DATABASE :"database_name" TO tna_app, tna_auth;
+GRANT CONNECT ON DATABASE :"database_name" TO tna_app, tna_auth, tna_operator;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO tna_migration;
 

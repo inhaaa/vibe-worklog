@@ -46,7 +46,7 @@ class DatabaseFoundationIT {
     void runtimeRolesCannotBypassRlsOrOwnTheTables() {
         JdbcTemplate admin = new JdbcTemplate(database.adminDataSource());
         for (String role : List.of(DatabaseFixture.APP_USER, DatabaseFixture.AUTH_USER,
-                DatabaseFixture.MIGRATION_USER)) {
+                DatabaseFixture.MIGRATION_USER, "tna_operator")) {
             assertFalse(admin.queryForObject("""
                     SELECT rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole OR rolreplication OR rolinherit
                     FROM pg_roles WHERE rolname = ?

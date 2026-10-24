@@ -1,0 +1,6 @@
+# Explicit local opt-in only, after independent operator bootstrap.
+services:
+  app:
+    environment:
+      TNA_OPERATOR_ENABLED: "true"
+      TNA_OPERATOR_DB_PASSWORD: ${TNA_OPERATOR_DB_PASSWORD:?Set TNA_OPERATOR_DB_PASSWORD in .env}

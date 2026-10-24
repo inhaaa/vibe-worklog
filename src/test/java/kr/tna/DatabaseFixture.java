@@ -156,14 +156,16 @@ public final class DatabaseFixture {
             createRole(connection, MIGRATION_USER, MIGRATION_PASSWORD);
             createRole(connection, APP_USER, APP_PASSWORD);
             createRole(connection, AUTH_USER, AUTH_PASSWORD);
+            createRole(connection, "tna_operator", "synthetic-operator-db-password-only");
             statement.execute("GRANT CONNECT ON DATABASE " + DATABASE_NAME
-                    + " TO tna_migration, tna_app, tna_auth");
+                    + " TO tna_migration, tna_app, tna_auth, tna_operator");
             statement.execute("GRANT CREATE ON DATABASE " + DATABASE_NAME + " TO tna_migration");
             statement.execute("GRANT USAGE, CREATE ON SCHEMA public TO tna_migration");
         }
         verifyRoleLogin(MIGRATION_USER, MIGRATION_PASSWORD);
         verifyRoleLogin(APP_USER, APP_PASSWORD);
         verifyRoleLogin(AUTH_USER, AUTH_PASSWORD);
+        verifyRoleLogin("tna_operator", "synthetic-operator-db-password-only");
     }
 
     private void createRole(Connection connection, String role, String password) throws SQLException {

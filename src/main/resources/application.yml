@@ -11,6 +11,10 @@ spring:
   thymeleaf:
     cache: true
 tna:
+  operator:
+    enabled: ${TNA_OPERATOR_ENABLED:false}
+    url: ${TNA_JDBC_URL}
+    password: ${TNA_OPERATOR_DB_PASSWORD:}
   auth:
     url: ${TNA_JDBC_URL}
     username: tna_auth
