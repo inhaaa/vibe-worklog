@@ -14,10 +14,11 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 조직·사원·적용일별 소속 관리: 첫 구현 단위 및 로컬 검증 완료
 - 계정 초대·수락·역할·당일 승인자 배정: 로컬 모의 전달 구현 및 검증 완료
 - 고정 근무 템플릿·불변 버전·사원별 적용일 배정: 구현 및 PostgreSQL 검증 완료
-- CALC-1 순수 시간 계산 엔진: 27개 단위 검증, DB·현황 연결은 후속
+- CALC-1 시간 계산: 일·주·월 결과, 미확정·오래됨 표시와 수동 재집계 연결
 - 허용 IP·휴일 캘린더·원천 출퇴근·퇴근 후 실제 근로 확인: 구현 및 로컬 DB 검증 완료
 - 종일 연차·기초 원장·독립 승인·취소·정정: 구현 및 로컬 검증 완료
-- 일·주·월 집계·검토용 Excel·계정 복구·운영자 연결: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
+- 일·주·월 집계·불변 검토용 Excel·감사 조회: 로컬 검증 완료
+- 계정 복구·운영자 연결: MVP 연결 구현 중, 운영 환경·외부 배포 미착수
 
 ## Overview
 
@@ -56,7 +57,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Migration | Flyway 12.4.0 (웹앱과 별도 실행) |
 | Testing | Boot 관리 JUnit 6.0.3, Testcontainers |
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
-| 기타 | Spring Boot Actuator; Apache POI는 Excel 구현 시 도입 |
+| 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
 [ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 근거와 Phase 4 검증을 기록했습니다. Phase 5 계정 단위까지 Java 25 빌드·패키징, 실제 PostgreSQL Testcontainers의 전체 테스트130개, Docker 이미지·보존 V2 볼륨의 V3 적용·앱 기동을 확인했습니다. 초대 수락·재사용 차단·역할 세션 회수·승인자 이력·테넌트 격리·동시 수정·감사 롤백·웹 폼 흐름을 포함합니다. 상세 결과와 이 호스트의 선택적 CA·Maven 미러 설정은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
@@ -104,6 +105,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - System Design: [아키텍처](docs/design/architecture.md), [논리 ERD](docs/design/data-model.md), [보안](docs/design/security.md), [화면·HTTP 계약](docs/design/screens.md)
 - [Leave Workflow](docs/design/leave-workflow.md): 종일 원장·독립 승인·취소·정정 효과
 - [Attendance Recording](docs/design/attendance-recording.md): 허용망·휴일·원천·사실/검토 개정·본인 확인
+- [Worktime Results](docs/design/worktime-results.md): 일·주·월 결과·정책 근거·불변 검토용 Excel
 - [Worktime Engine](docs/design/worktime-engine.md): CALC-1 순수 산정과 미확정·부분합 계약
 - [Fixed Schedule](docs/design/fixed-schedule.md): 고정 템플릿·불변 버전·사원별 적용일 배정
 - [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위
@@ -135,4 +137,4 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 업무 규칙은 공개 법령 및 공식 자료를 기반으로 작성하며, 특정 기업의 내부 소스코드, 설계 문서 또는 고객 데이터를 사용하지 않습니다.
 
-현재 로컬 MVP 개발 단계이며 운영 서비스가 아닙니다. 조직·사원·계정 관리의 로컬 단위를 구현했으며 출퇴근·휴가·신청 승인·집계는 후속입니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.
+현재 로컬 MVP 개발 단계이며 운영 서비스가 아닙니다. 조직·사원·계정·일정·출퇴근·종일 연차·신청 승인·검토 집계를 로컬에서 연결했습니다. 기재된 기능과 기술 구성은 개발 과정에서 변경될 수 있습니다. 공개 자료 조회·로컬 구현 테스트와 실제 고객 적용·운영 검증은 구분합니다. 법적 예외·개인정보 처리·운영 보안·부하·백업 복원 등 남은 검증이 있으며, 문서는 법률 적합성을 보증하지 않습니다.
