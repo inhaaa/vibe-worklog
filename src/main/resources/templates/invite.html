@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>초대 수락 · tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+</head>
+<body>
+<main class="login-shell">
+    <section class="panel" aria-labelledby="invite-title">
+        <p class="eyebrow">tna · 계정 초대</p>
+        <h1 id="invite-title">초대 수락</h1>
+        <p>회사 코드: <span th:text="${companyCode}">회사 코드</span></p>
+        <p>전달받은 이메일과 초대코드를 입력하고 비밀번호를 설정하세요. 초대는24시간 유효하며 재발급한 이전 코드는 사용할 수 없습니다.</p>
+        <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">초대를 확인해 주세요.</p>
+        <form th:action="@{/invite/{companyCode}/accept(companyCode=${companyCode})}" method="post">
+            <label for="invite-email">초대 이메일</label><input id="invite-email" name="email" type="email" maxlength="254" autocomplete="username" required>
+            <label for="invite-token">초대코드</label><input id="invite-token" name="token" type="password" maxlength="43" autocomplete="off" required>
+            <label for="invite-password">새 비밀번호</label><input id="invite-password" name="password" type="password" autocomplete="new-password" required aria-describedby="password-help">
+            <label for="invite-confirmation">비밀번호 확인</label><input id="invite-confirmation" name="confirmation" type="password" autocomplete="new-password" required>
+            <p class="hint" id="password-help">공백을 포함한12~128자입니다. 오류 후 비밀번호와 초대코드는 다시 입력해 주세요.</p>
+            <button type="submit">초대 수락·비밀번호 설정</button>
+        </form>
+        <p><a th:href="@{/login}">로그인으로</a></p>
+        <p class="hint">현재는 로컬 모의 초대 검증 단계입니다. 실제 메일 발송·이용약관 동의·파일럿 개방은 별도 검토합니다.</p>
+    </section>
+</main>
+</body>
+</html>

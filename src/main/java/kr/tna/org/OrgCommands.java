@@ -92,7 +92,7 @@ public final class OrgCommands {
                 JOIN platform.tenant_registry r ON r.id=a.tenant_id
                 JOIN tna.role_grant g ON g.tenant_id=a.tenant_id AND g.account_id=a.id
                 WHERE a.tenant_id=? AND a.id=? AND a.employee_id=? AND a.auth_version=?
-                  AND a.active AND e.active AND r.active AND g.role='ATTENDANCE_ADMIN'
+                  AND a.active AND e.active AND r.active AND g.active AND g.role='ATTENDANCE_ADMIN'
                   AND e.joined_on<=? AND (e.left_on IS NULL OR e.left_on>=?)
                 """, Integer.class, actor.tenantId(), actor.accountId(), actor.employeeId(),
                 actor.authVersion(), today(), today());

@@ -40,9 +40,12 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/login", "/app.css", "/vendor/htmx.min.js",
                                 "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/invite/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/invite/*/accept").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
-                                "/admin/employees", "/admin/employees/**").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/employees", "/admin/employees/**",
+                                "/admin/approver-assignments").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers("/", "/me/today", "/me/today/status").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())

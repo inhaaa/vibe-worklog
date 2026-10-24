@@ -32,7 +32,7 @@ class DatabaseFoundationIT {
                 WHERE n.nspname = 'tna' AND c.relkind = 'r' AND c.relrowsecurity AND c.relforcerowsecurity
                 ORDER BY c.relname
                 """, String.class);
-        assertEquals(List.of("employee", "employee_assignment", "org_audit_event", "organization",
+        assertEquals(List.of("account_token", "approver_assignment", "employee", "employee_assignment", "org_audit_event", "organization",
                 "role_grant", "tenant_account"), protectedTables);
     }
 
@@ -89,7 +89,7 @@ class DatabaseFoundationIT {
                 SELECT count(*) FROM tna.tenant_account WHERE tenant_id = ? AND email = ?
                 """, Integer.class, DatabaseFixture.TENANT_A, DatabaseFixture.EMAIL)));
         assertThrows(DataAccessException.class,
-                () -> auth.update("UPDATE tna.tenant_account SET active = false"));
+                () -> auth.update("UPDATE tna.tenant_account SET email = 'blocked@example.test'"));
     }
 
     @Test
@@ -99,9 +99,9 @@ class DatabaseFoundationIT {
         TenantTransactions transactions = new TenantTransactions(database.appDataSource());
         for (UUID tenant : List.of(DatabaseFixture.TENANT_A, DatabaseFixture.TENANT_B)) {
             assertEquals(List.of(tenant), transactions.execute(tenant, () -> app.queryForList(
-                    "SELECT tenant_id FROM tna.employee WHERE tenant_id = ?", UUID.class, tenant)));
+                    "SELECT DISTINCT tenant_id FROM tna.employee WHERE tenant_id = ?", UUID.class, tenant)));
             assertEquals(List.of(tenant), transactions.execute(tenant,
-                    () -> app.queryForList("SELECT tenant_id FROM tna.employee", UUID.class)));
+                    () -> app.queryForList("SELECT DISTINCT tenant_id FROM tna.employee", UUID.class)));
             UUID other = tenant.equals(DatabaseFixture.TENANT_A)
                     ? DatabaseFixture.TENANT_B : DatabaseFixture.TENANT_A;
             assertEquals(0, transactions.execute(tenant, () -> app.queryForObject(
@@ -124,7 +124,7 @@ class DatabaseFoundationIT {
         }));
         assertTenantCleared(app, backend);
         assertEquals(List.of(DatabaseFixture.TENANT_B), transactions.execute(DatabaseFixture.TENANT_B,
-                () -> app.queryForList("SELECT tenant_id FROM tna.employee", UUID.class)));
+                () -> app.queryForList("SELECT DISTINCT tenant_id FROM tna.employee", UUID.class)));
         assertTenantCleared(app, backend);
     }
 
@@ -142,7 +142,7 @@ class DatabaseFoundationIT {
         JdbcTemplate app = new JdbcTemplate(database.appDataSource());
         assertEquals(List.of(DatabaseFixture.TENANT_A), transactions.execute(DatabaseFixture.TENANT_A,
                 () -> transactions.execute(DatabaseFixture.TENANT_A,
-                        () -> app.queryForList("SELECT tenant_id FROM tna.employee", UUID.class))));
+                        () -> app.queryForList("SELECT DISTINCT tenant_id FROM tna.employee", UUID.class))));
     }
 
     @Test

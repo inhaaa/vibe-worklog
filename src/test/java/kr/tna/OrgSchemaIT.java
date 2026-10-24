@@ -203,11 +203,11 @@ class OrgSchemaIT {
     }
 
     @Test
-    void runtimeHasOnlyAccountIdentityReadAndAuthVersionWriteWhilePasswordsAndRolesStayProtected() {
+    void runtimeReadsAccountMetadataWhilePasswordsAndRoleIdentitiesStayProtected() {
         Scope scope = scope();
         transactions.execute(scope.tenant(), () -> {
             assertEquals(1, app.queryForList("""
-                    SELECT tenant_id, id, employee_id, active, auth_version FROM tna.tenant_account
+                    SELECT tenant_id, id, employee_id, email, active, credential_set, auth_version FROM tna.tenant_account
                     WHERE tenant_id = ? AND id = ?
                     """, scope.tenant(), scope.actor()).size());
             assertEquals(List.of("ATTENDANCE_ADMIN"), app.queryForList("""
@@ -220,7 +220,6 @@ class OrgSchemaIT {
             return null;
         });
         rejects("42501", scope, () -> app.queryForList("SELECT password_hash FROM tna.tenant_account"));
-        rejects("42501", scope, () -> app.queryForList("SELECT email FROM tna.tenant_account"));
         rejects("42501", scope, () -> app.update("UPDATE tna.tenant_account SET active = false"));
         rejects("42501", scope, () -> app.update("UPDATE tna.tenant_account SET password_hash = 'synthetic'"));
         rejects("42501", scope, () -> app.update("""
@@ -237,7 +236,7 @@ class OrgSchemaIT {
     }
 
     @Test
-    void authenticationRoleRemainsReadOnlyAndCannotReadNewBusinessTables() {
+    void authenticationRoleCannotWriteEmployeesOrReadOrganizationBusinessTables() {
         Scope scope = scope();
         JdbcTemplate auth = new JdbcTemplate(database.authDataSource());
         TenantTransactions authTransactions = new TenantTransactions(database.authDataSource());

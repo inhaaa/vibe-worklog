@@ -10,6 +10,6 @@
 4. [docs/prd.md](docs/prd.md): 현재 MVP·의사결정·시나리오 및 상세 규칙·설계 링크
 5. 작업 대상의 `docs/rules/`, `docs/design/`, `docs/adr/` 문서: 입력·기대 결과·권한·인터페이스·기술 조건
 
-현재는 사용자가 승인한 Phase 5의 조직·사원·소속 관리 구현 단계다. 프로젝트·설정 생성, 전용 로컬 DB·Docker, 검증 후 단위별 커밋·일반 Push는 AGENTS.md의 범위에서 진행한다. 실행 계약은 `docs/design/org-management.md`, 계획은 `docs/superpowers/plans/2026-10-24-phase5-org-management.md`를 따른다. 첫 단위 밖의 근태 업무·외부 서버·배포는 범위에 포함하지 않는다.
+현재는 사용자가 승인한 Phase 5의 조직·사원·계정 초대·역할·승인자 배정을 로컬에서 구현·검증한 단계다. 프로젝트·설정 생성, 전용 로컬 DB·Docker, 검증 후 단위별 커밋·일반 Push는 AGENTS.md의 범위에서 진행한다. 실행 계약은 `docs/design/account-access.md`, 계획은 `docs/superpowers/plans/2026-10-24-phase5-account-access.md`를 따른다. 첫 단위 밖의 근태 업무·외부 서버·배포는 범위에 포함하지 않는다.
 
 문서 사이에 충돌이나 누락이 있으면 임의로 결정하지 말고 해당 내용을 보고한다. 사용자의 명시적 지시와 승인 범위를 우선하되, 이미 승인된 범위는 다시 묻지 않고 진행한다. 범위 밖 위험 작업은 AGENTS.md의 사전 확인 규칙을 따른다.

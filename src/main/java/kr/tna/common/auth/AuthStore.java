@@ -76,7 +76,7 @@ public class AuthStore {
 
     private Set<String> roles(UUID tenant, UUID account) {
         return Set.copyOf(new HashSet<>(jdbc.query("""
-                SELECT role FROM tna.role_grant WHERE tenant_id = ? AND account_id = ?
+                SELECT role FROM tna.role_grant WHERE tenant_id = ? AND account_id = ? AND active
                 """, (row, index) -> row.getString("role"), tenant, account)));
     }
 

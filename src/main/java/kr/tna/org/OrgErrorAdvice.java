@@ -1,6 +1,7 @@
 package kr.tna.org;
 
 import java.util.UUID;
+import kr.tna.common.auth.InvitationController;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -8,7 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.ModelAndView;
 
-@ControllerAdvice(assignableTypes = OrgAdminController.class)
+@ControllerAdvice(assignableTypes = {OrgAdminController.class, AccountAdminController.class, InvitationController.class})
 public class OrgErrorAdvice {
     @ExceptionHandler(OrgException.class)
     ModelAndView domain(OrgException exception) { return problem(exception.status(), exception.getMessage()); }
