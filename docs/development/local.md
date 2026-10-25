@@ -6,6 +6,8 @@ Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하�
 
 이후 [gosu 서명·바이너리 분석](../quality/gosu-binary-analysis.md)으로 서명2건·변조 거부3건·고정 DB 검사와61행 매핑을 확인했다. 현재 비루트 Compose는 유지하고 gosu 전용 파생 이미지는 도입하지 않는다. 기본 Testcontainers는 별도 root 시작 경로이며 이 판단을 자동 적용하지 않는다. 이번에는 앱 회귀·HTTP·DB 검증을 다시 실행하지 않았다.
 
+[native 입력·Docker 후속 분석](../quality/native-input-docker-boundaries.md)은 실제 JRE/PG ELF와 설정을 저장하지 않는 Windows local pipe 진단의 근거·한계를 기록한다. 이 진단은 기본 Testcontainers factory 전체 실행이나 CI의 원격 endpoint 차단 장치가 아니다. 미지원 multipart 자동설정 보완은 [별도 계획](../superpowers/plans/2026-10-25-multipart-boundary.md)에 따른다.
+
 ## 준비 사항과 실행 경계
 
 - JDK 25. 검증에 사용한 배포물은 Eclipse Temurin `25.0.4.1+1`이다.

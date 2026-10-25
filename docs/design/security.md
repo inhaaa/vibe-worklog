@@ -95,6 +95,8 @@ IP 일치는 허용 네트워크에서 요청했다는 신호다. 현장 실제 
 
 ## 7. 웹·세션·출력 방어
 
+MVP는 파일 업로드를 지원하지 않는다. 기본·local 프로필 모두 `spring.servlet.multipart.enabled=false`로 Servlet multipart 자동설정을 중지하고 `MultipartResolver`·`MultipartConfigElement`를 등록하지 않는다. 일반 URL-encoded 폼·CSRF·htmx·검토용 Excel 다운로드는 기존 계약을 유지한다. 파일 업로드를 추가할 때에는 parser·크기/개수·임시 파일·정리·인가 경계를 별도로 설계하고 검증한 뒤 이 설정을 재검토한다. 자동설정 미등록과 모든 MIME 요청의 HTTP 차단을 같은 의미로 주장하지 않는다.
+
 - 로그인·로그아웃·초대 수락·재설정과 모든 상태 변경에 CSRF를 적용한다. htmx도 동일 토큰을 전송한다. GET은 업무 상태를 변경하지 않는다.
 - Spring Security의 CSRF 기본 방어와 템플릿 통합은 [공식 문서](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)를 따른다. 편의를 위한 전체 비활성화는 금지한다.
 - 세션 쿠키는 HTTPS 전용·HttpOnly·SameSite=Lax·제한된 경로를 적용하고 로그인 시 세션 식별자를 갱신한다. 제품 정책으로 유휴30분·로그인 후 최대12시간을 적용하고 remember-me는 제공하지 않는다. htmx 사용 중에도 절대 만료를 연장하지 않는다.

@@ -73,6 +73,8 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 이후 [gosu 서명·바이너리 분석](docs/quality/gosu-binary-analysis.md)에서 정상 서명2건·변조 거부3건과 고정 DB의1.19/1.20 차이를 확인했습니다. 기존 Medium1건의 취약 심볼 경고는1.20에서 제거됐으며 C/H35건은 심볼 미보고를 무영향 확정으로 바꾸지 않았습니다. 현재 비루트 Compose를 유지하고 gosu 전용 파생 이미지는 도입하지 않으며, 기본 Testcontainers의 별도 root 시작 경로와 공식 이미지 갱신은 추적합니다.
 
+[native 입력·Docker 경계 분석](docs/quality/native-input-docker-boundaries.md)에서는 PostgreSQL ELF943개를 독립 대조하고 실제 JRE의 DNS/libc 경로·선택 라이브러리 의존성을 확인했습니다. 설정을 저장하지 않는 로컬 진단에서 named pipe·classic HTTP1 ping/info를 확인했으며 DockerJava의 P2와 libxml2의 P1은 유지합니다. 분석 중 발견한 미지원 multipart 자동설정은 [후속 보완 계획](docs/superpowers/plans/2026-10-25-multipart-boundary.md)으로 분리합니다.
+
 ## Local Development
 
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
@@ -129,6 +131,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [HTTP & Vulnerability Validation](docs/quality/http-soak-vulnerability.md): 33분 부하·전체 검사·보안 패치·미해결 항목
 - [Security Fix Availability](docs/quality/security-supply-recheck.md): 공식 수정판 공급 재확인·적용 후보·공급 대기·추가 분석
 - [gosu Binary Analysis](docs/quality/gosu-binary-analysis.md): 서명·제외 없는 바이너리 검사·61행 대조·파생 이미지 판단
+- [Native & Docker Boundaries](docs/quality/native-input-docker-boundaries.md): native 입력·ELF 교차 대조·읽기 전용 Docker 연결 진단
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
