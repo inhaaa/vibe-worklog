@@ -489,3 +489,17 @@ migrate는 build 상속 대신 완성 JAR·독립 JRE·uid10001을 사용한다.
 후속 실제 HTTP는 새 합성 DB·18개 로그인 세션으로33분·15,471요청·오류0·예상 거부1,043건, 전체p95 619.469ms를 확인했다. ramp60초 뒤32분 steady는15,360요청=8.000요청/초였다. 출퇴근 실제18개 명령은 각 원천1건·중복0이고 연차 승인340·대기6건은 초기/smoke/마감 중단 수와 일치했다. 15초 자원132표본·작업별 지연과 한계는 후속 보고서/분 단위 CSV를 따른다. HTTP7·수집12개 Python 도구 테스트도 통과했다.
 
 임시 합성 앱/DB는 정상 종료했고 기본 빈 Compose 앱/DB만 loopback에서 유지한다. 종료 뒤 DB 경계·HTTP24개를 다시 확인했다. 부하 도구는 기본 verify에 자동 추가하지 않으며 [재현 명령](../quality/http-soak-vulnerability.md#재실행)을 따른다. 운영 TLS·900명 동시 집계·로그인 폭주·수일 부하·침투·오프사이트 복원은 이 결과가 아니다.
+
+## 잔여 취약점의 안전 완화 (2026-10-25)
+
+[영향·대응 우선순위 보고서](../quality/residual-vulnerability-impact.md)에 공급자 미수정과 실제 실행 경로를 분리했다. 같은 Noble의 zlib1g2.3 보안 패치를 build/app/migrate에 고정했다. migrate는 app과 같은 읽기 전용 root·/tmp tmpfs·cap_drop ALL·no-new-privileges를 적용하고, DB는 OS postgres 사용자로 직접 시작한다. SQL 관리자 역할과 앱의 독립 최소 권한은 바꾸지 않는다.
+
+DB의 비루트 실행은 기존 PGDATA 소유 UID999를 요구한다. 다른 볼륨 소유권을 자동 chown하지 않는다. 이번 새 named volume 최초 init/V1~V10과 기존 빈 볼륨 no-op·RLS/권한·HTTP24개를 실제 확인했으며, 새 Linux builder/비루트 전용 DB에서 전체396개 회귀도 통과했다. 이는 libc/libxml2/gosu 패키지 전체의 보안 패치를 뜻하지 않는다.
+
+Docker/DB에 직접 접속하지 않는 `python -B scripts/verify-container-policy.py --self-test`는 정상/거부 경계를 검증한다. 실제 판정에는 방금 Docker inspect에서 환경값을 제외해 저장한 Config.User/Labels·HostConfig·State·NetworkSettings.Ports의3개 서비스 JSON을 전달한다. 과거 snapshot을 현재 실행 상태로 재사용하지 않는다.
+
+```powershell
+python -B scripts/verify-container-policy.py target/container-policy.json
+```
+
+실제 취약 패키지의 가용 수정과 JDK 공급 대기·조건별 개발 도구 영향은 위 보고서를 따른다. 외부 서버 접속·배포·실고객 자료는 사용하지 않는다.

@@ -2,7 +2,7 @@ FROM eclipse-temurin:25.0.4.1_1-jdk-noble@sha256:ba0f0e1a33864105e1d454e88105c61
 
 WORKDIR /workspace
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl unzip \
+    && apt-get install -y --no-install-recommends curl unzip zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
     && rm -rf /var/lib/apt/lists/*
 COPY --chmod=0755 mvnw ./mvnw
 COPY .mvn/ .mvn/
@@ -21,7 +21,13 @@ RUN --mount=type=secret,id=local_build_ca \
     fi; \
     ./mvnw -B -Dmaven.test.skip=true package
 
-FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS migrate
+FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS runtime-base
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM runtime-base AS migrate
 
 RUN groupadd --gid 10001 tna \
     && useradd --uid 10001 --gid tna --system --no-create-home --no-log-init tna
@@ -31,7 +37,7 @@ USER 10001:10001
 ENTRYPOINT ["java", "-jar", "/app/application.jar"]
 CMD ["migrate"]
 
-FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS runtime
+FROM runtime-base AS runtime
 
 RUN groupadd --gid 10001 tna \
     && useradd --uid 10001 --gid tna --system --no-create-home --no-log-init tna

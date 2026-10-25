@@ -214,3 +214,11 @@ Compose에는 기본 사용자·데모 고객을 넣지 않았다. 성공 로그
 MyBatis3.6의 파라미터/JDBC 타입 해석 변경으로 PostgreSQL UUID의 암묵 fallback에 의존하던 기존 조회·변경이 실패했다. 실제 registry/일반 앱 역할/UUID·null·tenant 격리 회귀를 먼저 추가하고 UUID에만 JDBC OTHER를 매핑하는 표준 TypeHandler bean을 등록한다. DB UUID 컬럼·SQL·테넌트 조건·다른 OTHER 타입을 문자열로 바꾸거나 완화하지 않는다. [공식 변경 PR3379](https://github.com/mybatis/mybatis-3/pull/3379)와 Starter의 TypeHandler bean 등록을 근거로 삼는다.
 
 추가 플러그인 실체 재검사에서 Flyway Maven realm의 Jackson3.1.1을 발견해 Boot와 같은3.1.7(core/databind)로 고정하고 Site의 BeanUtils1.11.0·jsoup1.23.2 패치를 적용한다. Site의 Jetty9.4.58과 Testcontainers의 DockerJava 내부 HTTP는 공식 안정 배포에서 고정 버전을 확인할 수 없어 별도 잔여로 보고한다. Site 서버·Install/Deploy는 실행하지 않으며, 검사 수를 줄이기 위한 일괄 무시나 임의 SNAPSHOT 교체는 하지 않는다.
+
+### 2026-10-25 잔여 OS 위험과 실행 권한 완화
+
+[Ubuntu CVE-2026-85091](https://ubuntu.com/security/CVE-2026-85091)은 Noble의 `zlib1g` 수정판을 `1:1.3.dfsg-3.1ubuntu2.3`으로 명시한다. 기존 이미지의2.2를 같은 배포판·ABI의 이 패키지로만 갱신한다. 공통 JRE stage를 app/migrate가 사용하며 builder에도 같은 버전을 적용한다. JDK 내부 zlib과 OS 라이브러리는 별개이고 현재 고객 HTTP에서 취약 C API에 도달한다고 단정하지 않는다. [zlib 라이선스](https://zlib.net/zlib_license.html)와 설치 패키지의 저작권 고지는 유지한다.
+
+`migrate`는 앱과 같은 읽기 전용 root·/tmp tmpfs·ALL capability 제거·no-new-privileges를 적용한다. DB는 [공식 비루트 사용자 조건](https://github.com/docker-library/docs/blob/master/postgres/README.md#arbitrary---user-notes)에 따라 기존 OS postgres 사용자로 직접 시작하고 capability 제거·NNP를 적용한다. PGDATA의 기존 소유권을 자동 변경하지 않으며 최초 볼륨과 보존 볼륨을 각각 검증한다. 기존 postmaster도 root entrypoint/gosu 이후에는 이미 postgres로 실행됐다는 사실과, 이번 변경이 root 시작 경로를 제거하는 완화라는 점을 구분한다. 원래 SQL 관리자 역할·인증·RLS·콜레이션·DB binary는 유지한다.
+
+Temurin25.0.5+8은 공개됐으나 재조회한 공식209개 자산에 Windows 패키지가 없고25.0.5_8-jdk/jre-noble manifest도 존재하지 않았다. 임의 OS tar 혼합·다른 JDK 공급자 전환은 채택하지 않는다. 공급 완료 뒤 동일 Java25 계열의 패치·체크섬·digest·전체 회귀를 우선 검증한다. 이 결정의 실제 검증 결과와 남은 영향은 [실행 계획](../superpowers/plans/2026-10-25-residual-vulnerability-impact.md)의 후속 보고서에 기록한다.
