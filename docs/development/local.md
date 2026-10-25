@@ -2,6 +2,8 @@
 
 Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하는 안내다. 아래 날짜별 결과는 당시 이력이며 최신 보안 패치·검사 범위는 [HTTP·취약점 후속 보고서](../quality/http-soak-vulnerability.md)를 따른다. 제품 범위는 [PRD](../prd.md), 업무별 구현 계약은 연결된 `design` 문서, 버전·라이선스 근거는 [ADR-0001](../adr/0001-technology-baseline.md)을 따른다.
 
+공식 수정판 공급의 후속 확인은 [공급 재확인 보고서](../quality/security-supply-recheck.md)를 따른다. Windows/Noble JDK·bookworm libxml2는 공급 대기이며 gosu1.20은 서명·파생 이미지·회귀 검증이 남은 적용 후보로 구분했다. 이 재확인은 기존 설치판 변경이나 테스트 재실행이 아니다.
+
 ## 준비 사항과 실행 경계
 
 - JDK 25. 검증에 사용한 배포물은 Eclipse Temurin `25.0.4.1+1`이다.

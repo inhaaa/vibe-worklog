@@ -69,6 +69,8 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 잔여 OS·개발 도구의 실제 영향과 대응 순서는 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따릅니다. Noble zlib 패치·마이그레이션 권한 제한·DB의 비루트 시작과 Java 기본 신뢰 저장소의 공식 CA 임시 대응을 검증했습니다. 최종 새 Linux396개·신뢰 저장소6개·HTTP24개 통과입니다. 공급 대기 JDK·libxml2 등 배포 전 조건과 scanner 불일치는 별도로 남깁니다.
 
+2026-10-25 후속 [공식 공급 재확인](docs/quality/security-supply-recheck.md)에서 Windows/Noble JDK와 bookworm libxml2의 공급 대기를 확인했습니다. 새 gosu1.20은 별도 사용자 파일 파싱 수정의 적용 후보이며 기존 Go stdlib 경고 해결판은 아닙니다. OS·개발 도구를 적용 가능 후보·공급 대기·추가 분석으로 분류했으며 이번에는 설치·설정·DB·컨테이너 변경이나 회귀/부하 재실행을 하지 않았습니다.
+
 ## Local Development
 
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
@@ -123,6 +125,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Architecture Decision 0001](docs/adr/0001-technology-baseline.md): 기술 기준선·공식 검증 근거·구현 전 조건
 - [Local Development](docs/development/local.md): 로컬 실행·마이그레이션·테스트·남은 검증
 - [HTTP & Vulnerability Validation](docs/quality/http-soak-vulnerability.md): 33분 부하·전체 검사·보안 패치·미해결 항목
+- [Security Fix Availability](docs/quality/security-supply-recheck.md): 공식 수정판 공급 재확인·적용 후보·공급 대기·추가 분석
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
@@ -144,7 +147,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 기존 화면·새 검토용 출력의 서울 시각·밀리초 표시 통일
 - [x] 로컬 MVP 시나리오·격리·동시성·보안·성능·논리 복원 검증
 - [x] 로컬 HTTP 혼합33분·전체 해석 의존성/도구·이미지 취약점 검사와 가용 패치
-- [ ] 미해결 취약점 영향 분석·운영 사양의 장기/장애 부하·침투·오프사이트 복구
+- [x] 잔여 취약점 영향·공식 수정판 공급 재확인과 후속 분류
+- [ ] 미해결 P1 보안 항목 대응·운영 사양의 장기/장애 부하·침투·오프사이트 복구
 - [ ] 파일럿 검증 및 서비스 개선
 
 ## Disclaimer
