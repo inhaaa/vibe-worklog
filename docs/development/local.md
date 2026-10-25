@@ -539,3 +539,17 @@ if ($LASTEXITCODE -ne 0) { throw '불신 처리 뒤 점검 실패' }
 Dockerfile은 로컬 빌드 CA 반영 후 공식 대상 불신·검사를 수행한 다음 Maven HTTPS를 실행한다. runtime에는 빌드 CA·Maven 설정·신뢰 저장소 도구/임시 백업을 남기지 않는다. 정규25.0.5 Windows/Noble 공급 완료 시 버전/체크섬/digest·TLS·전체 회귀와 임시 정책 필요성을 다시 검토한다. 검출을 피하기 위해 CA를 광범위하게 제거하거나 TLS 검증을 해제하지 않는다.
 
 명시적인 native JDBC override를 쓸 때 전체 회귀의 초기 자료 전제를 확인한다. 기본 Testcontainers verify는 매번 새 컨테이너를 사용하지만, 같은 합성 DB를 재사용하면 이전 원천 출퇴근·일정 적용일 때문에 정상 충돌이 생길 수 있다. 기존 서비스 DB를 초기화하거나 기대값을 완화하지 말고 승인된 새 전용 DB에서 검증한다.
+
+## 미지원 multipart 자동설정 비활성화 (2026-10-26)
+
+파일 업로드가 없는 MVP에서 `spring.servlet.multipart.enabled=false`를 공통 `application.yml`에 명시했다. local은 이를 상속한다. 새 컨트롤러·차단 필터·의존성·SQL을 추가하지 않았으며 URL-encoded 폼·CSRF·htmx·검토용 다운로드의 기존 계약을 유지한다.
+
+`MultipartConfigurationTest`는 실제 기본/local ConfigData를 로드하고 `MultipartAutoConfiguration`만 실행한다. 기존 설정에서는 두 사례 모두 `multipartResolver` 존재 때문에 실패했다. 설정 변경 후 property=false·`MultipartResolver`/`MultipartConfigElement` 부재와 실제 profile 자산 로드를 확인하며 두 사례가 통과했다. 이 테스트는 DB·전체 앱 서버를 시작하지 않는다.
+
+최종 오프라인 Maven3.9.16·Java25 `verify`는 **단위48·실제 PostgreSQL 통합350=398개, 실패·오류·건너뜀0**이다. 기존 로그인·폼·CSRF·권한 회수·테넌트 격리·승인·집계·Excel의 웹/서비스 회귀를 포함한다. 같은2개를 전체398개와 별도로 더하지 않는다. 독립 리뷰에서도 중요 지적 사항은 없었다.
+
+이번 전체 실행은 새 `vibe-attendance-multipart-check-20261026-*`의 tmpfs 전용 DB `tna_phase4_test`와 임의 loopback 포트를 사용했다. OS postgres·capability 전체 제거·NNP·SCRAM을 유지했고 같은 이름의 기존 DB나 볼륨을 재사용하지 않았다. 완료 후 새 컨테이너는 정상 종료했다. 애플리케이션·인증·운영자·마이그레이션 역할은 기존 fixture가 이 전용 DB에서만 준비했다.
+
+실행 중 기본 Compose 이미지의 재빌드·재생성, 실제 HTTP 보안 점검·multipart tempfile 관찰·부하 시험은 수행하지 않았다. 따라서 현재 기본 실행 이미지까지 새 설정이 활성화됐다고 주장하지 않는다. 모든 MIME 요청의 HTTP 차단이나 P1 JDK/libxml2 해결도 이 변경의 의미가 아니다. 배포·실고객 적용은 진행하지 않았다.
+
+계약·순서는 [보안 설계](../design/security.md#7-웹세션출력-방어)와 [보완 계획](../superpowers/plans/2026-10-25-multipart-boundary.md), 발견 당시 근거는 [native/Docker 분석](../quality/native-input-docker-boundaries.md)을 따른다. 이번 RED/GREEN·전체 로그·집계·전용 컨테이너 종료 코드는 ignored `target/multipart-boundary-20261026/`에 보존한다. 분석용 휴대 JDK를 자식 프로세스에만 지정해 호스트의 JAVA_HOME/PATH·기존 JDK와 신뢰 저장소를 바꾸지 않았다.

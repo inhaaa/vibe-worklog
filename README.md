@@ -61,7 +61,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 현재 Java 25 빌드·패키징과 실제 PostgreSQL Testcontainers 전체396개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·부하·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최근 Java 25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체398개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·부하·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
@@ -74,6 +74,8 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 이후 [gosu 서명·바이너리 분석](docs/quality/gosu-binary-analysis.md)에서 정상 서명2건·변조 거부3건과 고정 DB의1.19/1.20 차이를 확인했습니다. 기존 Medium1건의 취약 심볼 경고는1.20에서 제거됐으며 C/H35건은 심볼 미보고를 무영향 확정으로 바꾸지 않았습니다. 현재 비루트 Compose를 유지하고 gosu 전용 파생 이미지는 도입하지 않으며, 기본 Testcontainers의 별도 root 시작 경로와 공식 이미지 갱신은 추적합니다.
 
 [native 입력·Docker 경계 분석](docs/quality/native-input-docker-boundaries.md)에서는 PostgreSQL ELF943개를 독립 대조하고 실제 JRE의 DNS/libc 경로·선택 라이브러리 의존성을 확인했습니다. 설정을 저장하지 않는 로컬 진단에서 named pipe·classic HTTP1 ping/info를 확인했으며 DockerJava의 P2와 libxml2의 P1은 유지합니다. 분석 중 발견한 미지원 multipart 자동설정은 [후속 보완 계획](docs/superpowers/plans/2026-10-25-multipart-boundary.md)으로 분리합니다.
+
+2026-10-26에는 업로드 미지원 계약에 맞춰 multipart 자동설정을 비활성화했습니다. 기본·local 실제 ConfigData에서 파서/Servlet 설정 bean의 부재를 검증했고, 새 전용 로컬 PostgreSQL에서 전체398개(단위48·통합350)를 통과했습니다. 실행 중 Compose 이미지는 재생성하지 않았으며 실제 HTTP·부하를 재실행한 결과는 아닙니다. [검증 결과](docs/development/local.md#미지원-multipart-자동설정-비활성화-2026-10-26)를 따릅니다.
 
 ## Local Development
 

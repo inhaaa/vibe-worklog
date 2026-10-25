@@ -4,9 +4,11 @@
 
 **계약:** [보안 설계](../../design/security.md#7-웹세션출력-방어)에 따라 Boot의 `spring.servlet.multipart.enabled=false`를 공통 설정에 명시한다. `MultipartResolver`·`MultipartConfigElement`가 없는 것을 실제 ConfigData 로드와 Servlet 자동설정으로 검증하며, 기존 URL-encoded 폼·CSRF·htmx·Excel 다운로드는 회귀로 확인한다. 현재 사용자의 안전한 품질 보완·로컬 설정·검증·커밋·일반 Push 승인 범위에서 진행한다.
 
-- [ ] `MultipartConfigurationTest`를 먼저 작성하고 현재 설정에서 실제 실패를 확인한다. 기본/local 두 프로필에서 property와 자동등록 bean을 검사하며 DB 없이 실행한다.
-- [ ] `application.yml`의 공통 Spring 설정에 multipart 비활성화만 추가하고 같은 테스트가 통과하는지 확인한다. local에는 중복 설정하지 않는다.
-- [ ] 단위·PostgreSQL/웹 회귀를 실행해 기존 폼·권한·테넌트·출력 경계를 확인한다. 실제 실행 범위와 건너뜀을 보고한다.
-- [ ] 보안 설계·개발 안내·README/분석 보고서의 시점을 구분해 기록하고 diff/status·문서·새 파일을 검증한 뒤 이 단위만 커밋·Push한다.
+- [x] `MultipartConfigurationTest`를 먼저 작성하고 현재 설정에서 실제 실패를 확인한다. 기본/local 두 프로필에서 property와 자동등록 bean을 검사하며 DB 없이 실행한다.
+- [x] `application.yml`의 공통 Spring 설정에 multipart 비활성화만 추가하고 같은 테스트가 통과하는지 확인한다. local에는 중복 설정하지 않는다.
+- [x] 단위·PostgreSQL/웹 회귀를 실행해 기존 폼·권한·테넌트·출력 경계를 확인한다. 실제 실행 범위와 건너뜀을 보고한다.
+- [x] 보안 설계·개발 안내·README/분석 보고서의 시점을 구분해 기록하고 diff/status·문서·새 파일을 검증한 뒤 이 단위만 커밋·Push한다.
 
 분석 당시 자동설정 가능성과 코드 변경 후 검증을 구분한다. 기본 파서 등록 중지로 모든 MIME 요청의 거부·컨테이너 임시 파일 동작·전체 native 취약점 해결을 주장하지 않는다.
+
+2026-10-26 실행 결과: 기본/local 두 사례가 기존 resolver 등록 때문에 각각 실패한 뒤 공통 설정3줄 변경으로 통과했다. 전체 `verify`는 단위48·PostgreSQL 통합350=398개, 실패·오류·건너뜀0이다. 새 비루트/cap_drop/NNP·loopback·tmpfs DB만 사용하고 정상 종료했으며 기존 서비스 DB와 Compose 이미지는 변경하지 않았다. 실제 HTTP·새 컨테이너 이미지·부하 검증은 이 결과에 포함하지 않는다.

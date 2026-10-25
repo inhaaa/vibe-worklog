@@ -1,6 +1,9 @@
 spring:
   application:
     name: vibe-attendance
+  servlet:
+    multipart:
+      enabled: false
   datasource:
     url: ${TNA_JDBC_URL}
     username: tna_app
