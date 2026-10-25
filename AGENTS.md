@@ -79,6 +79,7 @@
 ## 현재 작업 범위와 다음 단계
 
 - 현재 Phase 6의 [품질 실행 계획](docs/superpowers/plans/2026-10-25-phase6-quality.md)과 [검증 보고서](docs/quality/phase6-report.md)를 따른다. 이후 HTTP·전체 취약점 검사는 [후속 계획](docs/superpowers/plans/2026-10-25-http-soak-vulnerability.md)과 [후속 결과](docs/quality/http-soak-vulnerability.md)를 따른다. Phase 5 구현 이력은 보존한다. 로컬 검증을 운영 수용·출시 완료로 확대하지 않는다.
+- 잔여 OS·개발 도구의 실제 영향은 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따른다. 같은 범위의 안전한 수정·문서·검증·커밋·일반 Push는 사용자의2026-10-25 후속 요청으로 승인됐다. 프로젝트 전용 JDK/로컬 이미지의 공식 CA 임시 대응을 호스트 전역 신뢰 변경이나 다른 JDK CPU 패치 완료로 확대하지 않는다. scanner 원시 매치·공식 배포판 수정·권한 완화를 구분한다.
 - Phase 4 기반 위에서 Phase 5 로컬 MVP를 연결한 이력은 보존한다. 실행 계획은 [MVP 연속 구현 계획](docs/superpowers/plans/2026-10-24-mvp-continuation.md)을 따른다. 개별 구현·자동 테스트·실행 환경 검증과 전체 MVP 완료를 구분하고 검증되지 않은 완료를 선언하지 않는다.
 - 업무 계약은 [조직·사원](docs/design/org-management.md), [계정·역할·승인자](docs/design/account-access.md), [고정 근무](docs/design/fixed-schedule.md), [휴일·허용 IP·출퇴근](docs/design/attendance-recording.md), [연차·신청·승인·정정](docs/design/leave-workflow.md), [계산 엔진](docs/design/worktime-engine.md), [일·주·월 결과·Excel](docs/design/worktime-results.md)을 따른다.
 - 비밀번호 복구와 최초 고객사 연결은 [로컬 RESET](docs/design/password-reset.md), [운영자 온보딩](docs/design/operator-onboarding.md)의 별도 권한·세션·DB 경계를 따른다. 운영자 권한으로 고객사 업무를 조회·승인하지 않는다.

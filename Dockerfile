@@ -10,6 +10,7 @@ COPY pom.xml ./pom.xml
 COPY LICENSES/ LICENSES/
 COPY THIRD_PARTY_NOTICES.md ./
 COPY src/ src/
+COPY scripts/TruststoreRemediation.java /tmp/TruststoreRemediation.java
 RUN --mount=type=secret,id=local_build_ca \
     --mount=type=secret,id=maven_settings,target=/root/.m2/settings.xml \
     set -eu; \
@@ -19,6 +20,11 @@ RUN --mount=type=secret,id=local_build_ca \
         keytool -importcert -noprompt -alias tna-local-build-ca -cacerts -storepass changeit \
             -file /run/secrets/local_build_ca; \
     fi; \
+    javac -d /tmp/tna-security /tmp/TruststoreRemediation.java; \
+    java -cp /tmp/tna-security TruststoreRemediation --apply \
+        "$(readlink -f "$JAVA_HOME/lib/security/cacerts")" /tmp/tna-cacerts.original; \
+    java -cp /tmp/tna-security TruststoreRemediation --check \
+        "$(readlink -f "$JAVA_HOME/lib/security/cacerts")"; \
     ./mvnw -B -Dmaven.test.skip=true package
 
 FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5 AS runtime-base
@@ -26,6 +32,13 @@ FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends --only-upgrade zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /tmp/tna-security/TruststoreRemediation.class /tmp/tna-security/TruststoreRemediation.class
+RUN java -cp /tmp/tna-security TruststoreRemediation --apply \
+        "$(readlink -f "$JAVA_HOME/lib/security/cacerts")" /tmp/tna-cacerts.original \
+    && java -cp /tmp/tna-security TruststoreRemediation --check \
+        "$(readlink -f "$JAVA_HOME/lib/security/cacerts")" \
+    && rm -f /tmp/tna-cacerts.original /tmp/tna-security/TruststoreRemediation.class
 
 FROM runtime-base AS migrate
 

@@ -503,3 +503,33 @@ python -B scripts/verify-container-policy.py target/container-policy.json
 ```
 
 실제 취약 패키지의 가용 수정과 JDK 공급 대기·조건별 개발 도구 영향은 위 보고서를 따른다. 외부 서버 접속·배포·실고객 자료는 사용하지 않는다.
+
+## JDK 정규 패치 공급 대기 중 CA 임시 대응
+
+2026-10-25 공식 eMudhra 대응에 따라 이 프로젝트의 기본 Java cacerts에서 대상2개를 제거했다. native/JRE의118→116·builder119→117 외에 다른 인증서는 바뀌지 않았고 Windows NTFS ACL/소유자와 원본 백업도 보존했다. 기본 JSSE HTTPS와 최종 새 Linux396개 회귀·HTTP24개를 통과했다. 나머지 JDK CPU, OS/브라우저 및 별도 trustStore의 위험까지 해결한 조치는 아니다.
+
+다른 개발 환경에서 이 조치를 적용하려면 먼저 Java25와 실제 기본 cacerts 경로를 확인한다. 도구는 표준 `changeit` 비밀번호의 trusted-certificate-only 파일에 한정하며, 심볼릭 링크 대신 검증한 실제 파일 경로를 받는다. 적용은 설정 변경이므로 해당 세션의 승인 범위에서만 실행한다. 기존 백업은 덮어쓰지 않고 JDK별 새 백업 경로를 사용한다. check 종료값은0(대상 없음)·1(대상 존재)·2(안전성/입출력 오류)이며,1일 때만 apply한다.
+
+```powershell
+New-Item -ItemType Directory -Force -Path target/security-tools | Out-Null
+& "$env:JAVA_HOME/bin/javac.exe" -d target/security-tools scripts/TruststoreRemediation.java
+if ($LASTEXITCODE -ne 0) { throw 'Java25 점검 도구 컴파일 실패' }
+$taskStore = Join-Path $env:JAVA_HOME 'lib/security/cacerts'
+& "$env:JAVA_HOME/bin/java.exe" -cp target/security-tools TruststoreRemediation --check $taskStore
+$taskCheckExit = $LASTEXITCODE
+if ($taskCheckExit -eq 1) {
+    $taskStoreBackup = Join-Path (Resolve-Path target).Path 'cacerts.original'
+    & "$env:JAVA_HOME/bin/java.exe" -cp target/security-tools TruststoreRemediation --apply $taskStore $taskStoreBackup
+    if ($LASTEXITCODE -ne 0) { throw '신뢰 저장소 대응 실패: 원본 백업을 보존하고 원인 확인' }
+} elseif ($taskCheckExit -ne 0) {
+    throw '신뢰 저장소 점검 실패'
+}
+& "$env:JAVA_HOME/bin/java.exe" -cp target/security-tools TruststoreRemediation --check $taskStore
+if ($LASTEXITCODE -ne 0) { throw '불신 처리 뒤 점검 실패' }
+```
+
+합성 JKS/PKCS12 회귀는 `python -B scripts/test_truststore_remediation.py`로 실행하며 모의 키·인증서는 ignored target에만 생성한다. 기존 저장소·백업이 깨끗하면 재실행은 쓰지 않는다. 이미 실행 중인 해당 JVM은 신뢰 저장소를 캐시할 수 있으므로 재시작/이미지 재생성이 필요하다. 이번 기본 Compose는 수정 이미지로 재생성했다. 다른 프로세스를 자동 종료하거나 호스트 전역 신뢰 저장소를 수정하지 않는다.
+
+Dockerfile은 로컬 빌드 CA 반영 후 공식 대상 불신·검사를 수행한 다음 Maven HTTPS를 실행한다. runtime에는 빌드 CA·Maven 설정·신뢰 저장소 도구/임시 백업을 남기지 않는다. 정규25.0.5 Windows/Noble 공급 완료 시 버전/체크섬/digest·TLS·전체 회귀와 임시 정책 필요성을 다시 검토한다. 검출을 피하기 위해 CA를 광범위하게 제거하거나 TLS 검증을 해제하지 않는다.
+
+명시적인 native JDBC override를 쓸 때 전체 회귀의 초기 자료 전제를 확인한다. 기본 Testcontainers verify는 매번 새 컨테이너를 사용하지만, 같은 합성 DB를 재사용하면 이전 원천 출퇴근·일정 적용일 때문에 정상 충돌이 생길 수 있다. 기존 서비스 DB를 초기화하거나 기대값을 완화하지 말고 승인된 새 전용 DB에서 검증한다.

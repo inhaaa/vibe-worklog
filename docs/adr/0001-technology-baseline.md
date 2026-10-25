@@ -222,3 +222,11 @@ MyBatis3.6의 파라미터/JDBC 타입 해석 변경으로 PostgreSQL UUID의 �
 `migrate`는 앱과 같은 읽기 전용 root·/tmp tmpfs·ALL capability 제거·no-new-privileges를 적용한다. DB는 [공식 비루트 사용자 조건](https://github.com/docker-library/docs/blob/master/postgres/README.md#arbitrary---user-notes)에 따라 기존 OS postgres 사용자로 직접 시작하고 capability 제거·NNP를 적용한다. PGDATA의 기존 소유권을 자동 변경하지 않으며 최초 볼륨과 보존 볼륨을 각각 검증한다. 기존 postmaster도 root entrypoint/gosu 이후에는 이미 postgres로 실행됐다는 사실과, 이번 변경이 root 시작 경로를 제거하는 완화라는 점을 구분한다. 원래 SQL 관리자 역할·인증·RLS·콜레이션·DB binary는 유지한다.
 
 Temurin25.0.5+8은 공개됐으나 재조회한 공식209개 자산에 Windows 패키지가 없고25.0.5_8-jdk/jre-noble manifest도 존재하지 않았다. 임의 OS tar 혼합·다른 JDK 공급자 전환은 채택하지 않는다. 공급 완료 뒤 동일 Java25 계열의 패치·체크섬·digest·전체 회귀를 우선 검증한다. 이 결정의 실제 검증 결과와 남은 영향은 [실행 계획](../superpowers/plans/2026-10-25-residual-vulnerability-impact.md)의 후속 보고서에 기록한다.
+
+### 2026-10-25 JDK 공급 대기 중 공식 CA 임시 대응
+
+[Oracle/OpenJDK 공식 안내](https://ops.java/emudhra/)와 점검 도구는 eMudhra 경보의 네 root CN을 대상으로 한다. 실제 프로젝트용 Windows JDK와 이미지의 기본 cacerts에 G1/G3 두 인증서가 남아 있어, 정규 JDK 공급 대기와 별도로 공식 임시 불신 조치를 적용했다. 다른10월 CPU 수정이 완료된 것은 아니다.
+
+[독립 CLI](../../scripts/TruststoreRemediation.java)는 표준 KeyStore API로 JKS/PKCS12를 자동 감지하고 X500 CN의 정확한 값만 선택한다. key entry·기존/동일 백업은 거부하고 원본 백업·기존 파일 권한을 보존한다. 정상 check는 읽기 전용이고 깨끗한 저장소의 재적용도 쓰지 않는다. Docker는 builder에서 컴파일한 단일 class를 JRE에 일시 전달하며 최종 JRE filesystem에서 class/임시 백업을 제거한다. 이 파일만 빌드 입력에 추가하고 모의 개인키·테스트·로컬 설정은 제외한다.
+
+합성6개와 공식 점검·실제 인증서 지문 집합·Windows ACL·Maven HTTPS·새 Linux 전체396개/로컬 DB·HTTP 검증을 확인했다. 기존 개인 프로젝트용 portable JDK25만 수정했고 시스템 전역 JDK·호스트/브라우저 Root 저장소·별도 trustStore는 변경하지 않았다. 상세 증거·최종 이미지 ID·scanner 불일치·남은 P1은 [잔여 영향 보고서](../quality/residual-vulnerability-impact.md)를 따른다.

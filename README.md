@@ -67,7 +67,7 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 후속 HTTP 혼합 부하는18세션·33분·15,471요청에서 오류0, p95 619ms였고32분 steady는8요청/초였습니다. 전체 의존성·빌드 도구와 이미지4종을 로컬 검사해 MyBatis 내부 OGNL·플러그인을 패치하고 migrate 이미지를 줄였습니다. 앱/migrate의 Java archive 검출은0이나 OS·개발 도구의 미해결 항목은 [후속 보고서와 원장](docs/quality/http-soak-vulnerability.md)에 남겼습니다.
 
-잔여 OS·개발 도구의 실제 영향과 대응 순서는 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따릅니다. Noble zlib 패치·마이그레이션 권한 제한·DB의 비루트 시작을 새 Linux 전체396개 회귀와 새/보존 볼륨에서 검증했습니다. 공급 대기 JDK·libxml2 등의 배포 전 조건은 별도로 남깁니다.
+잔여 OS·개발 도구의 실제 영향과 대응 순서는 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따릅니다. Noble zlib 패치·마이그레이션 권한 제한·DB의 비루트 시작과 Java 기본 신뢰 저장소의 공식 CA 임시 대응을 검증했습니다. 최종 새 Linux396개·신뢰 저장소6개·HTTP24개 통과입니다. 공급 대기 JDK·libxml2 등 배포 전 조건과 scanner 불일치는 별도로 남깁니다.
 
 ## Local Development
 
