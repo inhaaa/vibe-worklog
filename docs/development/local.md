@@ -4,6 +4,8 @@ Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하�
 
 공식 수정판 공급의 후속 확인은 [공급 재확인 보고서](../quality/security-supply-recheck.md)를 따른다. Windows/Noble JDK·bookworm libxml2는 공급 대기이며 gosu1.20은 서명·파생 이미지·회귀 검증이 남은 적용 후보로 구분했다. 이 재확인은 기존 설치판 변경이나 테스트 재실행이 아니다.
 
+이후 [gosu 서명·바이너리 분석](../quality/gosu-binary-analysis.md)으로 서명2건·변조 거부3건·고정 DB 검사와61행 매핑을 확인했다. 현재 비루트 Compose는 유지하고 gosu 전용 파생 이미지는 도입하지 않는다. 기본 Testcontainers는 별도 root 시작 경로이며 이 판단을 자동 적용하지 않는다. 이번에는 앱 회귀·HTTP·DB 검증을 다시 실행하지 않았다.
+
 ## 준비 사항과 실행 경계
 
 - JDK 25. 검증에 사용한 배포물은 Eclipse Temurin `25.0.4.1+1`이다.

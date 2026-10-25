@@ -71,6 +71,8 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 2026-10-25 후속 [공식 공급 재확인](docs/quality/security-supply-recheck.md)에서 Windows/Noble JDK와 bookworm libxml2의 공급 대기를 확인했습니다. 새 gosu1.20은 별도 사용자 파일 파싱 수정의 적용 후보이며 기존 Go stdlib 경고 해결판은 아닙니다. OS·개발 도구를 적용 가능 후보·공급 대기·추가 분석으로 분류했으며 이번에는 설치·설정·DB·컨테이너 변경이나 회귀/부하 재실행을 하지 않았습니다.
 
+이후 [gosu 서명·바이너리 분석](docs/quality/gosu-binary-analysis.md)에서 정상 서명2건·변조 거부3건과 고정 DB의1.19/1.20 차이를 확인했습니다. 기존 Medium1건의 취약 심볼 경고는1.20에서 제거됐으며 C/H35건은 심볼 미보고를 무영향 확정으로 바꾸지 않았습니다. 현재 비루트 Compose를 유지하고 gosu 전용 파생 이미지는 도입하지 않으며, 기본 Testcontainers의 별도 root 시작 경로와 공식 이미지 갱신은 추적합니다.
+
 ## Local Development
 
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
@@ -126,6 +128,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Local Development](docs/development/local.md): 로컬 실행·마이그레이션·테스트·남은 검증
 - [HTTP & Vulnerability Validation](docs/quality/http-soak-vulnerability.md): 33분 부하·전체 검사·보안 패치·미해결 항목
 - [Security Fix Availability](docs/quality/security-supply-recheck.md): 공식 수정판 공급 재확인·적용 후보·공급 대기·추가 분석
+- [gosu Binary Analysis](docs/quality/gosu-binary-analysis.md): 서명·제외 없는 바이너리 검사·61행 대조·파생 이미지 판단
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
