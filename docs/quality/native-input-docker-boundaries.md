@@ -83,4 +83,6 @@ TC 2.0.5의 선택 우선순위는 tc.host → environment/user 설정 → persi
 
 남은 P1은 공식 JDK·bookworm libxml2 수정 공급/검증 후 다시 판단한다. multipart는 위 후속 계획에서 실제 설정·bean 경계를 확인한다. DNS/NSS·native parser·업로드·외부 URL/명령·DB 확장·Docker endpoint/transport를 추가하거나 변경하기 전에 해당 조건을 다시 평가한다.
 
+이후 설정을 반영한 최종 Linux 이미지의 실제 HTTP·multipart·33분 부하와 fixture DB loopback 보완은 [2026-10-26 재검증 보고서](runtime-image-soak.md)에 별도 기록했다. 이 분석 당시의 미실행 범위와 원시 취약점 판정은 보존한다.
+
 재현 자료는 ignored `target/native-boundary-20261025/`에 보존한다. `app-source/boundary-summary.json`·`official-sources.json`·`multipart-official-sources.json`, `app-elf/manifest.json`·`resolved-files.json`·`elf-evidence-complete.json`, `postgres/native-findings.json`·`elf-image-scan.json`·`source-*-manifest.json`, `elf/crosscheck-postgres.json`·RED/GREEN/PG 검증 로그, `docker/probe-result.json`·`self-test-result.json`·classpath/source manifest가 근거다. 원본 소스·ELF·설정·도구와 응답을 저장소에 추가하지 않는다.

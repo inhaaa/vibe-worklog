@@ -550,6 +550,20 @@ Dockerfile은 로컬 빌드 CA 반영 후 공식 대상 불신·검사를 수행
 
 이번 전체 실행은 새 `vibe-attendance-multipart-check-20261026-*`의 tmpfs 전용 DB `tna_phase4_test`와 임의 loopback 포트를 사용했다. OS postgres·capability 전체 제거·NNP·SCRAM을 유지했고 같은 이름의 기존 DB나 볼륨을 재사용하지 않았다. 완료 후 새 컨테이너는 정상 종료했다. 애플리케이션·인증·운영자·마이그레이션 역할은 기존 fixture가 이 전용 DB에서만 준비했다.
 
-실행 중 기본 Compose 이미지의 재빌드·재생성, 실제 HTTP 보안 점검·multipart tempfile 관찰·부하 시험은 수행하지 않았다. 따라서 현재 기본 실행 이미지까지 새 설정이 활성화됐다고 주장하지 않는다. 모든 MIME 요청의 HTTP 차단이나 P1 JDK/libxml2 해결도 이 변경의 의미가 아니다. 배포·실고객 적용은 진행하지 않았다.
+이 보완 단위에서는 기본 Compose 이미지의 재빌드·재생성, 실제 HTTP 보안 점검·multipart tempfile 관찰·부하 시험을 수행하지 않았다. 이후 2026-10-26의 기본 이미지 재생성과 별도 Linux HTTP·부하 검증은 [후속 보고서](../quality/runtime-image-soak.md)에 구분해 기록한다. 모든 MIME 요청의 HTTP 차단이나 P1 JDK/libxml2 해결은 이 변경의 의미가 아니다. 배포·실고객 적용은 진행하지 않았다.
 
 계약·순서는 [보안 설계](../design/security.md#7-웹세션출력-방어)와 [보완 계획](../superpowers/plans/2026-10-25-multipart-boundary.md), 발견 당시 근거는 [native/Docker 분석](../quality/native-input-docker-boundaries.md)을 따른다. 이번 RED/GREEN·전체 로그·집계·전용 컨테이너 종료 코드는 ignored `target/multipart-boundary-20261026/`에 보존한다. 분석용 휴대 JDK를 자식 프로세스에만 지정해 호스트의 JAVA_HOME/PATH·기존 JDK와 신뢰 저장소를 바꾸지 않았다.
+
+## 최종 이미지 HTTP·fixture DB 게시 재검증 (2026-10-26)
+
+후속 이미지·실제 HTTP·혼합 부하의 결과와 한계는 [재검증 보고서](../quality/runtime-image-soak.md)와 [실행 계획](../superpowers/plans/2026-10-26-runtime-image-soak.md)을 따른다. 기본 Compose DB를 유지하며 앱·migrate만 새 이미지로 반영한다. 빌드 전용 CA/Maven secret은 빌드 단계에서만 사용하고 런타임 재기동은 기본 Compose 구성으로 수행한다.
+
+실제 inspect에서 기본 Testcontainers PostgreSQL 게시가 모든 인터페이스로 열리는 것을 발견했다. `DatabaseFixture`의 owned 컨테이너 생성 콜백에서 기존 게시를 `127.0.0.1` 임의 포트→5432 하나로 교체하고 publish-all을 끈다. 기존 HostConfig와 supplied JDBC 경로는 유지한다. 이 변경은 Testcontainers DB의 게시를 한정하며 표준 이미지의 root 초기화·도구 제어 포트·호스트/엔진 전체 보안 구성을 검증한 의미가 아니다.
+
+`Phase6HttpFixture`는 새 owned DB만 사용한다. 기본은 기존 loopback 합성 허용망이고, Linux 앱 검증에는 `-Dtna.http.fixture.gateway-address=<실제 사설 IPv4>`로 canonical 주소 하나의 `/32`만 추가한다. 기존 `127/32`와 과거 원천 참조를 보존한다. Linux 앱은 전용 bridge와 명시적인 loopback 게시를 사용하며 넓은 허용망이나 X-Forwarded-For 신뢰로 우회하지 않는다. internal 전용 네트워크에서는 이 환경의 호스트 포트 게시가 생성되지 않았으므로 no-egress 격리 검증으로 기록하지 않는다.
+
+`scripts/verify-multipart-http.py --metadata <target 내부 합성 fixture JSON> --output target/runtime-revalidation-20261026/multipart-probe/result.json`은 별도 세션의 일반 폼 로그인·multipart CSRF 누락·정상 CSRF 헤더를 넣은 multipart 자격을 비교한다. `--with-file`은 무해한 작은 파일 part를 추가한다. 합성 표식·loopback origin·출력 경로를 검사하고 비밀번호/CSRF/본문은 출력하지 않는다. tempfile 관찰은 포함하지 않는다.
+
+Linux 부하를 위해 metadata의 baseUrl을 검증된 새 앱의 loopback 포트로 연결하고 native JVM runtimeFile은 제외한다. Docker 앱/DB 지표는 별도 기록한다. HTTP runner가 종료하기 전에 fixture를 멈추지 않는다. 측정 종료·지표 수집 종료·Linux 앱 종료·최종 읽기 전용 정합성 확인 후 owned fixture를 정상 종료한다. 중단한 부분 실행·smoke·완료한 지속 부하의 요청 수를 서로 합산하지 않는다.
+
+수정 후 전체 Java402개(단위52·PostgreSQL 통합350)·Python35개, 기본/합성 앱의 실제 HTTP 보안 각24개와 multipart12개가 통과했다. 최종 Linux 이미지의 별도33분은 1,980.205초·15,471요청·예상 밖 오류/논리 실패0, p95 241.014ms였다. 종료 시 재전송 중복0·과거 원천55,800건 지문 동일·승인/원장 일치·기존 DB의 컨테이너/볼륨/집계/권한 동일을 확인했고 owned fixture 종료 코드는0이다. 기본 앱은 새 이미지로 실행 중이며 종료 후 HTTP24개도 다시 통과했다. multipart tempfile·새 취약점 스캔·운영 용량을 검증한 결과는 아니다.

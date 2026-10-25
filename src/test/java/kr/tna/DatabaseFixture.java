@@ -1,5 +1,9 @@
 package kr.tna;
 
+import com.github.dockerjava.api.command.CreateContainerCmd;
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Ports;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.net.URI;
@@ -52,7 +56,8 @@ public final class DatabaseFixture {
             container = new PostgreSQLContainer("postgres:18.6-bookworm")
                     .withDatabaseName(DATABASE_NAME)
                     .withUsername("tna_test_admin")
-                    .withPassword("Synthetic-Test-Admin-Only-43!");
+                    .withPassword("Synthetic-Test-Admin-Only-43!")
+                    .withCreateContainerCmdModifier(DatabaseFixture::bindOwnedPostgresToLoopback);
             container.start();
             suppliedUrl = container.getJdbcUrl();
             adminUser = container.getUsername();
@@ -94,6 +99,11 @@ public final class DatabaseFixture {
             }
         }
         return instance;
+    }
+
+    static void bindOwnedPostgresToLoopback(CreateContainerCmd command) {
+        command.getHostConfig().withPublishAllPorts(false).withPortBindings(
+                new PortBinding(Ports.Binding.bindIp("127.0.0.1"), ExposedPort.tcp(5432)));
     }
 
     public String jdbcUrl() {

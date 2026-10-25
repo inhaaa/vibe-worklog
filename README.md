@@ -21,6 +21,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 로컬 모의 비밀번호 재설정: 일회성 RESET·세션 회수 구현
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
+- 최종 Linux 이미지 재검증: multipart·HTTP 보안·33분 15,471요청 오류0, 전체 Java402개·Python35개 통과
 
 ## Overview
 
@@ -134,6 +135,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Security Fix Availability](docs/quality/security-supply-recheck.md): 공식 수정판 공급 재확인·적용 후보·공급 대기·추가 분석
 - [gosu Binary Analysis](docs/quality/gosu-binary-analysis.md): 서명·제외 없는 바이너리 검사·61행 대조·파생 이미지 판단
 - [Native & Docker Boundaries](docs/quality/native-input-docker-boundaries.md): native 입력·ELF 교차 대조·읽기 전용 Docker 연결 진단
+- [Final Linux Image Revalidation](docs/quality/runtime-image-soak.md): multipart 설정 반영 이미지·실제 HTTP·혼합 부하 재검증
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 

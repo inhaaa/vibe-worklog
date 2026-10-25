@@ -2,6 +2,7 @@ package kr.tna;
 
 import com.zaxxer.hikari.HikariDataSource;
 import java.lang.management.ManagementFactory;
+import java.net.Inet4Address;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -59,7 +60,9 @@ public final class Phase6HttpFixture {
     public static void main(String[] args)throws Exception {
         if(args.length!=0||supplied(System.getenv("TNA_TEST_JDBC_URL"))||supplied(System.getProperty("tna.test.jdbc-url")))
             throw new IllegalArgumentException("HTTP fixture requires a new owned container; supplied DB targets are refused");
+        String gateway=gatewayNetwork(System.getProperty("tna.http.fixture.gateway-address"));
         var fixture=DatabaseFixture.start();
+        var container=fixture.ownedContainer();
         var application=new SpringApplication(TnaApplication.class);
         application.setAdditionalProfiles("local");
         application.addInitializers(context->TestPropertyValues.of(Map.of(
@@ -71,10 +74,12 @@ public final class Phase6HttpFixture {
             check(List.of(context.getEnvironment().getActiveProfiles()).contains("local"),"Local fixture profile was not activated");
             check(!context.getEnvironment().getRequiredProperty("server.servlet.session.cookie.secure",Boolean.class),"Local HTTP fixture requires the existing local cookie profile");
             var probe=new Phase6HttpFixture(context);
-            for(int i=1;i<=3;i++)probe.seed(i);
+            for(int i=1;i<=3;i++)probe.seed(i,gateway);
             Path stop=Path.of("target/phase6-http-"+UUID.randomUUID()+".stop").toAbsolutePath();
             var metadata=new LinkedHashMap<String,Object>();
             metadata.put("schemaVersion",1);metadata.put("baseUrl","http://127.0.0.1:"+context.getEnvironment().getRequiredProperty("local.server.port"));
+            metadata.put("fixtureScope","owned-synthetic");metadata.put("containerId",container.getContainerId());metadata.put("jdbcPort",container.getMappedPort(5432));
+            if(gateway!=null)metadata.put("gatewayNetwork",gateway);
             metadata.put("password",probe.password);metadata.put("users",probe.users);metadata.put("historyMonth",probe.month.toString());
             metadata.put("historyDate",probe.month.atDay(1).toString());metadata.put("today",probe.today.toString());
             metadata.put("tenants",3);metadata.put("employeesPerTenant",300);metadata.put("rawHistoryEvents",55_800);
@@ -99,7 +104,7 @@ public final class Phase6HttpFixture {
             System.out.println("SYNTHETIC_HTTP_FIXTURE_STOPPED replay_duplicates=0");
         }
     }
-    private void seed(int number) {
+    private void seed(int number,String gatewayNetwork) {
         UUID tenant=UUID.randomUUID(),template=UUID.randomUUID(),version=UUID.randomUUID(),network=UUID.randomUUID(),calendar=UUID.randomUUID();
         tenantIds.add(tenant);String marker="SOAK_T"+number+"_",company=("SOAK-"+tenant).toUpperCase(Locale.ROOT);
         LocalDate from=month.atDay(1),to=month.atEndOfMonth(),validEnd=today.plusDays(400);
@@ -120,6 +125,8 @@ public final class Phase6HttpFixture {
         db.update("INSERT INTO tna.calendar_version(tenant_id,id,revision,valid_from,valid_to,reason,created_by) VALUES (?,?,1,?,?,'합성 HTTP',?)",tenant,calendar,from.minusDays(7),validEnd.plusDays(1),manager.accountId());
         db.update("INSERT INTO tna.calendar_day(tenant_id,version_id,work_date,kind,name,basis) SELECT ?,?,d::date,'WORKDAY','합성 근무일','합성 검토' FROM generate_series(CAST(? AS date),CAST(? AS date),INTERVAL '1 day') d",tenant,calendar,from.minusDays(7),validEnd);
         db.update("INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by) VALUES (?,?,CAST('127.0.0.1/32' AS cidr),'합성 로컬',?,'합성 HTTP',?)",tenant,network,java.sql.Timestamp.from(from.atStartOfDay(SEOUL).toInstant()),manager.accountId());
+        if(gatewayNetwork!=null)db.update("INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by) VALUES (?,?,CAST(? AS cidr),'합성 Docker gateway',?,'합성 HTTP',?)",
+                tenant,UUID.randomUUID(),gatewayNetwork,java.sql.Timestamp.from(from.atStartOfDay(SEOUL).toInstant()),manager.accountId());
         db.update("""
                 INSERT INTO tna.attendance_event(tenant_id,id,employee_id,event_kind,occurred_at,received_at,client_command_id,source,validated_ip,network_id,assigned_work_date)
                 SELECT e.tenant_id,md5(e.id::text||d::text||k)::uuid,e.id,k,
@@ -177,6 +184,13 @@ public final class Phase6HttpFixture {
         row.put("dbConnections",db.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database()",Integer.class));
         row.put("waitingAdvisoryLocks",db.queryForObject("SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted",Integer.class));
         Files.writeString(Path.of("target/phase6-http-runtime.jsonl"),JSON.writeValueAsString(row)+"\n",java.nio.file.StandardOpenOption.APPEND);
+    }
+    static String gatewayNetwork(String raw) {
+        if(raw==null)return null;
+        var address=Inet4Address.ofLiteral(raw);
+        if(!address.isSiteLocalAddress()||!raw.equals(address.getHostAddress()))
+            throw new IllegalArgumentException("Only one canonical RFC1918 IPv4 gateway address is allowed");
+        return raw+"/32";
     }
     private static TnaPrincipal actor(UUID tenant,Person person,Set<String> roles) {return new TnaPrincipal(tenant,person.account(),person.employee(),1,roles,Instant.now());}
     private static boolean supplied(String value){return value!=null&&!value.isBlank();}
