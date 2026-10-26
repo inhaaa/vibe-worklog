@@ -572,7 +572,7 @@ Linux 부하를 위해 metadata의 baseUrl을 검증된 새 앱의 loopback 포�
 
 ## 회사코드 없는 로컬 데모·최종 보안 재검사 (2026-10-26)
 
-현재 기본 Compose는 `SPRING_PROFILES_ACTIVE=local,local-demo`다. `http://127.0.0.1:18080`에서 회사코드 없이 아이디 `admin`, 비밀번호 `admin`으로 로그인한다. 이 합성 계정은 `EMPLOYEE`·`ATTENDANCE_ADMIN`만 가지며 운영자·승인자 권한은 없다. 현재 로컬 DB에 명시 CLI로 준비했고 첫 실행·동일 자료 재실행 모두 종료0을 확인했다. 일반 `local` 단독과 기본 프로필에서는 기존 회사코드·이메일·강한 비밀번호 정책을 사용한다. `local-demo` 단독은 시작을 거부한다.
+현재 기본 Compose는 `SPRING_PROFILES_ACTIVE=local,local-demo`다. `http://127.0.0.1:18080`의 소개에서 **데모로 입장** 버튼을 누른다. 후속 A안 적용으로 입력 없이 기존 `admin / admin` CSRF POST 인증을 수행한다. 이 합성 계정은 `EMPLOYEE`·`ATTENDANCE_ADMIN`만 가지며 운영자·승인자 권한은 없다. 현재 로컬 DB에 명시 CLI로 준비했고 첫 실행·동일 자료 재실행 모두 종료0을 확인했다. 일반 `local` 단독과 기본 프로필에서는 기존 회사코드·이메일·강한 비밀번호 정책을 사용한다. `local-demo` 단독은 시작을 거부한다.
 
 새 로컬 DB에서 처음 데모 자료를 준비할 때는 Flyway 성공 후 별도 Java 프로세스에서 다음 명령을 실행한다. 환경은 두 프로필, `TNA_JDBC_URL=jdbc:postgresql://127.0.0.1:15432/tna`, `TNA_MIGRATION_DB_PASSWORD`를 요구한다. 관리 비밀번호는 명령 인수·출력·Git에 넣지 않고 CLI 프로세스에만 주입하며 웹앱에 넘기지 않는다. 이 CLI는 엄격한 literal loopback 주소·명시 포트만 허용한다.
 
@@ -601,4 +601,15 @@ Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문
 
 새 이미지4종의 같은 고정 DB 검사는1,234행·제외0이다. builder는 SBOM15항목(14개 deb·curl binary1개)·55개 원시 match 행이 줄었고 RTMP2건은 패키지 부재로 더 이상 검출되지 않는다. app/migrate/PostgreSQL match key는 이전과 같다. Brotli3행은 유지하며 CNA9.2/Critical과 Ubuntu Medium을 구분한다. 강제 폰트 의존성 제거·임의 .so 교체는 하지 않았다. 기존 [1,289행 원장](../quality/security-runtime-matches.csv)은 보존하며 현재 [5행 검토표](../quality/new-native-cve-review.csv)·[실행 보고서](../quality/new-native-cve-analysis.md)를 따른다.
 
-최종 Java433개·Python35개·실제 HTTP16+24개를 통과했고 새 app/migrate에 반영했다. 기존 DB 집계·Flyway V10·RLS·역할/ACL 지문과 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. 로그인은 현재 회사코드 없이 admin/admin인 로컬 데모 계약을 유지한다. [디자인 제안](../design/ui-redesign-proposal.md)은 사용자 승인 대기다. 이번에 제품 HTML/CSS·메뉴·로그인 진입을 변경하거나33분 부하를 재측정하지 않았다.
+최종 Java433개·Python35개·실제 HTTP16+24개를 통과했고 새 app/migrate에 반영했다. 기존 DB 집계·Flyway V10·RLS·역할/ACL 지문과 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. 로그인은 현재 회사코드 없이 admin/admin인 로컬 데모 계약을 유지한다. 해당 native 보완 당시에는 제품 HTML/CSS·메뉴·로그인 진입을 변경하거나33분 부하를 재측정하지 않았다. 이후 A안 적용은 아래 후속 기록을 따른다.
+
+
+## A안 실제 화면·입력 없는 데모 (2026-10-26)
+
+사용자 승인 시안을 소개·홈·본인 월 달력·직원 목록에 적용하고 기존 업무 화면도 공통 메뉴·상단 본인/회사 표시로 연결했다. 기본 주소의 소개에서 **데모로 입장**을 누르면 실제 로컬 합성 계정으로 홈에 들어간다. `local,local-demo`에서만 제공하며 일반 프로필의 회사코드·이메일 인증은 유지한다. 기존 데모 자료를 자동 재생성하거나 권한을 복원하지 않는다.
+
+전체 Java459개(단위70·통합389)·Python42개·최종 이미지 실제 HTTP35+24개를 통과했다. 브라우저에서1024px/390px의 네 화면과 메뉴/Escape·월/날짜 선택·직원 검색/활성 필터·등록 폼·로그아웃/재입장을 확인했다. 가로 넘침·콘솔 오류는0이다. 새 app/migrate는 실행 JAR의 production250개 항목 일치·V10 no-op·UID10001/RO/cap drop/NNP/loopback을 확인했다. 기본 DB 전후 집계·Flyway·RLS·역할/ACL과 컨테이너 ID·이미지·볼륨·라벨은 동일하다.
+
+현재 합성 직원1명 외에 일정·기초 연차를 자동 추가하지 않았다. 달력과 홈은 미배정·미확인을 표시하고, 직원 통계는 현재 검색/필터/페이지의 최대50명 기준이다. 예시 인원·잔여/시간을 실제 값으로 넣지 않는다. 새 app/migrate2종의 고정 DB 검사는 원시280행·제외0·Java archive0이며 직전 각140행과 키가 같다. 기존 JDK/libxml2/Brotli 미해결 조건·이전 부하/Ryuk 검증의 범위를 유지한다. 상세 이미지 ID·SBOM SHA·실행 근거와 한계는 [워크스페이스 검증 보고](../quality/workspace-ui.md)를 따른다.
+
+검증 명령은 프로젝트 JDK25에서 `mvnw.cmd verify`, `python -B -m unittest discover -s scripts -p 'test_*.py'`, 실행 중인 loopback 앱의 `python -B scripts/verify-local-http.py --port 18080`이다. 호스트 전역 JDK를 바꾸지 말고 기존 개발 안내의 프로젝트 전용 JDK를 사용한다. 이번 UI 이미지의33분 부하와 외부 배포는 수행하지 않았다.

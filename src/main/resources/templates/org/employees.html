@@ -1,59 +1,81 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>사원 관리 · tna</title>
-    <link rel="stylesheet" th:href="@{/app.css}">
-</head>
-<body>
-<header class="site-header admin-header">
-    <a class="brand" th:href="@{/me/today}">tna</a>
-    <nav aria-label="주 메뉴">
-        <a th:href="@{/me/today}">내 화면</a>
-        <a th:href="@{/admin/organizations}">조직 관리</a>
-        <a th:href="@{/admin/employees}" aria-current="page">사원 관리</a>
-    </nav>
-    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
-</header>
-<main class="content admin-shell">
-    <p class="eyebrow">조직·사원 관리</p>
-    <h1>사원 관리</h1>
-    <section class="panel" aria-labelledby="employee-list-title">
-        <h2 id="employee-list-title">사원 목록</h2>
-        <form th:action="@{/admin/employees}" method="get" class="search-form" role="search">
-            <div>
-                <label for="employee-query">사원 검색</label>
-                <input id="employee-query" name="q" type="search" th:value="${q}" placeholder="사번 또는 이름">
+<head th:replace="~{fragments/workspace :: head('직원 목록')}"></head>
+<body class="workspace-body">
+<div id="tna-app"><div class="t-app-shell">
+<aside th:replace="~{fragments/workspace :: sidebar('employees')}"></aside>
+<header th:replace="~{fragments/workspace :: topbar('직원 목록')}"></header>
+<main class="t-main">
+    <header class="t-pagehead"><div><p class="t-eyebrow">구성원 관리</p><h1>직원 목록</h1>
+        <p class="t-muted">조직과 재직 정보를 한곳에서.</p></div></header>
+    <div class="t-grid-3" aria-label="현재 페이지 직원 현황">
+        <section class="t-card"><p class="t-metric-label">현재 페이지 직원</p><p class="t-metric-value" th:text="${pageEmployeeCount}"></p></section>
+        <section class="t-card"><p class="t-metric-label">현재 페이지 활성</p><p class="t-metric-value" th:text="${pageActiveCount}"></p></section>
+        <section class="t-card"><p class="t-metric-label">현재 페이지 비활성</p><p class="t-metric-value" th:text="${pageInactiveCount}"></p></section>
+    </div>
+    <p class="t-subtle">검색·필터를 적용한 현재 페이지의 집계입니다. 활성 상태는 재직 기간·퇴사 여부와 구분합니다.</p>
+    <div class="t-employee-layout">
+        <section class="t-card" aria-labelledby="employee-list-title">
+            <header class="t-cardhead"><h2 id="employee-list-title">직원 명단</h2>
+                <p class="t-muted" role="status" th:text="|${page + 1}페이지 · ${pageEmployeeCount}명 표시|"></p></header>
+            <form th:action="@{/admin/employees}" method="get" class="t-toolbar" role="search" aria-label="직원 검색 및 필터">
+                <label class="t-sr-only" for="tna-employee-search">직원 이름 또는 사번 검색</label>
+                <input class="t-input" id="tna-employee-search" name="q" type="search" th:value="${q}" placeholder="이름 또는 사번 검색" maxlength="120">
+                <label class="t-sr-only" for="tna-department">현재 소속 조직</label>
+                <select class="t-select" id="tna-department" name="organizationId">
+                    <option value="">전체 소속</option>
+                    <option th:each="option : ${options}" th:value="${option.id}" th:selected="${option.id == organizationId}" th:text="${option.name}"></option>
+                </select>
+                <label class="t-sr-only" for="tna-employment">활성 상태</label>
+                <select class="t-select" id="tna-employment" name="status">
+                    <option value="all" th:selected="${status == 'all'}">전체 상태</option>
+                    <option value="active" th:selected="${status == 'active'}">활성</option>
+                    <option value="inactive" th:selected="${status == 'inactive'}">비활성</option>
+                </select>
+                <button type="submit" class="t-btn primary">검색</button>
+                <a th:href="@{/admin/employees}" class="t-btn secondary">전체 보기</a>
+            </form>
+            <p th:if="${#lists.isEmpty(employees)}" class="t-muted"
+               th:text="${#strings.isEmpty(q) and organizationId == null and status == 'all'} ? '등록된 사원이 없습니다. 아래에서 첫 사원을 등록해 주세요.' : '검색 결과가 없습니다. 검색어와 필터를 확인해 주세요.'"></p>
+            <div class="t-tablewrap" th:unless="${#lists.isEmpty(employees)}" role="region" aria-label="직원 명단" tabindex="0">
+                <table class="t-table"><caption class="t-sr-only">이름, 사번, 현재 소속과 활성 상태</caption>
+                    <thead><tr><th scope="col">직원</th><th scope="col">사번</th><th scope="col">현재 소속</th><th scope="col">활성 상태</th></tr></thead>
+                    <tbody id="tna-employee-rows"><tr th:each="employee : ${employees}" th:classappend="${selectedEmployee != null and employee.id == selectedEmployee.id} ? 'active' : ''">
+                        <td><a class="t-person-button" th:href="@{/admin/employees(q=${q},page=${page},organizationId=${organizationId},status=${status},employeeId=${employee.id})} + '#employee-detail'"
+                               th:attr="aria-current=${selectedEmployee != null and employee.id == selectedEmployee.id ? 'true' : null}">
+                            <span class="t-avatar" aria-hidden="true">직</span><strong th:text="${employee.displayName}"></strong></a></td>
+                        <td data-label="사번" th:text="${employee.employeeNo}"></td>
+                        <td data-label="현재 소속" th:text="${employeeOrganizations[employee.id] == null ? '미배정' : employeeOrganizations[employee.id]}"></td>
+                        <td data-label="활성 상태"><span class="t-tag" th:classappend="${employee.active} ? 'green' : 'gray'" th:text="${employee.active} ? '활성' : '비활성'"></span></td>
+                    </tr></tbody>
+                </table>
             </div>
-            <button type="submit">검색</button>
-            <a th:href="@{/admin/employees}">전체 보기</a>
-        </form>
-        <p th:if="${#lists.isEmpty(employees)}" class="notice"
-           th:text="${#strings.isEmpty(q)} ? '등록된 사원이 없습니다. 아래에서 첫 사원을 등록해 주세요.' : '검색 결과가 없습니다. 검색어를 확인해 주세요.'">등록된 사원이 없습니다.</p>
-        <div class="table-scroll" th:unless="${#lists.isEmpty(employees)}" role="region" aria-label="사원 목록" tabindex="0">
-            <table>
-                <caption class="sr-only">사번, 이름, 재직일과 활성 상태</caption>
-                <thead><tr><th scope="col">사번</th><th scope="col">이름</th><th scope="col">입사일</th><th scope="col">마지막 재직일</th><th scope="col">상태</th></tr></thead>
-                <tbody>
-                <tr th:each="employee : ${employees}">
-                    <td th:text="${employee.employeeNo}">EMP</td>
-                    <td><a th:href="@{/admin/employees/{id}(id=${employee.id})}" th:text="${employee.displayName}">사원 이름</a></td>
-                    <td><time th:datetime="${employee.joinedOn}" th:text="${@seoulTime.date(employee.joinedOn)}">2026-10-24</time></td>
-                    <td th:text="${employee.leftOn == null ? '미지정' : @seoulTime.date(employee.leftOn)}">미지정</td>
-                    <td th:text="${employee.active} ? '활성' : '비활성'">활성</td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <nav class="actions pagination" aria-label="사원 목록 페이지">
-            <a th:if="${page > 0}" th:href="@{/admin/employees(q=${q},page=${page - 1})}">이전 페이지</a>
-            <span th:text="|${page + 1}페이지|">1페이지</span>
-            <a th:if="${hasNext}" th:href="@{/admin/employees(q=${q},page=${page + 1})}">다음 페이지</a>
-        </nav>
-    </section>
-    <section class="panel" aria-labelledby="employee-create-title">
-        <h2 id="employee-create-title">사원 등록</h2>
+            <nav class="t-actions" aria-label="사원 목록 페이지">
+                <a class="t-btn secondary" th:if="${page > 0}" th:href="@{/admin/employees(q=${q},page=${page - 1},organizationId=${organizationId},status=${status})}">이전 페이지</a>
+                <span th:text="|${page + 1}페이지|"></span>
+                <a class="t-btn secondary" th:if="${hasNext}" th:href="@{/admin/employees(q=${q},page=${page + 1},organizationId=${organizationId},status=${status})}">다음 페이지</a>
+            </nav>
+        </section>
+        <section class="t-card" id="employee-detail" tabindex="-1" aria-labelledby="selected-employee-title">
+            <h2 id="selected-employee-title">직원 상세</h2>
+            <div th:if="${selectedEmployee != null}">
+                <div class="t-person-hero"><span class="t-avatar blue" aria-hidden="true">직</span><h3 th:text="${selectedEmployee.displayName}"></h3>
+                    <span class="t-tag" th:classappend="${selectedEmployee.active} ? 'green' : 'gray'" th:text="${selectedEmployee.active} ? '활성' : '비활성'"></span></div>
+                <dl class="t-person-info">
+                    <div><dt>사번</dt><dd th:text="${selectedEmployee.employeeNo}"></dd></div>
+                    <div><dt>현재 소속</dt><dd th:text="${employeeOrganizations[selectedEmployee.id] == null ? '미배정' : employeeOrganizations[selectedEmployee.id]}"></dd></div>
+                    <div><dt>입사일</dt><dd><time th:attr="datetime=${selectedEmployee.joinedOn}" th:text="${@seoulTime.date(selectedEmployee.joinedOn)}"></time></dd></div>
+                    <div><dt>마지막 재직일</dt><dd><span th:if="${selectedEmployee.leftOn == null}">미지정</span><time th:if="${selectedEmployee.leftOn != null}" th:attr="datetime=${selectedEmployee.leftOn}" th:text="${@seoulTime.date(selectedEmployee.leftOn)}"></time></dd></div>
+                </dl>
+                <p class="t-subtle">현재 소속은 서울 기준 오늘 유효한 배정입니다. 비활성은 퇴사·삭제와 구분합니다.</p>
+                <p><a class="t-btn secondary" th:href="@{/admin/employees/{id}(id=${selectedEmployee.id})}">사원 상세·수정</a></p>
+                <p><a th:href="@{/admin/employees/{id}/access(id=${selectedEmployee.id})}">계정 초대·역할·승인자 관리</a></p>
+            </div>
+            <p class="t-muted" th:if="${selectedEmployee == null}">표시할 직원이 없습니다. 검색 조건을 바꾸거나 직원을 등록해 주세요.</p>
+        </section>
+    </div>
+    <details class="t-card" th:open="${error != null}">
+        <summary id="employee-create-title">직원 등록</summary>
         <p class="hint">사원을 등록해도 로그인 계정은 자동으로 생성되지 않습니다.</p>
         <p th:if="${error != null}" class="notice error" role="alert" th:text="${error}">입력 내용을 확인해 주세요.</p>
         <form th:action="@{/admin/employees}" method="post" class="admin-form">
@@ -76,7 +98,8 @@
             <p id="employee-reason-help" class="hint">500자 이내로 입력하세요. 불필요한 개인정보는 적지 마세요.</p>
             <div class="actions"><button type="submit">사원 등록</button></div>
         </form>
-    </section>
+    </details>
 </main>
+</div></div>
 </body>
 </html>

@@ -1,22 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>조직 관리 · tna</title>
-    <link rel="stylesheet" th:href="@{/app.css}">
-</head>
-<body>
-<header class="site-header admin-header">
-    <a class="brand" th:href="@{/me/today}">tna</a>
-    <nav aria-label="주 메뉴">
-        <a th:href="@{/me/today}">내 화면</a>
-        <a th:href="@{/admin/organizations}" aria-current="page">조직 관리</a>
-        <a th:href="@{/admin/employees}">사원 관리</a>
-    </nav>
-    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
-</header>
-<main class="content admin-shell">
+<head th:replace="~{fragments/workspace :: head('조직 관리')}"></head>
+<body class="workspace-body" hx-history="false">
+<div id="tna-app"><div class="t-app-shell"><aside th:replace="~{fragments/workspace :: sidebar('organizations')}"></aside><header th:replace="~{fragments/workspace :: topbar('조직 관리')}"></header>
+<main class="t-main t-legacy-page content admin-shell">
     <p class="eyebrow">조직·사원 관리</p>
     <h1>조직 관리</h1>
     <section class="panel" aria-labelledby="organization-list-title">
@@ -76,5 +63,5 @@
         </form>
     </section>
 </main>
-</body>
+</div></div></body>
 </html>

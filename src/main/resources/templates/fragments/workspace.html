@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
+    <title th:text="${title + ' · tna'}">tna</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+    <script th:src="@{/app.js}" defer></script>
+    <script th:src="@{/vendor/htmx.min.js}" defer></script>
+</head>
+<body>
+<svg th:fragment="icon(name)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <g th:switch="${name}">
+        <path th:case="'home'" d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/>
+        <g th:case="'calendar'"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></g>
+        <g th:case="'people'"><circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/></g>
+        <g th:case="'clock'"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+        <g th:case="'building'"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M10 21v-5h4v5"/></g>
+        <path th:case="'menu'" d="M4 6h16M4 12h16M4 18h16"/>
+        <path th:case="'arrow'" d="M5 12h14m-5-5 5 5-5 5"/>
+        <path th:case="'chevron'" d="m9 5 7 7-7 7"/>
+        <path th:case="'settings'" d="M4 7h16M4 17h16M8 4v6M16 14v6"/>
+        <path th:case="'chart'" d="M4 4v16h16M8 15v-4M13 15V7M18 15v-6"/>
+        <g th:case="*"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="m8 12 3 3 5-6M9 6h6"/></g>
+    </g>
+</svg>
+<aside th:fragment="sidebar(active)" class="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
+    <a class="t-brand-button t-wordmark" th:href="${workspaceDemo} ? @{/demo} : @{/me/today}"><span class="t-logo">t</span><span>tna<span class="t-brand-sub">Work, in rhythm.</span></span></a>
+    <div class="t-workspace-name"><span class="t-workspace-icon">T</span><span><span th:text="${workspaceEmployee.companyName}">워크스페이스</span><small th:text="${workspacePrincipal.roles.contains('ATTENDANCE_ADMIN') ? '근태 관리자' : (workspacePrincipal.roles.contains('APPROVER') ? '지정 승인자' : '직원')}">직원</small></span></div>
+    <nav aria-label="업무 메뉴">
+        <th:block th:if="${workspacePrincipal.roles.contains('EMPLOYEE')}">
+            <p class="t-nav-group">내 업무</p>
+            <a class="t-nav-item" th:href="@{/me/today}" th:attr="aria-current=${active == 'home' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('home')}"></span>홈</a>
+            <a class="t-nav-item" th:href="@{/me/schedule}" th:attr="aria-current=${(active == 'calendar' or active == 'schedule') ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('calendar')}"></span>내 근무 일정</a>
+            <a class="t-nav-item" th:href="@{/me/requests}" th:attr="aria-current=${active == 'requests' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('request')}"></span>휴가·신청</a>
+            <a class="t-nav-item" th:href="@{/me/worktime}" th:attr="aria-current=${active == 'worktime' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('clock')}"></span>근로시간</a>
+        </th:block>
+        <th:block th:if="${workspacePrincipal.roles.contains('APPROVER')}">
+            <p class="t-nav-group">승인 업무</p>
+            <a class="t-nav-item" th:href="@{/approvals}" th:attr="aria-current=${active == 'approvals' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('request')}"></span>신청 승인</a>
+        </th:block>
+        <th:block th:if="${workspacePrincipal.roles.contains('ATTENDANCE_ADMIN')}">
+            <p class="t-nav-group">관리 업무</p>
+            <a class="t-nav-item" th:href="@{/admin/employees}" th:attr="aria-current=${active == 'employees' or active == 'access' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('people')}"></span>직원 목록</a>
+            <a class="t-nav-item" th:href="@{/admin/organizations}" th:attr="aria-current=${active == 'organizations' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('building')}"></span>조직 관리</a>
+            <a class="t-nav-item" th:href="@{/admin/schedules}" th:attr="aria-current=${active == 'schedules' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('settings')}"></span>근무 설정</a>
+            <a class="t-nav-item" th:href="@{/admin/calendar}" th:attr="aria-current=${active == 'holidays' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('calendar')}"></span>근무일·휴일</a>
+            <a class="t-nav-item" th:href="@{/admin/networks}" th:attr="aria-current=${active == 'networks' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('settings')}"></span>허용 네트워크</a>
+            <a class="t-nav-item" th:href="@{/admin/leave-balances}" th:attr="aria-current=${active == 'balances' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('request')}"></span>연차 관리</a>
+            <a class="t-nav-item" th:href="@{/admin/requests}" th:attr="aria-current=${active == 'admin-requests' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('request')}"></span>전체 신청</a>
+            <a class="t-nav-item" th:href="@{/admin/attendance}" th:attr="aria-current=${active == 'attendance' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('chart')}"></span>근태 현황·Excel</a>
+            <a class="t-nav-item" th:href="@{/admin/work-policies}" th:attr="aria-current=${active == 'policies' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('settings')}"></span>계산 정책</a>
+            <a class="t-nav-item" th:href="@{/admin/audit}" th:attr="aria-current=${active == 'audit' ? 'page' : null}"><span th:replace="~{fragments/workspace :: icon('chart')}"></span>변경 이력</a>
+        </th:block>
+    </nav>
+    <div class="t-sidebar-bottom"><th:block th:if="${workspaceDemo}"><span class="t-demo-label"><span></span>로컬 데모 워크스페이스</span><p>합성 자료로 기능을 확인하세요.</p><a class="t-return" th:href="@{/demo}">← 소개 화면으로</a></th:block><p>Asia/Seoul 기준</p></div>
+</aside>
+<header th:fragment="topbar(title)" class="t-topbar">
+    <div class="t-breadcrumb"><button type="button" class="t-mobile-menu" aria-label="업무 메뉴 열기" aria-controls="workspace-menu" aria-expanded="false"><span th:replace="~{fragments/workspace :: icon('menu')}"></span></button><span>워크스페이스</span><span th:replace="~{fragments/workspace :: icon('chevron')}"></span><strong th:text="${title}">홈</strong></div>
+    <div class="t-profile"><span th:if="${workspaceDemo}" class="t-demo-pill">DEMO</span><span class="t-profile-copy"><span th:text="${workspaceEmployee.employeeName}">직원</span><small th:text="${workspaceEmployee.companyName}">워크스페이스</small></span><span class="t-avatar blue" th:text="${#strings.substring(workspaceEmployee.employeeName,0,1)}" aria-hidden="true">T</span><form th:action="@{/logout}" method="post"><button type="submit" class="t-btn t-logout">로그아웃</button></form></div>
+</header>
+</body></html>

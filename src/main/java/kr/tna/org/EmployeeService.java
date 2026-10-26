@@ -1,8 +1,11 @@
 package kr.tna.org;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgCommands.Change;
@@ -29,6 +32,36 @@ public final class EmployeeService {
         String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
         String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         return commands.read(actor, () -> mapper.list(actor.tenantId(), search, offset));
+    }
+
+    public OrgData.EmployeeDirectory directory(TnaPrincipal actor, String query, int page,
+            UUID organizationId, String status, UUID selectedId) {
+        int offset = offset(page);
+        String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
+        String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        if (!Set.of("all", "active", "inactive").contains(status)) {
+            throw new OrgException(400, "활성 상태 필터를 확인해 주세요.");
+        }
+        return commands.read(actor, () -> {
+            if (organizationId != null && mapper.organizationActive(actor.tenantId(), organizationId) == null) {
+                throw OrgException.notFound();
+            }
+            if (selectedId != null) requireEmployee(actor.tenantId(), selectedId);
+            LocalDate today = commands.today();
+            var result = mapper.directory(actor.tenantId(), search, offset, organizationId, status, today);
+            var visible = result.stream().limit(50).toList();
+            Employee selected = selectedId == null ? (visible.isEmpty() ? null : visible.getFirst())
+                    : visible.stream().filter(employee -> employee.id().equals(selectedId)).findFirst()
+                            .orElseThrow(OrgException::notFound);
+            Map<UUID, String> names = new HashMap<>();
+            if (!visible.isEmpty()) {
+                for (var assignment : mapper.currentOrganizations(actor.tenantId(),
+                        visible.stream().map(Employee::id).toList(), today)) {
+                    names.put(assignment.employeeId(), assignment.organizationName());
+                }
+            }
+            return new OrgData.EmployeeDirectory(visible, Map.copyOf(names), selected, result.size() > 50);
+        });
     }
 
     public List<Employee> options(TnaPrincipal actor) {

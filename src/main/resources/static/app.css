@@ -54,3 +54,323 @@ button { min-height: 2.8rem; border: 1px solid #234fa3; border-radius: .4rem; pa
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .admin-form fieldset { border: 0; padding: 0; margin: 1rem 0 0; }
 .admin-form legend { padding: 0; font-weight: 600; }
+
+/* Approved workspace A */
+
+#tna-app{--t-blue:#345eea;--t-blue-soft:#edf2ff;--t-ink:#19283f;--t-muted:#69758a;--t-line:#e8edf3;--t-canvas:#f5f7fb;--t-paper:#fff;--t-green:#28735d;--t-green-soft:#eaf5ef;--t-amber:#956415;--t-amber-soft:#fff5df;--t-radius:14px;font-family:"Noto Sans KR","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--t-ink);font-size:13px;line-height:1.6;width:100%;color-scheme:light}
+#tna-app *{box-sizing:border-box}
+#tna-app [hidden]{display:none!important}
+#tna-app button,#tna-app input,#tna-app select{font:inherit}
+#tna-app button{cursor:var(--cursor-interaction,pointer)}
+#tna-app button:disabled{cursor:default}
+#tna-app h1,#tna-app h2,#tna-app h3,#tna-app p{margin:0}
+#tna-app h1{font-size:25px;letter-spacing:-1px;line-height:1.4;font-weight:700}
+#tna-app h2{font-size:15px;letter-spacing:-.4px;font-weight:650}
+#tna-app h3{font-size:14px;font-weight:650}
+#tna-app svg{width:17px;height:17px;flex:none;vertical-align:middle;stroke-width:1.7}
+#tna-app .t-wordmark{display:flex;align-items:center;gap:10px;font-size:24px;font-weight:750;letter-spacing:-1px;color:var(--t-ink)}
+#tna-app .t-logo{display:grid;place-items:center;background:var(--t-blue);color:var(--t-paper);width:36px;height:36px;border-radius:10px;font-size:30px;font-weight:700;line-height:1}
+#tna-app .t-brand-sub{display:block;font-size:10px;letter-spacing:0;font-weight:500;color:var(--t-muted);line-height:1.2}
+#tna-app .t-btn{border:1px solid var(--t-line);background:var(--t-paper);color:var(--t-ink);padding:9px 13px;border-radius:8px;display:inline-flex;justify-content:center;align-items:center;gap:8px;font-weight:550;font-size:12px;line-height:1.5;white-space:normal}
+#tna-app .t-btn.primary{background:var(--t-blue);color:var(--t-paper);border-color:var(--t-blue);box-shadow:0 3px 6px #345eea13}
+#tna-app .t-btn:hover:not(:disabled){filter:brightness(.97)}
+#tna-app .t-intro-nav{padding:25px 38px;display:flex;justify-content:space-between;align-items:center;gap:14px}
+#tna-app .t-hero{display:grid;grid-template-columns:1fr 1.08fr;align-items:center;padding:52px 38px 78px;gap:28px;min-height:535px;background:radial-gradient(ellipse at 90% 50%,#edf3ff 0%,#fff 65%)}
+#tna-app .t-intro-label{font-size:12px;color:var(--t-blue);display:flex;align-items:center;gap:7px;margin-bottom:19px;font-weight:550}
+#tna-app .t-intro-label>span{width:6px;height:6px;border-radius:100%;background:var(--t-blue)}
+#tna-app .t-hero h1{font-size:42px;letter-spacing:-2px;line-height:1.36;font-weight:750;white-space:nowrap}
+#tna-app .t-hero h1 em{color:var(--t-blue);font-style:normal}
+#tna-app .t-hero-description{font-size:14px;line-height:1.9;color:var(--t-muted);margin-top:22px}
+#tna-app .t-enter{margin-top:31px;padding:12px 22px;font-size:14px;min-width:168px}
+#tna-app .t-enter-note{font-size:11px;margin-top:13px;display:flex;gap:6px;align-items:center;color:var(--t-muted)}
+#tna-app .t-enter-note svg{width:14px;height:14px;color:var(--t-green)}
+#tna-app .t-feature-labels{display:flex;flex-wrap:wrap;gap:0;margin-top:33px;color:var(--t-muted);font-size:11px}
+#tna-app .t-feature-labels span+span:before{content:"·";margin:0 10px;color:#b1bacb}
+#tna-app .t-hero-art{position:relative;padding:22px 0 38px 8px;min-width:0}
+#tna-app .t-mini-window{position:relative;border:1px solid #e2e8f5;background:var(--t-paper);border-radius:13px;box-shadow:0 22px 48px #28466b14,0 5px 10px #28466b06;transform:rotate(-2deg)}
+#tna-app .t-mini-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--t-line);font-size:10px;color:var(--t-muted)}
+#tna-app .t-mini-logo{font-size:19px;font-weight:750;color:var(--t-blue);letter-spacing:-.7px}
+#tna-app .t-mini-avatar{margin-left:auto;display:grid;place-items:center;background:#e9efff;color:var(--t-blue);width:22px;height:22px;border-radius:100%;font-size:10px}
+#tna-app .t-mini-body{padding:22px}
+#tna-app .t-mini-kicker{font-size:9px;letter-spacing:1.2px;color:var(--t-muted);margin-bottom:6px}
+#tna-app .t-mini-body h2{font-size:17px;margin-bottom:18px}
+#tna-app .t-mini-summary{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:25px}
+#tna-app .t-mini-summary>div{border:1px solid var(--t-line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:5px}
+#tna-app .t-mini-summary span{font-size:10px;color:var(--t-muted)}
+#tna-app .t-mini-summary strong{font-size:25px;line-height:1.4;letter-spacing:-.8px}
+#tna-app .t-mini-summary strong span{font-size:13px;margin-left:4px;color:var(--t-ink)}
+#tna-app .t-mini-summary .t-mini-status{color:var(--t-blue)}
+#tna-app .t-mini-weekhead{display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-bottom:12px}
+#tna-app .t-mini-weekhead span{color:var(--t-muted);font-size:9px}
+#tna-app .t-mini-week{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+#tna-app .t-mini-week>div{display:flex;flex-direction:column;align-items:center;background:#f7f9fc;border-radius:7px;padding:10px 0;gap:5px}
+#tna-app .t-mini-week span{font-size:9px;color:var(--t-muted)}
+#tna-app .t-mini-week b{font-size:14px;font-weight:600}
+#tna-app .t-mini-week i{width:4px;height:4px;background:#9bb2fc;border-radius:100%;margin-top:3px}
+#tna-app .t-mini-week small{font-size:8px;color:var(--t-green)}
+#tna-app .t-mini-week>div.today{background:var(--t-blue);color:var(--t-paper)}
+#tna-app .t-mini-week .today span{color:#dfe7ff}
+#tna-app .t-mini-week .today i{background:var(--t-paper)}
+#tna-app .t-mini-week>div.leave{background:var(--t-green-soft)}
+#tna-app .t-mini-footer{display:flex;align-items:center;gap:9px;border-top:1px solid var(--t-line);margin-top:20px;padding-top:14px;font-size:10px}
+#tna-app .t-mini-footer strong,#tna-app .t-mini-footer div>span{display:block;font-weight:500}
+#tna-app .t-mini-footer div>span{font-size:9px;color:var(--t-muted);margin-top:2px}
+#tna-app .t-mini-check{background:var(--t-green-soft);color:var(--t-green);width:23px;height:23px;border-radius:100%;display:grid;place-items:center}
+#tna-app .t-mini-arrow{margin-left:auto;color:var(--t-muted)}
+#tna-app .t-floating-note{position:absolute;bottom:8px;left:-20px;display:flex;gap:11px;align-items:center;padding:13px 18px;background:var(--t-paper);border:1px solid var(--t-line);border-radius:11px;box-shadow:0 12px 28px #28466b14}
+#tna-app .t-note-icon{width:31px;height:31px;border-radius:9px;display:grid;place-items:center;background:var(--t-blue-soft);color:var(--t-blue)}
+#tna-app .t-floating-note strong{display:block;font-size:11px;font-weight:600}
+#tna-app .t-floating-note div>span{display:block;font-size:10px;color:var(--t-muted);margin-top:2px}
+#tna-app .t-intro-footer{display:flex;justify-content:space-between;gap:15px;padding:20px 38px;border-top:1px solid var(--t-line);color:var(--t-muted);font-size:10px}
+#tna-app .t-app-shell{display:grid;grid-template-columns:181px minmax(0,1fr);grid-template-areas:"side top" "side main";align-items:stretch;background:var(--t-canvas)}
+#tna-app .t-sidebar{grid-area:side;background:var(--t-paper);border-right:1px solid var(--t-line);padding:23px 13px 18px;display:flex;flex-direction:column;min-width:0}
+#tna-app .t-brand-button{border:0;background:transparent;text-align:left;margin:0 0 29px 6px;padding:0}
+#tna-app .t-workspace-name{display:flex;align-items:center;gap:8px;padding:10px 8px;background:#f7f9fc;border:1px solid var(--t-line);border-radius:8px;font-size:10px;font-weight:550;margin-bottom:22px;line-height:1.4}
+#tna-app .t-workspace-icon{display:grid;place-items:center;width:24px;height:24px;border:1px solid #dce3ef;background:var(--t-paper);color:var(--t-muted);border-radius:6px;font-size:11px;flex:none}
+#tna-app .t-workspace-name small{display:block;font-size:9px;font-weight:400;color:var(--t-muted);margin-top:3px}
+#tna-app .t-nav-group{font-size:10px;color:#8390a1;padding:0 10px;margin:14px 0 7px;letter-spacing:.3px}
+#tna-app .t-nav-item{border:0;background:transparent;display:flex;align-items:center;gap:10px;width:100%;padding:10px;border-radius:7px;color:#58677d;text-align:left;font-size:12px;margin-bottom:3px}
+#tna-app .t-nav-item:hover:not(:disabled){background:#f5f7fb}
+#tna-app .t-nav-item[aria-current=page]{background:var(--t-blue-soft);color:var(--t-blue);font-weight:600}
+#tna-app .t-nav-item:disabled{color:#9ca7b7;opacity:.85}
+#tna-app .t-sidebar-bottom{margin-top:auto;padding:48px 7px 0;font-size:10px;color:var(--t-muted)}
+#tna-app .t-demo-label{display:flex;align-items:center;gap:6px;color:var(--t-ink);font-size:10px;font-weight:550}
+#tna-app .t-demo-label>span{width:5px;height:5px;background:var(--t-green);border-radius:100%}
+#tna-app .t-sidebar-bottom>p{font-size:9px;line-height:1.8;margin-top:7px}
+#tna-app .t-return{display:flex;align-items:center;gap:6px;margin-top:17px;padding:0;border:0;background:transparent;color:var(--t-muted);font-size:10px}
+#tna-app .t-return svg{width:13px;height:13px}
+#tna-app .t-topbar{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--t-paper);padding:15px 25px;border-bottom:1px solid var(--t-line);min-height:64px}
+#tna-app .t-breadcrumb{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--t-muted)}
+#tna-app .t-breadcrumb svg{width:12px;height:12px}
+#tna-app .t-breadcrumb strong{font-weight:550;color:var(--t-ink)}
+#tna-app .t-profile{display:flex;align-items:center;gap:11px;font-size:10px}
+#tna-app .t-profile-copy{font-weight:600;line-height:1.5;text-align:right}
+#tna-app .t-profile-copy small{display:block;color:var(--t-muted);font-weight:400;font-size:9px}
+#tna-app .t-demo-pill{font-size:9px;color:var(--t-blue);background:var(--t-blue-soft);border-radius:5px;padding:3px 6px;letter-spacing:.5px;margin-right:5px}
+#tna-app .t-avatar{display:inline-grid;place-items:center;background:#eef0f6;color:#69758a;width:31px;height:31px;border-radius:100%;font-size:11px;font-weight:600;flex:none}
+#tna-app .t-avatar.blue{background:#e4ecff;color:var(--t-blue)}
+#tna-app .t-main{grid-area:main;padding:25px;min-width:0;min-height:680px}
+#tna-app .t-pagehead{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:24px}
+#tna-app .t-pagehead h1{margin:3px 0 6px}
+#tna-app .t-pagehead .t-muted{font-size:12px}
+#tna-app .t-eyebrow{font-size:10px;color:var(--t-muted);letter-spacing:.5px;margin-bottom:4px}
+#tna-app .t-muted{color:var(--t-muted)}
+#tna-app .t-subtle{font-size:10px;line-height:1.7;color:var(--t-muted);margin-top:5px}
+#tna-app .t-card{background:var(--t-paper);border:1px solid var(--t-line);border-radius:var(--t-radius);padding:19px;min-width:0}
+#tna-app .t-cardhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+#tna-app .t-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:19px}
+#tna-app .t-metric-label{font-size:11px;color:var(--t-muted);margin-bottom:7px}
+#tna-app .t-metric-value{font-size:26px;font-weight:650;line-height:1.4;letter-spacing:-.9px;font-variant-numeric:tabular-nums}
+#tna-app .t-tag{display:inline-flex;align-items:center;padding:3px 7px;border-radius:5px;font-size:9px;font-weight:550;line-height:1.5;white-space:normal}
+#tna-app .t-tag.blue{background:var(--t-blue-soft);color:#3158cf}
+#tna-app .t-tag.green{background:var(--t-green-soft);color:var(--t-green)}
+#tna-app .t-tag.amber{background:var(--t-amber-soft);color:var(--t-amber)}
+#tna-app .t-tag.gray{background:#f1f4f8;color:#627187}
+#tna-app .t-homegrid{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin-bottom:18px;align-items:start}
+#tna-app .t-homegrid>.t-card{height:100%}
+#tna-app .t-homegrid .t-grid-3{padding:18px 0 17px;border-top:1px solid var(--t-line);border-bottom:1px solid var(--t-line);gap:10px;margin-bottom:15px}
+#tna-app .t-homegrid .t-metric-value{font-size:23px}
+#tna-app .t-list{list-style:none;padding:0;margin:0}
+#tna-app .t-listrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;font-size:11px;border-bottom:1px solid #f0f3f7}
+#tna-app .t-listrow:last-child{border-bottom:0}
+#tna-app .t-listrow strong{font-weight:550;font-size:11px}
+#tna-app .t-homegrid .t-btn.primary{width:100%;margin-top:19px}
+#tna-app .t-home-normal>section.t-card{margin-bottom:18px}
+#tna-app .t-home-normal>section.t-card:last-child{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#tna-app .t-home-normal>section.t-card:last-child .t-cardhead{margin:0;flex:1;min-width:150px}
+#tna-app .t-tablewrap{width:100%;overflow-x:auto}
+#tna-app .t-table{width:100%;border-collapse:collapse;font-size:11px;text-align:left}
+#tna-app .t-table th{font-weight:500;color:var(--t-muted);font-size:10px}
+#tna-app .t-table td,#tna-app .t-table th{padding:12px 9px;border-bottom:1px solid var(--t-line);vertical-align:middle}
+#tna-app .t-table thead{background:#f8fafc}
+#tna-app .t-table tbody tr:last-child>*{border-bottom:0}
+#tna-app .t-calendar-layout{display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:16px;align-items:start}
+#tna-app .t-calendar-card{padding:17px 13px 12px}
+#tna-app .t-calendar-toolbar,#tna-app .t-month-navigation{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#tna-app .t-month-navigation h2{font-size:17px;font-weight:650;white-space:nowrap}
+#tna-app .t-icon-button{border:1px solid var(--t-line);background:var(--t-paper);border-radius:6px;padding:5px;display:inline-flex;align-items:center;justify-content:center}
+#tna-app .t-icon-button svg{width:14px;height:14px}
+#tna-app .t-calendar-toolbar{padding:2px 2px 16px}
+#tna-app .t-calendar-legend{display:flex;flex-wrap:wrap;gap:13px;font-size:9px;color:var(--t-muted);padding:0 3px 15px}
+#tna-app .t-calendar-legend>span{display:inline-flex;align-items:center;gap:5px}
+#tna-app .t-calendar-legend i{height:5px;width:5px;border-radius:100%}
+#tna-app .t-calendar-legend i.blue{background:#7e9cf2}
+#tna-app .t-calendar-legend i.green{background:#74ac90}
+#tna-app .t-calendar-legend i.amber{background:#cfaa61}
+#tna-app .t-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));text-align:center;font-size:10px;padding:8px 0;color:var(--t-muted);background:#f8fafc;border-block:1px solid var(--t-line)}
+#tna-app .t-weekdays span:nth-child(7){color:#bd6464}
+#tna-app .t-month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}
+#tna-app .t-day{background:var(--t-paper);border:0;border-bottom:1px solid var(--t-line);border-right:1px solid #f1f4f8;display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:9px 5px;min-width:0;min-height:79px;text-align:left;color:var(--t-ink);font-size:10px;position:relative}
+#tna-app .t-day.outside{background:#fbfcfd;color:#b4bdca}
+#tna-app .t-day.weekend{background:#fbfcfd}
+#tna-app .t-day[aria-pressed=true]{background:#f0f4ff;box-shadow:inset 0 0 0 1.5px var(--t-blue);z-index:1}
+#tna-app .t-day .t-day-number{width:21px;height:21px;display:grid;place-items:center;font-size:10px}
+#tna-app .t-day.today .t-day-number{background:var(--t-blue);color:var(--t-paper);border-radius:100%}
+#tna-app .t-day .t-day-event{font-size:9px;line-height:1.45;letter-spacing:-.3px;color:#657baf;width:100%;overflow-wrap:anywhere}
+#tna-app .t-day .t-day-event.leave{background:var(--t-green-soft);color:var(--t-green);padding:2px 3px;border-radius:3px}
+#tna-app .t-day .t-day-event.warning{color:var(--t-amber);background:var(--t-amber-soft);border-radius:3px;padding:2px 3px}
+#tna-app .t-calendar-note{font-size:9px;line-height:1.7;color:var(--t-muted);margin:12px 3px 0}
+#tna-app .t-day-detail{padding:19px 17px}
+#tna-app .t-day-detail h2{font-size:18px;margin:3px 0 8px}
+#tna-app .t-detail-segment{padding:17px 0;border-top:1px solid var(--t-line);margin-top:17px}
+#tna-app .t-detail-segment h3{font-size:11px;margin-bottom:10px;color:var(--t-muted);font-weight:500}
+#tna-app .t-detail-time{font-size:20px;letter-spacing:-.8px;font-weight:600;margin-bottom:4px}
+#tna-app .t-detail-pair{display:flex;justify-content:space-between;font-size:11px;padding:6px 0;gap:10px}
+#tna-app .t-detail-pair span{color:var(--t-muted)}
+#tna-app .t-calendar-bottom{display:flex;gap:7px;align-items:flex-start;font-size:10px;line-height:1.7;color:var(--t-muted);margin-top:16px}
+#tna-app .t-calendar-bottom svg{width:14px;height:14px;margin-top:2px}
+#tna-app .t-employee-layout{display:grid;grid-template-columns:minmax(0,1fr) 205px;gap:16px;align-items:start}
+#tna-app .t-employee-layout>.t-card:first-child{padding:18px 14px 10px}
+#tna-app .t-toolbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:17px}
+#tna-app .t-input,#tna-app .t-select{border:1px solid #dce3ec;background:var(--t-paper);color:var(--t-ink);border-radius:7px;padding:8px 10px;font-size:10px;min-width:0}
+#tna-app .t-input{flex:1;min-width:140px}
+#tna-app .t-select{max-width:100%}
+#tna-app #tna-employee-result{font-size:10px}
+#tna-app .t-employee-layout .t-table td,#tna-app .t-employee-layout .t-table th{padding:12px 5px;font-size:10px;white-space:nowrap}
+#tna-app .t-person-button{display:flex;gap:8px;align-items:center;background:transparent;border:0;text-align:left;color:var(--t-ink);padding:0;font-size:11px;min-width:0}
+#tna-app .t-person-button>span:last-child{min-width:0}
+#tna-app .t-person-button strong{display:block;font-size:11px;font-weight:550}
+#tna-app .t-person-button small{display:block;color:var(--t-muted);font-size:9px;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+#tna-app .t-person-button .t-avatar{width:27px;height:27px;font-size:10px}
+#tna-app tr.active{background:#f2f6ff}
+#tna-app .t-person-hero{text-align:center;padding:5px 0 18px;border-bottom:1px solid var(--t-line)}
+#tna-app .t-person-hero .t-avatar{width:54px;height:54px;font-size:21px;margin-bottom:10px}
+#tna-app .t-person-hero h2{font-size:18px;margin-bottom:4px}
+#tna-app .t-person-hero p{color:var(--t-muted);font-size:10px}
+#tna-app .t-person-hero .t-tag{margin-top:9px}
+#tna-app .t-person-info{margin:15px 0 0}
+#tna-app .t-person-info>div{margin-top:12px}
+#tna-app .t-person-info dt{font-size:9px;color:var(--t-muted);margin-bottom:3px}
+#tna-app .t-person-info dd{margin:0;font-size:11px;overflow-wrap:anywhere}
+#tna-app .t-person-footnote{margin-top:19px;padding-top:14px;border-top:1px solid var(--t-line);font-size:9px;line-height:1.8;color:var(--t-muted)}
+#tna-app .t-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 24px;gap:15px;min-height:350px}
+#tna-app .t-empty-state>svg{height:35px;width:35px;color:#8ba0c5}
+#tna-app .t-empty-state p{color:var(--t-muted);font-size:12px;line-height:1.9}
+#tna-app #tna-employees-empty{text-align:center;padding:30px 10px;font-size:12px}
+#tna-app #tna-employees-empty .t-muted{margin-top:7px;font-size:11px}
+#tna-app .t-mobile-menu{display:none;border:0;background:transparent;color:var(--t-ink);padding:5px}
+#tna-app .t-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@container (max-width:800px){#tna-app .t-hero h1{font-size:33px;letter-spacing:-1.5px}#tna-app .t-intro-nav{padding:22px 25px}#tna-app .t-hero{padding:35px 25px 55px;gap:18px}#tna-app .t-app-shell{grid-template-columns:158px minmax(0,1fr)}#tna-app .t-main{padding:20px}#tna-app .t-calendar-layout,#tna-app .t-employee-layout{grid-template-columns:minmax(0,1fr)}#tna-app .t-day-detail,#tna-app #tna-employee-detail{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}#tna-app .t-day-detail>.t-eyebrow,#tna-app .t-day-detail>h2,#tna-app .t-day-detail>.t-tag{grid-column:1/-1;justify-self:start}#tna-app #tna-employee-detail .t-person-footnote{grid-column:1/-1}#tna-app .t-homegrid{grid-template-columns:minmax(0,1fr)}#tna-app .t-main h1{font-size:23px}}
+@container (max-width:600px){#tna-app .t-intro-nav{padding:21px}#tna-app .t-intro-nav>.t-btn{padding:8px 10px;font-size:10px}#tna-app .t-wordmark{font-size:23px}#tna-app .t-brand-sub{font-size:9px}#tna-app .t-hero{display:block;padding:38px 23px 48px;min-height:0;background:linear-gradient(#fff 30%,#f3f6ff)}#tna-app .t-hero h1{font-size:37px;letter-spacing:-1.8px}#tna-app .t-hero-description{font-size:13px;margin-top:19px}#tna-app .t-enter{margin-top:26px}#tna-app .t-hero-art{margin-top:34px;padding:15px 4px 25px}#tna-app .t-floating-note{left:0;bottom:0;padding:11px 14px}#tna-app .t-mini-body{padding:19px}#tna-app .t-intro-footer{padding:18px 22px;flex-wrap:wrap;gap:8px}#tna-app .t-app-shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "side" "main"}#tna-app .t-sidebar{display:none;padding:8px 16px 18px;border-right:0;border-bottom:1px solid var(--t-line)}#tna-app .t-app-shell[data-menu-open=true] .t-sidebar{display:flex}#tna-app .t-sidebar .t-brand-button,#tna-app .t-workspace-name,#tna-app .t-sidebar-bottom{display:none}#tna-app .t-sidebar nav{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}#tna-app .t-nav-group{grid-column:1/-1;margin-top:10px}#tna-app .t-nav-item{padding:10px;min-height:42px}#tna-app .t-topbar{padding:13px 15px;min-height:64px}#tna-app .t-mobile-menu{display:flex;margin-right:3px}#tna-app .t-mobile-menu svg{width:19px;height:19px}#tna-app .t-breadcrumb{gap:5px;font-size:10px}#tna-app .t-breadcrumb>span,#tna-app .t-breadcrumb>svg{display:none}#tna-app .t-profile{gap:7px}#tna-app .t-profile-copy{font-size:10px}#tna-app .t-demo-pill{font-size:8px;margin:0}#tna-app .t-profile-copy small{font-size:8px}#tna-app .t-main{padding:22px 15px;min-height:640px}#tna-app .t-pagehead{align-items:flex-start;gap:9px;margin-bottom:20px}#tna-app .t-pagehead>.t-tag{display:none}#tna-app .t-main h1{font-size:23px;letter-spacing:-1px}#tna-app .t-pagehead .t-muted{font-size:11px}#tna-app .t-grid-3{gap:8px;margin-bottom:14px}#tna-app .t-grid-3>.t-card{padding:14px 11px}#tna-app .t-metric-label{font-size:10px;margin-bottom:7px}#tna-app .t-metric-value{font-size:23px}#tna-app .t-grid-3>.t-card .t-subtle{font-size:9px;line-height:1.6}#tna-app .t-card{padding:17px 15px}#tna-app .t-homegrid{gap:14px;margin-bottom:14px}#tna-app .t-cardhead{margin-bottom:16px}#tna-app .t-cardhead h2{font-size:15px}#tna-app .t-homegrid .t-metric-value{font-size:23px}#tna-app .t-homegrid .t-cardhead>.t-tag{font-size:8px}#tna-app .t-table th,#tna-app .t-table td{padding:12px 6px}#tna-app .t-day-detail{grid-template-columns:minmax(0,1fr)}#tna-app .t-day-detail>*{grid-column:1/-1}#tna-app .t-calendar-card{padding:15px 8px 10px}#tna-app .t-day{min-height:72px;padding:8px 3px}#tna-app .t-day .t-day-event{font-size:9px}#tna-app .t-month-navigation h2{font-size:17px}#tna-app .t-calendar-legend{font-size:9px}#tna-app .t-calendar-note{font-size:9px}#tna-app .t-employee-layout{gap:14px}#tna-app .t-toolbar{gap:8px}#tna-app .t-input{flex-basis:100%;padding:10px;font-size:16px}#tna-app .t-select{flex:1;font-size:13px;padding:10px}#tna-app .t-employee-layout .t-table thead{display:none}#tna-app .t-employee-layout .t-table tbody{display:block}#tna-app .t-employee-layout .t-table tr{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:12px 8px;border-bottom:1px solid var(--t-line);border-radius:8px}#tna-app .t-employee-layout .t-table td{padding:8px 4px 2px;border:0;font-size:11px}#tna-app .t-employee-layout .t-table td:first-child{grid-column:1/-1;padding:0 0 7px}#tna-app .t-employee-layout .t-table td:not(:first-child):before{content:attr(data-label);display:block;font-size:9px;color:var(--t-muted);margin-bottom:4px}#tna-app .t-person-button strong{font-size:13px}#tna-app .t-person-button small{font-size:10px;max-width:none}#tna-app .t-person-button .t-avatar{width:34px;height:34px;font-size:13px}#tna-app #tna-employee-detail{display:block}#tna-app .t-person-info{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}#tna-app .t-btn{min-height:40px}#tna-app .t-day{min-height:78px}#tna-app .t-icon-button{min-width:35px;min-height:35px}}
+#tna-app .t-app-shell .t-tag,#tna-app .t-app-shell .t-subtle,#tna-app .t-app-shell .t-eyebrow,#tna-app .t-app-shell .t-nav-group,#tna-app .t-app-shell .t-metric-label{font-size:11px}
+#tna-app .t-app-shell .t-nav-item{font-size:13px}
+#tna-app .t-app-shell .t-listrow,#tna-app .t-app-shell .t-listrow strong{font-size:12px}
+#tna-app .t-app-shell .t-workspace-name{font-size:11px}
+#tna-app .t-app-shell .t-workspace-name small,#tna-app .t-app-shell .t-sidebar-bottom>p,#tna-app .t-app-shell .t-return,#tna-app .t-app-shell .t-demo-label{font-size:11px}
+#tna-app .t-app-shell .t-table,#tna-app .t-app-shell .t-table th,#tna-app .t-app-shell .t-employee-layout .t-table td,#tna-app .t-app-shell .t-employee-layout .t-table th{font-size:11px}
+#tna-app .t-app-shell .t-person-button strong{font-size:12px}
+#tna-app .t-app-shell .t-person-button small,#tna-app .t-app-shell .t-person-info dt,#tna-app .t-app-shell .t-person-footnote,#tna-app .t-app-shell .t-person-hero p{font-size:11px}
+#tna-app .t-app-shell .t-input,#tna-app .t-app-shell .t-select,#tna-app .t-app-shell #tna-employee-result{font-size:11px}
+#tna-app .t-app-shell .t-day .t-day-number,#tna-app .t-app-shell .t-day .t-day-event,#tna-app .t-app-shell .t-weekdays,#tna-app .t-app-shell .t-calendar-note,#tna-app .t-app-shell .t-calendar-legend,#tna-app .t-app-shell .t-calendar-bottom{font-size:11px}
+#tna-app .t-app-shell .t-person-info dd,#tna-app .t-app-shell .t-detail-pair{font-size:12px}
+@container(max-width:600px){#tna-app .t-app-shell .t-input,#tna-app .t-app-shell .t-select{font-size:16px}#tna-app .t-app-shell .t-day .t-day-event{font-size:10px}#tna-app .t-app-shell .t-grid-3>.t-card .t-subtle{font-size:10px}#tna-app .t-app-shell .t-person-button strong{font-size:13px}#tna-app .t-app-shell .t-mobile-menu,#tna-app .t-app-shell .t-icon-button{min-width:44px;min-height:44px}#tna-app .t-app-shell .t-btn{min-height:44px}}
+
+body.workspace-body { background: #f5f7fb; }
+#tna-app { width: 100%; min-height: 100vh; container-type: inline-size; font-size: 14px; }
+#tna-app a { text-decoration: none; }
+#tna-app .t-app-shell { min-height: 100vh; grid-template-columns: 224px minmax(0, 1fr); grid-template-rows: auto 1fr; }
+#tna-app .t-sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 26px 16px 22px; scrollbar-width: thin; }
+#tna-app .t-brand-button { margin-bottom: 26px; }
+#tna-app .t-workspace-name { overflow-wrap: anywhere; }
+#tna-app .t-topbar { min-height: 72px; padding: 16px 32px; }
+#tna-app .t-main { width: 100%; max-width: 1500px; margin: 0 auto; padding: 30px 32px; min-height: 0; }
+#tna-app .t-main h1 { font-size: 27px; }
+#tna-app .t-profile-copy { font-size: 12px; max-width: 180px; overflow-wrap: anywhere; }
+#tna-app .t-profile-copy small { font-size: 10px; }
+#tna-app .t-logout { min-height: 32px; font-size: 11px; padding: 6px 9px; }
+#tna-app .t-nav-item { min-height: 42px; }
+#tna-app .t-sidebar nav > p { margin-top: 18px; margin-bottom: 8px; }
+#tna-app .t-sidebar-bottom { padding-top: 30px; }
+#tna-app .t-cardhead h2 { line-height: 1.5; }
+#tna-app .t-subtle { margin-top: 7px; }
+#tna-app .t-metric-value { overflow-wrap: anywhere; }
+#tna-app .t-calendar-layout { grid-template-columns: minmax(0,1fr) 280px; }
+#tna-app .t-day { min-height: 104px; border-radius: 0; min-width: 0; font-weight: 400; }
+#tna-app .t-day[aria-current=date], #tna-app .t-day.selected { background: #f0f4ff; box-shadow: inset 0 0 0 1.5px var(--t-blue); }
+#tna-app .t-employee-layout { grid-template-columns: minmax(0,1fr) 260px; }
+#tna-app .t-employee-layout .t-table th, #tna-app .t-employee-layout .t-table td { font-size: 12px; }
+#tna-app .t-toolbar { align-items: end; }
+#tna-app .t-toolbar > div { min-width: 0; flex: 1; }
+#tna-app .t-toolbar label { margin: 0 0 6px; color: var(--t-muted); font-size: 11px; }
+#tna-app .t-toolbar input, #tna-app .t-toolbar select { width: 100%; min-height: 40px; }
+#tna-app .t-toolbar .t-btn { min-height: 40px; }
+#tna-app .t-toolbar .t-input { width: auto; flex: 1 1 160px; min-width: 140px; }
+#tna-app .t-toolbar .t-select { width: auto; flex: 1 1 110px; min-width: 100px; }
+#tna-app .t-employee-layout { margin-top: 14px; }
+#tna-app .t-person-button { min-height: 40px; }
+#tna-app .t-person-button strong { color: var(--t-ink); }
+#tna-app .t-intro { min-height: 100vh; display: flex; flex-direction: column; background: white; }
+#tna-app .t-intro-nav, #tna-app .t-intro-footer { padding-inline: max(28px, calc((100vw - 1140px) / 2)); }
+#tna-app .t-hero { flex: 1; padding: 65px max(28px, calc((100vw - 1140px) / 2)) 90px; gap: 65px; }
+#tna-app .t-hero h1 { font-size: clamp(38px, 4vw, 56px); }
+#tna-app .t-hero-description { font-size: 16px; }
+#tna-app .t-mini-window { max-width: 510px; }
+#tna-app .t-hero-art { min-width: 0; }
+#tna-app .t-intro .notice { margin: 16px 28px; }
+#tna-app .t-legacy-page > h1 { margin: 0 0 12px; }
+#tna-app .t-legacy-page > p { margin: 10px 0 22px; color: var(--t-muted); }
+#tna-app .panel { border-color: var(--t-line); border-radius: var(--t-radius); padding: 22px; margin-top: 20px; }
+#tna-app .panel h2 { margin-bottom: 16px; }
+#tna-app .panel h3 { margin: 18px 0 10px; }
+#tna-app .panel p { margin: 10px 0; }
+#tna-app .panel ul { padding-left: 20px; }
+#tna-app .panel li { padding: 6px 0; }
+#tna-app .panel a:not(.t-btn) { color: var(--t-blue); text-decoration: underline; }
+#tna-app .table-scroll { margin-top: 16px; }
+#tna-app .table-scroll th { background: #f8fafc; font-weight: 550; font-size: 12px; color: var(--t-muted); }
+#tna-app .table-scroll td, #tna-app .table-scroll th { border-color: var(--t-line); padding: 13px 12px; }
+#tna-app .actions { margin: 18px 0; gap: 10px; }
+#tna-app input, #tna-app select, #tna-app textarea { border: 1px solid #dce3ec; border-radius: 8px; color: var(--t-ink); background: white; font: inherit; padding: 10px; min-width: 0; }
+#tna-app input[type=checkbox] { min-width: 18px; padding: 0; }
+#tna-app button { min-height: 40px; }
+#tna-app button:not(.t-day):not(.t-nav-item):not(.t-mobile-menu):not(.t-icon-button):not(.t-person-button):not(.t-btn) { border-radius: 8px; background: var(--t-blue); border-color: var(--t-blue); }
+#tna-app button.secondary { background: white; color: var(--t-blue); }
+#tna-app .notice { border-radius: 9px; font-size: 13px; }
+#tna-app .error { color: #8a1c24; background: #fff0f0; }
+#tna-app details.t-card, #tna-app details.panel { margin-top: 20px; }
+#tna-app summary { cursor: pointer; font-weight: 600; padding: 5px 0; }
+#tna-app details[open] > summary { margin-bottom: 18px; }
+#tna-app .t-homegrid .actions form { flex: 1; }
+#tna-app .t-homegrid .actions form button { width: 100%; }
+#tna-app .t-homegrid .t-btn.primary { margin-top: 0; }
+#tna-app .t-schedule-empty { color: var(--t-muted); padding: 22px 0; }
+#tna-app :focus-visible { outline: 3px solid #ba5a00; outline-offset: 3px; }
+@container (max-width: 1000px) {
+    #tna-app .t-app-shell { grid-template-columns: 195px minmax(0, 1fr); }
+    #tna-app .t-main { padding: 25px 22px; }
+    #tna-app .t-calendar-layout, #tna-app .t-employee-layout { grid-template-columns: minmax(0,1fr); }
+    #tna-app .t-homegrid { grid-template-columns: minmax(0,1fr); }
+    #tna-app .t-hero { gap: 28px; }
+}
+@container (max-width: 600px) {
+    #tna-app .t-app-shell { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto 1fr; }
+    #tna-app .t-sidebar { position: static; height: auto; overflow-y: visible; padding: 8px 15px 18px; }
+    #tna-app .t-sidebar nav { display: grid; grid-template-columns: 1fr 1fr; }
+    #tna-app .t-sidebar nav > .t-nav-group { grid-column: 1/-1; }
+    #tna-app .t-sidebar nav > :not(.t-nav-group) { min-width: 0; }
+    #tna-app .t-topbar { padding: 12px 15px; min-height: 64px; }
+    #tna-app .t-main { padding: 23px 15px; }
+    #tna-app .t-main h1 { font-size: 24px; }
+    #tna-app .t-profile-copy { max-width: 90px; font-size: 10px; }
+    #tna-app .t-profile-copy small, #tna-app .t-profile > .t-avatar { display: none; }
+    #tna-app .t-logout { font-size: 10px; padding: 5px 7px; min-height: 36px; }
+    #tna-app .t-breadcrumb { font-size: 11px; }
+    #tna-app .t-breadcrumb strong { max-width: 90px; }
+    #tna-app .t-intro-nav { padding: 21px; }
+    #tna-app .t-intro-footer { padding: 20px 23px; }
+    #tna-app .t-hero { display: block; padding: 38px 23px 50px; }
+    #tna-app .t-hero h1 { font-size: 38px; }
+    #tna-app .t-hero-description { font-size: 14px; }
+    #tna-app .t-day { min-height: 88px; padding: 8px 3px; }
+    #tna-app .t-metric-value { font-size: 22px; }
+    #tna-app .t-grid-3 > .t-card { padding: 14px 10px; }
+    #tna-app .t-app-shell .t-grid-3 .t-subtle { font-size: 10px; }
+    #tna-app .t-toolbar > div { flex-basis: 100%; }
+    #tna-app .t-toolbar .t-btn { flex: 1; }
+    #tna-app .t-toolbar .t-input { flex-basis: 100%; }
+    #tna-app .t-toolbar .t-select, #tna-app .t-toolbar .t-btn { flex: 1 1 calc(50% - 8px); min-width: 120px; }
+    #tna-app .t-employee-layout .t-table td { white-space: normal; overflow-wrap: anywhere; }
+    #tna-app .t-employee-layout .t-table tr { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    #tna-app .panel { padding: 18px 15px; }
+    #tna-app .t-app-shell input:not([type=checkbox]):not([type=hidden]), #tna-app .t-app-shell select, #tna-app .t-app-shell textarea { font-size: 16px; max-width: 100%; }
+}

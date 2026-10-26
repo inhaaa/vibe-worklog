@@ -1,4 +1,4 @@
-"""Anonymous local HTTP security smoke. No credentials, external targets or redirects."""
+"""Anonymous loopback HTTP security smoke; one exact /demo redirect, no login POST."""
 import argparse
 import http.cookiejar
 import json
@@ -19,6 +19,17 @@ def csrf(html):
     if not found:
         raise AssertionError("Missing CSRF input")
     return found.group(1)
+
+
+def login_page(request, base=None):
+    status, headers, body = request("/login")
+    if status == 302:
+        location = headers.get("Location")
+        assert location == "/demo" or (base is not None and location == base + "/demo"), "Unexpected login redirect"
+        status, headers, body = request("/demo")
+    assert status == 200, "Expected a login form or demo introduction without further redirects"
+    csrf(body)
+    return headers, body
 
 
 def main():
@@ -60,12 +71,11 @@ def main():
     health = json.loads(body)
     assert status == 200 and health.get("status") == "UP" and set(health) <= {"status", "groups"}
     passed("health exposes status and probe group names only")
-    status, headers, body = request("/login")
-    assert status == 200 and csrf(body)
+    headers, body = login_page(request, base)
     assert "no-store" in headers.get("Cache-Control", "")
     assert headers.get("X-Content-Type-Options") == "nosniff"
     assert "frame-ancestors 'none'" in headers.get("Content-Security-Policy", "")
-    passed("login has CSRF, no-store, nosniff and restrictive CSP")
+    passed("login or one-hop demo entry has CSRF, no-store, nosniff and restrictive CSP")
     for path in ["/login", "/logout", "/password-reset/request", "/password-reset/complete"]:
         assert request(path, {})[0] == 403, path
         passed(f"CSRF missing denied: {path}")

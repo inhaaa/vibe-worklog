@@ -42,8 +42,11 @@ class WorktimeResultDetailIT {
         assertEquals(count,results());assertEquals(id,reports.detail(manager,id).day().id());
         mvc.perform(get("/worktime/results/{id}",id).session(login(employee))).andExpect(status().isOk())
             .andExpect(content().string(containsString("계산 근거 상세"))).andExpect(content().string(containsString("Asia/Seoul")))
+            .andExpect(content().string(containsString("href=\"/me/worktime?month="+YearMonth.from(date))))
             .andExpect(content().string(not(containsString("PRIVATE_POLICY_BASIS_MUST_NOT_RENDER")))).andExpect(content().string(not(containsString("employee@example.test"))))
             .andExpect(header().string("Cache-Control",containsString("no-store")));
+        mvc.perform(get("/worktime/results/{id}",id).session(login(manager))).andExpect(status().isOk())
+            .andExpect(content().string(containsString("employeeId="+employee.employeeId()+"&amp;month="+YearMonth.from(date))));
     }
     @Test void changedPolicyAndEmploymentKeepTheOriginalEvidenceAndMarkItsSourceStale(){
         var first=policy("당시 근거");UUID id=result();policy("변경된 근거");

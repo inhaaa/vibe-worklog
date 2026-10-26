@@ -24,6 +24,39 @@ public interface EmployeeAdminMapper {
                         @Param("offset") int offset);
 
     @Select("""
+            SELECT e.id,e.employee_no,e.display_name,e.joined_on,e.left_on,e.active,e.version
+            FROM tna.employee e
+            WHERE e.tenant_id=#{tenantId}
+              AND (e.employee_no ILIKE #{search} OR e.display_name ILIKE #{search})
+              AND (#{status}='all' OR e.active=(#{status}='active'))
+              AND (CAST(#{organizationId} AS uuid) IS NULL OR EXISTS (
+                  SELECT 1 FROM tna.employee_assignment a
+                  WHERE a.tenant_id=e.tenant_id AND a.employee_id=e.id
+                    AND a.organization_id=#{organizationId} AND a.valid_from<=#{today}
+                    AND (a.valid_to IS NULL OR a.valid_to>#{today})))
+            ORDER BY e.employee_no,e.id LIMIT 51 OFFSET #{offset}
+            """)
+    List<Employee> directory(@Param("tenantId") UUID tenantId, @Param("search") String search,
+                             @Param("offset") int offset, @Param("organizationId") UUID organizationId,
+                             @Param("status") String status, @Param("today") LocalDate today);
+
+    @Select("""
+            <script>
+            SELECT a.employee_id,o.name AS organization_name
+            FROM tna.employee_assignment a
+            JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
+            WHERE a.tenant_id=#{tenantId} AND a.valid_from &lt;= #{today}
+              AND (a.valid_to IS NULL OR a.valid_to>#{today})
+              AND a.employee_id IN
+              <foreach collection="employeeIds" item="employeeId" open="(" separator="," close=")">
+                #{employeeId}
+              </foreach>
+            </script>
+            """)
+    List<OrgData.EmployeeOrganization> currentOrganizations(@Param("tenantId") UUID tenantId,
+            @Param("employeeIds") List<UUID> employeeIds, @Param("today") LocalDate today);
+
+    @Select("""
             SELECT id, employee_no, display_name, joined_on, left_on, active, version
             FROM tna.employee WHERE tenant_id=#{tenantId} ORDER BY employee_no, id
             """)

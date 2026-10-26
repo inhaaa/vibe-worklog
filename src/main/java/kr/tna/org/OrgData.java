@@ -1,6 +1,8 @@
 package kr.tna.org;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -9,6 +11,9 @@ public final class OrgData {
     public record Organization(UUID id, String code, String name, UUID parentId, boolean active, long version) { }
     public record Employee(UUID id, String employeeNo, String displayName, LocalDate joinedOn,
                            LocalDate leftOn, boolean active, long version) { }
+    public record EmployeeOrganization(UUID employeeId, String organizationName) { }
+    public record EmployeeDirectory(List<Employee> employees, Map<UUID, String> organizationNames,
+                                    Employee selectedEmployee, boolean hasNext) { }
     public record Assignment(UUID id, UUID employeeId, UUID organizationId, String organizationName,
                              LocalDate validFrom, LocalDate validTo, String reason, long version) { }
     public record OrganizationForm(String code, String name, UUID parentId, boolean active,

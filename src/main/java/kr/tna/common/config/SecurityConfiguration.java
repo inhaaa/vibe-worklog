@@ -5,6 +5,7 @@ import java.time.Clock;
 import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.CompanyAuthenticationDetails;
 import kr.tna.common.auth.CompanyAuthenticationProvider;
+import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.common.auth.SessionValidationFilter;
 import org.springframework.context.annotation.Bean;
@@ -25,7 +26,7 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, CompanyAuthenticationProvider provider,
-                                          AuthStore authStore, Clock clock) throws Exception {
+                                          AuthStore authStore, Clock clock, LocalDemoLogin localDemo) throws Exception {
         AuthenticationEntryPoint entryPoint = (request, response, exception) -> {
             response.setHeader("Cache-Control", "no-store");
             if ("true".equalsIgnoreCase(request.getHeader("HX-Request"))) {
@@ -37,8 +38,11 @@ public class SecurityConfiguration {
         };
         // A parent-less manager prevents a rejected attempt invoking the same provider twice.
         http.authenticationManager(new ProviderManager(provider))
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.GET, "/login", "/app.css", "/vendor/htmx.min.js",
+                .authorizeHttpRequests(authorize -> {
+                    if (localDemo.enabled()) {
+                        authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
+                    }
+                    authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/app.js", "/vendor/htmx.min.js",
                                 "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/invite/*", "/password-reset").permitAll()
                         .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
@@ -48,9 +52,11 @@ public class SecurityConfiguration {
                                 "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers("/approvals").hasRole("APPROVER")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/me/schedule").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()
                         .requestMatchers("/error").permitAll()
-                        .anyRequest().denyAll())
+                        .anyRequest().denyAll();
+                })
                 .formLogin(form -> form.loginPage("/login").usernameParameter("email")
                         .authenticationDetailsSource(CompanyAuthenticationDetails::new)
                         .defaultSuccessUrl("/me/today", true)

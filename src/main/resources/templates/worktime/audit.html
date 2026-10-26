@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>고객사 감사 이력 · tna</title><link rel="stylesheet" th:href="@{/app.css}"></head>
-<body>
-<header class="site-header admin-header"><a class="brand" th:href="@{/me/today}">tna</a><nav aria-label="주 메뉴"><a th:href="@{/admin/attendance}">근태 현황</a><a th:href="@{/admin/audit}">최신 감사</a></nav><form th:action="@{/logout}" method="post"><button class="secondary">로그아웃</button></form></header>
-<main class="content admin-shell">
+<head th:replace="~{fragments/workspace :: head('변경 이력')}"></head>
+<body class="workspace-body" hx-history="false">
+<div id="tna-app"><div class="t-app-shell"><aside th:replace="~{fragments/workspace :: sidebar('audit')}"></aside><header th:replace="~{fragments/workspace :: topbar('변경 이력')}"></header>
+<main class="t-main t-legacy-page content admin-shell">
 <h1>고객사 감사 이력</h1>
 <p>열람 자체를 감사합니다. 현재 담당자 권한으로 소속 고객사의 감사만 확인합니다. 시각 기준은 Asia/Seoul (UTC+09:00)입니다.</p>
 <p>이전·다음은 조회 시점 원장 기준이며 전체 원장의 고정 스냅샷을 보장하지 않습니다. 동일 시각에는 감사 ID로 순서를 구분합니다.</p>
@@ -17,4 +17,4 @@
 <nav aria-label="감사 페이지"><a th:if="${page.previousCursor!=null}" th:href="@{/admin/audit(after=${page.previousCursor})}">이전 페이지 (더 최근)</a> <a th:href="@{/admin/audit}">최신 목록</a> <a th:if="${page.nextCursor!=null}" th:href="@{/admin/audit(before=${page.nextCursor})}">다음 페이지 (더 과거)</a></nav>
 </section>
 <p>비밀번호·토큰·이메일·IP와 저장 JSON 원문은 제공하지 않습니다. 상세에서는 제한된 전후 업무 요약을 확인할 수 있습니다.</p>
-</main></body></html>
+</main></div></div></body></html>

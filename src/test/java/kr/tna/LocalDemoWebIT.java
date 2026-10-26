@@ -88,15 +88,17 @@ class LocalDemoWebIT {
     }
 
     @Test
-    void formAcceptsPlainDemoIdWithoutCompanyAndRetainsCsrf() throws Exception {
-        mvc.perform(get("/login").param("invited", "true")).andExpect(status().isOk())
+    void landingPostsFixedDemoCredentialsWithCsrfWithoutEditableLoginFields() throws Exception {
+        mvc.perform(get("/login")).andExpect(redirectedUrl("/demo"));
+        mvc.perform(get("/demo")).andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("name=\"companyCode\""))))
-                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"email\")(?=[^>]*type=\"text\")[^>]*>.*")))
-                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"password\")(?=[^>]*minlength=\"5\")[^>]*>.*")))
+                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"email\")(?=[^>]*type=\"hidden\")(?=[^>]*value=\"admin\")[^>]*>.*")))
+                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"password\")(?=[^>]*type=\"hidden\")(?=[^>]*value=\"admin\")[^>]*>.*")))
+                .andExpect(content().string(not(containsString("type=\"password\""))))
                 .andExpect(content().string(containsString("name=\"_csrf\"")))
                 .andExpect(content().string(not(anyOf(containsString("회사 코드와 이메일"),
                         containsString("href=\"/password-reset\""), containsString("초대 수락 후 로그인")))))
-                .andExpect(content().string(containsString("admin")));
+                .andExpect(content().string(containsString("데모로 입장")));
     }
 
     @Test

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="ko" xmlns:th="http://www.thymeleaf.org"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>고정 근무 · tna</title><link rel="stylesheet" th:href="@{/app.css}"></head><body>
-<header class="site-header admin-header"><a class="brand" th:href="@{/me/today}">tna</a><nav aria-label="주 메뉴"><a th:href="@{/admin/schedules}">근무 템플릿</a><a th:href="@{/admin/employees}">사원 관리</a></nav><form th:action="@{/logout}" method="post"><button type="submit" class="secondary">로그아웃</button></form></header>
-<main class="content admin-shell"><p th:if="${error != null}" role="alert" class="notice error" th:text="${error}"></p>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"><head th:replace="~{fragments/workspace :: head('근무 설정')}"></head><body class="workspace-body" hx-history="false">
+<div id="tna-app"><div class="t-app-shell"><aside th:replace="~{fragments/workspace :: sidebar('schedules')}"></aside><header th:replace="~{fragments/workspace :: topbar('근무 설정')}"></header>
+<main class="t-main t-legacy-page content admin-shell"><p th:if="${error != null}" role="alert" class="notice error" th:text="${error}"></p>
 <h1>고정 근무 템플릿</h1><p>여러 템플릿을 만들고 사원별 적용일로 배정합니다. 과거 배정은 당시 불변 버전을 사용합니다.</p>
 <section class="panel"><h2>등록된 템플릿</h2><p th:if="${#lists.isEmpty(templates)}">등록된 템플릿이 없습니다.</p><ul><li th:each="item:${templates}"><a th:href="@{/admin/schedules/{id}(id=${item.id})}" th:text="${item.code+' · '+item.name}"></a></li></ul></section>
-<section class="panel"><h2>새 템플릿</h2><form th:action="@{/admin/schedules}" method="post" class="admin-form"><div th:replace="~{schedule/form :: fields}"></div></form></section></main></body></html>
+<section class="panel"><h2>새 템플릿</h2><form th:action="@{/admin/schedules}" method="post" class="admin-form"><div th:replace="~{schedule/form :: fields}"></div></form></section></main></div></div></body></html>

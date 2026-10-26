@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/workspace :: head('내 근무 일정')}"></head>
+<body class="workspace-body" hx-history="false">
+<div id="tna-app">
+  <div class="t-app-shell">
+    <aside th:replace="~{fragments/workspace :: sidebar('schedule')}"></aside>
+    <header th:replace="~{fragments/workspace :: topbar('내 근무 일정')}"></header>
+    <main class="t-main">
+      <header class="t-pagehead"><div><p class="t-eyebrow">내 업무</p><h1>내 근무 일정</h1><p class="t-muted">배정 일정과 신청 효력을 날짜별로 확인하세요.</p></div></header>
+      <div class="t-calendar-layout">
+        <section class="t-card t-calendar-card" aria-label="월별 근무 일정">
+          <div class="t-calendar-toolbar">
+            <div class="t-month-navigation">
+              <a class="t-icon-button" th:if="${workspaceCalendar.previousMonth != null}" th:href="@{/me/schedule(month=${workspaceCalendar.previousMonth})}" aria-label="이전 달">‹</a>
+              <h2 th:text="${workspaceCalendar.month.year + '년 ' + workspaceCalendar.month.monthValue + '월'}"></h2>
+              <a class="t-icon-button" th:if="${workspaceCalendar.nextMonth != null}" th:href="@{/me/schedule(month=${workspaceCalendar.nextMonth})}" aria-label="다음 달">›</a>
+            </div>
+            <a class="t-btn secondary" th:href="@{/me/schedule}">오늘</a>
+          </div>
+          <form class="t-toolbar" th:action="@{/me/schedule}" method="get">
+            <label class="t-sr-only" for="workspace-month">조회 월</label>
+            <input class="t-input" id="workspace-month" type="month" name="month" th:value="${workspaceCalendar.month}" min="0001-01" max="9999-12" required>
+            <button class="t-btn secondary" type="submit">월 조회</button>
+          </form>
+          <div class="t-calendar-legend"><span><i class="blue" aria-hidden="true"></i>예정 근무</span><span><i class="amber" aria-hidden="true"></i>휴일 정보 미확인</span><span><i class="green" aria-hidden="true"></i>승인 연차</span></div>
+          <div class="t-weekdays" aria-hidden="true"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+          <div class="t-month-grid">
+            <span class="t-day outside" th:each="blank : ${workspaceCalendar.leadingBlanks}" aria-hidden="true"></span>
+            <a class="t-day" th:each="entry : ${workspaceCalendar.days}"
+               th:classappend="${(entry.selected ? 'selected ' : '') + (entry.today ? 'today ' : '') + (entry.snapshot.workDate.dayOfWeek.value >= 6 ? 'weekend' : '')}"
+               th:href="@{/me/schedule(month=${workspaceCalendar.month},date=${entry.snapshot.workDate})}"
+               th:attr="aria-current=${entry.today ? 'date' : null},aria-label=${entry.snapshot.workDate.toString() + ' · ' + entry.scheduleText() + (entry.selected ? ' · 선택한 날짜' : '')}">
+              <time class="t-day-number" th:attr="datetime=${entry.snapshot.workDate}" th:text="${entry.snapshot.workDate.dayOfMonth}"></time>
+              <span class="t-day-event" th:text="${entry.snapshot.schedule == null ? '미배정' : entry.scheduleText()}"></span>
+              <span class="t-day-event warning" th:if="${entry.snapshot.dayKind == 'UNCONFIRMED'}">미확인</span>
+              <span class="t-day-event" th:if="${entry.snapshot.dayKind == 'HOLIDAY'}">확인된 휴일</span>
+              <span class="t-day-event" th:each="item, loop : ${entry.requests}" th:if="${loop.index < 2}"
+                    th:classappend="${item.effectiveLeave ? 'leave' : (item.tone == 'amber' ? 'warning' : '')}"
+                    th:text="${item.kindLabel + ' · ' + item.statusLabel}"></span>
+              <span class="t-day-event" th:if="${entry.requests.size() > 2}" th:text="${'+' + (entry.requests.size() - 2) + '건 · 날짜 상세'}"></span>
+            </a>
+          </div>
+          <p class="t-calendar-note">일정은 예정 정보입니다. 연차의 대기·승인·취소와 실제 근로 확인은 구분합니다. 각 날짜의 신청 전체는 날짜 상세에서 확인하세요.</p>
+        </section>
+        <section class="t-card t-day-detail" aria-label="선택한 날짜 상세">
+          <p class="t-eyebrow">선택한 날짜</p>
+          <h2><time th:attr="datetime=${workspaceCalendar.selectedDate}" th:text="${@seoulTime.date(workspaceCalendar.selectedDate)}"></time></h2>
+          <div class="t-list">
+            <div class="t-listrow"><span class="t-muted">근무 일정</span><strong th:text="${workspaceCalendar.selectedDay.scheduleText()}"></strong></div>
+            <div class="t-listrow"><span class="t-muted">휴일 확인</span><strong th:text="${workspaceCalendar.selectedDay.calendarText()}"></strong></div>
+            <div class="t-listrow"><span class="t-muted">실제 근로</span><span th:text="${workspaceCalendar.selectedDay.confirmationText()}"></span></div>
+          </div>
+          <div th:if="${selectedDay.schedule != null and !selectedDay.schedule.breaks.isEmpty()}"><h3>예정 휴게</h3><p class="t-subtle" th:each="pause : ${selectedDay.schedule.breaks}" th:text="${@seoulTime.time(pause.startTime) + ' ~ ' + @seoulTime.time(pause.endTime)}"></p></div>
+          <div>
+            <h3>해당 날짜의 신청·효력</h3>
+            <p class="t-muted" th:if="${workspaceCalendar.selectedDay.requests.isEmpty()}">이 날짜에 조회된 본인 대상 신청이 없습니다.</p>
+            <div class="t-listrow" th:each="item : ${workspaceCalendar.selectedDay.requests}"><a th:href="@{/requests/{id}(id=${item.request.id})}" th:text="${item.kindLabel}"></a><span class="t-tag" th:classappend="${item.tone}" th:text="${item.statusLabel}"></span></div>
+          </div>
+          <p class="t-subtle">예정 근무와 휴게를 실제 시간으로 확정하지 않습니다. 대기 정정은 승인된 사실과 구분합니다.</p>
+          <a class="t-btn secondary" th:href="@{/me/attendance(date=${workspaceCalendar.selectedDate})}">원천·정정 반영 내역</a>
+          <a class="t-btn secondary" th:href="@{/me/requests}">휴가·정정 신청</a>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

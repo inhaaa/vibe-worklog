@@ -1,22 +1,11 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${employee.displayName} + ' · 사원 · tna'">사원 상세 · tna</title>
-    <link rel="stylesheet" th:href="@{/app.css}">
-</head>
-<body>
-<header class="site-header admin-header">
-    <a class="brand" th:href="@{/me/today}">tna</a>
-    <nav aria-label="주 메뉴">
-        <a th:href="@{/me/today}">내 화면</a>
-        <a th:href="@{/admin/organizations}">조직 관리</a>
-        <a th:href="@{/admin/employees}" aria-current="page">사원 관리</a>
-    </nav>
-    <form th:action="@{/logout}" method="post"><button class="secondary" type="submit">로그아웃</button></form>
-</header>
-<main class="content admin-shell">
+<head th:replace="~{fragments/workspace :: head(${employee.displayName + ' · 사원'})}"></head>
+<body class="workspace-body">
+<div id="tna-app"><div class="t-app-shell">
+<aside th:replace="~{fragments/workspace :: sidebar('employees')}"></aside>
+<header th:replace="~{fragments/workspace :: topbar('직원 상세')}"></header>
+<main class="t-main admin-shell">
     <a th:href="@{/admin/employees}">사원 목록으로</a>
     <p class="eyebrow">사원 상세</p>
     <h1 th:text="${employee.displayName}">사원 이름</h1>
@@ -89,5 +78,6 @@
         </form>
     </section>
 </main>
+</div></div>
 </body>
 </html>

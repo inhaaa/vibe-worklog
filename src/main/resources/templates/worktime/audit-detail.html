@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>감사 상세 · tna</title><link rel="stylesheet" th:href="@{/app.css}"></head>
-<body>
-<header class="site-header admin-header"><a class="brand" th:href="@{/me/today}">tna</a><nav aria-label="주 메뉴"><a th:href="@{/admin/audit}">감사 목록</a><a th:href="@{/admin/attendance}">근태 현황</a></nav><form th:action="@{/logout}" method="post"><button class="secondary">로그아웃</button></form></header>
-<main class="content admin-shell">
+<head th:replace="~{fragments/workspace :: head('변경 이력 상세')}"></head>
+<body class="workspace-body" hx-history="false">
+<div id="tna-app"><div class="t-app-shell"><aside th:replace="~{fragments/workspace :: sidebar('audit')}"></aside><header th:replace="~{fragments/workspace :: topbar('변경 이력 상세')}"></header>
+<main class="t-main t-legacy-page content admin-shell">
 <h1>감사 상세</h1>
 <p>같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
 <section class="panel"><h2>행위와 추적 정보</h2>
@@ -19,4 +19,4 @@
 </section>
 <p>버전·상태·역할·기간·수량·참조 ID 등 알려진 업무 필드만 타입을 검증해 표시합니다. 자유 형식 이름·코드는 값 생략으로 표시하고, 비밀번호·토큰·이메일·IP·자유 근거·미등록 필드와 JSON 원문은 보여 주지 않습니다. 요약은 전체 저장 원문의 재현이 아닙니다.</p>
 <p><a th:href="@{/admin/audit}">최신 감사 목록으로</a></p>
-</main></body></html>
+</main></div></div></body></html>

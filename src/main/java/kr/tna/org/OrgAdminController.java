@@ -53,8 +53,11 @@ public class OrgAdminController {
 
     @GetMapping("/admin/employees")
     ModelAndView employees(@AuthenticationPrincipal TnaPrincipal actor,
-            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
-        return employeeList(actor, q, page, null);
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) UUID organizationId,
+            @RequestParam(defaultValue = "all") String status,
+            @RequestParam(required = false) UUID employeeId) {
+        return employeeList(actor, q, page, null, organizationId, status, employeeId);
     }
 
     @PostMapping("/admin/employees")
@@ -104,11 +107,23 @@ public class OrgAdminController {
     }
 
     private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form) {
-        var list = employees.list(actor, q, page);
-        return new ModelAndView("org/employees").addObject("employees", list.stream().limit(50).toList())
-                .addObject("hasNext", list.size() > 50).addObject("q", q).addObject("page", page)
+        return employeeList(actor, q, page, form, null, "all", null);
+    }
+
+    private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form,
+            UUID organizationId, String status, UUID employeeId) {
+        var directory = employees.directory(actor, q, page, organizationId, status, employeeId);
+        var list = directory.employees();
+        return options(new ModelAndView("org/employees").addObject("employees", list)
+                .addObject("employeeOrganizations", directory.organizationNames())
+                .addObject("selectedEmployee", directory.selectedEmployee())
+                .addObject("pageEmployeeCount", list.size())
+                .addObject("pageActiveCount", (int) list.stream().filter(OrgData.Employee::active).count())
+                .addObject("pageInactiveCount", (int) list.stream().filter(employee -> !employee.active()).count())
+                .addObject("organizationId", organizationId).addObject("status", status)
+                .addObject("hasNext", directory.hasNext()).addObject("q", q).addObject("page", page)
                 .addObject("form", form != null ? form : new OrgData.EmployeeForm(
-                        "", "", null, null, true, null, "", UUID.randomUUID()));
+                        "", "", null, null, true, null, "", UUID.randomUUID())), actor);
     }
 
     private ModelAndView employeeDetail(TnaPrincipal actor, UUID id,

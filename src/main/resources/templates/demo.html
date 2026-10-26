@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
+    <title>tna · 근태관리 워크스페이스</title>
+    <link rel="stylesheet" th:href="@{/app.css}">
+    <script th:src="@{/vendor/htmx.min.js}" defer></script>
+    <script th:src="@{/app.js}" defer></script>
+</head>
+<body class="workspace-body" hx-history="false">
+<div id="tna-app">
+    <section class="t-intro" aria-labelledby="demo-title">
+        <header class="t-intro-nav">
+            <div class="t-wordmark"><span class="t-logo" aria-hidden="true">t</span><span>tna<span class="t-brand-sub">근태관리 워크스페이스</span></span></div>
+            <button class="t-btn secondary" type="submit" form="demo-login-form">데모 살펴보기 <span aria-hidden="true">↗</span></button>
+        </header>
+        <div class="t-hero">
+            <div class="t-hero-copy">
+                <p class="t-intro-label"><span aria-hidden="true"></span>일하는 하루를 더 명확하게</p>
+                <h1 id="demo-title">근무는 한눈에.<br>관리는 <em>간결하게.</em></h1>
+                <p class="t-hero-description">출퇴근과 휴가, 근무 일정과 직원 관리.<br>매일의 업무를 하나의 흐름으로 정리하세요.</p>
+                <p th:if="${param.error != null}" class="notice error" role="alert">로그인 정보를 확인해 주세요.</p>
+                <p th:if="${param.logout != null}" class="notice" role="status">로그아웃했습니다.</p>
+                <form id="demo-login-form" th:action="@{/login}" method="post">
+                    <input type="hidden" name="email" th:value="${demoLogin}">
+                    <input type="hidden" name="password" th:value="${demoPassword}">
+                    <button class="t-btn primary t-enter" type="submit">데모로 입장 <span aria-hidden="true">→</span></button>
+                </form>
+                <p class="t-enter-note">로그인 입력 없이 로컬 데모 계정으로 입장해요.</p>
+                <div class="t-feature-labels"><span>출퇴근 기록</span><span>근무 일정</span><span>휴가·직원 관리</span></div>
+            </div>
+            <div class="t-hero-art" role="img" aria-label="기록, 일정, 신청을 모아 보여주는 화면 구성 예시">
+                <div class="t-mini-window" aria-hidden="true">
+                    <div class="t-mini-head"><span class="t-mini-logo">tna</span><span>화면 구성 예시</span><span class="t-mini-avatar">t</span></div>
+                    <div class="t-mini-body">
+                        <p class="t-mini-kicker">MY WORKSPACE</p><h2>오늘의 흐름을 한눈에.</h2>
+                        <div class="t-mini-summary">
+                            <div><span>하루의 시작과 끝</span><strong>출퇴근</strong><span class="t-mini-status">기록과 확인 상태를 구분</span></div>
+                            <div><span>나의 휴가와 신청</span><strong>함께 확인</strong><span>필요한 정보를 모아서</span></div>
+                        </div>
+                        <div class="t-mini-weekhead"><strong>이번 주 일정</strong><span>월요일부터 금요일까지</span></div>
+                        <div class="t-mini-week">
+                            <div class="today"><span>월</span><b>일정</b><i></i></div><div><span>화</span><b>일정</b><i></i></div>
+                            <div class="leave"><span>수</span><b>휴가</b><small>상태 확인</small></div><div><span>목</span><b>일정</b><i></i></div><div><span>금</span><b>일정</b><i></i></div>
+                        </div>
+                        <div class="t-mini-footer"><span class="t-mini-check">✓</span><div><strong>신청과 기록을 한곳에서</strong><span>내 업무에 필요한 정보를 확인하세요</span></div><span class="t-mini-arrow">↗</span></div>
+                    </div>
+                </div>
+                <div class="t-floating-note"><span class="t-note-icon" aria-hidden="true">✓</span><div><strong>일정과 기록을 한곳에서</strong><span>내 업무에 집중하는 작은 변화</span></div></div>
+            </div>
+        </div>
+        <footer class="t-intro-footer"><span>tna · 일하는 하루의 기준</span><span>합성 자료로 둘러보는 로컬 데모</span></footer>
+    </section>
+</div>
+</body>
+</html>
