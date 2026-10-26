@@ -2,7 +2,7 @@ FROM eclipse-temurin:25.0.4.1_1-jdk-noble@sha256:ba0f0e1a33864105e1d454e88105c61
 
 WORKDIR /workspace
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl unzip zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
+    && apt-get install -y --no-install-recommends unzip zlib1g=1:1.3.dfsg-3.1ubuntu2.3 \
     && rm -rf /var/lib/apt/lists/*
 COPY --chmod=0755 mvnw ./mvnw
 COPY .mvn/ .mvn/

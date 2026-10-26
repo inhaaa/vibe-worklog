@@ -83,6 +83,8 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 2026-10-26 후속으로 [로컬 데모 로그인](docs/design/local-demo-login.md)을 적용하고 전체 Java433개·Python35개, 실제 데모 HTTP16개·공통 HTTP24개를 통과했습니다. 최종 이미지4종은 새 고정 Grype DB로 재검사해 원시 매치1,289행을 기록했습니다. 새 CVE3개/5행은 Ubuntu 평가 대기이며 기존 JDK·libxml2 등 미해결 항목은 유지합니다. Ryuk는 실제 loopback 단일 게시·대상/익명 볼륨 자동 정리·다른 자원 보존을 확인했습니다. privileged·root·Docker 소켓 RW 권한은 남습니다. 상세 근거는 [현재 보고서](docs/quality/security-runtime-recheck.md)를 따르며 이번 로그인 이미지로 33분 부하를 재측정하지 않았습니다.
 
+이후 [신규 native CVE 분석](docs/quality/new-native-cve-analysis.md)에서 불필요한 builder curl/libcurl/librtmp를 제외하고 기존 Java downloader로 cold 빌드를 통과했습니다. 새 이미지4종 재검사는1,234행·제외0이며 builder의 RTMP2건은 패키지 부재로 검출되지 않습니다. Brotli3행과 기존 P1은 유지하며 CNA9.2/Critical과 Ubuntu Medium을 구분합니다. Java433개·Python35개·실제 HTTP16+24개와 기존 DB 보존을 다시 확인했습니다. [화면 재설계 제안](docs/design/ui-redesign-proposal.md)은 사용자 승인 대기이며 제품 디자인·로그인 진입 흐름은 아직 바꾸지 않았습니다.
+
 ## Local Development
 
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 회사코드 없이 아이디 `admin` / 비밀번호 `admin`으로 로그인합니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.

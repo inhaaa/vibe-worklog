@@ -594,3 +594,11 @@ Testcontainers2.0.5의 `testcontainers/ryuk:0.14.0`에 test-only 공개 `CreateC
 현재 Windows named pipe·Linux Docker의 새 Ryuk에서 `127.0.0.1:65528` 단일 게시를 실측했다. 정상 Testcontainers 연결을 사용한 뒤 클라이언트를 shutdown hook 없이 종료했고 대상 컨테이너와 익명 볼륨1개의 자동 제거를 확인했다. Docker daemon의 정상 응답과 각 대상의 명시적 `No such container/volume` 응답도 보존했다. TC 밖 sentinel은 유지됐고 기존 Compose의 선별 inspect 필드와 `.testcontainers.properties` SHA가 동일했다. 별도 소유 sentinel은 확인 후 정상 정지했다. 임의 TCP/filter 전송이나 전역 daemon 설정 변경은 하지 않았다.
 
 Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문 TCP filter 프로토콜과 세션 라벨이 서버 측 인증 경계인 것으로 간주하지 않는다. loopback은 네트워크 노출 보완이며 Docker 권한 격리·원격 CI endpoint 차단·독립 sandbox를 증명하지 않는다. 현재 고정 버전과 로컬 named pipe에서 확인한 결과이며 원격 daemon/CI는 별도 검증 대상이다.
+
+## 신규 native CVE 입력 분석·builder 축소 (2026-10-26)
+
+현재 builder는 curl 설치를 제외하고 기존 Maven Wrapper의 Java downloader·unzip·공식 ZIP SHA256 검증을 사용한다. 새 이미지에서 curl/wget·libcurl/librtmp 부재와 Java/unzip 사용 가능을 `scripts/verify-build-download-surface.sh`로 확인했다. network none·read-only·cap drop·NNP·UID10001의 일회성 builder에서 이 스크립트를 `sh`로 실행한다. 실제 cold HTTPS app/migrate/build도 성공했다. 일반 Linux 환경에서 curl이 선택되는 경우에는 wrapper 첫 옵션 `--disable`·HTTPS-only 초기/redirect 정책을 적용한다. `scripts/verify-wrapper-downloads.sh`는 wget 없는 curl 테스트 이미지의 network none·빈 임시 캐시에서9개 거부를 확인하며, curl 없는 최종 builder의 검증과 구분한다.
+
+새 이미지4종의 같은 고정 DB 검사는1,234행·제외0이다. builder는 SBOM15항목(14개 deb·curl binary1개)·55개 원시 match 행이 줄었고 RTMP2건은 패키지 부재로 더 이상 검출되지 않는다. app/migrate/PostgreSQL match key는 이전과 같다. Brotli3행은 유지하며 CNA9.2/Critical과 Ubuntu Medium을 구분한다. 강제 폰트 의존성 제거·임의 .so 교체는 하지 않았다. 기존 [1,289행 원장](../quality/security-runtime-matches.csv)은 보존하며 현재 [5행 검토표](../quality/new-native-cve-review.csv)·[실행 보고서](../quality/new-native-cve-analysis.md)를 따른다.
+
+최종 Java433개·Python35개·실제 HTTP16+24개를 통과했고 새 app/migrate에 반영했다. 기존 DB 집계·Flyway V10·RLS·역할/ACL 지문과 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. 로그인은 현재 회사코드 없이 admin/admin인 로컬 데모 계약을 유지한다. [디자인 제안](../design/ui-redesign-proposal.md)은 사용자 승인 대기다. 이번에 제품 HTML/CSS·메뉴·로그인 진입을 변경하거나33분 부하를 재측정하지 않았다.

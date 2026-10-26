@@ -34,6 +34,8 @@ D01~D05의 기존 선택을 유지한다. 2026-10-24 사용자가 남은 기획�
 
 **현재 후속 검증(2026-10-26):** 사용자 요청에 따라 [로컬 데모](design/local-demo-login.md)를 추가했다. `local`과 `local-demo`를 함께 명시한 경우 회사코드 없이 `admin / admin`을 받고 서버 고정 합성 고객사의 실제 DB 해시·활성 상태·역할을 검증한다. 일반 인증·운영자 분리·RLS·CSRF·세션 회수·계산 정책은 유지한다. 전체 Java433개(단위65·통합368)·Python35개, 실제 데모 HTTP16개·공통 HTTP24개를 통과했다. 최종 이미지4종의 새 SBOM/Grype 검사1,289행과 Ryuk loopback 단일 게시·자동 정리·외부 자원 보존을 확인했다. 신규 CVE3개/5행은 공급자 평가 대기이며 privileged/root/RW Docker 소켓과 기존 P1은 남는다. [현재 보고서](quality/security-runtime-recheck.md)를 따르며 이전33분 성적을 이번 로그인 이미지 측정으로 확대하지 않는다.
 
+**신규 native CVE 후속(2026-10-26):** [분석·실제 결과](quality/new-native-cve-analysis.md)에 따라 builder curl/libcurl/librtmp를 제외하고 기존 Java downloader를 재사용했다. RTMP2건은 새 builder에서 패키지 부재로 검출되지 않으며 Brotli3행·기존 P1은 남는다. 새 고정 이미지4종1,234행·제외0, Java433개·Python35개·실제 HTTP16+24개·기존 DB 보존을 확인했다. [UI 재설계안](design/ui-redesign-proposal.md)은 사용자 승인 대기이고 제품 화면·권한·데모 진입 변경을 구현하지 않았다.
+
 ## 2. 제품 목표와 검증할 문제
 
 ### 제품 정의와 대상
