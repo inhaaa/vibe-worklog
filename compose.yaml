@@ -54,7 +54,7 @@ services:
       context: .
       target: runtime
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: local,local-demo
       SERVER_ADDRESS: 0.0.0.0
       SERVER_PORT: "18080"
       TNA_JDBC_URL: jdbc:postgresql://db:5432/tna

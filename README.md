@@ -21,7 +21,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 로컬 모의 비밀번호 재설정: 일회성 RESET·세션 회수 구현
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
-- 최종 Linux 이미지 재검증: multipart·HTTP 보안·33분 15,471요청 오류0, 전체 Java402개·Python35개 통과
+- 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
+- 현재 로컬 데모: 회사코드 없이 `admin / admin`, Java433개·Python35개 통과, 최종 이미지4종 보안 재검사·Ryuk loopback/정리 확인
 
 ## Overview
 
@@ -62,25 +63,29 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최근 Java 25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체398개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. Phase 6의 업무 연결·격리·동시성·부하·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최신 Java 25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체433개(단위65·통합368), Python 도구35개 테스트를 확인했습니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 현재 데모·이미지 보안·Ryuk 검증은 [최종 보안 재검사](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
-후속 HTTP 혼합 부하는18세션·33분·15,471요청에서 오류0, p95 619ms였고32분 steady는8요청/초였습니다. 전체 의존성·빌드 도구와 이미지4종을 로컬 검사해 MyBatis 내부 OGNL·플러그인을 패치하고 migrate 이미지를 줄였습니다. 앱/migrate의 Java archive 검출은0이나 OS·개발 도구의 미해결 항목은 [후속 보고서와 원장](docs/quality/http-soak-vulnerability.md)에 남겼습니다.
+2026-10-25 당시 Windows native 서버의 후속 HTTP 혼합 부하는18세션·33분·15,471요청에서 오류0, p95 619ms였고32분 steady는8요청/초였습니다. 전체 의존성·빌드 도구와 당시 이미지4종을 로컬 검사해 MyBatis 내부 OGNL·플러그인을 패치하고 migrate 이미지를 줄였습니다. 앱/migrate의 Java archive 검출은0이나 OS·개발 도구의 미해결 항목은 [후속 보고서와 원장](docs/quality/http-soak-vulnerability.md)에 남겼습니다. 이 측정은 아래 최종 Linux 이미지의 부하 성적과 구분합니다.
 
-잔여 OS·개발 도구의 실제 영향과 대응 순서는 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따릅니다. Noble zlib 패치·마이그레이션 권한 제한·DB의 비루트 시작과 Java 기본 신뢰 저장소의 공식 CA 임시 대응을 검증했습니다. 최종 새 Linux396개·신뢰 저장소6개·HTTP24개 통과입니다. 공급 대기 JDK·libxml2 등 배포 전 조건과 scanner 불일치는 별도로 남깁니다.
+잔여 OS·개발 도구의 실제 영향과 대응 순서는 [우선순위 보고서](docs/quality/residual-vulnerability-impact.md)를 따릅니다. Noble zlib 패치·마이그레이션 권한 제한·DB의 비루트 시작과 Java 기본 신뢰 저장소의 공식 CA 임시 대응을 검증했습니다. 해당 보완 당시 Linux396개·신뢰 저장소6개·HTTP24개를 통과했습니다. 공급 대기 JDK·libxml2 등 배포 전 조건과 scanner 불일치는 별도로 남깁니다.
 
-2026-10-25 후속 [공식 공급 재확인](docs/quality/security-supply-recheck.md)에서 Windows/Noble JDK와 bookworm libxml2의 공급 대기를 확인했습니다. 새 gosu1.20은 별도 사용자 파일 파싱 수정의 적용 후보이며 기존 Go stdlib 경고 해결판은 아닙니다. OS·개발 도구를 적용 가능 후보·공급 대기·추가 분석으로 분류했으며 이번에는 설치·설정·DB·컨테이너 변경이나 회귀/부하 재실행을 하지 않았습니다.
+2026-10-25 후속 [공식 공급 재확인](docs/quality/security-supply-recheck.md)에서 Windows/Noble JDK와 bookworm libxml2의 공급 대기를 확인했습니다. 새 gosu1.20은 별도 사용자 파일 파싱 수정의 적용 후보이며 기존 Go stdlib 경고 해결판은 아닙니다. OS·개발 도구를 적용 가능 후보·공급 대기·추가 분석으로 분류했으며 이 공급 확인 단위에서는 설치·설정·DB·컨테이너 변경이나 회귀/부하 재실행을 하지 않았습니다.
 
 이후 [gosu 서명·바이너리 분석](docs/quality/gosu-binary-analysis.md)에서 정상 서명2건·변조 거부3건과 고정 DB의1.19/1.20 차이를 확인했습니다. 기존 Medium1건의 취약 심볼 경고는1.20에서 제거됐으며 C/H35건은 심볼 미보고를 무영향 확정으로 바꾸지 않았습니다. 현재 비루트 Compose를 유지하고 gosu 전용 파생 이미지는 도입하지 않으며, 기본 Testcontainers의 별도 root 시작 경로와 공식 이미지 갱신은 추적합니다.
 
-[native 입력·Docker 경계 분석](docs/quality/native-input-docker-boundaries.md)에서는 PostgreSQL ELF943개를 독립 대조하고 실제 JRE의 DNS/libc 경로·선택 라이브러리 의존성을 확인했습니다. 설정을 저장하지 않는 로컬 진단에서 named pipe·classic HTTP1 ping/info를 확인했으며 DockerJava의 P2와 libxml2의 P1은 유지합니다. 분석 중 발견한 미지원 multipart 자동설정은 [후속 보완 계획](docs/superpowers/plans/2026-10-25-multipart-boundary.md)으로 분리합니다.
+[native 입력·Docker 경계 분석](docs/quality/native-input-docker-boundaries.md)에서는 PostgreSQL ELF943개를 독립 대조하고 실제 JRE의 DNS/libc 경로·선택 라이브러리 의존성을 확인했습니다. 설정을 저장하지 않는 로컬 진단에서 named pipe·classic HTTP1 ping/info를 확인했으며 DockerJava의 P2와 libxml2의 P1은 유지합니다. 분석 중 발견한 미지원 multipart 자동설정은 [후속 보완](docs/superpowers/plans/2026-10-25-multipart-boundary.md)과 아래 이미지 재검증으로 이어졌습니다.
 
-2026-10-26에는 업로드 미지원 계약에 맞춰 multipart 자동설정을 비활성화했습니다. 기본·local 실제 ConfigData에서 파서/Servlet 설정 bean의 부재를 검증했고, 새 전용 로컬 PostgreSQL에서 전체398개(단위48·통합350)를 통과했습니다. 실행 중 Compose 이미지는 재생성하지 않았으며 실제 HTTP·부하를 재실행한 결과는 아닙니다. [검증 결과](docs/development/local.md#미지원-multipart-자동설정-비활성화-2026-10-26)를 따릅니다.
+2026-10-26 multipart 설정 보완 단위에서는 업로드 미지원 계약에 맞춰 자동설정을 비활성화했습니다. 기본·local 실제 ConfigData에서 파서/Servlet 설정 bean의 부재를 검증했고, 새 전용 로컬 PostgreSQL에서 당시 전체398개(단위48·통합350)를 통과했습니다. 이 단위에서는 Compose 이미지 재생성·실제 HTTP·부하를 수행하지 않았으며 [당시 결과](docs/development/local.md#미지원-multipart-자동설정-비활성화-2026-10-26)로 보존합니다.
+
+이후 [최종 Linux 이미지 재검증](docs/quality/runtime-image-soak.md)에서 전체 Java402개(단위52·통합350)·Python35개 회귀를 통과하고 새 app/migrate 이미지를 빌드해 기본 app에 반영했습니다. 기본 DB는 보존했으며 새 이미지의 app은 running, migrate는 V10 no-op·종료0입니다. 별도 loopback 합성 DB와 Linux app에서 실제 HTTP24개·multipart12개를 통과했습니다. 최종33분은1,980.205초·15,471요청·예상 밖 오류/논리 실패0·p95 241.014ms이며 종료 정합성·기본 DB 보존과 기본 HTTP24개 재검증도 통과했습니다. 이 단위에는 최종 이미지의 새 SBOM/취약점 재검사와 Ryuk 게시 경계 후속 확인이 포함되지 않습니다.
+
+2026-10-26 후속으로 [로컬 데모 로그인](docs/design/local-demo-login.md)을 적용하고 전체 Java433개·Python35개, 실제 데모 HTTP16개·공통 HTTP24개를 통과했습니다. 최종 이미지4종은 새 고정 Grype DB로 재검사해 원시 매치1,289행을 기록했습니다. 새 CVE3개/5행은 Ubuntu 평가 대기이며 기존 JDK·libxml2 등 미해결 항목은 유지합니다. Ryuk는 실제 loopback 단일 게시·대상/익명 볼륨 자동 정리·다른 자원 보존을 확인했습니다. privileged·root·Docker 소켓 RW 권한은 남습니다. 상세 근거는 [현재 보고서](docs/quality/security-runtime-recheck.md)를 따르며 이번 로그인 이미지로 33분 부하를 재측정하지 않았습니다.
 
 ## Local Development
 
-고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`이며 기본 사용자·공용 비밀번호는 제공하지 않습니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
+고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 회사코드 없이 아이디 `admin` / 비밀번호 `admin`으로 로그인합니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. 로그인·본인 준비 화면과 담당자의 조직·사원·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
 
 Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
 
@@ -95,7 +100,7 @@ Spring Boot 기반 모듈형 모놀리식 아키텍처를 채택합니다.
 - 규칙 기반 근태 계산 및 자동화 테스트
 - Docker 기반 배포 및 백업 체계
 
-단일 애플리케이션이 단일 서버의 처리량을 보장하지는 않습니다. PC·모바일 반응형 웹을 지향하고 수용 가능한 부하는 후속 테스트로 검증합니다.
+단일 애플리케이션이 단일 서버의 처리량을 보장하지는 않습니다. PC·모바일 반응형 웹과 로컬 합성 부하는 검증했으며 운영 환경의 수용량·SLA는 후속 테스트로 검증합니다.
 
 ## AI-Assisted Development
 
@@ -135,7 +140,9 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Security Fix Availability](docs/quality/security-supply-recheck.md): 공식 수정판 공급 재확인·적용 후보·공급 대기·추가 분석
 - [gosu Binary Analysis](docs/quality/gosu-binary-analysis.md): 서명·제외 없는 바이너리 검사·61행 대조·파생 이미지 판단
 - [Native & Docker Boundaries](docs/quality/native-input-docker-boundaries.md): native 입력·ELF 교차 대조·읽기 전용 Docker 연결 진단
-- [Final Linux Image Revalidation](docs/quality/runtime-image-soak.md): multipart 설정 반영 이미지·실제 HTTP·혼합 부하 재검증
+- [Final Linux Image Revalidation](docs/quality/runtime-image-soak.md): multipart 설정 반영 당시 이미지·실제 HTTP·혼합 부하 재검증
+- [Current Security Recheck](docs/quality/security-runtime-recheck.md): 데모 적용 이미지4종·신규 원시 원장·Ryuk 게시/정리 경계
+- [Local Demo Login](docs/design/local-demo-login.md): 회사코드 없는 로컬 `admin / admin` 계약
 - [Third-party Notices](THIRD_PARTY_NOTICES.md): 포함 자산 고지와 의존성 조사 범위
 - [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md): AI 작업 지침
 
@@ -158,6 +165,9 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 로컬 MVP 시나리오·격리·동시성·보안·성능·논리 복원 검증
 - [x] 로컬 HTTP 혼합33분·전체 해석 의존성/도구·이미지 취약점 검사와 가용 패치
 - [x] 잔여 취약점 영향·공식 수정판 공급 재확인과 후속 분류
+- [x] multipart 반영 최종 Linux 이미지·실제 HTTP·33분 혼합 부하·종료 정합성 재검증
+- [x] 최종 이미지4종 SBOM/취약점 재검사·Ryuk loopback 게시/정리 경계 확인
+- [x] 회사코드 없는 합성 로컬 데모 `admin / admin`과 일반 인증 회귀 검증
 - [ ] 미해결 P1 보안 항목 대응·운영 사양의 장기/장애 부하·침투·오프사이트 복구
 - [ ] 파일럿 검증 및 서비스 개선
 

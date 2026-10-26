@@ -3,6 +3,7 @@ package kr.tna.common.web;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.EmployeeMapper;
@@ -19,19 +20,25 @@ public class TodayController {
     private final EmployeeMapper employees;
     private final Clock clock;
     private final kr.tna.clock.ClockService clocks;
+    private final LocalDemoLogin localDemo;
 
-    public TodayController(TenantTransactions transactions, EmployeeMapper employees, Clock clock, kr.tna.clock.ClockService clocks) {
+    public TodayController(TenantTransactions transactions, EmployeeMapper employees, Clock clock,
+            kr.tna.clock.ClockService clocks, LocalDemoLogin localDemo) {
         this.transactions = transactions;
         this.employees = employees;
         this.clock = clock;
         this.clocks = clocks;
+        this.localDemo = localDemo;
     }
 
     @GetMapping("/")
     String index() { return "redirect:/me/today"; }
 
     @GetMapping("/login")
-    String login() { return "login"; }
+    String login(Model model) {
+        model.addAttribute("localDemo", localDemo.enabled());
+        return "login";
+    }
 
     @GetMapping("/me/today")
     String today(@AuthenticationPrincipal TnaPrincipal principal, Model model) {

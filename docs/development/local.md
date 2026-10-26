@@ -8,6 +8,8 @@ Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하�
 
 [native 입력·Docker 후속 분석](../quality/native-input-docker-boundaries.md)은 실제 JRE/PG ELF와 설정을 저장하지 않는 Windows local pipe 진단의 근거·한계를 기록한다. 이 진단은 기본 Testcontainers factory 전체 실행이나 CI의 원격 endpoint 차단 장치가 아니다. 미지원 multipart 자동설정 보완은 [별도 계획](../superpowers/plans/2026-10-25-multipart-boundary.md)에 따른다.
 
+현재 후속 실행은 [데모·최종 보안·Ryuk 보고서](../quality/security-runtime-recheck.md)를 따른다. 기존 날짜별 실행과 현재 결과를 구분한다.
+
 ## 준비 사항과 실행 경계
 
 - JDK 25. 검증에 사용한 배포물은 Eclipse Temurin `25.0.4.1+1`이다.
@@ -567,3 +569,28 @@ Dockerfile은 로컬 빌드 CA 반영 후 공식 대상 불신·검사를 수행
 Linux 부하를 위해 metadata의 baseUrl을 검증된 새 앱의 loopback 포트로 연결하고 native JVM runtimeFile은 제외한다. Docker 앱/DB 지표는 별도 기록한다. HTTP runner가 종료하기 전에 fixture를 멈추지 않는다. 측정 종료·지표 수집 종료·Linux 앱 종료·최종 읽기 전용 정합성 확인 후 owned fixture를 정상 종료한다. 중단한 부분 실행·smoke·완료한 지속 부하의 요청 수를 서로 합산하지 않는다.
 
 수정 후 전체 Java402개(단위52·PostgreSQL 통합350)·Python35개, 기본/합성 앱의 실제 HTTP 보안 각24개와 multipart12개가 통과했다. 최종 Linux 이미지의 별도33분은 1,980.205초·15,471요청·예상 밖 오류/논리 실패0, p95 241.014ms였다. 종료 시 재전송 중복0·과거 원천55,800건 지문 동일·승인/원장 일치·기존 DB의 컨테이너/볼륨/집계/권한 동일을 확인했고 owned fixture 종료 코드는0이다. 기본 앱은 새 이미지로 실행 중이며 종료 후 HTTP24개도 다시 통과했다. multipart tempfile·새 취약점 스캔·운영 용량을 검증한 결과는 아니다.
+
+## 회사코드 없는 로컬 데모·최종 보안 재검사 (2026-10-26)
+
+현재 기본 Compose는 `SPRING_PROFILES_ACTIVE=local,local-demo`다. `http://127.0.0.1:18080`에서 회사코드 없이 아이디 `admin`, 비밀번호 `admin`으로 로그인한다. 이 합성 계정은 `EMPLOYEE`·`ATTENDANCE_ADMIN`만 가지며 운영자·승인자 권한은 없다. 현재 로컬 DB에 명시 CLI로 준비했고 첫 실행·동일 자료 재실행 모두 종료0을 확인했다. 일반 `local` 단독과 기본 프로필에서는 기존 회사코드·이메일·강한 비밀번호 정책을 사용한다. `local-demo` 단독은 시작을 거부한다.
+
+새 로컬 DB에서 처음 데모 자료를 준비할 때는 Flyway 성공 후 별도 Java 프로세스에서 다음 명령을 실행한다. 환경은 두 프로필, `TNA_JDBC_URL=jdbc:postgresql://127.0.0.1:15432/tna`, `TNA_MIGRATION_DB_PASSWORD`를 요구한다. 관리 비밀번호는 명령 인수·출력·Git에 넣지 않고 CLI 프로세스에만 주입하며 웹앱에 넘기지 않는다. 이 CLI는 엄격한 literal loopback 주소·명시 포트만 허용한다.
+
+```powershell
+java -jar target/vibe-attendance-0.0.1-SNAPSHOT.jar local-demo-bootstrap
+docker compose up -d app
+```
+
+웹 시작이 자료를 자동 생성하거나 기존 계정의 암호·비활성·역할 회수를 복원하지 않는다. 예약 UUID·회사코드·이메일 충돌이나 변경된 자격/권한/감사 이력은 CLI가 거부한다. 스키마 변경은 없고 예약 고객사1·사원1·계정1·역할2·감사1만 추가한다. 일반 회사코드 입력이나 요청 tenant 변조로 다른 고객사를 선택할 수 없다. 상세 계약은 [로컬 데모 설계](../design/local-demo-login.md)를 따른다.
+
+전체 `verify`는 새 Testcontainers PostgreSQL에서 Java433개(단위65·통합368), Python 도구35개를 실패·오류·건너뜀0으로 통과했다. 새 `LocalDemoBootstrapIT`는 TC 소유 전용 DB만 허용하므로 전체 데모 검증에는 Docker가 필요하며 기존 native JDBC override로 대신하지 않는다. 실제 새 앱 이미지에서 데모 HTTP16개와 공통 보안 HTTP24개를 통과했다. 이전33분 부하 성적은 이전 이미지의 측정이며 이번 로그인 이미지에서 재측정하지 않았다.
+
+최종 app/migrate/build/PostgreSQL 이미지4종을 로컬 Syft/Grype로 검사했다. 원시 CVE×package1,289행 중 기존 동일 버전 기록 연결1,284행·새 Ubuntu 평가 대기5행(CVE3개)이며 제외0이다. 이전 전체 원장1,294행과 미검토1,054행을 보존한다. 런타임 app/migrate의 Java archive 매치는0이나 OS·JDK·libxml2 등 잔여 위험은 남는다. 실행 이미지·고정 DB·도구 checksum·새 원장과 한계는 [현재 보고서](../quality/security-runtime-recheck.md)에 기록했다.
+
+### Ryuk 게시·정리 경계
+
+Testcontainers2.0.5의 `testcontainers/ryuk:0.14.0`에 test-only 공개 `CreateContainerCmdModifier` SPI를 적용했다. 정확한 이미지의8080/tcp만 `127.0.0.1` 임의 포트로 게시하고 예상 밖 포트나 host network는 거부한다. 다른 이미지·향후 Ryuk 버전에는 자동 적용하지 않으므로 업그레이드 때 재검증한다. 이 SPI와 테스트 클래스는 앱 JAR에 포함하지 않는다.
+
+현재 Windows named pipe·Linux Docker의 새 Ryuk에서 `127.0.0.1:65528` 단일 게시를 실측했다. 정상 Testcontainers 연결을 사용한 뒤 클라이언트를 shutdown hook 없이 종료했고 대상 컨테이너와 익명 볼륨1개의 자동 제거를 확인했다. Docker daemon의 정상 응답과 각 대상의 명시적 `No such container/volume` 응답도 보존했다. TC 밖 sentinel은 유지됐고 기존 Compose의 선별 inspect 필드와 `.testcontainers.properties` SHA가 동일했다. 별도 소유 sentinel은 확인 후 정상 정지했다. 임의 TCP/filter 전송이나 전역 daemon 설정 변경은 하지 않았다.
+
+Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문 TCP filter 프로토콜과 세션 라벨이 서버 측 인증 경계인 것으로 간주하지 않는다. loopback은 네트워크 노출 보완이며 Docker 권한 격리·원격 CI endpoint 차단·독립 sandbox를 증명하지 않는다. 현재 고정 버전과 로컬 named pipe에서 확인한 결과이며 원격 daemon/CI는 별도 검증 대상이다.
