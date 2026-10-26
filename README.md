@@ -1,4 +1,4 @@
-# vibe-attendance
+# WorkLog
 
 **AI-Assisted HR Attendance Management SaaS**
 
@@ -8,6 +8,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
+- **Product Name:** WorkLog (워크로그) · 저장소: `vibe-attendance` ([표시명 적용·검증](docs/development/local.md#worklog-표시명-적용-2026-10-26))
 - 기획·지원 범위 업무 규칙·시스템 설계 문서: 작성
 - 로컬 개발 기반: 빌드·DB 격리·로그인·준비 화면 구현 및 native PostgreSQL 검증
 - Docker: Linux 이미지 빌드·Compose 기동·Testcontainers 검증 완료

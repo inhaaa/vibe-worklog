@@ -622,3 +622,13 @@ Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문
 프로젝트 JDK25의 전체 `mvnw.cmd verify`는 Java467개(단위76·PostgreSQL 통합391), Python 도구42개를 실패/오류/건너뜀0으로 통과했다. 새 app/migrate 빌드·V10 no-op·실행 JAR production251개 바이트 일치와 기존 DB/볼륨/권한/RLS 보존을 확인했다. 실제 HTTP38+24개, 홈1024/390/320px·일정/직원1024/390px와 비교 펼침을 포함한10개 브라우저 관측은 가로 넘침·콘솔 오류0이다. 날짜의 다음 달 이동·모바일 메뉴/Escape·기존 확인 폼·상태 새로고침도 확인했다.
 
 실행 명령은 바로 위 A안 절과 동일하다. 새 설정·의존성·마이그레이션·전역 환경 변경은 없다. 이번 홈 이미지의 SBOM/취약점·33분 부하·Ryuk 정리 실측은 재실행하지 않았으며 이전 검사 이력과 JDK/libxml2/Brotli·Docker 소켓의 잔여 조건을 유지한다. 이미지 ID·검증 범위·미실시 항목과 원시 로그 경로는 [홈 품질 보고](../quality/dayflow-home.md)를 따른다. 외부 서버에는 배포하지 않았다.
+
+## WorkLog 표시명 적용 (2026-10-26)
+
+사용자가 영문 이름 **WorkLog(워크로그)**를 선택해 소개·공통 메뉴·페이지 제목·일반 로그인/초대/복구·운영자/오류 템플릿8개를 맞췄다. 소개·메뉴 로고는 W를 사용한다. 기존 흰색/파란 테마·하루 흐름 홈·입력 없는 정상 데모 인증과 한국어 메뉴를 유지한다. 저장소 `vibe-attendance`, Java/DB/설정의 `tna`, DOM/CSS 식별자와 업무 폼은 변경하지 않았다. [표시명 계약](../design/ui-redesign-proposal.md)을 따른다.
+
+단순 표시 문구 변경으로 새 테스트를 추가하지 않고 기존 관련 회귀를 실행했다. 프로젝트 JDK25의 `verify -Dtest=DayFlowTimelineTest,WorkspaceQueriesTest -Dit.test=WorkspaceWebIT,WorkspaceShellWebIT,LocalDemoWebIT,AccountAccessWebIT,PasswordResetWebIT,OperatorWebIT`는 **62개(단위11·전용 PostgreSQL 통합51)**를 실패/오류/건너뜀0·종료0으로 통과했다. 새 로컬 이미지의 실제 HTTP38+24개도 통과했다. 브라우저는 소개1280/390/320px·홈1280/1000/390px·직원1000px의7개 관측에서 가로 넘침·로고 잘림·기존 표시명 잔여·콘솔 오류0이었다. 1000px에서195px sidebar의 WorkLog 표시와 정상 데모 입장을 확인했다.
+
+app/migrate 새 빌드 종료0, 앱 running·migrate V10 no-op/종료0, 검증/실행 JAR production251개 항목 바이트 일치와 UID10001·읽기 전용 root·cap drop·NNP·loopback·테스트 Ryuk SPI 미포함을 확인했다. 기본 DB 집계·Flyway·RLS·역할/ACL과 DB 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. app은 `sha256:82d9a09897f8a931530d8ad7906aa98e0559152f7c41c20851b09c9d9fcf934c`, migrate는 `sha256:d24ea3b2c9eb558af79bdd68c4b00780533bcb329b2f14f51d6d85883279843e`다.
+
+이번 표시명 단위에서 전체 Java467개·Python42개 회귀, 새 SBOM/취약점 스캔·33분 부하·Ryuk 정리 실측·외부 배포는 재실행하지 않았다. 이전 검증 이력과 미해결 보안 조건을 유지한다. 원시 로그·DB 전후/JAR 비교·HTTP·브라우저 JSON/PNG는 Git 제외 `target/worklog-brand-20261026/`에 보존했다. 현재 로컬 주소는 `http://127.0.0.1:18080/`다.

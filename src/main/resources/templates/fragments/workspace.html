@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
-    <title th:text="${title + ' · tna'}">tna</title>
+    <title th:text="${title + ' · WorkLog'}">WorkLog</title>
     <link rel="stylesheet" th:href="@{/app.css}">
     <script th:src="@{/app.js}" defer></script>
     <script th:src="@{/vendor/htmx.min.js}" defer></script>
@@ -26,7 +26,7 @@
     </g>
 </svg>
 <aside th:fragment="sidebar(active)" class="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
-    <a class="t-brand-button t-wordmark" th:href="${workspaceDemo} ? @{/demo} : @{/me/today}"><span class="t-logo">t</span><span>tna<span class="t-brand-sub">Work, in rhythm.</span></span></a>
+    <a class="t-brand-button t-wordmark" th:href="${workspaceDemo} ? @{/demo} : @{/me/today}"><span class="t-logo" aria-hidden="true">W</span><span>WorkLog<span class="t-brand-sub">Work, in rhythm.</span></span></a>
     <div class="t-workspace-name"><span class="t-workspace-icon">T</span><span><span th:text="${workspaceEmployee.companyName}">워크스페이스</span><small th:text="${workspacePrincipal.roles.contains('ATTENDANCE_ADMIN') ? '근태 관리자' : (workspacePrincipal.roles.contains('APPROVER') ? '지정 승인자' : '직원')}">직원</small></span></div>
     <nav aria-label="업무 메뉴">
         <th:block th:if="${workspacePrincipal.roles.contains('EMPLOYEE')}">

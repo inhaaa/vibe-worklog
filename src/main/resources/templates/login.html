@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
-    <title>로그인 · tna</title>
+    <title>로그인 · WorkLog</title>
     <link rel="stylesheet" th:href="@{/app.css}">
     <script th:src="@{/vendor/htmx.min.js}" defer></script>
 </head>
 <body hx-history="false">
 <main class="login-shell">
     <section class="panel" aria-labelledby="login-title">
-        <p class="eyebrow">tna · 로컬 개발 환경</p>
+        <p class="eyebrow">WorkLog · 로컬 개발 환경</p>
         <h1 id="login-title">로그인</h1>
         <p th:text="${localDemo ? '아이디와 비밀번호로 로그인해 주세요.' : '소속 회사 코드와 계정으로 로그인해 주세요.'}">소속 회사 코드와 계정으로 로그인해 주세요.</p>
         <p th:if="${param.error}" class="notice error" role="alert">로그인 정보를 확인해 주세요.</p>

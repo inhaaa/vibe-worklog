@@ -5,7 +5,7 @@
 | 항목 | 내용 |
 | --- | --- |
 | 작성 기준일 | 최초 2026-10-24, 진행 상태 동기화 2026-10-26 |
-| 프로젝트 | `vibe-attendance` / 내부 가칭 `tna` (Time & Attendance) |
+| 프로젝트 | 표시명 **WorkLog(워크로그)** / 저장소 `vibe-attendance` / 내부 식별자 `tna` (Time & Attendance) |
 | 단계 | Phase 1~3 제품·설계 기준선을 유지하며 Phase 6 로컬 MVP 품질 검증 |
 | 상태 | D01~D05 유지. 지원 MVP의 구현·로컬 연결/회귀·최종 Linux HTTP/부하 검증 완료. 실제 고객·법적 예외·운영 수용은 미완료 |
 | 근거 | [README.md](../README.md), [프로젝트 시작 문서](kickoff.md), 사용자의 Phase 1 요청·D01~D05 선택·2026-10-24 자율 진행 위임 |
