@@ -123,6 +123,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 ## Documentation
 
+- [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 내 정보·시트형 관리·공통/관리자/대표·조직장/결재선·코드 관리·연도별 모달 신청·월간 현황. 2026-10-26 승인 방향의 후속 설계이며 해당 기능 구현·운영 수용은 미완료
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
