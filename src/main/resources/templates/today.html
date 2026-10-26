@@ -6,46 +6,70 @@
   <div class="t-app-shell">
     <aside th:replace="~{fragments/workspace :: sidebar('home')}"></aside>
     <header th:replace="~{fragments/workspace :: topbar('홈')}"></header>
-    <main class="t-main">
-      <header class="t-pagehead"><div>
-        <p class="t-eyebrow"><time th:attr="datetime=${today}" th:text="${@seoulTime.date(today)}"></time> · 서울</p>
-        <h1><span th:text="${employee.employeeName}">직원</span>님, 좋은 하루예요.</h1>
-        <p class="t-muted" th:text="${employee.companyName}">워크스페이스</p>
-      </div></header>
-      <section class="t-grid-3" aria-label="내 근무 요약">
-        <article class="t-card">
-          <p class="t-metric-label">사용 가능 연차</p>
-          <p class="t-metric-value" th:text="${workspaceHome.availableLeaveDays == null ? '미등록' : workspaceHome.availableLeaveDays + '일'}"></p>
-          <p class="t-subtle" th:text="${workspaceHome.availableLeaveDays == null ? '기초 연차 미등록' : '현재 사용 기간의 원장 기준 · 대기 신청은 차감 전'}"></p>
-        </article>
-        <article class="t-card"><p class="t-metric-label">내 신청 검토 중</p><p class="t-metric-value" th:text="${workspaceHome.pendingRequests + '건'}"></p><p class="t-subtle">본인 대상 신청의 현재 대기 건수</p></article>
-        <article class="t-card"><p class="t-metric-label">오늘 근무 일정</p><p class="t-metric-value" th:text="${day.schedule == null ? '미배정' : workspaceHome.today.scheduleText()}"></p><p class="t-subtle" th:text="${workspaceHome.today.calendarText() + ' · 실제 근로 별도 확인'}"></p></article>
-      </section>
-      <div class="t-homegrid">
-        <section class="t-card" aria-labelledby="home-clock-title">
-          <header class="t-cardhead"><div><p class="t-eyebrow">오늘의 기록</p><h2 id="home-clock-title">오늘 출퇴근</h2></div><span class="t-tag" th:classappend="${day.confirmation == null ? 'amber' : 'green'}" th:text="${workspaceHome.today.confirmationText()}"></span></header>
-          <div class="t-grid-3">
-            <div><p class="t-metric-label">현재 반영 출근</p><p class="t-metric-value" th:text="${workspaceHome.today.inTime()}"></p></div>
-            <div><p class="t-metric-label">현재 반영 퇴근</p><p class="t-metric-value" th:text="${workspaceHome.today.outTime()}"></p></div>
-            <div><p class="t-metric-label">실제 근로</p><p class="t-metric-value" th:text="${day.confirmation == null ? '미확인' : '사실 확인됨'}"></p></div>
+    <main class="t-main t-home-flow">
+      <header class="t-flow-header">
+        <div class="t-flow-date"><strong th:text="${#temporals.format(today, 'dd')}"></strong><div>
+          <p class="t-eyebrow">오늘 · 서울</p><time th:attr="datetime=${today}" th:text="${@seoulTime.date(today)}"></time>
+        </div></div>
+        <div class="t-flow-greeting"><p class="t-eyebrow">나의 워크스페이스</p>
+          <h1><span th:text="${employee.employeeName}">직원</span>님의 하루</h1>
+          <p class="t-muted">일정부터 기록까지, 오늘의 흐름을 한눈에 확인하세요.</p>
+        </div>
+        <a class="t-btn secondary" th:href="@{/me/schedule}">내 근무 일정 <span th:replace="~{fragments/workspace :: icon('arrow')}"></span></a>
+      </header>
+      <div class="t-flow-layout">
+        <section class="t-card t-flow-agenda" aria-labelledby="home-flow-title">
+          <header class="t-cardhead"><div><p class="t-eyebrow">TODAY'S FLOW</p><h2 id="home-flow-title">하루의 흐름</h2></div>
+            <div class="t-flow-legend"><span>예정</span><span class="recorded">현재 반영</span></div>
+          </header>
+          <div class="t-flow-schedule"><span th:replace="~{fragments/workspace :: icon('calendar')}"></span><div>
+            <strong th:text="${workspaceHome.today.scheduleText()}"></strong><p class="t-subtle" th:text="${workspaceHome.today.calendarText()}"></p>
+          </div></div>
+          <ol class="t-flow-timeline" th:unless="${workspaceHome.today.timeline().isEmpty()}">
+            <li class="t-flow-entry" th:each="entry : ${workspaceHome.today.timeline()}" th:classappend="${entry.kind}">
+              <time class="t-flow-time" th:attr="datetime=${entry.time}" th:text="${@seoulTime.time(entry.time)}"></time>
+              <span class="t-flow-node" aria-hidden="true"></span>
+              <div class="t-flow-entry-copy"><strong th:text="${entry.title}"></strong><p th:text="${entry.detail}"></p></div>
+            </li>
+          </ol>
+          <div class="t-flow-empty" th:if="${workspaceHome.today.timeline().isEmpty()}">
+            <span th:replace="~{fragments/workspace :: icon('clock')}"></span>
+            <h3>오늘의 기록을 기다리고 있어요</h3><p>일정이 배정되거나 출퇴근이 기록되면<br>시간순으로 이곳에 모아 보여드려요.</p>
           </div>
-          <p class="t-subtle">허용 네트워크에서 서버 시각으로 원천을 저장합니다. 출퇴근 체류를 실제 근로시간으로 자동 확정하지 않습니다.</p>
-          <div class="actions">
-            <form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="IN"><input type="hidden" name="commandId" th:value="${inCommand}"><button class="t-btn primary" type="submit">출근 기록</button></form>
-            <form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="OUT"><input type="hidden" name="commandId" th:value="${outCommand}"><button class="t-btn secondary" type="submit">퇴근 기록</button></form>
-          </div>
-          <p class="t-subtle"><a th:href="@{/me/attendance}">날짜별 내역·원천·실제 근로 확인</a></p>
+          <footer class="t-flow-footnote"><span th:replace="~{fragments/workspace :: icon('request')}"></span><p>예정 일정과 현재 반영 기록을 구분해 표시합니다. 실제 근로시간은 별도 확인과 계산이 필요합니다.</p><a href="#home-record-comparison">원천·반영 비교</a></footer>
         </section>
-        <section class="t-card" aria-labelledby="home-week-title">
-          <header class="t-cardhead"><h2 id="home-week-title">이번 주 일정</h2><a class="t-btn secondary" th:href="@{/me/schedule}">전체 일정</a></header>
-          <ul class="t-list"><li class="t-listrow" th:each="entry : ${workspaceHome.week}"><div>
-            <a th:href="@{/me/schedule(month=${#temporals.format(entry.snapshot.workDate, 'yyyy-MM')},date=${entry.snapshot.workDate})}"><strong th:text="${@seoulTime.date(entry.snapshot.workDate)}"></strong></a>
-            <span class="t-tag blue" th:if="${entry.today}">오늘</span>
-            <p class="t-subtle" th:text="${entry.scheduleText() + ' · ' + entry.calendarText()}"></p>
-            <p class="t-subtle" th:each="item : ${entry.requests}" th:text="${item.kindLabel + ' · ' + item.statusLabel}"></p>
-          </div></li></ul>
-        </section>
+        <div class="t-flow-side">
+          <section class="t-card t-flow-clock" aria-labelledby="home-clock-title">
+            <header class="t-cardhead"><h2 id="home-clock-title">오늘 출퇴근</h2><span th:replace="~{fragments/workspace :: icon('clock')}"></span></header>
+            <span class="t-tag" th:classappend="${day.confirmation == null ? 'amber' : 'green'}" th:text="${workspaceHome.today.confirmationText()}"></span>
+            <dl class="t-flow-clock-times"><div><dt>현재 반영 출근</dt><dd th:text="${workspaceHome.today.inTime()}"></dd></div><div><dt>현재 반영 퇴근</dt><dd th:text="${workspaceHome.today.outTime()}"></dd></div></dl>
+            <div class="actions">
+              <form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="IN"><input type="hidden" name="commandId" th:value="${inCommand}"><button class="t-btn primary" type="submit">출근 기록</button></form>
+              <form th:action="@{/me/attendance/events}" method="post"><input type="hidden" name="eventKind" value="OUT"><input type="hidden" name="commandId" th:value="${outCommand}"><button class="t-btn secondary" type="submit">퇴근 기록</button></form>
+            </div>
+            <p class="t-subtle">허용 네트워크에서 서버 시각으로 원천을 저장합니다.</p><a class="t-flow-link" th:href="@{/me/attendance}">날짜별 기록 보기 <span aria-hidden="true">↗</span></a>
+          </section>
+          <section class="t-card t-flow-tasks" aria-labelledby="home-tasks-title">
+            <header class="t-cardhead"><h2 id="home-tasks-title">확인할 일</h2><span class="t-eyebrow">MY CHECKLIST</span></header>
+            <ul class="t-flow-task-list">
+              <li th:if="${day.schedule == null}"><a th:href="@{/me/schedule}"><span class="t-flow-task-dot" aria-hidden="true"></span><span><strong>근무 일정 미배정</strong><small>내 일정 확인 · 배정은 담당자에게 문의</small></span><span aria-hidden="true">›</span></a></li>
+              <li th:if="${workspaceHome.availableLeaveDays == null}"><a th:href="@{/me/requests}"><span class="t-flow-task-dot" aria-hidden="true"></span><span><strong>기초 연차 미등록</strong><small>잔여 안내 확인 · 등록은 담당자에게 문의</small></span><span aria-hidden="true">›</span></a></li>
+              <li th:if="${day.confirmation == null and !#lists.isEmpty(day.effectiveEvents.?[kind == 'IN']) and !#lists.isEmpty(day.effectiveEvents.?[kind == 'OUT'])}"><a href="#home-work-confirmation"><span class="t-flow-task-dot" aria-hidden="true"></span><span><strong>실제 근로·휴게 확인</strong><small>기록과 실제가 일치하는지 검토해 주세요</small></span><span aria-hidden="true">›</span></a></li>
+              <li><a th:href="@{/me/requests}"><span class="t-flow-task-dot blue" aria-hidden="true"></span><span><strong th:text="${'내 신청 검토 중 ' + workspaceHome.pendingRequests + '건'}"></strong><small>본인 대상 신청의 현재 상태</small></span><span aria-hidden="true">›</span></a></li>
+            </ul>
+            <div class="t-flow-leave"><span>사용 가능 연차</span><strong th:text="${workspaceHome.availableLeaveDays == null ? '미등록' : workspaceHome.availableLeaveDays + '일'}"></strong></div>
+            <p class="t-subtle" th:if="${workspaceHome.availableLeaveDays != null}">현재 사용 기간의 원장 기준 · 대기 신청은 차감 전</p>
+          </section>
+        </div>
       </div>
+      <section class="t-card t-flow-week" aria-labelledby="home-week-title">
+        <header class="t-cardhead"><div><p class="t-eyebrow">THIS WEEK</p><h2 id="home-week-title">이번 주 일정</h2></div><a class="t-flow-link" th:href="@{/me/schedule}">전체 일정 <span aria-hidden="true">↗</span></a></header>
+        <div class="t-flow-days"><a class="t-flow-day" th:each="entry, state : ${workspaceHome.week}" th:classappend="${entry.today ? 'today' : ''}" th:attr="aria-current=${entry.today ? 'date' : null}" th:href="@{/me/schedule(month=${#temporals.format(entry.snapshot.workDate, 'yyyy-MM')},date=${entry.snapshot.workDate})}">
+          <span class="t-flow-weekday" th:text="${{'월','화','수','목','금','토','일'}[state.index]}"></span><time th:attr="datetime=${entry.snapshot.workDate}" th:text="${#temporals.format(entry.snapshot.workDate, 'MM.dd')}"></time>
+          <span class="t-flow-week-today" th:if="${entry.today}">오늘</span><strong th:text="${entry.scheduleText()}"></strong><small th:text="${entry.calendarText()}"></small>
+          <small class="t-flow-week-request" th:each="item : ${entry.requests}" th:text="${item.kindLabel + ' · ' + item.statusLabel}"></small>
+        </a></div>
+      </section>
       <section class="t-card" aria-labelledby="home-requests-title">
         <header class="t-cardhead"><h2 id="home-requests-title">최근 내 신청</h2><a class="t-btn secondary" th:href="@{/me/requests}">신청 전체 보기</a></header>
         <p class="t-muted" th:if="${workspaceHome.recentRequests.isEmpty()}">아직 본인 대상 신청이 없습니다.</p>
@@ -54,7 +78,14 @@
           <tbody><tr th:each="item : ${workspaceHome.recentRequests}"><td><a th:href="@{/requests/{id}(id=${item.request.id})}" th:text="${item.kindLabel}"></a></td><td th:text="${@seoulTime.date(item.request.fromDate) + ' ~ ' + @seoulTime.date(item.request.toDate)}"></td><td><span class="t-tag" th:classappend="${item.tone}" th:text="${item.statusLabel}"></span></td></tr></tbody>
         </table></div>
       </section>
-      <details class="t-card"><summary>원천 기록과 실제 근로·휴게 확인</summary><section th:replace="~{clock/day :: record}"></section></details>
+      <details class="t-card t-flow-comparison" id="home-record-comparison"><summary>원천 기록과 현재 반영 기록 비교</summary>
+        <p class="t-subtle">원천 출퇴근은 보존하며, 승인 정정이 있으면 현재 반영된 기록에 표시합니다. 시각은 서울 기준입니다.</p>
+        <div class="t-flow-compare-grid">
+          <div><h3>원천 출퇴근</h3><p class="t-subtle" th:if="${day.events.isEmpty()}">원천 기록이 없습니다.</p><ul><li th:each="entry : ${day.events}"><span th:text="${entry.kind == 'IN' ? '출근' : '퇴근'}"></span><time th:attr="datetime=${entry.occurredAt}" th:text="${@seoulTime.instant(entry.occurredAt)}"></time></li></ul></div>
+          <div><h3>현재 반영된 기록</h3><p class="t-subtle" th:if="${day.effectiveEvents.isEmpty()}">현재 반영 기록이 없습니다.</p><ul><li th:each="entry : ${day.effectiveEvents}"><span th:text="${entry.kind == 'IN' ? '출근' : '퇴근'}"></span><time th:attr="datetime=${entry.occurredAt}" th:text="${@seoulTime.instant(entry.occurredAt)}"></time></li></ul></div>
+        </div>
+      </details>
+      <details class="t-card" id="home-work-confirmation"><summary>원천 상세와 실제 근로·휴게 확인</summary><section th:replace="~{clock/day :: record}"></section></details>
       <details class="t-card"><summary>환경 정보</summary><section th:replace="~{fragments/status :: status}"></section><div class="actions">
         <button class="t-btn secondary" type="button" th:attr="hx-get=@{/me/today/status}" hx-target="#setup-status" hx-swap="outerHTML" aria-controls="setup-status">상태 새로 고침</button>
         <a th:href="@{/me/today}">전체 화면 새로 고침</a>

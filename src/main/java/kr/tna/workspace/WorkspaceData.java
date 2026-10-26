@@ -1,9 +1,12 @@
 package kr.tna.workspace;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.org.EmployeeOverview;
@@ -15,7 +18,38 @@ public final class WorkspaceData {
     public record RequestItem(RequestView request, String kindLabel, String statusLabel,
             String tone, boolean effectiveLeave) { }
 
+    public record TimelineEntry(LocalTime time, String title, String detail, String kind) { }
+
     public record DayView(DaySnapshot snapshot, List<RequestItem> requests, boolean today, boolean selected) {
+        public List<TimelineEntry> timeline() {
+            var entries = new ArrayList<TimelineEntry>();
+            var schedule = snapshot.schedule();
+            if (schedule != null && schedule.workday()) {
+                addPlanned(entries, schedule.startTime(), "예정 근무 시작");
+                addPlanned(entries, schedule.endTime(), "예정 근무 종료");
+                for (var pause : schedule.breaks()) {
+                    addPlanned(entries, pause.startTime(), "예정 휴게 시작");
+                    addPlanned(entries, pause.endTime(), "예정 휴게 종료");
+                }
+            }
+            for (var event : snapshot.effectiveEvents()) {
+                String title = switch (event.kind()) {
+                    case "IN" -> "현재 반영 출근";
+                    case "OUT" -> "현재 반영 퇴근";
+                    default -> "현재 반영 기록";
+                };
+                entries.add(new TimelineEntry(event.occurredAt().atZone(ZoneId.of("Asia/Seoul")).toLocalTime(),
+                        title, "원천 또는 승인 정정의 현재 반영 기록", "recorded"));
+            }
+            entries.sort(Comparator.comparing(TimelineEntry::time));
+            return List.copyOf(entries);
+        }
+
+        private static void addPlanned(List<TimelineEntry> entries, LocalTime time, String title) {
+            if (time != null) entries.add(new TimelineEntry(time, title,
+                    "예정 일정 · 실제 근로·휴게 확인과 구분", "planned"));
+        }
+
         public String scheduleText() {
             var schedule = snapshot.schedule();
             if (schedule == null) return "근무 일정 미배정";

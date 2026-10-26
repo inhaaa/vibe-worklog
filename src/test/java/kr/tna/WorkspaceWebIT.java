@@ -3,6 +3,8 @@ package kr.tna;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,8 +15,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.common.auth.PasswordPolicy;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,6 +101,83 @@ class WorkspaceWebIT {
     }
 
     @Test
+    void homeFlowKeepsUnknownFactsAndLinksEveryActualWeekDate() throws Exception {
+        var result = mvc.perform(get("/me/today").session(login()))
+                .andExpect(status().isOk()).andReturn();
+        String html = result.getResponse().getContentAsString();
+        LocalDate today = (LocalDate) result.getModelAndView().getModel().get("today");
+        assertTrue(html.contains("t-home-flow"));
+        assertTrue(html.contains("t-flow-date"));
+        assertTrue(html.contains("datetime=\"" + today + "\""));
+        assertTrue(html.contains("근무 일정 미배정"));
+        assertTrue(html.contains("실제 근로 미확인"));
+        String tasks = elementWithClass(html, "section", "t-flow-tasks");
+        assertTrue(tasks.contains("기초 연차 미등록"));
+        assertFalse(tasks.contains("실제 근로·휴게 확인"), "기록이 없는 날짜를 확인할 일로 만들지 않는다");
+        String week = elementWithClass(html, "section", "t-flow-week");
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        for (int offset = 0; offset < 7; offset++) {
+            LocalDate date = monday.plusDays(offset);
+            assertTrue(week.contains("/me/schedule?month=" + java.time.YearMonth.from(date)
+                    + "&amp;date=" + date), "실제 조회 주의 각 날짜로 이동한다: " + date);
+        }
+        assertEquals(7, Pattern.compile("class=\"[^\"]*\\bt-flow-day\\b[^\"]*\"")
+                .matcher(week).results().count());
+        assertTrue(nativeComparison(html).contains("원천 출퇴근"));
+        assertFalse(html.contains("32시간"));
+    }
+
+    @Test
+    void homeFlowShowsActualRecordedTimesAndComparisonWithoutConfirmingWork() throws Exception {
+        var session = login();
+        var initial = mvc.perform(get("/me/today").session(session))
+                .andExpect(status().isOk()).andReturn();
+        LocalDate today = (LocalDate) initial.getModelAndView().getModel().get("today");
+        var db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        UUID network = UUID.randomUUID();
+        db.update("""
+                INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by)
+                VALUES (?,?,'127.0.0.1/32'::cidr,'합성 홈 기록 허용망',now(),'합성 회귀 검증',?)
+                """, tenantId, network, accountId);
+        for (var entry : java.util.List.of(new String[]{"OUT", "18:41"}, new String[]{"IN", "09:17"})) {
+            var at = java.sql.Timestamp.from(today.atTime(java.time.LocalTime.parse(entry[1]))
+                    .atZone(ZoneId.of("Asia/Seoul")).toInstant());
+            db.update("""
+                    INSERT INTO tna.attendance_event(tenant_id,id,employee_id,event_kind,occurred_at,received_at,
+                        client_command_id,source,validated_ip,network_id,assigned_work_date)
+                    VALUES (?,?,?,?,?,?,?,'IP','127.0.0.1'::inet,?,?)
+                    """, tenantId, UUID.randomUUID(), employeeId, entry[0], at, at, UUID.randomUUID(), network, today);
+            if (entry[0].equals("OUT")) {
+                var partial = mvc.perform(get("/me/today").session(session))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                assertFalse(elementWithClass(partial, "section", "t-flow-tasks")
+                        .contains("실제 근로·휴게 확인"), "출퇴근 양쪽 기록이 있어야 확인 연결을 제공한다");
+            }
+        }
+        var result = mvc.perform(get("/me/today").session(session))
+                .andExpect(status().isOk()).andReturn();
+        String html = result.getResponse().getContentAsString();
+        String timeline = elementWithClass(html, "ol", "t-flow-timeline");
+        assertTrue(timeline.contains("09:17:00.000"));
+        assertTrue(timeline.contains("18:41:00.000"));
+        assertTrue(timeline.indexOf("09:17:00.000") < timeline.indexOf("18:41:00.000"),
+                "저장 순서와 무관하게 서울 시각의 시간순으로 기록을 표시한다");
+        String comparison = nativeComparison(html);
+        assertTrue(comparison.contains("원천 출퇴근"));
+        assertTrue(comparison.contains("현재 반영된 기록"));
+        assertEquals(2, Pattern.compile("09:17:00\\.000").matcher(comparison).results().count());
+        assertEquals(2, Pattern.compile("18:41:00\\.000").matcher(comparison).results().count());
+        assertTrue(elementWithClass(html, "section", "t-flow-tasks").contains("실제 근로·휴게 확인"));
+        assertTrue(html.contains("실제 근로 미확인"));
+        var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
+        assertEquals(day.events(), day.effectiveEvents());
+        assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",
+                Integer.class, tenantId, employeeId));
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=?",
+                Integer.class, tenantId, employeeId));
+    }
+
+    @Test
     void personalCalendarShowsSelectedDateAndCrossesTheYearInNavigation() throws Exception {
         mvc.perform(get("/me/schedule").session(login())
                         .param("month", "2026-12").param("date", "2026-12-31"))
@@ -133,6 +215,21 @@ class WorkspaceWebIT {
     void calendarRequiresAnAuthenticatedCustomerSession() throws Exception {
         mvc.perform(get("/me/schedule")).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
+    }
+
+    private static String elementWithClass(String html, String tag, String cssClass) {
+        var match = Pattern.compile("(?s)<" + tag + "\\b[^>]*class=\"[^\"]*\\b"
+                + Pattern.quote(cssClass) + "\\b[^\"]*\"[^>]*>(.*?)</" + tag + ">")
+                .matcher(html);
+        assertTrue(match.find(), "홈 영역이 존재한다: " + cssClass);
+        return match.group(1);
+    }
+
+    private static String nativeComparison(String html) {
+        var match = Pattern.compile("(?s)<details\\b(?=[^>]*\\bid=\"home-record-comparison\")[^>]*>(.*?)</details>")
+                .matcher(html);
+        assertTrue(match.find(), "기록 비교는 native details로 제공한다");
+        return match.group(1);
     }
 
     private MockHttpSession login() throws Exception {

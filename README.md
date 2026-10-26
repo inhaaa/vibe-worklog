@@ -22,7 +22,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
-- 현재 로컬 데모: 소개 → 입력 없이 데모 입장, A안 홈·개인 달력·직원 목록·공통 메뉴 적용, Java459개·Python42개 통과 ([현재 결과](docs/quality/workspace-ui.md))
+- 현재 로컬 데모: 입력 없이 데모 입장, 흰색·파란 업무 테마와 하루 흐름 홈·개인 달력·직원 목록, Java467개·Python42개 통과 ([현재 결과](docs/quality/dayflow-home.md))
 
 ## Overview
 
@@ -63,7 +63,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최신 Java25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체459개(단위70·통합389), Python 도구42개 테스트를 확인했습니다. 현재 화면·입력 없는 데모·HTTP59개·브라우저8개 화면과 새 app/migrate 검사는 [A안 적용 결과](docs/quality/workspace-ui.md)를 따릅니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 데모 최초 적용 당시 이미지 보안·Ryuk 검증은 [보안 재검사 이력](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최신 Java25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체467개(단위76·통합391), Python 도구42개 테스트를 확인했습니다. 현재 하루 흐름 홈·입력 없는 데모·HTTP62개·브라우저10개 관측과 새 app/migrate 실행 검증은 [홈 적용 결과](docs/quality/dayflow-home.md)를 따릅니다. 이번 홈 이미지의 취약점 스캔·33분 부하는 재실행하지 않았으며 이전 [A안 검사](docs/quality/workspace-ui.md)와 구분합니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 데모 최초 적용 당시 이미지 보안·Ryuk 검증은 [보안 재검사 이력](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
@@ -87,7 +87,7 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 ## Local Development
 
-고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 소개 화면의 **데모로 입장** 버튼으로 입력 없이 들어갑니다. 기존 공개 합성 `admin / admin`을 정상 CSRF POST 인증에 연결했습니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. A안 홈·개인 달력·직원 목록과 담당자의 조직·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 실제 일정·기초 연차가 없는 경우 미배정·미등록을 표시합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
+고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 소개 화면의 **데모로 입장** 버튼으로 입력 없이 들어갑니다. 기존 공개 합성 `admin / admin`을 정상 CSRF POST 인증에 연결했습니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. 흰색·파란 업무 테마의 하루 흐름 홈·개인 달력·직원 목록과 담당자의 조직·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 실제 일정·기초 연차가 없는 경우 미배정·미등록을 표시합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
 
 Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
 
