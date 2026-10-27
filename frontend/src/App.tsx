@@ -9,6 +9,7 @@ import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
+import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 
 const publicPages = new Set([
   'login',
@@ -29,6 +30,8 @@ const titles: Record<string, string> = {
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
   'org/organization-heads': '조직장 배정',
+  'org/approval-routes': '결재선 관리',
+  'org/approval-route-assignments': '결재선 배정',
   'org/access': '계정·권한',
   'org/access-list': '권한 관리',
   'company/attendance': '회사 근무현황',
@@ -72,7 +75,7 @@ const navigation = [
       ['/me/worktime', '근로시간', 'clock'],
     ],
   },
-  { group: '승인 업무', roles: ['APPROVER'], items: [['/approvals', '신청 승인', 'request']] },
+  { group: '승인 업무', roles: ['APPROVER'], items: [['/approvals', '신청 승인', 'request'], ['/approvals/completed', '내가 처리한 결재', 'request']] },
   {
     group: '회사 현황',
     roles: ['ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'],
@@ -90,6 +93,8 @@ const navigation = [
       ['/admin/organizations', '조직 관리', 'building'],
       ['/admin/organization-heads', '조직장 배정', 'people'],
       ['/admin/access', '권한 관리', 'people'],
+      ['/admin/approval-routes', '결재선 관리', 'settings'],
+      ['/admin/approval-route-assignments', '결재선 배정', 'people'],
       ['/admin/schedules', '근무 설정', 'settings'],
       ['/admin/calendar', '근무일·휴일', 'calendar'],
       ['/admin/networks', '허용 네트워크', 'settings'],
@@ -242,6 +247,7 @@ function Content(props: PageProps) {
       <CorePages {...props} />
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
+      <ApprovalRoutePages {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>

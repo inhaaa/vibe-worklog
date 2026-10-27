@@ -6,6 +6,25 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuditSummaryBatchTest {
     @Test
+    void approvalSummaryKeepsTypedReferencesWithoutExposingPrivateText() {
+        UUID route = UUID.randomUUID(), snapshot = UUID.randomUUID();
+        var summary = AuditSummary.project("""
+                {"routeVersionId":"%s","routeSnapshotId":"%s","assignmentVersion":2,
+                 "approverKind":"ORGANIZATION_HEAD","scopeKind":"EMPLOYEE",
+                 "employeeName":"개인 이름","reason":"DO_NOT_EXPOSE",
+                 "rawSnapshot":"DO_NOT_EXPOSE"}
+                """.formatted(route, snapshot));
+        assertEquals(route.toString(), summary.get("routeVersionId"));
+        assertEquals(snapshot.toString(), summary.get("routeSnapshotId"));
+        assertEquals("2", summary.get("assignmentVersion"));
+        assertEquals("ORGANIZATION_HEAD", summary.get("approverKind"));
+        assertEquals("EMPLOYEE", summary.get("scopeKind"));
+        assertEquals("값 생략", summary.get("employeeName"));
+        assertFalse(summary.toString().contains("DO_NOT_EXPOSE"));
+        assertTrue(AuditSummary.project("{\"routeSnapshotId\":\"invalid\",\"approverKind\":\"UNTRUSTED\"}").isEmpty());
+    }
+
+    @Test
     void headSummaryKeepsAggregateVersionWithoutFreeText() {
         UUID head = UUID.randomUUID();
         var summary = AuditSummary.project("{\"organizationVersion\":3,\"headEmployeeId\":\"" + head

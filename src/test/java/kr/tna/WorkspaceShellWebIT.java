@@ -86,6 +86,19 @@ class WorkspaceShellWebIT {
     }
 
     @Test
+    void completedDecisionsKeepTheSharedWorkspaceIdentity() throws Exception {
+        grant("APPROVER");
+        var session = login();
+        for (String accept : new String[]{"text/html", "application/vnd.worklog.page+json"}) {
+            mvc.perform(get("/approvals/completed").session(session).accept(accept))
+                    .andExpect(status().isOk())
+                    .andExpect(ReactPageAssertions.roles("EMPLOYEE", "APPROVER"))
+                    .andExpect(ReactPageAssertions.data("/workspaceEmployee/employeeName", "직원 A"))
+                    .andExpect(ReactPageAssertions.csrf());
+        }
+    }
+
+    @Test
     void adminWithoutEmployeeRoleCanStillUseExistingAdministrationPages() throws Exception {
         grant("ATTENDANCE_ADMIN");
         jdbc.update("DELETE FROM tna.role_grant WHERE tenant_id=? AND account_id=? AND role='EMPLOYEE'",

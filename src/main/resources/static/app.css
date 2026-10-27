@@ -488,6 +488,16 @@ body.workspace-body { background: #f5f7fb; }
 
 /* Organization and employee sheets */
 #tna-app .t-org-sheet { min-width: 0; }
+#tna-app .t-approval-routes > .t-route-versions,
+#tna-app .t-approval-assignments > .t-card { margin-top: 20px; }
+#tna-app .t-approval-assignments { min-width: 0; }
+#tna-app .t-approval-assignments .t-toolbar > .t-select { max-width: 100%; }
+#tna-app .t-route-assignment-form { max-width: 680px; }
+#tna-app .t-route-assignment-form .t-sheet-toolbar { grid-column: 1 / -1; }
+#tna-app .t-route-versions .t-table td,
+#tna-app .t-approval-assignments .t-table td,
+#tna-app .t-request-route dd { overflow-wrap: anywhere; }
+#tna-app .t-request-route { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--t-line); }
 #tna-app .t-sheet-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 10px; }
 #tna-app .t-sheet-toolbar .t-tag { margin-left: auto; }
 #tna-app .t-sheet-form > .t-subtle { margin-bottom: 14px; }

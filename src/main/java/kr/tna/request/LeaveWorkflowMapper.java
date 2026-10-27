@@ -15,7 +15,8 @@ public interface LeaveWorkflowMapper {
           r.approver_assignment_version,r.submitted_at,r.reason,r.predecessor_request_id,r.original_request_id,
           r.leave_bucket_id,r.from_date,r.to_date,r.exceptional,r.version,
           COALESCE(f.effect_status,'NONE') AS effect_status,
-          COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id),0)::integer AS quantity_days
+          COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id),0)::integer AS quantity_days,
+          r.route_snapshot_id
         FROM tna.approval_request r
         JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
         JOIN tna.employee p ON p.tenant_id=r.tenant_id AND p.id=r.current_approver_id
@@ -61,13 +62,25 @@ public interface LeaveWorkflowMapper {
     RequestView findRequest(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select(REQUEST_SELECT+" WHERE r.tenant_id=#{tenantId} AND (#{mode}='ALL' OR (#{mode}='MINE' AND(r.author_account_id=#{accountId} OR r.target_employee_id=#{employeeId})) OR (#{mode}='INBOX' AND r.current_approver_id=#{employeeId})) ORDER BY r.submitted_at DESC,r.id")
     List<RequestView> requests(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId,@Param("employeeId") UUID employeeId,@Param("mode") String mode);
+    @Select(REQUEST_SELECT+"""
+        WHERE r.tenant_id=#{tenantId} AND (
+          (NOT #{completed} AND r.current_approver_id=#{employeeId} AND r.status='PENDING') OR
+          (#{completed} AND EXISTS(SELECT 1 FROM tna.approval_event ae
+            WHERE ae.tenant_id=#{tenantId} AND ae.request_id=r.id AND ae.actor_account_id=#{accountId}
+              AND ae.event_kind IN ('APPROVED','REJECTED'))))
+        ORDER BY r.submitted_at DESC,r.id LIMIT 51 OFFSET #{offset}
+        """)
+    List<RequestView> approvalPage(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId,
+            @Param("employeeId") UUID employeeId,@Param("completed") boolean completed,@Param("offset") int offset);
+    @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
+    Object readLock(@Param("tenantId") UUID tenantId);
     @Insert("""
         INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
           approver_assignment_id,approver_assignment_version,submitted_at,reason,predecessor_request_id,original_request_id,
-          leave_bucket_id,from_date,to_date,exceptional,client_command_id)
+          leave_bucket_id,from_date,to_date,exceptional,client_command_id,route_snapshot_id)
         VALUES(#{tenantId},#{r.id},#{r.targetEmployeeId},#{r.authorAccountId},#{r.kind},'PENDING',#{r.currentApproverId},
           #{r.approverAssignmentId},#{r.approverAssignmentVersion},#{r.submittedAt},#{r.reason},#{r.predecessorRequestId},
-          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId})
+          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId},#{r.routeSnapshotId})
         """)
     int insertRequest(@Param("tenantId") UUID tenantId,@Param("r") RequestView request,@Param("commandId") UUID commandId);
     @Update("UPDATE tna.approval_request SET status=#{status},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND status='PENDING' AND version=#{version}")
@@ -121,6 +134,58 @@ public interface LeaveWorkflowMapper {
         @Param("reason") String reason,@Param("previous") UUID previous,@Param("next") UUID next);
     @Select("SELECT id AS assignment_id,version AS assignment_version,approver_employee_id FROM tna.approver_assignment WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND superseded_at IS NULL AND valid_from<=#{today} AND(valid_to IS NULL OR valid_to>#{today})")
     ApproverBinding binding(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
+    @Select("""
+        SELECT a.id AS assignment_id,a.version AS assignment_version,a.organization_id,o.active AS organization_active
+        FROM tna.employee_assignment a JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
+        WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId}
+          AND a.valid_from<=#{today} AND(a.valid_to IS NULL OR a.valid_to>#{today})
+        """)
+    RouteOrganization routeOrganization(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
+    @Select("""
+        SELECT a.id AS assignment_id,a.version AS assignment_version,a.scope_kind,v.id AS route_version_id,
+          r.code AS route_code,v.name AS route_name,v.revision,v.approver_kind,v.employee_id,r.active AS route_active
+        FROM tna.approval_route_assignment a
+        JOIN tna.approval_route_version v ON v.tenant_id=a.tenant_id AND v.id=a.route_version_id
+        JOIN tna.approval_route r ON r.tenant_id=v.tenant_id AND r.id=v.route_id
+        WHERE a.tenant_id=#{tenantId} AND a.scope_kind=#{scopeKind}
+          AND((#{scopeKind}='EMPLOYEE' AND a.employee_id=#{employeeId})
+            OR(#{scopeKind}='ORGANIZATION' AND a.organization_id=#{organizationId}))
+          AND a.superseded_at IS NULL AND a.valid_from<=#{today} AND(a.valid_to IS NULL OR a.valid_to>#{today})
+        """)
+    RouteBinding routeBinding(@Param("tenantId") UUID tenantId,@Param("scopeKind") String scopeKind,
+            @Param("employeeId") UUID employeeId,@Param("organizationId") UUID organizationId,@Param("today") LocalDate today);
+    @Select("""
+        SELECT id,version,employee_id FROM tna.organization_head_assignment
+        WHERE tenant_id=#{tenantId} AND organization_id=#{organizationId} AND superseded_at IS NULL
+          AND valid_from<=#{today} AND(valid_to IS NULL OR valid_to>#{today})
+        """)
+    RouteHead routeHead(@Param("tenantId") UUID tenantId,@Param("organizationId") UUID organizationId,@Param("today") LocalDate today);
+    @Insert("""
+        INSERT INTO tna.approval_route_snapshot(tenant_id,id,request_id,route_version_id,assignment_id,assignment_version,
+          organization_id,organization_assignment_id,organization_assignment_version,organization_head_assignment_id,
+          organization_head_assignment_version,resolved_approver_employee_id,resolved_at)
+        VALUES(#{tenantId},#{id},#{requestId},#{routeVersionId},#{assignmentId},#{assignmentVersion},
+          #{organizationId},#{organizationAssignmentId},#{organizationAssignmentVersion},#{headAssignmentId},
+          #{headAssignmentVersion},#{approverId},#{at})
+        """)
+    int insertRouteSnapshot(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("requestId") UUID requestId,
+            @Param("routeVersionId") UUID routeVersionId,@Param("assignmentId") UUID assignmentId,
+            @Param("assignmentVersion") long assignmentVersion,@Param("organizationId") UUID organizationId,
+            @Param("organizationAssignmentId") UUID organizationAssignmentId,@Param("organizationAssignmentVersion") Long organizationAssignmentVersion,
+            @Param("headAssignmentId") UUID headAssignmentId,@Param("headAssignmentVersion") Long headAssignmentVersion,
+            @Param("approverId") UUID approverId,@Param("at") Instant at);
+    @Select("""
+        SELECT r.code AS route_code,v.name AS route_name,v.revision,a.scope_kind,v.approver_kind,
+          o.name AS organization_name,e.display_name AS resolved_approver_name,s.resolved_at
+        FROM tna.approval_route_snapshot s
+        JOIN tna.approval_route_version v ON v.tenant_id=s.tenant_id AND v.id=s.route_version_id
+        JOIN tna.approval_route r ON r.tenant_id=v.tenant_id AND r.id=v.route_id
+        JOIN tna.approval_route_assignment a ON a.tenant_id=s.tenant_id AND a.id=s.assignment_id
+        JOIN tna.employee e ON e.tenant_id=s.tenant_id AND e.id=s.resolved_approver_employee_id
+        LEFT JOIN tna.organization o ON o.tenant_id=s.tenant_id AND o.id=s.organization_id
+        WHERE s.tenant_id=#{tenantId} AND s.request_id=#{requestId}
+        """)
+    RouteSnapshot routeSnapshot(@Param("tenantId") UUID tenantId,@Param("requestId") UUID requestId);
     @Insert("""
         INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
         VALUES(#{tenantId},#{employeeId},#{date},#{factDelta},1,true)
@@ -132,5 +197,9 @@ public interface LeaveWorkflowMapper {
     @Select("SELECT employee_id::text FROM tna.tenant_account WHERE tenant_id=#{tenantId} AND id=#{accountId}")
     String authorEmployee(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId);
     record ApproverBinding(UUID assignmentId,long assignmentVersion,UUID approverEmployeeId) { }
+    record RouteOrganization(UUID assignmentId,long assignmentVersion,UUID organizationId,boolean organizationActive) { }
+    record RouteBinding(UUID assignmentId,long assignmentVersion,String scopeKind,UUID routeVersionId,String routeCode,
+            String routeName,long revision,String approverKind,UUID employeeId,boolean routeActive) { }
+    record RouteHead(UUID id,long version,UUID employeeId) { }
     record Effect(UUID id,UUID requestId,UUID employeeId,LocalDate workDate,String effectKind,String effectStatus,String validatedInputRefs) { }
 }

@@ -136,6 +136,21 @@ class ReactPageViewTest {
         }
     }
 
+    @Test
+    void approvalManagementPagesExposeOnlyTheirNamedModels() throws Exception {
+        for (var page : Map.of("org/approval-routes", "approvalRoutes",
+                "org/approval-route-assignments", "approvalRouteAssignments").entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("label", "합성 결재선"),
+                    "privateSource", "DO_NOT_EXPOSE_APPROVAL_SOURCE"), request(true), response);
+            assertEquals("합성 결재선", json.readTree(response.getContentAsString())
+                    .at("/data/" + page.getValue() + "/label").asString());
+            assertFalse(response.getContentAsString().contains("DO_NOT_EXPOSE_APPROVAL_SOURCE"));
+        }
+    }
+
     private MockHttpServletRequest request(boolean api) {
         var request = new MockHttpServletRequest();
         if (api) request.addHeader("Accept", "application/vnd.worklog.page+json");

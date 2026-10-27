@@ -11,6 +11,7 @@ import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.common.tenant.CompanyReadAccess;
 import kr.tna.org.OrgException;
+import kr.tna.request.LeaveWorkflowService;
 import kr.tna.worktime.WorktimeService;
 import kr.tna.workspace.ProfileCompanyData.*;
 import org.springframework.stereotype.Service;
@@ -23,14 +24,16 @@ public final class ProfileCompanyQueries {
     private final ProfileCompanyMapper mapper;
     private final WorktimeService worktime;
     private final Clock clock;
+    private final LeaveWorkflowService workflow;
 
     public ProfileCompanyQueries(BusinessCommands personal, CompanyReadAccess company, ProfileCompanyMapper mapper,
-            WorktimeService worktime, Clock clock) {
+            WorktimeService worktime, Clock clock,LeaveWorkflowService workflow) {
         this.personal = personal;
         this.company = company;
         this.mapper = mapper;
         this.worktime = worktime;
         this.clock = clock;
+        this.workflow = workflow;
     }
 
     public ProfileView profile(TnaPrincipal actor) {
@@ -39,10 +42,11 @@ public final class ProfileCompanyQueries {
             return personal.read(actor, () -> {
                 var row = mapper.profile(actor.tenantId(), actor.accountId(), actor.employeeId(), today());
                 if (row == null) throw OrgException.notFound();
+                var approval = workflow.approvalPreview(actor);
                 return new ProfileView(row.employeeNo(), row.employeeName(), row.companyName(), row.email(),
-                        row.joinedOn(), row.leftOn(), row.organizationName(), row.scheduleName(), row.approverName(),
-                        row.approverEligible(), List.copyOf(mapper.roles(actor.tenantId(), actor.accountId())), clock.instant(),
-                        row.organizationHeadName(), row.organizationHeadEligible(), row.organizationHeadApproverEligible());
+                        row.joinedOn(), row.leftOn(), row.organizationName(), row.scheduleName(), approval.approverName(),
+                        approval.eligible(), List.copyOf(mapper.roles(actor.tenantId(), actor.accountId())), clock.instant(),
+                        row.organizationHeadName(), row.organizationHeadEligible(), row.organizationHeadApproverEligible(),approval);
             });
         });
     }

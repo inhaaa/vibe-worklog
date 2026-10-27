@@ -30,14 +30,34 @@ public final class RequestData {
     public record ReassignForm(UUID approverEmployeeId,Long expectedVersion,String reason,UUID commandId) { }
     public record RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
             String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
-            long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
+            Long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
-            long version,String effectStatus,int quantityDays) { }
+            long version,String effectStatus,int quantityDays,UUID routeSnapshotId) {
+        @org.apache.ibatis.annotations.AutomapConstructor public RequestView { }
+        public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
+                String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
+                long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
+                UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
+                long version,String effectStatus,int quantityDays) {
+            this(id,targetEmployeeId,targetEmployeeName,authorAccountId,kind,status,currentApproverId,approverName,
+                    approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,
+                    originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,null);
+        }
+    }
     public record RequestDay(LocalDate leaveDate,int quantityDays,UUID scheduleVersionId,UUID calendarVersionId,String zeroReason) { }
     public record CorrectionDetail(LocalDate workDate,long baseInputRevision,String sourceFingerprint,
             String inAction,String outAction,Instant requestedInAt,Instant requestedOutAt,boolean presenceAsWork,
             boolean breaksConfirmed,String actualBreaks,UUID replacesRequestId,String beforeSnapshot) { }
     public record ApprovalHistory(String eventKind,UUID actorAccountId,String fromStatus,String toStatus,
             String reason,UUID previousApproverId,UUID newApproverId,Instant createdAt) { }
-    public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,List<ApprovalHistory> history) { }
+    public record ApprovalPreview(String source,String routeName,String approverName,boolean eligible,String message) { }
+    public record RouteSnapshot(String routeCode,String routeName,long revision,String scopeKind,String approverKind,
+            String organizationName,String resolvedApproverName,Instant resolvedAt) { }
+    public record ApprovalPage(List<RequestView> requests,int page,boolean hasNext,boolean completed) { }
+    public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
+            List<ApprovalHistory> history,RouteSnapshot routeSnapshot) {
+        public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,List<ApprovalHistory> history) {
+            this(request,days,correction,history,null);
+        }
+    }
 }

@@ -95,7 +95,7 @@ class ProfileCompanyWebIT {
         profile.properties().forEach(property -> names.add(property.getKey()));
         assertEquals(Set.of("employeeNo", "employeeName", "companyName", "email", "joinedOn", "leftOn",
                 "organizationName", "scheduleName", "approverName", "approverEligible", "roles", "asOf",
-                "organizationHeadName", "organizationHeadEligible", "organizationHeadApproverEligible"), names);
+                "organizationHeadName", "organizationHeadEligible", "organizationHeadApproverEligible", "approvalPreview"), names);
     }
 
     @Test

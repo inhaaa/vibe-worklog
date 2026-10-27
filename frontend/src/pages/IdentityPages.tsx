@@ -17,6 +17,13 @@ interface Profile {
   scheduleName: string | null;
   approverName: string | null;
   approverEligible: boolean;
+  approvalPreview?: {
+    source: string;
+    routeName: string | null;
+    approverName: string | null;
+    eligible: boolean;
+    message: string | null;
+  };
   roles: string[];
   asOf: string;
 }
@@ -170,6 +177,10 @@ function ProfilePage({ profile: p }: { profile: Profile }) {
     ['현재 결재 담당', p.approverName
       ? `${p.approverName} · ${p.approverEligible ? '현재 유효' : '재지정 필요'}`
       : '미배정'],
+    ...(p.approvalPreview ? [
+      ['적용 결재 경로', `${({ EMPLOYEE_ROUTE: '사원별 결재선', LEGACY: '기존 지정 승인자', ORGANIZATION_ROUTE: '조직별 결재선', NONE: '미배정' } as Record<string, string>)[p.approvalPreview.source] ?? '확인 필요'}${p.approvalPreview.routeName ? ` · ${p.approvalPreview.routeName}` : ''}`],
+      ...(!p.approvalPreview.eligible && p.approvalPreview.message ? [['신청 전 확인', p.approvalPreview.message]] : []),
+    ] : []),
     ['현재 역할·기능', formatRoles(p.roles)],
   ];
   return (

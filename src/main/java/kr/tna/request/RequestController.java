@@ -21,7 +21,8 @@ public class RequestController {
     private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;private final Clock clock;
     public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;}
     @GetMapping("/me/requests") ModelAndView mine(@AuthenticationPrincipal TnaPrincipal a){return minePage(a,null);}
-    @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a){return listing("지정 승인함",flow.inbox(a));}
+    @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,false,page);}
+    @GetMapping("/approvals/completed") ModelAndView completed(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,true,page);}
     @GetMapping("/admin/requests") ModelAndView adminRequests(@AuthenticationPrincipal TnaPrincipal a){return listing("고객사 신청 현황",flow.adminRequests(a));}
     @GetMapping("/requests/{id}") ModelAndView detail(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id){return detailPage(a,id);}
     @PostMapping("/me/requests/leave") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b){check(b);return submit(()->flow.submitLeave(a,f),()->minePage(a,f),"/requests/");}
@@ -42,6 +43,7 @@ public class RequestController {
     private long bucketVersion(TnaPrincipal a,UUID employee,UUID id){return flow.buckets(a,employee).stream().filter(x->x.id().equals(id)).findFirst().orElseThrow(OrgException::notFound).version();}
     private ModelAndView minePage(TnaPrincipal a,LeaveForm f){return new ModelAndView("request/mine").addObject("requests",flow.mine(a)).addObject("buckets",flow.buckets(a,a.employeeId())).addObject("form",f!=null?f:new LeaveForm(null,commands.today().plusDays(1),commands.today().plusDays(1),null,"",UUID.randomUUID()));}
     private ModelAndView listing(String title,List<RequestView> requests){return new ModelAndView("request/list").addObject("title",title).addObject("requests",requests);}
+    private ModelAndView approvalPage(TnaPrincipal a,boolean completed,int page){var data=flow.approvalPage(a,completed,page);return listing(completed?"내가 처리한 결재":"결재 대기함",data.requests()).addObject("page",data.page()).addObject("hasNext",data.hasNext()).addObject("completed",data.completed());}
     private ModelAndView detailPage(TnaPrincipal a,UUID id){
         var detail=flow.get(a,id);var r=detail.request();boolean admin=a.roles().contains("ATTENDANCE_ADMIN");boolean pending=r.status().equals("PENDING");
         boolean cancelableEffect=r.kind().equals("LEAVE_DAY")&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE");
