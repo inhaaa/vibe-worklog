@@ -1,5 +1,7 @@
 # 시스템 아키텍처
 
+> 2026-10-26 후속 결정: 사용자가 기존 전체 화면의 React 전환을 승인했다. 현재 표현 계층은 [ADR-0003](../adr/0003-react-frontend.md)과 [React 전환 계약](../superpowers/specs/2026-10-26-react-full-migration.md)을 따른다. 아래 Phase3의 Thymeleaf·htmx 선택은 결정 이력이며, 모듈·업무·테넌트 경계는 유지한다.
+
 ## 1. 상태와 범위
 
 - 기준일: 2026-10-24, Phase 3 설계 결정. 구현·실행 검증 완료를 뜻하지 않는다.
@@ -23,7 +25,7 @@ Thymeleaf 서버 렌더링을 기본으로 하고 htmx는 목록·검증·처리
 ```mermaid
 flowchart TB
     B[PC·모바일 브라우저] -->|HTTPS| P[Caddy 신뢰 프록시]
-    P --> W[Spring MVC·Thymeleaf·htmx]
+    P --> W[Spring MVC JSON 화면 데이터·React 정적 자원]
     W --> A[인증·테넌트·객체 권한 검증]
     A --> S[Java 업무 서비스·트랜잭션]
     S --> M[MyBatis Mapper]

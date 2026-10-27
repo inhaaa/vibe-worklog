@@ -32,7 +32,6 @@ org.apache.tomcat.embed,tomcat-embed-el,11.0.27,compile,"Apache License, Version
 org.apache.tomcat.embed,tomcat-embed-websocket,11.0.27,compile,"Apache License, Version 2.0",http://www.apache.org/licenses/LICENSE-2.0.txt,org.apache.tomcat.embed:tomcat-embed-websocket:11.0.27
 org.apiguardian,apiguardian-api,1.1.2,test,"The Apache License, Version 2.0",http://www.apache.org/licenses/LICENSE-2.0.txt,org.apiguardian:apiguardian-api:1.1.2
 org.assertj,assertj-core,3.27.7,test,Apache-2.0,https://www.apache.org/licenses/LICENSE-2.0.txt,org.assertj:assertj-core:3.27.7
-org.attoparser,attoparser,2.0.7.RELEASE,compile,"The Apache Software License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0.txt,org.attoparser:attoparser:2.0.7.RELEASE
 org.awaitility,awaitility,4.3.0,test,Apache 2.0,http://www.apache.org/licenses/LICENSE-2.0.txt,org.awaitility:awaitility-parent:4.3.0
 org.checkerframework,checker-qual,3.55.1,runtime,The MIT License,https://opensource.org/licenses/MIT,org.checkerframework:checker-qual:3.55.1
 org.flywaydb,flyway-core,12.4.0,compile,"Apache License, Version 2.0",https://github.com/flyway/flyway/blob/main/README.txt,org.flywaydb:flyway-parent:12.4.0
@@ -95,14 +94,12 @@ org.springframework.boot,spring-boot-starter-logging,4.1.2,compile,"Apache Licen
 org.springframework.boot,spring-boot-starter-micrometer-metrics,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-micrometer-metrics:4.1.2
 org.springframework.boot,spring-boot-starter-security,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-security:4.1.2
 org.springframework.boot,spring-boot-starter-test,4.1.2,test,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-test:4.1.2
-org.springframework.boot,spring-boot-starter-thymeleaf,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-thymeleaf:4.1.2
 org.springframework.boot,spring-boot-starter-tomcat,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-tomcat:4.1.2
 org.springframework.boot,spring-boot-starter-tomcat-runtime,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-tomcat-runtime:4.1.2
 org.springframework.boot,spring-boot-starter-webmvc,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-webmvc:4.1.2
 org.springframework.boot,spring-boot-starter-webmvc-test,4.1.2,test,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-starter-webmvc-test:4.1.2
 org.springframework.boot,spring-boot-test,4.1.2,test,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-test:4.1.2
 org.springframework.boot,spring-boot-test-autoconfigure,4.1.2,test,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-test-autoconfigure:4.1.2
-org.springframework.boot,spring-boot-thymeleaf,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-thymeleaf:4.1.2
 org.springframework.boot,spring-boot-tomcat,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-tomcat:4.1.2
 org.springframework.boot,spring-boot-transaction,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-transaction:4.1.2
 org.springframework.boot,spring-boot-web-server,4.1.2,compile,"Apache License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0,org.springframework.boot:spring-boot-web-server:4.1.2
@@ -118,9 +115,6 @@ org.testcontainers,testcontainers-database-commons,2.0.5,test,MIT,http://opensou
 org.testcontainers,testcontainers-jdbc,2.0.5,test,MIT,http://opensource.org/licenses/MIT,org.testcontainers:testcontainers-jdbc:2.0.5
 org.testcontainers,testcontainers-junit-jupiter,2.0.5,test,MIT,http://opensource.org/licenses/MIT,org.testcontainers:testcontainers-junit-jupiter:2.0.5
 org.testcontainers,testcontainers-postgresql,2.0.5,test,MIT,http://opensource.org/licenses/MIT,org.testcontainers:testcontainers-postgresql:2.0.5
-org.thymeleaf,thymeleaf,3.1.5.RELEASE,compile,"The Apache Software License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0.txt,org.thymeleaf:thymeleaf-parent:3.1.5.RELEASE
-org.thymeleaf,thymeleaf-spring6,3.1.5.RELEASE,compile,"The Apache Software License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0.txt,org.thymeleaf:thymeleaf-parent:3.1.5.RELEASE
-org.unbescape,unbescape,1.1.6.RELEASE,compile,"The Apache Software License, Version 2.0",http://www.apache.org/licenses/LICENSE-2.0.txt,org.unbescape:unbescape:1.1.6.RELEASE
 org.xmlunit,xmlunit-core,2.11.0,test,"The Apache Software License, Version 2.0",http://www.apache.org/licenses/LICENSE-2.0.txt,org.xmlunit:xmlunit-parent:2.11.0
 org.yaml,snakeyaml,2.6,compile,"Apache License, Version 2.0",http://www.apache.org/licenses/LICENSE-2.0.txt,org.yaml:snakeyaml:2.6
 tools.jackson.core,jackson-core,3.1.7,compile,"The Apache Software License, Version 2.0",https://www.apache.org/licenses/LICENSE-2.0.txt,tools.jackson.core:jackson-core:3.1.7

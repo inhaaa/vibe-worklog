@@ -1,5 +1,19 @@
 # 로컬 개발 환경
 
+> 현재 PostgreSQL 실행 이미지는 같은 PGDG18.6 source 기반 `18.6-1.pgdg12+2+worklog1`이다. XML/XSLT/LLVM을 비활성화하고 libxml2·XSLT·LLVM/JIT·xml2 모듈을 제외했다. **현재 SQL/XML·JIT는 지원하지 않는다.** upstream SQL231개·Java496개(97+399)·Python62개·실제 HTTP/Excel·기존 물리/논리 백업 복원과 기본 데이터35테이블 보존은 [최신 보고서](../quality/libxml-containment.md)를 따른다. source/패키징 hash·빌드 profile·업데이트 조건은 [ADR-0004](../adr/0004-postgresql-without-xml.md)에 기록했다. 첫 PG 콜드 빌드는 source 컴파일·자체 회귀로 시간이 필요하며 Testcontainers INFO 출력이 간략할 수 있다. 이후에는 Docker 빌드 cache를 사용한다.
+
+> 2026-10-27 잔여 보완 최신 결과: Java493개(단위97·PG 통합396)·Python62개·실제 HTTP 보안24개·multipart12개·60초 smoke와 합성 DB dump/restore·기본 DB35개 테이블 보존을 확인했다. PostgreSQL에서 runtime 불필요 GPG·SQLite 16개를 제외했으며 `src/test/resources/testcontainers.properties`의 공식 `ryuk.container.privileged=false`와 실제 자동 정리를 검증했다. 환경/홈 설정이 우선하므로 다른 Docker 환경은 실효 설정과 지원 여부를 확인해야 한다. libxml2와 빌드·테스트 도구의 잔여 조건 및 재검사 범위는 [서비스 영향 보고서](../quality/react-residual-impact.md)를 따른다. 아래 이전 검증의 프론트95개·33분 부하는 이번에 재실행하지 않았다.
+
+현재 `PostgresImageSecurityIT`의 이미지 전용6개 검증은 소유 Docker DB에서 실행한다. 전용 JDBC를 직접 지정하는 native DB 방식에서는 해당6개를 건너뛰므로 no-XML 이미지 검증을 대체하지 않는다. 현재 최종496개는 Docker 경로에서 skip0이다. 아래493개는 이전 잔여 보완의 이력이다.
+
+> 2026-10-26 최신 프론트는 React19.3.1·TypeScript6.0.3·Vite8.3.5다. Java25 외에 Node.js22.12 이상과 npm이 필요하다. Maven의 generate-resources에서 프로젝트 전용 `npm ci`와 타입 검사·프론트 빌드를 실행해 결과를 JAR에 포함한다. 기존 Thymeleaf/htmx 화면의 검증은 당시 이력이며 [현재 결과](../quality/react-migration.md)와 [ADR-0003](../adr/0003-react-frontend.md)을 따른다.
+
+프론트 단위 검증은 `npm --prefix frontend test`다. 백엔드를18080에서 실행한 뒤 `npm --prefix frontend run dev`로127.0.0.1:5173의 Vite 개발 서버를 시작한다. 개발 HTML은 Vite가, 같은 출처의 JSON·폼·CSS와 직접 Excel 다운로드(`/admin/reports/exports/{id}/download`, query 포함)는 loopback 백엔드 프록시가 제공한다. 별도 CORS·인증 완화는 하지 않는다. JAR/컨테이너에서는 빌드된 React를 Spring이 직접 제공하므로 Node 실행 서버가 필요 없다. Linux Docker 빌드에도 별도 고정 Node builder를 사용한다.
+
+2026-10-27 최종 보안·부하 검증은 Java489개·프론트95개·Python62개·HTTP24개·multipart12개와 실제33분15,471요청 예상 밖 오류0·p95 247.902ms다. 전체 이미지7종·보안 수정·원장·기본 DB35개 테이블 전체 행 SHA256 보존과 남은 항목은 [최종 보고서](../quality/react-soak-security.md)를 따른다. 앞선3건 수정은 [당시 기록](../quality/react-review-fixes.md)에 보존한다.
+
+Linux이미지는 Temurin25.0.5+8·Node22.23.4/npm11.21.1·Brotli 공식 수정판을 사용한다. PostgreSQL은 같은18.6에 OpenSSL u2와 gosu1.20을 적용한 `infra/postgres/Dockerfile`에서 빌드한다. Compose의 `docker compose build db app migrate`와 Testcontainers가 이 공통 PG 정의를 사용하며 최초/캐시 확인에 공개 APT·공식 배포물 접근이 필요하다. 검증·지원 대상은 linux/amd64다. 호스트 전용 JDK/Node는 이번에 변경하지 않았다.
+
 Phase 4 기반·Phase 5 고정 근무 MVP와 Phase 6 로컬 검증을 실행하는 안내다. 아래 날짜별 결과는 당시 이력이며 최신 보안 패치·검사 범위는 [HTTP·취약점 후속 보고서](../quality/http-soak-vulnerability.md)를 따른다. 제품 범위는 [PRD](../prd.md), 업무별 구현 계약은 연결된 `design` 문서, 버전·라이선스 근거는 [ADR-0001](../adr/0001-technology-baseline.md)을 따른다.
 
 공식 수정판 공급의 후속 확인은 [공급 재확인 보고서](../quality/security-supply-recheck.md)를 따른다. Windows/Noble JDK·bookworm libxml2는 공급 대기이며 gosu1.20은 서명·파생 이미지·회귀 검증이 남은 적용 후보로 구분했다. 이 재확인은 기존 설치판 변경이나 테스트 재실행이 아니다.

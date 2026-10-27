@@ -18,9 +18,23 @@
 - 출처: [공식 고정 태그의 배포 파일](https://raw.githubusercontent.com/bigskysoftware/htmx/v2.0.11/dist/htmx.min.js), [라이선스](https://raw.githubusercontent.com/bigskysoftware/htmx/v2.0.11/LICENSE).
 - 라이선스: BSD Zero Clause License (0BSD).
 - 배포 파일 SHA256: `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`.
-- 원본 자산을 수정하지 않았으며 애플리케이션에서 직접 제공한다.
+- 원본 자산을 수정하지 않았다. 2026-10-26 React 전환 이후 소스 대조 이력으로만 보존하며 신규 JAR에서는 실행 파일을 제외하고 실제 화면에서 로드하지 않는다.
+
+## React 프론트엔드
+
+- 런타임: React19.3.1·ReactDOM19.3.1·Scheduler0.28.0, MIT. 세 패키지의 설치 LICENSE는 동일하며 [전문](LICENSES/react-MIT.txt)을 보존한다. 빌드 결과에도 `/react/THIRD_PARTY_LICENSES.txt`로 포함한다.
+- 프론트 개발 도구의 고정 버전·공식 호환성·라이선스 검토는 [ADR-0003](docs/adr/0003-react-frontend.md)을 따른다. 잠금 파일의 전체 플랫폼별 의존성 metadata는 [프론트 CSV](docs/development/frontend-licenses.csv)에 기록했다. 설치하지 않은 선택적 플랫폼 패키지도 포함한 목록이며 모든 도구가 런타임에 배포되는 것은 아니다.
+- Exec Maven Plugin3.6.4는 Apache-2.0이며 npm 설치/빌드를 실행하는 빌드 전용 도구다. Node builder와 JRE runtime을 분리한다. 전체 컨테이너 OS·배포물의 법률 감사를 대신하지 않는다.
+
+## PostgreSQL 로컬 no-XML 변형
+
+- PostgreSQL18.6·PGDG18.6-1.pgdg12+2의 공식 source/packaging을 사용해 XML/XSLT/LLVM 소비자를 제외한 프로젝트 빌드 `18.6-1.pgdg12+2+worklog1`을 만든다. 원본 PGDG 바이너리와 구분하며 서버 코드는 수정하지 않는다.
+- [ADR-0004](docs/adr/0004-postgresql-without-xml.md)와 [Dockerfile](infra/postgres/Dockerfile)에 출처·hash·옵션·빌드 계약을 기록한다. 원본 source의 COPYRIGHT와 설치 DEB의 파일별 `/usr/share/doc/*/copyright`를 유지하며, runtime의 `/usr/share/doc/postgresql-18/worklog-no-xml-build.txt`에 변형 고지를 추가한다.
+- PostgreSQL 자체는 [PostgreSQL License](https://www.postgresql.org/about/licence/)를 따르며 Debian 패키징·전이 라이브러리의 개별 고지를 대체하지 않는다. 빌드 전용 문서 도구의 XML 라이브러리가 runtime에 배포되는 것은 아니다.
 
 ## Maven 의존성 조사
+
+2026-10-26 React 전환 뒤 현재 CSV를 실제 Maven 앱/테스트 의존성120개와 대조해 갱신했다. 아래126개는 이전 조사 이력이다. Thymeleaf 관련6개를 제외했고 남은 좌표의 기존 라이선스 출처를 보존했으며 미확인 metadata는0개다.
 
 2026-10-24 실제 해석한 프로젝트 의존성 126개(테스트 포함)의 좌표·범위·라이선스 메타데이터를 [CSV](docs/development/dependency-licenses.csv)에 기록했다. 2026-10-25 보안 패치로 MyBatis3.6.0 및 라이선스를 선언한 parent POM 좌표를 갱신하고 전체126개 좌표·scope를 다시 대조했다. 각 아티팩트의 POM과 상속한 parent POM의 `licenses`를 사용했으며, 라이선스를 명시한 POM 좌표도 함께 남겼다. 조사 당시 라이선스 메타데이터가 없는 항목은 0개였다.
 

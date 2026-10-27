@@ -1,5 +1,7 @@
 # 화면·HTTP 인터페이스 설계
 
+> 2026-10-26 전체 React 전환: 기존 URL·폼 인코딩·명령/버전·상태·업무 권한을 유지하고, 실제 화면은 React가 렌더한다. 화면 JSON Accept·bootstrap·세션 오류·탐색/입력 보존의 최신 표현 계약은 [전체 전환 명세](../superpowers/specs/2026-10-26-react-full-migration.md), 기술 결정은 [ADR-0003](../adr/0003-react-frontend.md)을 따른다. 아래 SSR/htmx 설명은 이전 구현 이력이다.
+
 ## 1. 상태와 화면 원칙
 
 초기 기준일: 2026-10-24. [PRD](../prd.md)의 MVP 화면·요청 기준선을 보존하며, 2026-10-26 승인된 [A안 워크스페이스](ui-redesign-proposal.md)의 소개·홈·개인 달력·직원 목록과 공통 shell 계약을 반영했다. 기존 기획 URL의 구현 차이는 후속 상세 명세·현재 controller를 따른다. 실행·검증 현황은 [PRD](../prd.md)·[개발 안내](../development/local.md)·[워크스페이스 UI 품질 보고](../quality/workspace-ui.md)를 따른다. [데이터 모델](data-model.md), [승인 규칙](../rules/workflow.md), [계산 규칙](../rules/calculation.md), [보안 설계](security.md)를 함께 따른다.

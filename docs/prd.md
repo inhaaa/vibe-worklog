@@ -1,10 +1,20 @@
 # vibe-attendance 제품 요구사항 문서 (PRD)
 
+> 2026-10-27 libxml2 차단: XML을 쓰지 않는 현재 MVP에 대해 같은 PGDG18.6 소스의 XML/XSLT/LLVM 없는 패키지를 채택했다. runtime libxml2·관련 소비자 제거, XML SQL/binary 입력 거부와 upstream231·Java496·Python62·실제 HTTP·기존 물리/논리 복원·35테이블 보존을 검증했다. 현재 XML·JIT 미지원 조건과 업데이트 의무는 [ADR-0004](adr/0004-postgresql-without-xml.md), 실제 완료 범위는 [검증 보고서](quality/libxml-containment.md)를 따른다. 아래 libxml2 공급 대기/P1은 이전 구성의 이력이며 운영 수용 전체 완료는 아니다.
+
+> 2026-10-27 잔여 보안 보완: 기존2,035행의 서비스 영향·공식 공급을 전수 대조하고 불필요 PG GPG/SQLite 제외·Ryuk 비특권 설정을 검증했다. Java493개·Python62개·실제 HTTP/백업 복원/자동 정리·기본 DB 보존을 확인했다. 변경 PG2종 재검사와 기존 고정 이미지 비교는 [현재 영향 보고서](quality/react-residual-impact.md)를 따른다. libxml2 SQL 경로·미수정 도구와 운영 배포 전 조건은 남는다. 아래33분 부하는 직전 실행의 이력이다.
+
+> 2026-10-26 추가 실행: 사용자가 승인한 전체 React 전환을 반영했다. 현재 표현 계층·검증은 [ADR-0003](adr/0003-react-frontend.md)과 [React 전환 보고서](quality/react-migration.md)를 따른다. Java479개·프론트71개·Python47개·새 이미지/HTTP/브라우저 검증을 아래 이전 홈 단위 결과와 구분한다. 신규 업무 확장 기능·운영 수용 완료를 뜻하지 않는다.
+
+> 2026-10-27 재점검 후속: 사용자 승인한 탐색 오류·개발 다운로드·운영자 반환 전 권한 검증 3건을 수정했다. Java487개·프론트95개·Python47개·HTTP24개 및 기본 DB 보존·최종 실행 검증은 [수정 보고서](quality/react-review-fixes.md)를 따른다. 아래 최초 전환·이전 단계 수치는 당시 이력이다.
+
+> 2026-10-27 보안·장시간 후속: 현재 React 계약으로 검사 도구를 갱신하고 Node/npm·Temurin·Brotli·PostgreSQL OpenSSL/gosu의 적용 가능한 수정을 검증했다. Java489개·프론트95개·Python62개, 실제33분15,471요청 예상 밖 오류0·p95 247.902ms, 이미지7종·기본 DB35개 테이블 전체 행/권한/클러스터/볼륨 보존은 [최종 보고서](quality/react-soak-security.md)를 따른다. 공급 대기·미확인 보안 항목은 남아 있으며 운영 수용 완료가 아니다.
+
 ## 1. 문서 목적과 상태
 
 | 항목 | 내용 |
 | --- | --- |
-| 작성 기준일 | 최초 2026-10-24, 진행 상태 동기화 2026-10-26 |
+| 작성 기준일 | 최초 2026-10-24, 진행 상태 동기화 2026-10-27 |
 | 프로젝트 | 표시명 **WorkLog(워크로그)** / 저장소 `vibe-attendance` / 내부 식별자 `tna` (Time & Attendance) |
 | 단계 | Phase 1~3 제품·설계 기준선을 유지하며 Phase 6 로컬 MVP 품질 검증 |
 | 상태 | D01~D05 유지. 지원 MVP의 구현·로컬 연결/회귀·최종 Linux HTTP/부하 검증 완료. 실제 고객·법적 예외·운영 수용은 미완료 |

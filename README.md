@@ -23,7 +23,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
-- 현재 로컬 데모: 입력 없이 데모 입장, 흰색·파란 업무 테마와 하루 흐름 홈·개인 달력·직원 목록, Java467개·Python42개 통과 ([현재 결과](docs/quality/dayflow-home.md))
+- 현재 로컬 데모: 전체 화면 React 전환, 입력 없는 데모·하루 흐름 홈·개인 달력·관리/신청/집계, Java496개·Python62개·PostgreSQL XML 경로 제거와 데이터 보존 검증 ([최신 검증](docs/quality/libxml-containment.md))
 
 ## Overview
 
@@ -52,19 +52,19 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 | Category | Technology |
 |---|---|
-| Language | Java 25 (Eclipse Temurin 25.0.4.1+1) |
+| Language | Java 25 (컨테이너 Eclipse Temurin 25.0.5+8) |
 | Backend | Spring Boot 4.1.2 |
 | Data Access | MyBatis Spring Boot Starter 4.1.0 / MyBatis 3.6.0 (보안 패치·저장소 회귀 검증) |
-| Database | PostgreSQL 18.6 |
-| Frontend | Thymeleaf 3.1.5.RELEASE, htmx 2.0.11, HTML/CSS/JavaScript |
+| Database | PostgreSQL 18.6, 로컬 PGDG 기반 no-XML/no-LLVM 변형 ([ADR-0004](docs/adr/0004-postgresql-without-xml.md)) |
+| Frontend | React 19.3.1, TypeScript 6.0.3, Vite 8.3.5, CSS |
 | Security | Spring Security |
 | Build | Maven 3.9.16, Maven Wrapper 3.3.4 |
 | Migration | Flyway 12.4.0 (웹앱과 별도 실행) |
-| Testing | Boot 관리 JUnit 6.0.3, Testcontainers |
+| Testing | Boot 관리 JUnit 6.0.3, Testcontainers, Vitest 5.0.5 |
 | Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
-[ADR-0001](docs/adr/0001-technology-baseline.md)에 공식 기술 근거를 기록했습니다. 최신 Java25 빌드·패키징과 실제 PostgreSQL 통합을 포함한 전체467개(단위76·통합391), Python 도구42개 테스트를 확인했습니다. 현재 하루 흐름 홈·입력 없는 데모·HTTP62개·브라우저10개 관측과 새 app/migrate 실행 검증은 [홈 적용 결과](docs/quality/dayflow-home.md)를 따릅니다. 이번 홈 이미지의 취약점 스캔·33분 부하는 재실행하지 않았으며 이전 [A안 검사](docs/quality/workspace-ui.md)와 구분합니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 데모 최초 적용 당시 이미지 보안·Ryuk 검증은 [보안 재검사 이력](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성126개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
+[ADR-0001](docs/adr/0001-technology-baseline.md)에 백엔드 기준선을, [ADR-0003](docs/adr/0003-react-frontend.md)에 전체 React 전환 근거를 기록했습니다. 직전 보안·부하 검증의 Java489개(단위96·전용 PostgreSQL 통합393)·프론트95개·Python62개·HTTP24개·multipart12개, 33분15,471요청 예상 밖 오류0·p95 247.902ms와 전체 이미지7종 검사·보안 수정·DB 보존은 [최종 보안·부하 보고서](docs/quality/react-soak-security.md)를 따릅니다. 탐색·다운로드·운영자 조회 3건 수정 이력은 [당시 보고서](docs/quality/react-review-fixes.md)에 보존합니다. 최초 전환 이력은 [React 전환 보고서](docs/quality/react-migration.md)에 보존합니다. 이전 하루 흐름 홈의467개·Python42개·HTTP62개·브라우저10개 관측은 [당시 결과](docs/quality/dayflow-home.md)의 이력입니다. 최신 보안 이미지의 실제33분·이미지 검사를 이전 [A안 검사](docs/quality/workspace-ui.md)·홈 이미지 기록과 구분합니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 데모 최초 적용 당시 이미지 보안·Ryuk 검증은 [보안 재검사 이력](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성120개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
 
 Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조회 직렬화를 수정했습니다. 로컬 합성 부하498개는 오류0이며 동일 고객사 월 조회 p95는2.29→0.85초였습니다. 운영 용량·SLA를 확정하는 결과는 아닙니다.
 
@@ -88,9 +88,13 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 ## Local Development
 
+현재 로컬 PostgreSQL은 같은18.6 source를 XML/XSLT/LLVM 없이 패키징한 `18.6-1.pgdg12+2+worklog1`이다. 실행 이미지에서 libxml2와 관련 소비자를 제거했으며 XML·JIT는 지원하지 않는다. upstream SQL231개·Java496개·Python62개·실제 HTTP/Excel/승인과 기존 물리/논리 백업 복원·기본 DB35개 테이블 보존을 검증했다. [현재 보고서](docs/quality/libxml-containment.md)는 libxml 자체 패치와 현재 runtime 경로 제거를 구분하며 다른 잔여 경고·업데이트 유지 조건을 기록한다.
+
+2026-10-27 잔여 보완에서 PostgreSQL의 불필요 GPG·SQLite 16개 패키지를 제외하고 공식 테스트 설정으로 Ryuk privileged 모드를 껐습니다. 최종 Java493개·Python62개·실제 HTTP/백업 복원·자동 정리·기본 DB35개 테이블 보존을 통과했습니다. 변경 PG2종 재검사와 기존5종의 고정 결과를 대조한 원시 매치는2,035→1,911행이며 유일 CVE 수가 아닙니다. 실제 SQL XML 경로와 공급 대기·빌드/테스트 경계는 [서비스 영향 보고서](docs/quality/react-residual-impact.md)를 따릅니다. 프론트95개·33분 부하는 위 직전 검증의 이력입니다.
+
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 소개 화면의 **데모로 입장** 버튼으로 입력 없이 들어갑니다. 기존 공개 합성 `admin / admin`을 정상 CSRF POST 인증에 연결했습니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. 흰색·파란 업무 테마의 하루 흐름 홈·개인 달력·직원 목록과 담당자의 조직·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 실제 일정·기초 연차가 없는 경우 미배정·미등록을 표시합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
 
-Java 25에서 `mvnw.cmd test`는 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB·컨테이너를 재사용하지 않습니다.
+Java 25와 Node.js 22.12 이상에서 `mvnw.cmd test`는 프론트 잠금 설치·타입/빌드와 Java 단위 테스트를, `mvnw.cmd verify`는 DB 통합 테스트까지 실행합니다. 프론트 단위 검증은 `npm --prefix frontend test`, Vite 개발 서버는 백엔드 실행 후 `npm --prefix frontend run dev`이며 `http://127.0.0.1:5173`에서 사용할 수 있습니다. 통합 테스트에는 Docker 또는 안내에 명시한 전용 로컬 테스트 PostgreSQL이 필요합니다. 기존 서비스의 DB를 테스트 대상으로 재사용하지 않습니다.
 
 ## Architecture
 
@@ -123,6 +127,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 ## Documentation
 
+- [React 전체 전환](docs/quality/react-migration.md): 전체 화면의 React·JSON/폼 계약·회귀·로컬 실행·브라우저 검증, [기술 결정](docs/adr/0003-react-frontend.md)
 - [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 내 정보·시트형 관리·공통/관리자/대표·조직장/결재선·코드 관리·연도별 모달 신청·월간 현황. 2026-10-26 승인 방향의 후속 설계이며 해당 기능 구현·운영 수용은 미완료
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
