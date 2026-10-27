@@ -1327,6 +1327,8 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
 }
 
 export function AdminPages({ page, data }: PageProps): React.ReactNode | null {
+  if ((page === 'org/employees' && data.employeeSheet) ||
+      (page === 'org/organizations' && data.organizationSheet)) return null;
   switch (page) {
     case 'org/employees':
       return <EmployeesPage model={data as unknown as EmployeesModel} />;

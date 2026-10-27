@@ -11,6 +11,9 @@ interface Profile {
   joinedOn: string;
   leftOn: string | null;
   organizationName: string | null;
+  organizationHeadName?: string | null;
+  organizationHeadEligible?: boolean;
+  organizationHeadApproverEligible?: boolean;
   scheduleName: string | null;
   approverName: string | null;
   approverEligible: boolean;
@@ -159,6 +162,10 @@ function ProfilePage({ profile: p }: { profile: Profile }) {
     ['입사일', fmtDate(p.joinedOn)],
     ['마지막 재직일', p.leftOn ? fmtDate(p.leftOn) : '미정'],
     ['현재 소속', p.organizationName ?? '미배정'],
+    ...(p.organizationHeadName !== undefined ? [
+      ['현재 조직장', p.organizationHeadName ? `${p.organizationHeadName}${p.organizationHeadEligible ? '' : ' · 재지정 필요'}` : '조직장 미배정'],
+      ['조직장 결재 자격', p.organizationHeadName && p.organizationHeadApproverEligible ? '현재 유효' : '조직장 결재 자격 없음'],
+    ] : []),
     ['적용 근무', p.scheduleName ?? '미배정'],
     ['현재 결재 담당', p.approverName
       ? `${p.approverName} · ${p.approverEligible ? '현재 유효' : '재지정 필요'}`

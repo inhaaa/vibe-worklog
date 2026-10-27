@@ -1,6 +1,8 @@
 package kr.tna.org;
 
 import java.util.UUID;
+import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -18,10 +20,12 @@ import org.springframework.web.servlet.view.RedirectView;
 public class OrgAdminController {
     private final OrganizationService organizations;
     private final EmployeeService employees;
+    private final OrganizationHeadService heads;
 
-    public OrgAdminController(OrganizationService organizations, EmployeeService employees) {
+    public OrgAdminController(OrganizationService organizations, EmployeeService employees, OrganizationHeadService heads) {
         this.organizations = organizations;
         this.employees = employees;
+        this.heads = heads;
     }
 
     @GetMapping("/admin/organizations")
@@ -89,11 +93,14 @@ public class OrgAdminController {
                 error -> employeeDetail(actor, id, null, form));
     }
 
-    private ModelAndView organizationList(TnaPrincipal actor, String q, int page, OrgData.OrganizationForm form) {
+    ModelAndView organizationList(TnaPrincipal actor, String q, int page, OrgData.OrganizationForm form) {
         var list = organizations.list(actor, q, page);
         var view = new ModelAndView("org/organizations")
                 .addObject("organizations", list.stream().limit(50).toList())
                 .addObject("hasNext", list.size() > 50).addObject("q", q).addObject("page", page)
+                .addObject("organizationSheet", BulkData.organizations(UUID.randomUUID(), "",
+                        list.stream().limit(50).toList(), List.of(), List.of()))
+                .addObject("organizationHeadsById", heads.organizationSheetHeads(actor))
                 .addObject("form", form != null ? form : new OrgData.OrganizationForm(
                         "", "", null, true, null, "", UUID.randomUUID()));
         return options(view, actor);
@@ -110,11 +117,12 @@ public class OrgAdminController {
         return employeeList(actor, q, page, form, null, "all", null);
     }
 
-    private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form,
+    ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form,
             UUID organizationId, String status, UUID employeeId) {
         var directory = employees.directory(actor, q, page, organizationId, status, employeeId);
         var list = directory.employees();
-        return options(new ModelAndView("org/employees").addObject("employees", list)
+        var view = new ModelAndView("org/employees").addObject("employees", list)
+                .addObject("employeeSheet", BulkData.employees(UUID.randomUUID(), "", list, List.of(), List.of()))
                 .addObject("employeeOrganizations", directory.organizationNames())
                 .addObject("selectedEmployee", directory.selectedEmployee())
                 .addObject("pageEmployeeCount", list.size())
@@ -123,7 +131,17 @@ public class OrgAdminController {
                 .addObject("organizationId", organizationId).addObject("status", status)
                 .addObject("hasNext", directory.hasNext()).addObject("q", q).addObject("page", page)
                 .addObject("form", form != null ? form : new OrgData.EmployeeForm(
-                        "", "", null, null, true, null, "", UUID.randomUUID())), actor);
+                        "", "", null, null, true, null, "", UUID.randomUUID()));
+        return options(employeeContext(view, actor, list), actor);
+    }
+
+    ModelAndView employeeContext(ModelAndView view, TnaPrincipal actor, List<OrgData.Employee> employees) {
+        var contexts = new LinkedHashMap<UUID, OrganizationHeadData.EmployeeContext>();
+        for (int offset = 0; offset < employees.size(); offset += 50) {
+            var ids = employees.subList(offset, Math.min(offset + 50, employees.size())).stream().map(OrgData.Employee::id).toList();
+            contexts.putAll(heads.employeeSheetContext(actor, ids));
+        }
+        return view.addObject("employeeContext", contexts);
     }
 
     private ModelAndView employeeDetail(TnaPrincipal actor, UUID id,

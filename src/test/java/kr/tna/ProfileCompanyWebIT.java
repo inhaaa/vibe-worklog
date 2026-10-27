@@ -94,7 +94,8 @@ class ProfileCompanyWebIT {
         var names = new HashSet<String>();
         profile.properties().forEach(property -> names.add(property.getKey()));
         assertEquals(Set.of("employeeNo", "employeeName", "companyName", "email", "joinedOn", "leftOn",
-                "organizationName", "scheduleName", "approverName", "approverEligible", "roles", "asOf"), names);
+                "organizationName", "scheduleName", "approverName", "approverEligible", "roles", "asOf",
+                "organizationHeadName", "organizationHeadEligible", "organizationHeadApproverEligible"), names);
     }
 
     @Test

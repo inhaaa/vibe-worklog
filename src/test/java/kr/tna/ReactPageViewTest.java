@@ -120,6 +120,22 @@ class ReactPageViewTest {
         }
     }
 
+    @Test
+    void sheetAndOrganizationPagesHaveExplicitSafeModels() throws Exception {
+        var pages = Map.of("org/organizations", "organizationSheet", "org/employees", "employeeSheet",
+                "org/organization-heads", "organizationHeads", "company/organizations", "companyOrganizations");
+        for (var page : pages.entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("commandId", "safe-model"),
+                    "privateSource", "DO_NOT_EXPOSE_SHEET_SOURCE"), request(true), response);
+            assertEquals("safe-model", json.readTree(response.getContentAsString())
+                    .at("/data/" + page.getValue() + "/commandId").asString());
+            assertFalse(response.getContentAsString().contains("DO_NOT_EXPOSE_SHEET_SOURCE"));
+        }
+    }
+
     private MockHttpServletRequest request(boolean api) {
         var request = new MockHttpServletRequest();
         if (api) request.addHeader("Accept", "application/vnd.worklog.page+json");

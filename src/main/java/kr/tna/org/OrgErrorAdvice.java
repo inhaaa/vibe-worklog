@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.ModelAndView;
 
-@ControllerAdvice(assignableTypes = {OrgAdminController.class, AccountAdminController.class, InvitationController.class, kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class, kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class, kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class, kr.tna.workspace.ProfileCompanyController.class})
+@ControllerAdvice(assignableTypes = {OrgAdminController.class, OrgBulkController.class, AccountAdminController.class, OrganizationHeadController.class, InvitationController.class, kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class, kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class, kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class, kr.tna.workspace.ProfileCompanyController.class})
 public class OrgErrorAdvice {
     @ExceptionHandler(OrgException.class)
     ModelAndView domain(OrgException exception) { return problem(exception.status(), exception.getMessage()); }

@@ -23,7 +23,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
-- 현재 로컬 데모: React 내 정보·역할별 메뉴·권한 관리·대표 회사 조회, Java515개·React113개·실제 HTTP51개·PC/모바일9회 관측·V11과 기존 데이터 보존 ([현재 검증](docs/quality/identity-access.md))
+- 현재 로컬 데모: React 조직·사원 원자적 시트·조직장 이력·회사 조직도·본인 조직장 표시, Java548개·React136개·실제 HTTP80개·PC/390px18회 관측·V12와 기존 자료/권한 보존 ([현재 검증](docs/quality/org-sheet-heads.md))
+- 권한 확장 1단계 이력: 내 정보·역할별 메뉴·권한 관리·대표 회사 조회, 당시 Java515개·React113개·HTTP51개·브라우저9회와 V11 검증 ([당시 결과](docs/quality/identity-access.md))
 - XML·JIT 차단 당시 이미지: 단계별5회 commit/push 후 새33분15,471요청·오류0·7.999req/s·p95 252.791ms, 사전 성능 조사 경고0·원장/Excel/기본 DB 보존 ([부하 재검증](docs/quality/no-xml-soak.md)). 이번 업무 확장 이미지의 재측정은 아님
 
 ## Overview
@@ -89,9 +90,11 @@ Phase 6에서는 권한 회수 중 조회·300명 사원 선택 누락·월 조�
 
 ## Local Development
 
-현재 로컬 PostgreSQL은 같은18.6 source를 XML/XSLT/LLVM 없이 패키징한 `18.6-1.pgdg12+2+worklog1`이다. 실행 이미지에서 libxml2와 관련 소비자를 제거했으며 XML·JIT는 지원하지 않는다. upstream SQL231개·Java496개·Python62개·실제 HTTP/Excel/승인과 기존 물리/논리 백업 복원·기본 DB35개 테이블 보존을 검증했다. [현재 보고서](docs/quality/libxml-containment.md)는 libxml 자체 패치와 현재 runtime 경로 제거를 구분하며 다른 잔여 경고·업데이트 유지 조건을 기록한다.
+현재 로컬 PostgreSQL은 같은18.6 source를 XML/XSLT/LLVM 없이 패키징한 `18.6-1.pgdg12+2+worklog1`이다. 실행 이미지에서 libxml2와 관련 소비자를 제거했으며 XML·JIT는 지원하지 않는다. 해당 구성 도입 당시 upstream SQL231개·Java496개·Python62개·실제 HTTP/Excel/승인과 기존 물리/논리 백업 복원·기본 DB35개 테이블 보존을 검증했다. [당시 보고서](docs/quality/libxml-containment.md)는 libxml 자체 패치와 현재 runtime 경로 제거를 구분하며 다른 잔여 경고·업데이트 유지 조건을 기록한다.
 
 2026-10-27 잔여 보완에서 PostgreSQL의 불필요 GPG·SQLite 16개 패키지를 제외하고 공식 테스트 설정으로 Ryuk privileged 모드를 껐습니다. 최종 Java493개·Python62개·실제 HTTP/백업 복원·자동 정리·기본 DB35개 테이블 보존을 통과했습니다. 변경 PG2종 재검사와 기존5종의 고정 결과를 대조한 원시 매치는2,035→1,911행이며 유일 CVE 수가 아닙니다. 실제 SQL XML 경로와 공급 대기·빌드/테스트 경계는 [서비스 영향 보고서](docs/quality/react-residual-impact.md)를 따릅니다. 프론트95개·33분 부하는 위 직전 검증의 이력입니다.
+
+2026-10-27 착수한 업무 확장 2단계는 2026-10-28에 조직·사원 시트 원자 저장, 조직장 적용일 이력, 관리자/대표 조직도와 본인 조직장 표시를 로컬 검증했습니다. Java101+447=548개·React136개/11파일·타입/Vite·HTTP56+24=80개와 PC/390px18회 관측을 확인했습니다. V12 추가 후 업무35개+Flyway1개 총36개 테이블이며 기존 업무34개의 전체 행·RLS/ACL/컬럼 권한과 DB 컨테이너·이미지·볼륨을 보존했습니다. 새 이미지의33분 부하·전체 취약점 검사·Python 재실행·외부 배포는 하지 않았습니다. 모바일 수정과 최종 실행 JAR 대조·실제 수행 범위는 [2단계 보고서](docs/quality/org-sheet-heads.md)를 따릅니다.
 
 고정 근무의 핵심 흐름과 계산·감사 상세·서울 시각 표시를 로컬에서 검증한 상태이며 운영 서비스는 아닙니다. 로컬 환경의 준비·실행·테스트 명령은 [개발 안내](docs/development/local.md)를 따릅니다. 기본 주소는 `http://127.0.0.1:18080`입니다. 현재 Compose의 `local,local-demo`에서는 소개 화면의 **데모로 입장** 버튼으로 입력 없이 들어갑니다. 기존 공개 합성 `admin / admin`을 정상 CSRF POST 인증에 연결했습니다. 합성 로컬 데모 전용이며 명시 CLI로 자료를 준비합니다. 일반 프로필은 회사코드·이메일 인증과 기존 비밀번호 정책을 유지합니다. 흰색·파란 업무 테마의 하루 흐름 홈·개인 달력·직원 목록과 담당자의 조직·소속·계정·역할·당일 승인자 관리 화면을 제공합니다. 실제 일정·기초 연차가 없는 경우 미배정·미등록을 표시합니다. 초대는 `local` 프로필의 메모리 모의 전달만 지원하며 외부 메일을 발송하지 않습니다. 사원 등록으로 로그인 계정을 자동 생성하지 않으며 비밀번호 재설정은 같은 메모리 모의 전달을 사용하며 최초 고객사 온보딩은 별도 운영자 UI의 명시적 활성화와 독립 로컬 부트스트랩을 사용합니다.
 
@@ -128,10 +131,11 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 ## Documentation
 
+- [React 조직·사원 시트·조직장·조직도](docs/quality/org-sheet-heads.md): 원자적 배치·오류/최신값 보존·V12·전체 회귀·실제 HTTP/화면과 기존 DB 보존
 - [React 권한·메뉴·내 정보](docs/quality/identity-access.md): 대표 회사 읽기·관리자 변경 분리, 현재 역할·본인 조회, 전체 회귀·V11·실제 로컬 검증과 남은 범위
 - [React 전체 전환](docs/quality/react-migration.md): 전체 화면의 React·JSON/폼 계약·회귀·로컬 실행·브라우저 검증, [기술 결정](docs/adr/0003-react-frontend.md)
 - [XML·JIT 차단 구성의 장시간 부하](docs/quality/no-xml-soak.md): 기존 변경의 단계별 게시·새33분 부하·이전 구성 비교·자원/종료 정합성
-- [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 1단계 권한·메뉴·내 정보는 React 구현·로컬 검증 완료. 시트·조직장/결재선·코드·본인 연도별 모달·월간 개선과 운영 수용은 후속
+- [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 1단계 권한·메뉴·내 정보와 2단계 조직·사원 시트·조직장·조직도는 React 구현·로컬 검증 완료. 새 결재선·권한/코드 시트·본인 연도별 모달·월간 개선과 운영 수용은 후속
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
@@ -142,7 +146,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [Worktime Results](docs/design/worktime-results.md): 일·주·월 결과·정책 근거·불변 검토용 Excel
 - [Worktime Engine](docs/design/worktime-engine.md): CALC-1 순수 산정과 미확정·부분합 계약
 - [Fixed Schedule](docs/design/fixed-schedule.md): 고정 템플릿·불변 버전·사원별 적용일 배정
-- [Organization Management](docs/design/org-management.md): Phase 5 첫 조직·사원·소속 관리 계약과 범위
+- [Organization Management](docs/design/org-management.md): 기존 단건·소속 관리와 React 조직·사원 배치·조직장·조직도 계약
 - [Operator Onboarding](docs/design/operator-onboarding.md): 독립 인증·신규 고객사·최초 초대 복구
 - [Password Reset](docs/design/password-reset.md): 목적·만료·일회성·세션 회수와 모의 전달
 - [Account Access](docs/design/account-access.md): 초대·역할·당일 승인자 배정 계약
@@ -172,7 +176,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 고정 근무 템플릿·사원별 적용일 배정
 - [ ] 운영 환경·배포 파이프라인 구성
 - [x] 대표 역할·React 역할별 메뉴·내 정보·권한 관리 진입·회사 읽기와 V11 로컬 검증
-- [ ] 시트형 관리·조직장·결재선·공통/근태코드·본인 연도별 모달·월간 현황 개선
+- [x] React 조직·사원 원자적 시트·조직장 적용일 이력·회사 조직도·본인 조직장 표시와 V12 로컬 검증
+- [ ] 새 결재선·권한/공통/근태코드 시트·본인 연도별 모달·월간 현황 개선
 - [x] 고정 근무 핵심 업무 흐름의 로컬 연결·회귀 검증
 - [x] 계산 당시 입력·정책·실행 근거 상세와 현재성·버전 구분
 - [x] 안전한 감사 전후 상세·추적 ID·양방향 커서 페이지 탐색

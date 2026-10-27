@@ -41,7 +41,8 @@ public final class ProfileCompanyQueries {
                 if (row == null) throw OrgException.notFound();
                 return new ProfileView(row.employeeNo(), row.employeeName(), row.companyName(), row.email(),
                         row.joinedOn(), row.leftOn(), row.organizationName(), row.scheduleName(), row.approverName(),
-                        row.approverEligible(), List.copyOf(mapper.roles(actor.tenantId(), actor.accountId())), clock.instant());
+                        row.approverEligible(), List.copyOf(mapper.roles(actor.tenantId(), actor.accountId())), clock.instant(),
+                        row.organizationHeadName(), row.organizationHeadEligible(), row.organizationHeadApproverEligible());
             });
         });
     }

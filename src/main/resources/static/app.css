@@ -485,3 +485,64 @@ body.workspace-body { background: #f5f7fb; }
     #tna-app .t-home-flow .t-flow-day strong { margin-top: 0; }
     #tna-app .t-home-flow .t-flow-compare-grid { grid-template-columns: minmax(0,1fr); }
 }
+
+/* Organization and employee sheets */
+#tna-app .t-org-sheet { min-width: 0; }
+#tna-app .t-sheet-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 10px; }
+#tna-app .t-sheet-toolbar .t-tag { margin-left: auto; }
+#tna-app .t-sheet-form > .t-subtle { margin-bottom: 14px; }
+#tna-app .t-sheet-scroll { position: relative; max-width: 100%; border: 1px solid var(--t-line); border-radius: 10px; }
+#tna-app .t-sheet-table { min-width: 970px; }
+#tna-app .t-sheet-table th { white-space: nowrap; background: #f8fafc; }
+#tna-app .t-sheet-table td { vertical-align: top; padding: 10px 7px; }
+#tna-app .t-sheet-table td > a { display: block; margin-top: 4px; }
+#tna-app .t-sheet-table .t-input, #tna-app .t-sheet-table .t-select { width: 100%; min-width: 110px; min-height: 38px; }
+#tna-app .t-sheet-table td:nth-child(3) { min-width: 170px; }
+#tna-app .t-sheet-table input[type=date] { min-width: 140px; }
+#tna-app .t-sheet-table .t-input[readonly] { background: #f6f8fb; border-color: transparent; }
+#tna-app .t-sheet-table [data-changed=true] { background: #f0f5ff; border-color: #8ba8ef; }
+#tna-app .t-sheet-table [data-operation=DEACTIVATE] { background: #fffbf0; }
+#tna-app .t-sheet-table .t-sheet-check { width: 20px; min-width: 20px; height: 20px; min-height: 20px; margin: 9px 0; }
+#tna-app .t-sheet-links { display: flex; flex-wrap: wrap; gap: 4px 10px; min-width: 140px; font-size: 11px; }
+#tna-app .t-sheet-links > span { flex-basis: 100%; color: var(--t-muted); }
+#tna-app .t-sheet-error { font-size: 11px; color: #9c3039; margin-top: 6px; }
+#tna-app .t-sheet-form [aria-invalid=true] { border-color: #ba454e; }
+#tna-app .t-sheet-reason { max-width: 600px; margin-top: 18px; }
+#tna-app .t-sheet-reason textarea { width: 100%; border: 1px solid var(--t-line); border-radius: 8px; padding: 10px; font: inherit; resize: vertical; }
+#tna-app .t-sheet-conflict { margin-top: 20px; padding: 16px; border: 1px solid #e6c486; border-radius: 10px; background: #fffbf0; }
+#tna-app .t-sheet-conflict > div { padding: 12px 0; border-bottom: 1px solid #eadfc9; }
+#tna-app .t-sheet-conflict dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 10px 0; }
+#tna-app .t-sheet-conflict dt { font-size: 10px; color: var(--t-muted); }
+#tna-app .t-sheet-conflict dd { margin: 0; overflow-wrap: anywhere; }
+#tna-app .t-organization-heads > .t-card, #tna-app .t-head-forms { margin-top: 20px; }
+#tna-app .t-head-history > .t-subtle { margin: 8px 0 18px; }
+#tna-app .t-head-history td small, #tna-app .t-head-history td .t-subtle { display: block; }
+#tna-app .t-head-history td .t-tag { display: inline-block; margin: 0 6px 6px 0; }
+#tna-app .t-head-forms { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; align-items: start; }
+#tna-app .t-head-forms > section > .t-muted { margin: 10px 0; }
+#tna-app .t-head-forms .admin-form button { margin-top: 18px; }
+#tna-app .t-org-layout { display: grid; grid-template-columns: minmax(240px,1fr) minmax(0,1.3fr); gap: 20px; margin-top: 18px; }
+#tna-app .t-org-layout > .t-card { min-width: 0; }
+#tna-app .t-org-tree { margin-top: 18px; }
+#tna-app .t-org-tree ul { list-style: none; padding: 0; margin: 0; }
+#tna-app .t-org-tree ul ul { padding-left: 18px; border-left: 1px solid var(--t-line); margin-left: 7px; }
+#tna-app .t-org-tree li { min-width: 0; }
+#tna-app .t-org-tree summary, #tna-app .t-org-leaf { padding: 12px 5px; overflow-wrap: anywhere; }
+#tna-app .t-org-tree summary { cursor: pointer; }
+#tna-app .t-org-tree a { font-weight: 600; }
+#tna-app .t-org-tree a[aria-current=true] { color: var(--t-blue); background: var(--t-blue-soft); border-radius: 4px; }
+#tna-app .t-head-status { display: block; margin-top: 6px; font-size: 12px; }
+#tna-app .t-head-status small { display: block; }
+#tna-app .t-org-selected-head { padding: 14px 0; }
+#tna-app .t-org-layout .t-toolbar { margin-top: 18px; }
+@container (max-width:950px) {
+    #tna-app .t-org-layout, #tna-app .t-head-forms { grid-template-columns: minmax(0,1fr); }
+}
+@container (max-width:600px) {
+    #tna-app .t-org-sheet .t-pagehead { flex-wrap: wrap; }
+    #tna-app .t-org-sheet .t-toolbar label { flex-basis: 100%; }
+    #tna-app .t-sheet-toolbar .t-btn { flex: 1; }
+    #tna-app .t-sheet-toolbar .t-tag { flex-basis: 100%; margin-left: 0; }
+    #tna-app .t-sheet-table .t-input, #tna-app .t-sheet-table .t-select { font-size: 16px; }
+    #tna-app .t-sheet-conflict dl { grid-template-columns: minmax(0,1fr); }
+}

@@ -8,6 +8,7 @@ import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
+import { OrgSheetPages } from './pages/OrgSheetPages';
 
 const publicPages = new Set([
   'login',
@@ -27,10 +28,12 @@ const titles: Record<string, string> = {
   'org/employee': '직원 상세',
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
+  'org/organization-heads': '조직장 배정',
   'org/access': '계정·권한',
   'org/access-list': '권한 관리',
   'company/attendance': '회사 근무현황',
   'company/requests': '회사 신청 현황',
+  'company/organizations': '조직도',
   'schedule/list': '근무 설정',
   'schedule/form': '근무 템플릿',
   'schedule/detail': '근무 템플릿',
@@ -76,6 +79,7 @@ const navigation = [
     items: [
       ['/company/attendance', '회사 근무현황', 'chart'],
       ['/company/requests', '회사 신청 현황', 'request'],
+      ['/company/organizations', '조직도', 'building'],
     ],
   },
   {
@@ -84,6 +88,7 @@ const navigation = [
     items: [
       ['/admin/employees', '직원 목록', 'people'],
       ['/admin/organizations', '조직 관리', 'building'],
+      ['/admin/organization-heads', '조직장 배정', 'people'],
       ['/admin/access', '권한 관리', 'people'],
       ['/admin/schedules', '근무 설정', 'settings'],
       ['/admin/calendar', '근무일·휴일', 'calendar'],
@@ -236,6 +241,7 @@ function Content(props: PageProps) {
       <AuthPages {...props} />
       <CorePages {...props} />
       <IdentityPages {...props} />
+      <OrgSheetPages {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>
@@ -251,15 +257,25 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const posting = useRef(false);
   const pending = useRef<AbortController | null>(null);
   const currentUrl = useRef(location.href);
+  const historyPosition = useRef<number>(Number.isInteger(history.state?.worklogPosition) ? history.state.worklogPosition : 0);
+  const restoringHistory = useRef(false);
+  const historyState = (position: number) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position });
   const workspace = !publicPages.has(envelope.page);
   const navigate = useCallback(
     async (
       url: string,
       options: RequestInit = {},
       historyMode: 'push' | 'replace' | 'none' = 'push',
+      discardConfirmed = false,
     ) => {
       if (posting.current && options.method?.toUpperCase() !== 'POST') {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
+        return;
+      }
+      if (!discardConfirmed && options.method?.toUpperCase() !== 'POST' &&
+          document.querySelector('[data-unsaved-changes="true"]') &&
+          !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
+        if (location.href !== currentUrl.current) history.replaceState(null, '', currentUrl.current);
         return;
       }
       if (historyMode !== 'none' && location.href !== currentUrl.current)
@@ -280,8 +296,11 @@ export function App({ initial }: { initial: PageEnvelope }) {
           destination.hash = requested.hash;
         if (destination.origin !== location.origin)
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
-        if (historyMode === 'push' && !formError) history.pushState(null, '', destination.href);
-        else if (historyMode === 'replace') history.replaceState(null, '', destination.href);
+        if (historyMode === 'push' && !formError) {
+          historyPosition.current += 1;
+          history.pushState(historyState(historyPosition.current), '', destination.href);
+        } else if (historyMode === 'replace') history.replaceState(historyState(historyPosition.current), '', destination.href);
+        else if (historyMode === 'none' && Number.isInteger(history.state?.worklogPosition)) historyPosition.current = history.state.worklogPosition;
         currentUrl.current = destination.href;
         setEnvelope(result.envelope);
         setRevision((value) => value + 1);
@@ -322,7 +341,12 @@ export function App({ initial }: { initial: PageEnvelope }) {
     [],
   );
   useEffect(() => {
+    history.replaceState(historyState(historyPosition.current), '', currentUrl.current);
     const back = () => {
+      if (restoringHistory.current) {
+        restoringHistory.current = false;
+        return;
+      }
       const current = new URL(currentUrl.current);
       if (current.pathname === location.pathname && current.search === location.search) {
         currentUrl.current = location.href;
@@ -338,7 +362,20 @@ export function App({ initial }: { initial: PageEnvelope }) {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
-      void navigate(location.href, {}, 'none');
+      if (document.querySelector('[data-unsaved-changes="true"]') &&
+          !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
+        const targetPosition = history.state?.worklogPosition;
+        const delta = Number.isInteger(targetPosition) ? historyPosition.current - targetPosition : 0;
+        if (delta) {
+          restoringHistory.current = true;
+          history.go(delta);
+        } else {
+          historyPosition.current += 1;
+          history.pushState(historyState(historyPosition.current), '', currentUrl.current);
+        }
+        return;
+      }
+      void navigate(location.href, {}, 'none', true);
     };
     window.addEventListener('popstate', back);
     return () => {
@@ -353,6 +390,11 @@ export function App({ initial }: { initial: PageEnvelope }) {
       : envelope.page === 'demo'
         ? 'intro-body'
         : '';
+    const errorField = document.querySelector<HTMLElement>('[data-error-focus="true"]:not(:disabled)');
+    if (errorField) {
+      errorField.focus({ preventScroll: true });
+      return;
+    }
     if (location.hash) {
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
@@ -416,8 +458,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
     }
     posting.current = true;
     const controls = Array.from(
-      form.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
-        'button:not([type="button"]),input[type="submit"]',
+      event.currentTarget.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'form button,form input,form select,form textarea',
       ),
     ).filter((control) => !control.disabled);
     controls.forEach((control) => {

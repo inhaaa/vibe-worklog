@@ -12,11 +12,13 @@ public final class ProfileCompanyData {
 
     public record ProfileView(String employeeNo, String employeeName, String companyName, String email,
             LocalDate joinedOn, LocalDate leftOn, String organizationName, String scheduleName,
-            String approverName, boolean approverEligible, List<String> roles, Instant asOf) { }
+            String approverName, boolean approverEligible, List<String> roles, Instant asOf,
+            String organizationHeadName, boolean organizationHeadEligible, boolean organizationHeadApproverEligible) { }
 
     public record ProfileRow(String employeeNo, String employeeName, String companyName, String email,
             LocalDate joinedOn, LocalDate leftOn, String organizationName, String scheduleName,
-            String approverName, boolean approverEligible) { }
+            String approverName, boolean approverEligible, String organizationHeadName,
+            boolean organizationHeadEligible, boolean organizationHeadApproverEligible) { }
 
     public record OrganizationItem(UUID id, String code, String name) { }
 

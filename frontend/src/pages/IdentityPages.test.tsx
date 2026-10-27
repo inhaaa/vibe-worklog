@@ -33,6 +33,13 @@ function show(page: string, data: Record<string, unknown>) {
 afterEach(cleanup);
 
 describe('내 정보·권한 목록·회사 현황', () => {
+  it('본인의 현재 조직장과 조직장·결재 자격을 구분해 표시한다', () => {
+    const view = show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장', organizationHeadEligible: false, organizationHeadApproverEligible: false } });
+    const main = view.container.querySelector('main')!;
+    expect(main.textContent).toContain('현재 조직장');
+    expect(main.textContent).toContain('김조직장 · 재지정 필요');
+    expect(main.textContent).toContain('조직장 결재 자격 없음');
+  });
   it('내 정보에 본인 계정·현재 배정·보유 역할을 읽기 전용으로 표시한다', () => {
     const view = show('workspace/profile', { profile });
     const main = view.container.querySelector('main')!;

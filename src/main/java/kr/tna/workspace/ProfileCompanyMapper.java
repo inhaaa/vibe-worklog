@@ -20,13 +20,24 @@ public interface ProfileCompanyMapper {
                 AND EXISTS(SELECT 1 FROM tna.tenant_account pa JOIN tna.role_grant g
                   ON g.tenant_id=pa.tenant_id AND g.account_id=pa.id
                   WHERE pa.tenant_id=e.tenant_id AND pa.employee_id=p.id AND pa.active AND pa.credential_set
-                    AND g.role='APPROVER' AND g.active),false) AS approver_eligible
+                    AND g.role='APPROVER' AND g.active),false) AS approver_eligible,
+              he.display_name AS organization_head_name,
+              COALESCE(o.active AND he.active AND he.joined_on<=#{today}
+                AND (he.left_on IS NULL OR he.left_on>=#{today}),false) AS organization_head_eligible,
+              COALESCE(o.active AND he.active AND he.joined_on<=#{today} AND (he.left_on IS NULL OR he.left_on>=#{today})
+                AND EXISTS(SELECT 1 FROM tna.tenant_account ha JOIN tna.role_grant hg
+                  ON hg.tenant_id=ha.tenant_id AND hg.account_id=ha.id
+                  WHERE ha.tenant_id=e.tenant_id AND ha.employee_id=he.id AND ha.active AND ha.credential_set
+                    AND hg.role='APPROVER' AND hg.active),false) AS organization_head_approver_eligible
             FROM tna.employee e
             JOIN tna.tenant_account a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
             JOIN platform.tenant_registry r ON r.id=e.tenant_id
             LEFT JOIN tna.employee_assignment ea ON ea.tenant_id=e.tenant_id AND ea.employee_id=e.id
               AND ea.valid_from<=#{today} AND (ea.valid_to IS NULL OR ea.valid_to>#{today})
             LEFT JOIN tna.organization o ON o.tenant_id=ea.tenant_id AND o.id=ea.organization_id
+            LEFT JOIN tna.organization_head_assignment oh ON oh.tenant_id=o.tenant_id AND oh.organization_id=o.id
+              AND oh.superseded_at IS NULL AND oh.valid_from<=#{today} AND (oh.valid_to IS NULL OR oh.valid_to>#{today})
+            LEFT JOIN tna.employee he ON he.tenant_id=oh.tenant_id AND he.id=oh.employee_id
             LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
               AND sa.valid_from<=#{today} AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version sv ON sv.tenant_id=sa.tenant_id AND sv.id=sa.schedule_version_id
