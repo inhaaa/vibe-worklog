@@ -30,6 +30,7 @@ import kr.tna.org.AccountAdminMapper;
 import kr.tna.org.EmployeeAdminMapper;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
+import kr.tna.org.PublicDemoIdentityGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +60,7 @@ class AccountServiceIT {
     @Autowired EmployeeAdminMapper employeeMapper;
     @Autowired OrgCommands commands;
     @Autowired TenantTransactions transactions;
+    @Autowired PublicDemoIdentityGuard identityGuard;
     private JdbcTemplate database;
     private UUID tenant;
     private String company;
@@ -100,7 +102,7 @@ class AccountServiceIT {
     @Test
     void defaultProfileRefusesIssuanceWithoutAnyDatabaseEffect() {
         var unavailable = new InvitationDelivery(new MockEnvironment());
-        var guarded = new AccountService(accountMapper, employeeMapper, commands, unavailable, Clock.systemUTC());
+        var guarded = new AccountService(accountMapper, employeeMapper, commands, unavailable, Clock.systemUTC(), identityGuard);
         assertFalse(unavailable.enabled());
         assertStatus(503, () -> guarded.invite(actor, employee,
                 new InvitationForm("invited@example.test", 0L, "초대", UUID.randomUUID())));

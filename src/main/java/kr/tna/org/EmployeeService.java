@@ -21,10 +21,12 @@ import static kr.tna.org.OrgCommands.*;
 public final class EmployeeService {
     private final EmployeeAdminMapper mapper;
     private final OrgCommands commands;
+    private final PublicDemoIdentityGuard identityGuard;
 
-    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands) {
+    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands, PublicDemoIdentityGuard identityGuard) {
         this.mapper = mapper;
         this.commands = commands;
+        this.identityGuard = identityGuard;
     }
 
     public List<Employee> list(TnaPrincipal actor, String query, int page) {
@@ -87,6 +89,7 @@ public final class EmployeeService {
     }
 
     public UUID update(TnaPrincipal actor, UUID id, EmployeeForm form) {
+        identityGuard.requireMutable(actor, id);
         var values = normalize(form);
         String reason = requiredText(form.reason(), 500, "변경 사유");
         String action = "EMPLOYEE_UPDATE";

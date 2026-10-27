@@ -14,6 +14,7 @@ interface AuthModel {
   flags?: Flags;
   error?: string;
   localDemo?: boolean;
+  publicDemo?: boolean;
   companyCode?: string;
   demoLogin?: string;
   demoPassword?: string;
@@ -101,7 +102,11 @@ function Demo({ model: m }: { model: AuthModel }) {
               데모로 입장 <span aria-hidden="true">→</span>
             </button>
           </Form>
-          <p className="t-enter-note">로그인 입력 없이 로컬 데모 계정으로 입장해요.</p>
+          <p className="t-enter-note">
+            {m.publicDemo
+              ? '모든 방문자가 함께 사용하는 가상 데이터입니다. 실제 개인정보를 입력하지 마세요. 체험 자료는 초기화될 수 있습니다.'
+              : '로그인 입력 없이 로컬 데모 계정으로 입장해요.'}
+          </p>
           <div className="t-feature-labels">
             <span>출퇴근 기록</span>
             <span>근무 일정</span>
@@ -188,7 +193,7 @@ function Demo({ model: m }: { model: AuthModel }) {
       </div>
       <footer className="t-intro-footer">
         <span>WorkLog · 일하는 하루의 기준</span>
-        <span>합성 자료로 둘러보는 로컬 데모</span>
+        <span>{m.publicDemo ? '가상 자료로 체험하는 공개 데모' : '합성 자료로 둘러보는 로컬 데모'}</span>
       </footer>
     </section>
   );

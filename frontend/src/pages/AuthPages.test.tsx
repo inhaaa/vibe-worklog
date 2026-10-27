@@ -14,6 +14,12 @@ const html = (name: string, data: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('AuthPages', () => {
+  it('공개 데모는 공유 가상 자료와 개인정보 입력 금지를 안내한다', () => {
+    const result = html('demo', { publicDemo: true, demoLogin: 'admin', demoPassword: 'admin' });
+    expect(result).toContain('모든 방문자가 함께 사용하는 가상 데이터');
+    expect(result).toContain('실제 개인정보를 입력하지 마세요');
+    expect(result).not.toContain('로컬 데모 계정');
+  });
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
   });

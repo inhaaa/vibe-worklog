@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
@@ -41,6 +42,11 @@ public class SecurityConfiguration {
         // A parent-less manager prevents a rejected attempt invoking the same provider twice.
         http.authenticationManager(new ProviderManager(provider))
                 .authorizeHttpRequests(authorize -> {
+                    if (localDemo.publicDemo()) {
+                        String identity = "/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID;
+                        authorize.requestMatchers(new RegexRequestMatcher(identity
+                                + "/(changes|roles|invitations)(?:\\?.*)?", "POST", true)).denyAll();
+                    }
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
                     }

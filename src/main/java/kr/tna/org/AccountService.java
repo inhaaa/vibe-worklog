@@ -32,14 +32,16 @@ public final class AccountService {
     private final OrgCommands commands;
     private final InvitationDelivery delivery;
     private final Clock clock;
+    private final PublicDemoIdentityGuard identityGuard;
 
     public AccountService(AccountAdminMapper mapper, EmployeeAdminMapper employees, OrgCommands commands,
-                          InvitationDelivery delivery, Clock clock) {
+                          InvitationDelivery delivery, Clock clock, PublicDemoIdentityGuard identityGuard) {
         this.mapper = mapper;
         this.employees = employees;
         this.commands = commands;
         this.delivery = delivery;
         this.clock = clock;
+        this.identityGuard = identityGuard;
     }
 
     public Account get(TnaPrincipal actor, UUID employeeId) {
@@ -50,6 +52,7 @@ public final class AccountService {
     }
 
     public UUID invite(TnaPrincipal actor, UUID employeeId, InvitationForm form) {
+        identityGuard.requireMutable(actor, employeeId);
         String email = email(form.email());
         String reason = requiredText(form.reason(), 500, "초대 사유");
         String action = "ACCOUNT_INVITE";
@@ -92,6 +95,7 @@ public final class AccountService {
     }
 
     public UUID roles(TnaPrincipal actor, UUID employeeId, RolesForm form) {
+        identityGuard.requireMutable(actor, employeeId);
         if (form.roles() == null || !form.roles().contains("EMPLOYEE")
                 || form.roles().stream().anyMatch(role -> !SUPPORTED_ROLES.contains(role))) {
             throw OrgException.invalid("직원 역할을 유지하고 지원하는 역할만 선택해 주세요.");

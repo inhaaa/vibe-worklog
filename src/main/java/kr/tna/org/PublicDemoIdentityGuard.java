@@ -1,0 +1,22 @@
+package kr.tna.org;
+
+import java.util.UUID;
+import kr.tna.common.auth.LocalDemoLogin;
+import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.stereotype.Component;
+
+@Component
+public final class PublicDemoIdentityGuard {
+    private final LocalDemoLogin demo;
+
+    public PublicDemoIdentityGuard(LocalDemoLogin demo) {
+        this.demo = demo;
+    }
+
+    public void requireMutable(TnaPrincipal actor, UUID employeeId) {
+        if (demo.publicDemo() && actor != null && LocalDemoLogin.TENANT_ID.equals(actor.tenantId())
+                && LocalDemoLogin.EMPLOYEE_ID.equals(employeeId)) {
+            throw new OrgException(403, "공유 데모 담당자의 사원 정보와 계정은 변경할 수 없습니다.");
+        }
+    }
+}
