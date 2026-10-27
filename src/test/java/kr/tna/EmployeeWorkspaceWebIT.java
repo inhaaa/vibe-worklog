@@ -97,15 +97,13 @@ class EmployeeWorkspaceWebIT {
                 .andExpect(model().attribute("pageEmployeeCount", 50))
                 .andExpect(model().attribute("pageActiveCount", 50))
                 .andExpect(model().attribute("pageInactiveCount", 0))
-                .andExpect(content().string(containsString("workspace-body")))
-                .andExpect(content().string(containsString("t-employee-layout")))
-                .andExpect(content().string(containsString("현재 페이지")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(containsString("실제 개발 조직")))
-                .andExpect(content().string(containsString("name=\"organizationId\"")))
-                .andExpect(content().string(containsString("name=\"status\"")))
-                .andExpect(content().string(containsString("name=\"commandId\"")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
-                .andExpect(content().string(containsString("로그인 계정은 자동으로 생성되지 않습니다")))
+                .andExpect(ReactPageAssertions.dataPresent("/options"))
+                .andExpect(ReactPageAssertions.data("/status", "all"))
+                .andExpect(ReactPageAssertions.dataPresent("/form/commandId"))
+                .andExpect(ReactPageAssertions.csrf())
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(anyOf(containsString("김하늘"), containsString("haneul@tna.example.test"),
                         containsString("외부 비공개 직원"), containsString("외부 비공개 조직")))));
     }
@@ -123,8 +121,8 @@ class EmployeeWorkspaceWebIT {
                 .andExpect(status().isOk()).andExpect(model().attribute("employees", hasSize(1)))
                 .andExpect(model().attributeExists("selectedEmployee"))
                 .andExpect(content().string(containsString("실제 조회 직원 53")))
-                .andExpect(content().string(containsString("비활성")))
-                .andExpect(content().string(containsString("/admin/employees/" + employee("E0053"))))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/selectedEmployee/id", employee("E0053")))
                 .andReturn();
         assertEquals(employee("E0053"), ((OrgData.Employee) selected.getModelAndView()
                 .getModel().get("selectedEmployee")).id());
@@ -147,7 +145,7 @@ class EmployeeWorkspaceWebIT {
         mvc.perform(get("/admin/employees").session(session).param("q", "no-such-employee"))
                 .andExpect(status().isOk()).andExpect(model().attribute("employees", hasSize(0)))
                 .andExpect(model().attribute("pageEmployeeCount", 0))
-                .andExpect(content().string(containsString("검색 결과가 없습니다")));
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test
@@ -183,8 +181,8 @@ class EmployeeWorkspaceWebIT {
                         .param("joinedOn", "2026-01-01").param("active", "true")
                         .param("reason", " ").param("commandId", command.toString()))
                 .andExpect(status().isUnprocessableEntity()).andExpect(view().name("org/employees"))
-                .andExpect(content().string(containsString("workspace-body")))
-                .andExpect(content().string(containsString("role=\"alert\"")))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.dataPresent("/error"))
                 .andExpect(content().string(not(containsString(maliciousName))))
                 .andReturn();
         var form = (OrgData.EmployeeForm) result.getModelAndView().getModel().get("form");
@@ -192,9 +190,9 @@ class EmployeeWorkspaceWebIT {
         assertEquals(maliciousName, form.displayName());
         mvc.perform(get("/admin/employees/{id}", employee("E0053")).session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("name=\"expectedVersion\"")))
-                .andExpect(content().string(containsString("name=\"commandId\"")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")));
+                .andExpect(ReactPageAssertions.dataPresent("/form/expectedVersion"))
+                .andExpect(ReactPageAssertions.dataPresent("/form/commandId"))
+                .andExpect(ReactPageAssertions.csrf());
     }
 
     private UUID employee(String number) {

@@ -41,12 +41,12 @@ class WorktimeResultDetailIT {
         assertTrue(detail.completeEvidence());assertNull(detail.day().result().actualWorkMillis());
         assertEquals(count,results());assertEquals(id,reports.detail(manager,id).day().id());
         mvc.perform(get("/worktime/results/{id}",id).session(login(employee))).andExpect(status().isOk())
-            .andExpect(content().string(containsString("계산 근거 상세"))).andExpect(content().string(containsString("Asia/Seoul")))
-            .andExpect(content().string(containsString("href=\"/me/worktime?month="+YearMonth.from(date))))
+            .andExpect(ReactPageAssertions.page())
+            .andExpect(ReactPageAssertions.data("/month", YearMonth.from(date).toString()))
             .andExpect(content().string(not(containsString("PRIVATE_POLICY_BASIS_MUST_NOT_RENDER")))).andExpect(content().string(not(containsString("employee@example.test"))))
             .andExpect(header().string("Cache-Control",containsString("no-store")));
         mvc.perform(get("/worktime/results/{id}",id).session(login(manager))).andExpect(status().isOk())
-            .andExpect(content().string(containsString("employeeId="+employee.employeeId()+"&amp;month="+YearMonth.from(date))));
+            .andExpect(ReactPageAssertions.data("/detail/day/employeeId", employee.employeeId()));
     }
     @Test void changedPolicyAndEmploymentKeepTheOriginalEvidenceAndMarkItsSourceStale(){
         var first=policy("당시 근거");UUID id=result();policy("변경된 근거");
@@ -103,7 +103,7 @@ class WorktimeResultDetailIT {
     @Test void resultLinksAreRenderedAndMalformedIdsAreRejected()throws Exception{
         UUID id=result();var session=login(employee);
         mvc.perform(get("/me/worktime").session(session).param("month",java.time.YearMonth.from(date).toString()))
-            .andExpect(status().isOk()).andExpect(content().string(containsString("/worktime/results/"+id)));
+            .andExpect(status().isOk()).andExpect(content().string(containsString(id.toString())));
         mvc.perform(get("/worktime/results/not-an-id").session(session)).andExpect(status().isBadRequest());
     }
     private UUID policy(String basis){return reports.reviewPolicy(manager,new PolicyForm(date.minusDays(30),date.plusDays(30),true,basis,"합성 정책 검토",UUID.randomUUID()));}

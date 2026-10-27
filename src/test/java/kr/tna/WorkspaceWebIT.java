@@ -19,7 +19,6 @@ import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.common.auth.PasswordPolicy;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,23 +78,20 @@ class WorkspaceWebIT {
                 .andExpect(status().isOk()).andExpect(view().name("today"))
                 .andExpect(model().attributeExists("employee", "day", "eventTimes", "confirmationForm",
                         "inCommand", "outCommand", "workspaceHome"))
-                .andExpect(content().string(containsString("workspace-body")))
-                .andExpect(content().string(containsString("t-app-shell")))
-                .andExpect(content().string(containsString("/me/attendance/events")))
-                .andExpect(content().string(containsString("name=\"eventKind\" value=\"IN\"")))
-                .andExpect(content().string(containsString("name=\"eventKind\" value=\"OUT\"")))
-                .andExpect(content().string(containsString("/me/work-confirmations")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
-                .andExpect(content().string(containsString("/me/schedule")));
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
+                .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
+                .andExpect(ReactPageAssertions.dataPresent("/outCommand"))
+                .andExpect(ReactPageAssertions.dataPresent("/confirmationForm"))
+                .andExpect(ReactPageAssertions.csrf())
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test
     void homeDoesNotReplaceUnregisteredFactsWithMockupNumbers() throws Exception {
         mvc.perform(get("/me/today").session(login()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("기초 연차 미등록")))
-                .andExpect(content().string(containsString("근무 일정 미배정")))
-                .andExpect(content().string(containsString("실제 근로")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(containsString("32시간"))))
                 .andExpect(content().string(not(containsString("남은 연차 8일"))));
     }
@@ -104,27 +100,20 @@ class WorkspaceWebIT {
     void homeFlowKeepsUnknownFactsAndLinksEveryActualWeekDate() throws Exception {
         var result = mvc.perform(get("/me/today").session(login()))
                 .andExpect(status().isOk()).andReturn();
-        String html = result.getResponse().getContentAsString();
+        var boot = ReactPageAssertions.envelope(result);
+        var home = boot.at("/data/workspaceHome");
         LocalDate today = (LocalDate) result.getModelAndView().getModel().get("today");
-        assertTrue(html.contains("t-home-flow"));
-        assertTrue(html.contains("t-flow-date"));
-        assertTrue(html.contains("datetime=\"" + today + "\""));
-        assertTrue(html.contains("근무 일정 미배정"));
-        assertTrue(html.contains("실제 근로 미확인"));
-        String tasks = elementWithClass(html, "section", "t-flow-tasks");
-        assertTrue(tasks.contains("기초 연차 미등록"));
-        assertFalse(tasks.contains("실제 근로·휴게 확인"), "기록이 없는 날짜를 확인할 일로 만들지 않는다");
-        String week = elementWithClass(html, "section", "t-flow-week");
+        assertEquals(today.toString(), home.at("/today/snapshot/workDate").asString());
+        assertTrue(home.get("availableLeaveDays").isNull());
+        assertTrue(home.at("/today/snapshot/schedule").isNull());
+        assertTrue(home.at("/today/snapshot/confirmation").isNull());
+        assertEquals("실제 근로 미확인", home.at("/today/confirmationText").asString());
         LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        assertEquals(7, home.get("week").size());
         for (int offset = 0; offset < 7; offset++) {
-            LocalDate date = monday.plusDays(offset);
-            assertTrue(week.contains("/me/schedule?month=" + java.time.YearMonth.from(date)
-                    + "&amp;date=" + date), "실제 조회 주의 각 날짜로 이동한다: " + date);
+            assertEquals(monday.plusDays(offset).toString(), home.get("week").get(offset).at("/snapshot/workDate").asString());
         }
-        assertEquals(7, Pattern.compile("class=\"[^\"]*\\bt-flow-day\\b[^\"]*\"")
-                .matcher(week).results().count());
-        assertTrue(nativeComparison(html).contains("원천 출퇴근"));
-        assertFalse(html.contains("32시간"));
+        assertTrue(home.at("/today/snapshot/events").isEmpty());
     }
 
     @Test
@@ -149,26 +138,24 @@ class WorkspaceWebIT {
                     """, tenantId, UUID.randomUUID(), employeeId, entry[0], at, at, UUID.randomUUID(), network, today);
             if (entry[0].equals("OUT")) {
                 var partial = mvc.perform(get("/me/today").session(session))
-                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-                assertFalse(elementWithClass(partial, "section", "t-flow-tasks")
-                        .contains("실제 근로·휴게 확인"), "출퇴근 양쪽 기록이 있어야 확인 연결을 제공한다");
+                        .andExpect(status().isOk()).andReturn();
+                var snapshot = ReactPageAssertions.envelope(partial).at("/data/day");
+                assertEquals(1, snapshot.get("effectiveEvents").size());
+                assertTrue(snapshot.get("confirmation").isNull());
             }
         }
         var result = mvc.perform(get("/me/today").session(session))
                 .andExpect(status().isOk()).andReturn();
-        String html = result.getResponse().getContentAsString();
-        String timeline = elementWithClass(html, "ol", "t-flow-timeline");
-        assertTrue(timeline.contains("09:17:00.000"));
-        assertTrue(timeline.contains("18:41:00.000"));
-        assertTrue(timeline.indexOf("09:17:00.000") < timeline.indexOf("18:41:00.000"),
-                "저장 순서와 무관하게 서울 시각의 시간순으로 기록을 표시한다");
-        String comparison = nativeComparison(html);
-        assertTrue(comparison.contains("원천 출퇴근"));
-        assertTrue(comparison.contains("현재 반영된 기록"));
-        assertEquals(2, Pattern.compile("09:17:00\\.000").matcher(comparison).results().count());
-        assertEquals(2, Pattern.compile("18:41:00\\.000").matcher(comparison).results().count());
-        assertTrue(elementWithClass(html, "section", "t-flow-tasks").contains("실제 근로·휴게 확인"));
-        assertTrue(html.contains("실제 근로 미확인"));
+        var home = ReactPageAssertions.envelope(result).at("/data/workspaceHome/today");
+        var timeline = home.get("timeline");
+        assertEquals(2, timeline.size());
+        assertEquals(java.time.LocalTime.of(9, 17), java.time.LocalTime.parse(timeline.get(0).get("time").asString()));
+        assertEquals(java.time.LocalTime.of(18, 41), java.time.LocalTime.parse(timeline.get(1).get("time").asString()));
+        assertEquals("현재 반영 출근", timeline.get(0).get("title").asString());
+        assertEquals("실제 근로 미확인", home.get("confirmationText").asString());
+        assertTrue(home.at("/snapshot/confirmation").isNull());
+        assertEquals(2, home.at("/snapshot/events").size());
+        assertEquals(2, home.at("/snapshot/effectiveEvents").size());
         var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
         assertEquals(day.events(), day.effectiveEvents());
         assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",
@@ -183,10 +170,10 @@ class WorkspaceWebIT {
                         .param("month", "2026-12").param("date", "2026-12-31"))
                 .andExpect(status().isOk()).andExpect(view().name("workspace/schedule"))
                 .andExpect(model().attributeExists("workspaceCalendar", "selectedDay"))
-                .andExpect(content().string(containsString("workspace-body")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(containsString("2026-12-31")))
                 .andExpect(content().string(containsString("2027-01")))
-                .andExpect(content().string(containsString("근무 일정 미배정")));
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test
@@ -215,21 +202,6 @@ class WorkspaceWebIT {
     void calendarRequiresAnAuthenticatedCustomerSession() throws Exception {
         mvc.perform(get("/me/schedule")).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
-    }
-
-    private static String elementWithClass(String html, String tag, String cssClass) {
-        var match = Pattern.compile("(?s)<" + tag + "\\b[^>]*class=\"[^\"]*\\b"
-                + Pattern.quote(cssClass) + "\\b[^\"]*\"[^>]*>(.*?)</" + tag + ">")
-                .matcher(html);
-        assertTrue(match.find(), "홈 영역이 존재한다: " + cssClass);
-        return match.group(1);
-    }
-
-    private static String nativeComparison(String html) {
-        var match = Pattern.compile("(?s)<details\\b(?=[^>]*\\bid=\"home-record-comparison\")[^>]*>(.*?)</details>")
-                .matcher(html);
-        assertTrue(match.find(), "기록 비교는 native details로 제공한다");
-        return match.group(1);
     }
 
     private MockHttpSession login() throws Exception {

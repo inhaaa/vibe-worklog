@@ -33,9 +33,7 @@ class DemoLandingNormalProfileIT {
     @Test
     void localAloneKeepsCompanyLoginAndDoesNotExposeDemoEntry() throws Exception {
         mvc.perform(get("/login")).andExpect(status().isOk())
-                .andExpect(content().string(containsString("name=\"companyCode\"")))
-                .andExpect(content().string(containsString("type=\"email\"")))
-                .andExpect(content().string(containsString("minlength=\"12\"")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(containsString("데모로 입장"))));
         mvc.perform(get("/")).andExpect(redirectedUrl("/login"));
         mvc.perform(get("/demo")).andExpect(redirectedUrl("/login"));

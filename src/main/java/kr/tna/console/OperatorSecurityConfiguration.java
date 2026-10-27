@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import kr.tna.common.auth.LoginRateLimiter;
 import kr.tna.common.auth.PasswordPolicy;
+import kr.tna.common.web.ReactPageResponse;
 import kr.tna.console.OperatorData.OperatorPrincipal;
 import org.slf4j.*;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -66,14 +67,15 @@ public class OperatorSecurityConfiguration {
             .formLogin(form->form.loginPage("/operator/login").loginProcessingUrl("/operator/login").usernameParameter("loginId")
                 .defaultSuccessUrl("/operator/tenants",true).failureHandler((req,res,error)->{
                     LOG.warn("event=operator_login outcome=rejected");res.setHeader("Cache-Control","no-store");
-                    if(error instanceof OperatorRateLimited){res.setStatus(429);res.setHeader("Retry-After","300");res.setContentType("text/plain;charset=UTF-8");res.getWriter().write("운영자 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.");}
-                    else if(error instanceof AuthenticationServiceException){res.setStatus(503);res.setContentType("text/plain;charset=UTF-8");res.getWriter().write("운영자 인증을 확인할 수 없습니다.");}
-                    else res.sendRedirect("/operator/login?error");
+                    if(error instanceof OperatorRateLimited){res.setHeader("Retry-After","300");if(ReactPageResponse.problem(req,res,429,"운영자 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요."))return;res.setStatus(429);res.setContentType("text/plain;charset=UTF-8");res.getWriter().write("운영자 로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.");}
+                    else if(error instanceof AuthenticationServiceException){if(ReactPageResponse.problem(req,res,503,"운영자 인증을 확인할 수 없습니다."))return;res.setStatus(503);res.setContentType("text/plain;charset=UTF-8");res.getWriter().write("운영자 인증을 확인할 수 없습니다.");}
+                    else if(!ReactPageResponse.problem(req,res,401,"운영자 로그인 정보를 확인해 주세요."))res.sendRedirect("/operator/login?error");
                 }))
             .logout(logout->logout.logoutUrl("/operator/logout").logoutSuccessUrl("/operator/login?logout").invalidateHttpSession(false)
                 .addLogoutHandler((req,res,auth)->{var session=req.getSession(false);if(session!=null)session.removeAttribute(CONTEXT_KEY);}))
             .requestCache(cache->cache.disable()).sessionManagement(session->session.sessionFixation(fixation->fixation.changeSessionId()))
-            .exceptionHandling(errors->errors.authenticationEntryPoint((req,res,error)->res.sendRedirect("/operator/login")))
+            .exceptionHandling(errors->errors.authenticationEntryPoint((req,res,error)->{if(!ReactPageResponse.problem(req,res,401,"운영자 로그인이 필요합니다."))res.sendRedirect("/operator/login");})
+                .accessDeniedHandler((req,res,error)->{if(!ReactPageResponse.problem(req,res,403,"운영자 요청 권한을 확인해 주세요."))res.sendError(403);}))
             .headers(headers->headers.contentSecurityPolicy(csp->csp.policyDirectives("default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")))
             .addFilterAfter(new OncePerRequestFilter(){
                 @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain)throws IOException,ServletException {
@@ -81,9 +83,9 @@ public class OperatorSecurityConfiguration {
                     if(auth!=null&&auth.getPrincipal() instanceof OperatorPrincipal actor){
                         try{var age=Duration.between(actor.authenticatedAt(),clock.instant());
                             if(age.isNegative()||age.compareTo(Duration.ofHours(12))>=0||!mapper.current(actor)){
-                                var session=req.getSession(false);if(session!=null)session.removeAttribute(CONTEXT_KEY);SecurityContextHolder.clearContext();res.sendRedirect("/operator/login");return;
+                                var session=req.getSession(false);if(session!=null)session.removeAttribute(CONTEXT_KEY);SecurityContextHolder.clearContext();if(!ReactPageResponse.problem(req,res,401,"운영자 로그인이 필요합니다."))res.sendRedirect("/operator/login");return;
                             }
-                        }catch(DataAccessException e){LOG.error("event=operator_session outcome=storage_unavailable");SecurityContextHolder.clearContext();res.setStatus(503);res.setHeader("Cache-Control","no-store");return;}
+                        }catch(DataAccessException e){LOG.error("event=operator_session outcome=storage_unavailable");var session=req.getSession(false);if(session!=null)session.removeAttribute(CONTEXT_KEY);SecurityContextHolder.clearContext();if(!ReactPageResponse.problem(req,res,503,"운영자 인증을 확인할 수 없습니다.",true)){res.setStatus(503);res.setHeader("Cache-Control","no-store");}return;}
                     }
                     chain.doFilter(req,res);
                 }

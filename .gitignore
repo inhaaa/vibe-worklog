@@ -32,3 +32,6 @@ target/
 .idea/
 *.iml
 .vscode/
+node_modules/
+__pycache__/
+frontend/dist/

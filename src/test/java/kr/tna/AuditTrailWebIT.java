@@ -61,15 +61,15 @@ class AuditTrailWebIT {
         var session = login("manager");
         mvc.perform(get("/admin/audit").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/admin/audit/" + new UUID(0, 110))))
-                .andExpect(content().string(containsString("before=" + new UUID(0, 61))))
-                .andExpect(content().string(containsString("조회 시점")))
+                .andExpect(ReactPageAssertions.data("/audits/0/id", new UUID(0, 110)))
+                .andExpect(ReactPageAssertions.data("/page/nextCursor", new UUID(0, 61)))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
         mvc.perform(get("/admin/audit").session(session).param("before", new UUID(0, 61).toString()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("after=" + new UUID(0, 60))))
-                .andExpect(content().string(containsString("before=" + new UUID(0, 11))))
-                .andExpect(content().string(not(containsString("/admin/audit/" + new UUID(0, 110)))));
+                .andExpect(ReactPageAssertions.data("/page/previousCursor", new UUID(0, 60)))
+                .andExpect(ReactPageAssertions.data("/page/nextCursor", new UUID(0, 11)))
+                .andExpect(content().string(not(containsString(new UUID(0, 110).toString()))));
     }
 
     @Test
@@ -78,12 +78,12 @@ class AuditTrailWebIT {
         var references = event(id, "<script>HARMLESS_AUDIT_REASON</script>");
         mvc.perform(get("/admin/audit/{id}", id).session(login("manager")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("감사 상세")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(containsString(references[0].toString())))
                 .andExpect(content().string(containsString(references[1].toString())))
-                .andExpect(content().string(containsString("2099-01-01 09:00:00.123")))
-                .andExpect(content().string(containsString("Asia/Seoul")))
-                .andExpect(content().string(containsString("&lt;script&gt;HARMLESS_AUDIT_REASON&lt;/script&gt;")))
+                .andExpect(ReactPageAssertions.data("/audit/at", "2099-01-01T00:00:00.123Z"))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(content().string(containsString("\\u003cscript\\u003eHARMLESS_AUDIT_REASON\\u003c/script\\u003e")))
                 .andExpect(content().string(not(containsString("<script>HARMLESS_AUDIT_REASON</script>"))))
                 .andExpect(content().string(not(containsString("PRIVATE_AUDIT_EMAIL"))))
                 .andExpect(content().string(not(containsString("PRIVATE_AUDIT_TOKEN"))))

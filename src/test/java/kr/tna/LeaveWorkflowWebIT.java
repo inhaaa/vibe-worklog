@@ -29,10 +29,10 @@ class LeaveWorkflowWebIT {
     JdbcTemplate db;
     @DynamicPropertySource static void database(DynamicPropertyRegistry r){var d=DatabaseFixture.start();r.add("spring.datasource.url",d::jdbcUrl);r.add("spring.datasource.username",()->DatabaseFixture.APP_USER);r.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);r.add("tna.auth.url",d::jdbcUrl);r.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);r.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);}
     @BeforeEach void seed(){var d=DatabaseFixture.start();d.seedIdentity(PasswordPolicy.passwordEncoder().encode(PASSWORD));db=new JdbcTemplate(d.adminDataSource());db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",DatabaseFixture.TENANT_A,DatabaseFixture.ACCOUNT_A);}
-    @Test void employeeCanOpenOwnRequestAndCorrectionForms() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);mvc.perform(get("/me/requests").session(s)).andExpect(status().isOk()).andExpect(view().name("request/mine"));mvc.perform(get("/me/requests/correction").session(s)).andExpect(status().isOk()).andExpect(content().string(containsString("정정 신청")));}
+    @Test void employeeCanOpenOwnRequestAndCorrectionForms() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);mvc.perform(get("/me/requests").session(s)).andExpect(status().isOk()).andExpect(view().name("request/mine"));mvc.perform(get("/me/requests/correction").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());}
     @Test void employeeCannotManageBalancesOrOpenApprovalInbox() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);for(String p:List.of("/admin/leave-balances","/approvals"))mvc.perform(get(p).session(s)).andExpect(status().isForbidden());}
     @Test void workflowWritesRequireCsrfAndForeignIdsStayHidden() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);mvc.perform(post("/me/requests/leave").session(s)).andExpect(status().isForbidden());mvc.perform(get("/requests/{id}",UUID.randomUUID()).session(s)).andExpect(status().isNotFound());}
-    @Test void administratorGetsGroundedOpeningAndExceptionalCorrectionForms() throws Exception {var s=login(DatabaseFixture.COMPANY_A,DatabaseFixture.EMAIL);mvc.perform(get("/admin/leave-balances").session(s)).andExpect(status().isOk()).andExpect(content().string(containsString("기초 잔여")));mvc.perform(get("/admin/requests/exceptions/new").session(s).param("employeeId",DatabaseFixture.EMPLOYEE_A.toString())).andExpect(status().isOk()).andExpect(content().string(containsString("독립 승인")));}
+    @Test void administratorGetsGroundedOpeningAndExceptionalCorrectionForms() throws Exception {var s=login(DatabaseFixture.COMPANY_A,DatabaseFixture.EMAIL);mvc.perform(get("/admin/leave-balances").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());mvc.perform(get("/admin/requests/exceptions/new").session(s).param("employeeId",DatabaseFixture.EMPLOYEE_A.toString())).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());}
     @Test void leaveApprovalAndCancellationWorkThroughServerRenderedForms() throws Exception {
         LocalDate today=LocalDate.now(ZoneId.of("Asia/Seoul")),date=today.plusDays(2);UUID tenant=UUID.randomUUID();String company="WEB-"+tenant.toString().toUpperCase(Locale.ROOT);
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 흐름')",tenant,company);
@@ -57,26 +57,26 @@ class LeaveWorkflowWebIT {
     @Test void generalCancellationButtonIsLimitedToTheOwningAuthorWhileAdminExceptionRemainsAvailable() throws Exception {
         var f=approvedLeave();String path="/requests/"+f.requestId();
         mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(content().string(containsString(path+"/cancellations")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", true));
         mvc.perform(get(path).session(login(f.company(),f.manager().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(content().string(not(containsString("action=\""+path+"/cancellations\""))))
-                .andExpect(content().string(containsString("/admin/requests/"+f.requestId()+"/cancellation-exceptions")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", false))
+                .andExpect(ReactPageAssertions.data("/canCancelException", true));
     }
     @Test void alreadyStartedLeaveHidesGeneralCancellationButKeepsTheAdminException() throws Exception {
         var f=approvedLeave();String path="/requests/"+f.requestId();LocalDate past=LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
         db.update("UPDATE tna.approval_request SET from_date=?,to_date=? WHERE tenant_id=? AND id=?",past,past,f.manager().tenantId(),f.requestId());
         db.update("UPDATE tna.leave_request_day SET leave_date=? WHERE tenant_id=? AND request_id=?",past,f.manager().tenantId(),f.requestId());
         mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(content().string(not(containsString("action=\""+path+"/cancellations\""))));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", false));
         mvc.perform(get(path).session(login(f.company(),f.manager().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("/admin/requests/"+f.requestId()+"/cancellation-exceptions")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancelException", true));
     }
     @Test void zeroDayRangePrefixDoesNotHideCancellationBeforeTheFirstChargedDay() throws Exception {
         var f=approvedLeave();String path="/requests/"+f.requestId();
         LocalDate yesterday=LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1);
         db.update("UPDATE tna.approval_request SET from_date=? WHERE tenant_id=? AND id=?",yesterday,f.manager().tenantId(),f.requestId());
         mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("action=\""+path+"/cancellations\"")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", true));
     }
     private ApprovedLeave approvedLeave(){
         LocalDate today=LocalDate.now(ZoneId.of("Asia/Seoul")),date=today.plusDays(2);UUID tenant=UUID.randomUUID();String company="BUTTON-"+tenant.toString().toUpperCase(Locale.ROOT);

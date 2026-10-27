@@ -26,7 +26,22 @@ class OperatorWebIT {
     private UUID operatorId;private String login;
     @DynamicPropertySource static void database(DynamicPropertyRegistry p){var f=DatabaseFixture.start();p.add("spring.datasource.url",f::jdbcUrl);p.add("spring.datasource.username",()->DatabaseFixture.APP_USER);p.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);p.add("tna.auth.url",f::jdbcUrl);p.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);p.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);p.add("tna.operator.url",f::jdbcUrl);p.add("tna.operator.password",()->"synthetic-operator-db-password-only");}
     @BeforeEach void identities(){var f=DatabaseFixture.start();f.seedIdentity(PasswordPolicy.passwordEncoder().encode(PASSWORD));operatorId=UUID.randomUUID();login="operator-"+operatorId;db().update("INSERT INTO platform.operator_account(id,login_id,password_hash) VALUES (?,?,?)",operatorId,login,PasswordPolicy.passwordEncoder().encode(PASSWORD));}
-    @Test void explicitlyEnabledOperatorLoginUsesItsOwnCsrfForm()throws Exception{mvc.perform(get("/operator/login")).andExpect(status().isOk()).andExpect(content().string(containsString("_csrf")));}
+    @Test void explicitlyEnabledOperatorLoginUsesItsOwnCsrfForm()throws Exception{mvc.perform(get("/operator/login")).andExpect(status().isOk()).andExpect(ReactPageAssertions.csrf());}
+    @Test void reactOperatorNavigationKeepsIndependentAuthenticationAndCsrfErrors()throws Exception{
+        String media=kr.tna.common.web.ReactPageViewResolver.MEDIA_TYPE;
+        mvc.perform(get("/operator/login").header("Accept",media)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value("operator/login")).andExpect(jsonPath("$.csrf.token").isNotEmpty());
+        mvc.perform(get("/operator/tenants").header("Accept",media)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.data.status").value(401));
+        var customer=customerLogin();
+        mvc.perform(get("/operator/tenants").session(customer).header("Accept",media)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.data.status").value(401));
+        var operator=operatorLogin(null);
+        mvc.perform(post("/operator/tenants").session(operator).header("Accept",media)).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.data.status").value(403));
+        mvc.perform(get("/me/today").session(operator).header("Accept",media)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.data.status").value(401));
+    }
     @Test void operatorLoginDoesNotCreateAnyCustomerSession()throws Exception{var session=operatorLogin(null);mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isOk());mvc.perform(get("/me/today").session(session)).andExpect(redirectedUrl("/login"));mvc.perform(get("/admin/employees").session(session)).andExpect(redirectedUrl("/login"));}
     @Test void customerSessionCannotEnterOperatorAndBothContextsStaySeparate()throws Exception{
         var customer=customerLogin();mvc.perform(get("/operator/tenants").session(customer)).andExpect(redirectedUrl("/operator/login"));

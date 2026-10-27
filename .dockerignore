@@ -6,6 +6,10 @@
 !.mvn/**
 !src/
 !src/**
+!frontend/
+!frontend/**
+frontend/node_modules/
+frontend/dist/
 !LICENSES/
 !LICENSES/**
 !THIRD_PARTY_NOTICES.md

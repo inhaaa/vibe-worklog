@@ -51,7 +51,7 @@ class PasswordResetWebIT {
     @Test void anonymousFormProvidesCsrfWithoutPuttingSecretsInTheUrl()throws Exception {
         mvc.perform(get("/password-reset")).andExpect(status().isOk()).andExpect(view().name("password-reset"))
                 .andExpect(header().string("Cache-Control",containsString("no-store")))
-                .andExpect(content().string(containsString("_csrf")))
+                .andExpect(ReactPageAssertions.csrf())
                 .andExpect(content().string(containsString("no-referrer")))
                 .andExpect(content().string(not(containsString(email))));
     }
@@ -63,7 +63,7 @@ class PasswordResetWebIT {
         for(String value:new String[]{email,"unknown@example.test"}) mvc.perform(request(value))
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/password-reset?requested"));
         mvc.perform(get("/password-reset").param("requested",""))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("일치하는 계정이 있으면")))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(containsString(email))));
     }
     @Test void successfulCompletionInvalidatesExistingSessionAndRequiresManualLogin()throws Exception {

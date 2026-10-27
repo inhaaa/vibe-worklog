@@ -8,6 +8,7 @@ import kr.tna.common.auth.CompanyAuthenticationProvider;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.common.auth.SessionValidationFilter;
+import kr.tna.common.web.ReactPageResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,6 +30,7 @@ public class SecurityConfiguration {
                                           AuthStore authStore, Clock clock, LocalDemoLogin localDemo) throws Exception {
         AuthenticationEntryPoint entryPoint = (request, response, exception) -> {
             response.setHeader("Cache-Control", "no-store");
+            if (ReactPageResponse.problem(request, response, 401, "로그인이 필요합니다. 다시 로그인해 주세요.")) return;
             if ("true".equalsIgnoreCase(request.getHeader("HX-Request"))) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setHeader("HX-Redirect", request.getContextPath() + "/login");
@@ -42,7 +44,7 @@ public class SecurityConfiguration {
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
                     }
-                    authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/app.js", "/vendor/htmx.min.js",
+                    authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/react/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/invite/*", "/password-reset").permitAll()
                         .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
@@ -63,15 +65,20 @@ public class SecurityConfiguration {
                         .failureHandler((request, response, exception) -> {
                             response.setHeader("Cache-Control", "no-store");
                             if (exception instanceof CompanyAuthenticationProvider.LoginRateLimitedException) {
+                                if (ReactPageResponse.problem(request, response, 429, "로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.")) {
+                                    response.setHeader("Retry-After", "300"); return;
+                                }
                                 response.setStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS.value());
                                 response.setHeader("Retry-After", "300");
                                 response.setContentType("text/plain;charset=UTF-8");
                                 response.getWriter().write("로그인 요청이 많습니다. 잠시 후 다시 시도해 주세요.");
                             } else if (exception instanceof AuthenticationServiceException) {
+                                if (ReactPageResponse.problem(request, response, 503, "일시적으로 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.")) return;
                                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                                 response.setContentType("text/plain;charset=UTF-8");
                                 response.getWriter().write("일시적으로 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
                             } else {
+                                if (ReactPageResponse.problem(request, response, 401, "로그인 정보를 확인해 주세요.")) return;
                                 response.sendRedirect(request.getContextPath() + "/login?error");
                             }
                         }).permitAll())
@@ -80,6 +87,7 @@ public class SecurityConfiguration {
                 .requestCache(cache -> cache.disable())
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(entryPoint)
                         .accessDeniedHandler((request, response, exception) -> {
+                            if (ReactPageResponse.problem(request, response, 403, "요청을 처리할 권한이 없습니다. 화면을 새로 고침한 뒤 다시 시도해 주세요.")) return;
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setHeader("Cache-Control", "no-store");
                             response.setContentType("text/plain;charset=UTF-8");

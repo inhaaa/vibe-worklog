@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
+import kr.tna.common.web.ReactPageResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -45,6 +46,7 @@ public final class SessionValidationFilter extends OncePerRequestFilter {
             } catch (DataAccessException | TransactionException exception) {
                 invalidate(request);
                 LOG.error("event=session_validation outcome=storage_unavailable");
+                if (ReactPageResponse.problem(request, response, 503, "일시적으로 요청을 확인할 수 없습니다. 잠시 후 다시 로그인해 주세요.", true)) return;
                 response.setHeader("Cache-Control", "no-store");
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                 response.setContentType("text/plain;charset=UTF-8");

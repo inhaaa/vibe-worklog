@@ -35,8 +35,7 @@ class DemoLandingIT {
         mvc.perform(get("/")).andExpect(redirectedUrl("/demo"));
         mvc.perform(get("/login")).andExpect(redirectedUrl("/demo"));
         mvc.perform(get("/demo")).andExpect(status().isOk())
-                .andExpect(content().string(containsString("근무는 한눈에.")))
-                .andExpect(content().string(containsString("데모로 입장")));
+                .andExpect(ReactPageAssertions.page());
         mvc.perform(get("/me/today")).andExpect(redirectedUrl("/login"));
         mvc.perform(get("/me/schedule")).andExpect(redirectedUrl("/login"));
     }
@@ -48,21 +47,22 @@ class DemoLandingIT {
         mvc.perform(get("/login").param("logout", ""))
                 .andExpect(redirectedUrl("/demo?logout"));
         mvc.perform(get("/demo").param("error", ""))
-                .andExpect(content().string(containsString("로그인 정보를 확인해 주세요.")));
+                .andExpect(ReactPageAssertions.data("/flags/error", true));
         mvc.perform(get("/demo").param("logout", ""))
-                .andExpect(content().string(containsString("로그아웃했습니다.")));
+                .andExpect(ReactPageAssertions.data("/flags/logout", true));
     }
 
     @Test
     void introductionUsesExistingLoginPostCsrfAndSelfHostedAssets() throws Exception {
         mvc.perform(get("/demo")).andExpect(status().isOk())
-                .andExpect(content().string(matchesPattern("(?s).*<form(?=[^>]*action=\"/login\")(?=[^>]*method=\"post\")[^>]*>.*")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
-                .andExpect(content().string(containsString("/app.js")))
-                .andExpect(content().string(containsString("/vendor/htmx.min.js")))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.csrf())
+                .andExpect(ReactPageAssertions.data("/demoLogin", "admin"))
+                .andExpect(ReactPageAssertions.data("/demoPassword", "admin"))
+                .andExpect(content().string(containsString("/react/app.js")))
                 .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")))
                 .andExpect(content().string(not(anyOf(containsString("onclick="), containsString("style="), containsString("https://cdn")))));
-        mvc.perform(get("/app.js")).andExpect(status().isOk());
+        mvc.perform(get("/react/app.js")).andExpect(status().isOk());
         mvc.perform(post("/login").param("email", "admin").param("password", "admin"))
                 .andExpect(status().isForbidden());
         mvc.perform(post("/demo").with(csrf())).andExpect(redirectedUrl("/login"));

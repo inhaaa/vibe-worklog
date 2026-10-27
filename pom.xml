@@ -20,6 +20,8 @@
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
         <maven-install-plugin.version>3.2.0</maven-install-plugin.version>
         <maven-deploy-plugin.version>3.2.0</maven-deploy-plugin.version>
+        <npm.executable>npm</npm.executable>
+        <frontend.skip>false</frontend.skip>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -34,10 +36,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -91,7 +89,25 @@
         </dependency>
     </dependencies>
     <build>
+        <resources>
+            <resource><directory>src/main/resources</directory><excludes><exclude>templates/**</exclude><exclude>static/vendor/htmx.min.js</exclude><exclude>static/app.js</exclude></excludes></resource>
+            <resource><directory>frontend/dist</directory><targetPath>static/react</targetPath></resource>
+        </resources>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId>
+                <configuration><excludes><exclude>templates/**</exclude><exclude>static/vendor/htmx.min.js</exclude><exclude>static/app.js</exclude></excludes></configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.4</version>
+                <configuration><skip>${frontend.skip}</skip><executable>${npm.executable}</executable><workingDirectory>${project.basedir}/frontend</workingDirectory></configuration>
+                <executions>
+                    <execution><id>frontend-install</id><phase>generate-resources</phase><goals><goal>exec</goal></goals><configuration><arguments><argument>ci</argument><argument>--no-fund</argument></arguments></configuration></execution>
+                    <execution><id>frontend-build</id><phase>generate-resources</phase><goals><goal>exec</goal></goals><configuration><arguments><argument>run</argument><argument>build</argument></arguments></configuration></execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -191,4 +207,7 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile><id>windows-npm</id><activation><os><family>Windows</family></os></activation><properties><npm.executable>npm.cmd</npm.executable></properties></profile>
+    </profiles>
 </project>

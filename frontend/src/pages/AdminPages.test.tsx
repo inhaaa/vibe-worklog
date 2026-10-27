@@ -1,0 +1,416 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { cleanup, fireEvent, render as renderDom } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { AdminPages } from './AdminPages';
+import type { PageProps } from '../types';
+
+const employee = {
+  id: 'e-1',
+  employeeNo: 'E001',
+  displayName: '김직원',
+  joinedOn: '2026-10-01',
+  leftOn: null,
+  active: true,
+  version: 7,
+};
+const organization = {
+  id: 'o-1',
+  code: 'DEV',
+  name: '개발팀',
+  parentId: null,
+  active: true,
+  version: 3,
+};
+const command = { commandId: 'command-1', expectedVersion: 7, reason: '검토함' };
+const employeeForm = { ...employee, ...command };
+const organizationForm = { ...organization, ...command };
+const scheduleForm = {
+  ...command,
+  code: 'FIXED',
+  name: '고정 근무',
+  validFrom: '2026-10-26',
+  days: Array.from({ length: 7 }, (_, i) => ({
+    weekday: i + 1,
+    workday: i < 5,
+    startTime: i < 5 ? '09:00' : '',
+    endTime: i < 5 ? '18:00' : '',
+    breaks: i < 5 ? '12:00-13:00' : '',
+  })),
+};
+const template = { id: 's-1', code: 'FIXED', name: '고정 근무', active: true, version: 4 };
+const version = {
+  id: 'v-1',
+  templateId: 's-1',
+  revision: 2,
+  validFrom: '2026-10-26',
+  reason: '주간 일정',
+};
+const access = {
+  employee,
+  account: null,
+  localDelivery: true,
+  eligibleEmployee: true,
+  invitationForm: { ...command, email: 'employee@example.test' },
+  rolesForm: { ...command, roles: ['EMPLOYEE', 'APPROVER'] },
+  approverForm: {
+    ...command,
+    employeeId: employee.id,
+    approverEmployeeId: 'e-2',
+    validFrom: '2026-10-26',
+  },
+  assignments: [],
+  currentAssignment: null,
+  candidates: [employee, { ...employee, id: 'e-2', displayName: '박승인' }],
+  selectedApproverMissing: false,
+};
+
+function render(page: string, data: Record<string, unknown>) {
+  const props: PageProps = {
+    page,
+    data,
+    csrf: { token: 'csrf-token', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
+    reload: () => {},
+  };
+  return renderToStaticMarkup(<AdminPages {...props} />);
+}
+
+afterEach(cleanup);
+
+describe('관리 React 페이지', () => {
+  it('다른 페이지는 처리하지 않는다', () => {
+    expect(render('me/today', {})).toBe('');
+  });
+
+  it('직원 검색·필터·선택과 페이지 이동에 조건을 보존한다', () => {
+    const html = render('org/employees', {
+      employees: [employee],
+      selectedEmployee: employee,
+      employeeOrganizations: { 'e-1': '개발팀' },
+      options: [organization],
+      page: 1,
+      q: '김 & 개발',
+      organizationId: 'o-1',
+      status: 'active',
+      hasNext: true,
+      pageEmployeeCount: 1,
+      pageActiveCount: 1,
+      pageInactiveCount: 0,
+      form: employeeForm,
+    });
+    expect(html).toContain('name="q"');
+    expect(html).toContain('value="김 &amp; 개발"');
+    expect(html).toContain('value="o-1" selected=""');
+    expect(html).toContain('value="active" selected=""');
+    expect(html).toContain('employeeId=e-1');
+    expect(html).toContain('page=2');
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('href="/admin/employees/e-1/access"');
+    expect(html).toContain('name="employeeNo"');
+    expect(html).toContain('name="_active"');
+  });
+
+  it('직원 목록의 빈 상태와 오류 입력을 보존한다', () => {
+    const html = render('org/employees', {
+      employees: [],
+      selectedEmployee: null,
+      employeeOrganizations: {},
+      options: [],
+      page: 0,
+      q: '',
+      status: 'all',
+      hasNext: false,
+      pageEmployeeCount: 0,
+      pageActiveCount: 0,
+      pageInactiveCount: 0,
+      form: employeeForm,
+      error: '사번이 중복됩니다',
+    });
+    expect(html).toContain('등록된 사원이 없습니다');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('사번이 중복됩니다');
+    expect(html).toContain('open=""');
+    expect(html).toContain('value="김직원"');
+  });
+
+  it('사원 수정과 소속 이동의 독립 명령·버전을 유지한다', () => {
+    const html = render('org/employee', {
+      employee,
+      form: employeeForm,
+      assignmentForm: {
+        ...command,
+        commandId: 'assignment-1',
+        organizationId: 'o-1',
+        validFrom: '2026-10-27',
+      },
+      assignments: [
+        {
+          id: 'a-1',
+          organizationName: '과거팀',
+          validFrom: '2026-10-01',
+          validTo: null,
+          reason: '첫 소속',
+        },
+      ],
+      options: [organization, { ...organization, id: 'inactive', active: false }],
+    });
+    expect(html).toContain('action="/admin/employees/e-1/changes"');
+    expect(html).toContain('action="/admin/employees/e-1/assignments"');
+    expect(html.match(/name="expectedVersion"/g)).toHaveLength(2);
+    expect(html).toContain('value="assignment-1"');
+    expect(html).toContain('readOnly=""');
+    expect(html).toContain('종료일 없음');
+    expect(html).not.toContain('value="inactive"');
+  });
+
+  it('조직 목록은 검색·페이지와 신규 등록 필드를 렌더링한다', () => {
+    const html = render('org/organizations', {
+      organizations: [organization],
+      orgNames: {},
+      options: [organization],
+      q: '개발',
+      page: 0,
+      hasNext: true,
+      form: organizationForm,
+    });
+    expect(html).toContain('href="/admin/organizations/o-1"');
+    expect(html).toContain('name="parentId"');
+    expect(html).toContain('name="commandId"');
+    expect(html).toContain('page=1');
+  });
+
+  it('조직 상세는 자신을 부모에서 제외하며 기존 비활성 부모를 보존한다', () => {
+    const html = render('org/organization', {
+      organization,
+      form: { ...organizationForm, parentId: 'inactive' },
+      options: [
+        organization,
+        { ...organization, id: 'inactive', name: '기존 부모', active: false },
+        { ...organization, id: 'other-inactive', name: '선택 불가', active: false },
+      ],
+    });
+    expect(html).toContain('action="/admin/organizations/o-1/changes"');
+    expect(html).toContain('value="inactive" selected=""');
+    expect(html).toContain('기존 부모 (비활성)');
+    expect(html).not.toContain('value="o-1"');
+    expect(html).not.toContain('선택 불가');
+  });
+
+  it('로컬 전달이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', () => {
+    const html = render('org/access', {
+      ...access,
+      localDelivery: false,
+      selectedApproverMissing: true,
+      approverForm: { ...access.approverForm, approverEmployeeId: 'missing' },
+    });
+    expect(html).toContain('action="/admin/employees/e-1/invitations"');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>초대 발급/);
+    expect(html).toContain('현재 선택값 (재지정 필요)');
+    expect(html).toContain('value="missing" selected=""');
+    expect(html).not.toContain('<option value="e-1"');
+    expect(html).toContain('name="employeeId"');
+    expect(html).toContain('action="/admin/approver-assignments"');
+  });
+
+  it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', () => {
+    const html = render('org/access', {
+      ...access,
+      account: {
+        id: 'account-1',
+        employeeId: employee.id,
+        email: 'employee@example.test',
+        active: true,
+        credentialSet: true,
+        authVersion: 2,
+        roles: ['EMPLOYEE', 'APPROVER'],
+      },
+    });
+    expect(html).not.toContain('/invitations"');
+    expect(html).toContain('action="/admin/employees/e-1/roles"');
+    expect(html).toContain('name="roles" value="EMPLOYEE"');
+    expect(html).toContain('value="APPROVER"');
+    expect(html).toContain('value="ATTENDANCE_ADMIN"');
+    expect(html).toContain('checked=""');
+  });
+
+  it('부적격 사원에게 변경 폼을 제공하지 않는다', () => {
+    const html = render('org/access', { ...access, eligibleEmployee: false });
+    expect(html).toContain('현재 재직 중인 활성 사원만');
+    expect(html).not.toContain('<form');
+  });
+
+  it('고정 일정의 일곱 요일과 Spring 바인딩 명칭을 보존한다', () => {
+    const html = render('schedule/list', {
+      templates: [],
+      form: scheduleForm,
+      today: '2026-10-26',
+    });
+    expect(html).toContain('등록된 템플릿이 없습니다');
+    expect(html).toContain('action="/admin/schedules"');
+    for (let i = 0; i < 7; i++) {
+      expect(html).toContain(`name="days[${i}].weekday"`);
+      expect(html).toContain(`name="_days[${i}].workday"`);
+      expect(html).toContain(`name="days[${i}].startTime"`);
+      expect(html).toContain(`name="days[${i}].endTime"`);
+      expect(html).toContain(`name="days[${i}].breaks"`);
+    }
+    expect(html).toContain('min="2026-10-26"');
+  });
+
+  it('일정 폼 조각도 수정 대상을 유지한 React 폼으로 표시한다', () => {
+    const html = render('schedule/form', { template, form: scheduleForm, today: '2026-10-26' });
+    expect(html).toContain('action="/admin/schedules/s-1/versions"');
+    expect(html).toContain('name="days[6].weekday"');
+    expect(html).toContain('name="reason"');
+  });
+
+  it('일정 상세에 불변 버전과 근무·휴게를 표시한다', () => {
+    const html = render('schedule/detail', {
+      template,
+      versions: [version],
+      versionDays: {
+        'v-1': [
+          {
+            weekday: 1,
+            workday: true,
+            startTime: '09:00:00',
+            endTime: '18:00:00',
+            breaks: [{ startTime: '12:00:00', endTime: '13:00:00' }],
+          },
+          { weekday: 7, workday: false, startTime: null, endTime: null, breaks: [] },
+        ],
+      },
+      form: scheduleForm,
+      today: '2026-10-26',
+    });
+    expect(html).toContain('action="/admin/schedules/s-1/versions"');
+    expect(html).toContain('버전 2');
+    expect(html).toContain('비근로일');
+    expect(html).toContain('해당 없음');
+    expect(html).toContain('12:00');
+    expect(html).toContain('readOnly=""');
+  });
+
+  it('일정 배정에 현재 선택한 버전·사원 버전을 보존한다', () => {
+    const html = render('schedule/assignment', {
+      employee,
+      assignments: [],
+      versions: [version],
+      templateNames: { 's-1': '고정 근무' },
+      today: '2026-10-26',
+      form: { ...command, scheduleVersionId: 'v-1', validFrom: '2026-10-27' },
+    });
+    expect(html).toContain('일정 누락 날짜를 정상 근로일로 간주하지 않습니다');
+    expect(html).toContain('action="/admin/employees/e-1/schedule"');
+    expect(html).toContain('value="v-1" selected=""');
+    expect(html).toContain('name="expectedVersion"');
+  });
+
+  it('허용망은 유효 이력만 종료 폼과 위험 확인 항목을 표시한다', () => {
+    const network = {
+      id: 'n-1',
+      network: '192.0.2.0/24',
+      label: '사무실',
+      validFrom: '2026-10-25T15:00:00Z',
+      validTo: null,
+      reason: '검토',
+      version: 2,
+    };
+    const html = render('clock/networks', {
+      networks: [network, { ...network, id: 'n-2', validTo: '2026-10-26T00:00:00Z' }],
+      pageCommand: 'close-command',
+      form: { ...command, network: '', label: '', wideConfirmed: false },
+    });
+    expect(html).toContain('action="/admin/networks/n-1/close"');
+    expect(html).not.toContain('action="/admin/networks/n-2/close"');
+    expect(html).toContain('value="close-command"');
+    expect(html).toContain('name="_wideConfirmed"');
+    expect(html).toContain('action="/admin/networks/changes"');
+  });
+
+  it('휴일 캘린더는 명시 검토와 예외·기간·근거 필드를 요구한다', () => {
+    const html = render('clock/calendar', {
+      calendars: [],
+      form: {
+        ...command,
+        from: '2026-10-26',
+        to: '2026-11-25',
+        reviewed: false,
+        basis: '공식 근거',
+        exceptions: '2026-11-01|HOLIDAY|휴일|검토',
+      },
+    });
+    expect(html).toContain('action="/admin/calendar/versions"');
+    for (const name of ['from', 'to', 'basis', 'reviewed', 'exceptions', 'reason', 'commandId'])
+      expect(html).toContain(`name="${name}"`);
+    expect(html.match(/<input[^>]*name="reviewed"[^>]*>/)?.[0]).toContain('required');
+    expect(html).toContain('미등록 날짜는 미확인');
+  });
+
+  it('사원·조직 이름과 오류를 React 텍스트로 이스케이프한다', () => {
+    const html = render('org/organization', {
+      organization: { ...organization, name: '<script>alert(1)</script>' },
+      form: { ...organizationForm, name: '<img src=x onerror=alert(1)>' },
+      options: [],
+      error: '<b>오류</b>',
+    });
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html).toContain('&lt;b&gt;오류&lt;/b&gt;');
+    expect(html).not.toContain('<script>');
+  });
+
+  it('사원 정보를 실제로 편집하고 체크를 해제해도 명령·버전을 제출한다', () => {
+    const props: PageProps = {
+      page: 'org/employee',
+      data: {
+        employee,
+        form: employeeForm,
+        assignments: [],
+        assignmentForm: { ...command, organizationId: null, validFrom: '' },
+        options: [],
+      },
+      csrf: { token: '', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
+      reload: () => {},
+    };
+    const view = renderDom(<AdminPages {...props} />);
+    fireEvent.change(view.getByLabelText('이름'), { target: { value: '수정한 이름' } });
+    fireEvent.click(view.getByLabelText('활성 사원'));
+    const form = view.container.querySelector(
+      'form[action="/admin/employees/e-1/changes"]',
+    ) as HTMLFormElement;
+    const submitted = new FormData(form);
+    expect(submitted.get('displayName')).toBe('수정한 이름');
+    expect(submitted.get('employeeNo')).toBe('E001');
+    expect(submitted.get('active')).toBeNull();
+    expect(submitted.get('_active')).toBe('on');
+    expect(submitted.get('commandId')).toBe('command-1');
+    expect(submitted.get('expectedVersion')).toBe('7');
+  });
+
+  it('역할 체크 변경은 고정 직원 역할과 새 선택값만 제출한다', () => {
+    const props: PageProps = {
+      page: 'org/access',
+      data: {
+        ...access,
+        account: {
+          id: 'account-1',
+          email: 'employee@example.test',
+          active: true,
+          credentialSet: true,
+          roles: ['EMPLOYEE', 'APPROVER'],
+        },
+      },
+      csrf: { token: '', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
+      reload: () => {},
+    };
+    const view = renderDom(<AdminPages {...props} />);
+    fireEvent.click(view.getByLabelText('승인자 (APPROVER)'));
+    fireEvent.click(view.getByLabelText('근태 담당자 (ATTENDANCE_ADMIN)'));
+    const form = view.container.querySelector(
+      'form[action="/admin/employees/e-1/roles"]',
+    ) as HTMLFormElement;
+    expect(new FormData(form).getAll('roles')).toEqual(['EMPLOYEE', 'ATTENDANCE_ADMIN']);
+  });
+});

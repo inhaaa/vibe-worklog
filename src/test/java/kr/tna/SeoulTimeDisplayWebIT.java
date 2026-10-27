@@ -64,7 +64,7 @@ class SeoulTimeDisplayWebIT {
         worker=member("W-1",Set.of("EMPLOYEE"),hash);
     }
 
-    @Test void correctionDetailUsesSeoulDatesMillisecondsAndReadableBreaksWithoutRawJson()throws Exception{
+    @Test void correctionDetailSuppliesPreciseInstantsAndSanitizedBreaksForSeoulDisplay()throws Exception{
         LocalDate date=LocalDate.of(2025,12,31);
         approvers.set(manager,new ApproverForm(worker.employeeId(),manager.employeeId(),LocalDate.now(ZoneOffset.ofHours(9)),0L,"합성 승인자",UUID.randomUUID()));
         var day=clocks.day(worker,date);
@@ -75,14 +75,18 @@ class SeoulTimeDisplayWebIT {
         db.update("UPDATE tna.correction_detail SET actual_breaks=CAST(? AS jsonb) WHERE tenant_id=? AND request_id=?",
                 "[{\"startAt\":\"2025-12-31T14:40:00.234Z\",\"endAt\":\"2025-12-31T14:45:00.345Z\",\"secret\":\"DO_NOT_REFLECT\"}]",tenant,request);
         mvc.perform(get("/requests/{id}",request).session(customer(worker)).locale(Locale.GERMANY))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("Asia/Seoul")))
-                .andExpect(content().string(containsString("2025-12-31")))
-                .andExpect(content().string(containsString("2025-12-31 23:30:00.123")))
-                .andExpect(content().string(containsString("2025-12-31 23:59:59.987")))
-                .andExpect(content().string(containsString("2025-12-31 23:40:00.234 ~ 2025-12-31 23:45:00.345")))
-                .andExpect(content().string(containsString("2026-01-01 00:00:00.456")))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/detail/correction/workDate", "2025-12-31"))
+                .andExpect(ReactPageAssertions.data("/detail/correction/requestedInAt", "2025-12-31T14:30:00.123Z"))
+                .andExpect(ReactPageAssertions.data("/detail/correction/requestedOutAt", "2025-12-31T14:59:59.987Z"))
+                .andExpect(ReactPageAssertions.data("/detail/history/0/createdAt", "2025-12-31T15:00:00.456Z"))
                 .andExpect(content().string(not(containsString("DO_NOT_REFLECT"))))
-                .andExpect(content().string(not(containsString("2025-12-31T14:30:00.123Z"))));
+                .andExpect(result -> {
+                    var raw = ReactPageAssertions.envelope(result).at("/data/detail/correction/actualBreaks").asString();
+                    var breaks = tools.jackson.databind.json.JsonMapper.builder().build().readTree(raw);
+                    org.junit.jupiter.api.Assertions.assertEquals("2025-12-31T14:40:00.234Z", breaks.get(0).get("startAt").asString());
+                    org.junit.jupiter.api.Assertions.assertEquals(2, breaks.get(0).size());
+                });
     }
 
     @Test void operatorAuditUsesSeoulMillisecondsWithoutCreatingACustomerSession()throws Exception{
@@ -93,10 +97,9 @@ class SeoulTimeDisplayWebIT {
                 UUID.randomUUID(),operator,UUID.randomUUID(),OrgCommands.fingerprint("display",operator),Timestamp.from(at));
         var session=(MockHttpSession)mvc.perform(post("/operator/login").with(csrf()).param("loginId",login).param("password",PASSWORD))
                 .andExpect(redirectedUrl("/operator/tenants")).andReturn().getRequest().getSession(false);
-        String expected=DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS",Locale.ROOT).format(at.atOffset(ZoneOffset.ofHours(9)));
         mvc.perform(get("/operator/tenants").session(session).locale(Locale.GERMANY))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("Asia/Seoul")))
-                .andExpect(content().string(containsString(expected))).andExpect(content().string(not(containsString(at.toString()))));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/audit/0/createdAt", at.toString()));
         mvc.perform(get("/me/today").session(session)).andExpect(redirectedUrl("/login"));
     }
 
@@ -105,15 +108,14 @@ class SeoulTimeDisplayWebIT {
         db.update("UPDATE tna.allowed_network SET valid_from=?,valid_to=? WHERE tenant_id=? AND id=?",
                 Timestamp.from(Instant.parse("2025-12-31T14:30:00.123Z")),Timestamp.from(Instant.parse("2025-12-31T15:00:00.456Z")),tenant,network);
         mvc.perform(get("/admin/networks").session(customer(manager)).locale(Locale.GERMANY))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("Asia/Seoul")))
-                .andExpect(content().string(containsString("2025-12-31 23:30:00.123")))
-                .andExpect(content().string(containsString("2026-01-01 00:00:00.456")))
-                .andExpect(content().string(not(containsString("2025-12-31T15:00:00.456Z"))));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/networks/0/validFrom", "2025-12-31T14:30:00.123Z"))
+                .andExpect(ReactPageAssertions.data("/networks/0/validTo", "2025-12-31T15:00:00.456Z"));
     }
 
     @Test void visibleEmployeeDatesRemainIsoUnderAnotherRequestLocale()throws Exception{
         mvc.perform(get("/admin/employees").session(customer(manager)).locale(Locale.GERMANY))
-                .andExpect(status().isOk()).andExpect(content().string(containsString(">2020-01-02</time>")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/employees/0/joinedOn", "2020-01-02"));
     }
 
     private TnaPrincipal member(String number,Set<String> roles,String hash){

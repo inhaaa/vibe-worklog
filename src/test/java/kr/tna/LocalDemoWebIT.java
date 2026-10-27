@@ -92,13 +92,14 @@ class LocalDemoWebIT {
         mvc.perform(get("/login")).andExpect(redirectedUrl("/demo"));
         mvc.perform(get("/demo")).andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("name=\"companyCode\""))))
-                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"email\")(?=[^>]*type=\"hidden\")(?=[^>]*value=\"admin\")[^>]*>.*")))
-                .andExpect(content().string(matchesPattern("(?s).*<input(?=[^>]*name=\"password\")(?=[^>]*type=\"hidden\")(?=[^>]*value=\"admin\")[^>]*>.*")))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/demoLogin", "admin"))
+                .andExpect(ReactPageAssertions.data("/demoPassword", "admin"))
                 .andExpect(content().string(not(containsString("type=\"password\""))))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
+                .andExpect(ReactPageAssertions.csrf())
                 .andExpect(content().string(not(anyOf(containsString("회사 코드와 이메일"),
                         containsString("href=\"/password-reset\""), containsString("초대 수락 후 로그인")))))
-                .andExpect(content().string(containsString("데모로 입장")));
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test

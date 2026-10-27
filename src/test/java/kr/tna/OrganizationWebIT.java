@@ -5,7 +5,6 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.org.OrgData;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,16 +64,15 @@ class OrganizationWebIT {
         mvc.perform(get("/admin/organizations").session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/organizations"))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
+                .andExpect(ReactPageAssertions.csrf())
                 .andExpect(inputAttribute("active", "checked", null));
         mvc.perform(get("/admin/employees").session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/employees"))
                 .andExpect(inputAttribute("active", "checked", null))
-                .andExpect(content().string(containsString("로그인 계정은 자동으로 생성되지 않습니다")));
+                .andExpect(ReactPageAssertions.page());
         mvc.perform(get("/me/today").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("href=\"/admin/organizations\"")))
-                .andExpect(content().string(containsString("href=\"/admin/employees\"")));
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test
@@ -94,7 +92,7 @@ class OrganizationWebIT {
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/admin/organizations/" + id));
         mvc.perform(organizationChange(session, id, code, "뒤늦은 변경", original.version()))
                 .andExpect(status().isConflict()).andExpect(view().name("org/organization"))
-                .andExpect(content().string(containsString("role=\"alert\"")))
+                .andExpect(ReactPageAssertions.dataPresent("/error"))
                 .andExpect(inputAttribute("name", "value", "뒤늦은 변경"));
         mvc.perform(get("/admin/organizations/{id}", id).session(session))
                 .andExpect(status().isOk())
@@ -135,8 +133,8 @@ class OrganizationWebIT {
                         .param("code", code).param("name", name).param("active", "true")
                         .param("reason", " ").param("commandId", command.toString()))
                 .andExpect(status().is(422)).andExpect(view().name("org/organizations"))
-                .andExpect(content().string(containsString("role=\"alert\"")))
-                .andExpect(content().string(containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
+                .andExpect(ReactPageAssertions.dataPresent("/error"))
+                .andExpect(content().string(containsString("\\u003cscript\\u003ealert(1)\\u003c/script\\u003e")))
                 .andExpect(content().string(not(containsString(name)))).andReturn();
         var preserved = (OrgData.OrganizationForm) invalid.getModelAndView().getModel().get("form");
         assertEquals(name, preserved.name());
@@ -145,7 +143,7 @@ class OrganizationWebIT {
         for (String path : List.of("/admin/organizations/" + id, "/admin/organizations")) {
             mvc.perform(get(path).session(session).param("q", code))
                     .andExpect(status().isOk())
-                    .andExpect(content().string(containsString("&lt;script&gt;alert(1)&lt;/script&gt;")))
+                    .andExpect(content().string(containsString("\\u003cscript\\u003ealert(1)\\u003c/script\\u003e")))
                     .andExpect(content().string(not(containsString(name))));
         }
     }
@@ -158,10 +156,10 @@ class OrganizationWebIT {
         var invalid = mvc.perform(employeePost(session, uniqueCode(), name, command)
                         .param("leftOn", JOINED_ON.minusDays(1).toString()))
                 .andExpect(status().is(422)).andExpect(view().name("org/employees"))
-                .andExpect(content().string(containsString("role=\"alert\"")))
+                .andExpect(ReactPageAssertions.dataPresent("/error"))
                 .andExpect(inputAttribute("joinedOn", "value", JOINED_ON.toString()))
                 .andExpect(inputAttribute("leftOn", "value", JOINED_ON.minusDays(1).toString()))
-                .andExpect(content().string(containsString("&lt;img src=x onerror=alert(1)&gt;")))
+                .andExpect(content().string(containsString("\\u003cimg src=x onerror=alert(1)\\u003e")))
                 .andExpect(content().string(not(containsString(name)))).andReturn();
         var form = (OrgData.EmployeeForm) invalid.getModelAndView().getModel().get("form");
         assertEquals(name, form.displayName());
@@ -273,7 +271,7 @@ class OrganizationWebIT {
         var detail = mvc.perform(get("/admin/employees/{id}", employee).session(session))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("assignments", hasSize(2)))
-                .andExpect(content().string(containsString("종료일 (제외)")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(containsString("첫 등록")))
                 .andExpect(content().string(containsString("정상 이동"))).andReturn();
         @SuppressWarnings("unchecked")
@@ -285,9 +283,9 @@ class OrganizationWebIT {
         var invalid = mvc.perform(assignmentPost(session, employee, first, moved, 2, "같은 날 재배정"))
                 .andExpect(status().is(422)).andExpect(view().name("org/employee"))
                 .andExpect(model().attribute("assignments", hasSize(2)))
-                .andExpect(content().string(containsString("role=\"alert\"")))
+                .andExpect(ReactPageAssertions.dataPresent("/error"))
                 .andExpect(inputAttribute("validFrom", "value", moved.toString()))
-                .andExpect(content().string(containsString("같은 날 재배정</textarea>"))).andReturn();
+                .andExpect(ReactPageAssertions.data("/assignmentForm/reason", "같은 날 재배정")).andReturn();
         var form = (OrgData.AssignmentForm) invalid.getModelAndView().getModel().get("assignmentForm");
         assertEquals(first, form.organizationId());
         assertEquals(2, form.expectedVersion().longValue());
@@ -326,12 +324,12 @@ class OrganizationWebIT {
         mvc.perform(get("/admin/organizations").session(session).param("q", query))
                 .andExpect(status().isOk()).andExpect(model().attribute("organizations", hasSize(50)))
                 .andExpect(model().attribute("hasNext", true))
-                .andExpect(content().string(containsString("page=1")));
+                .andExpect(ReactPageAssertions.data("/hasNext", true));
         mvc.perform(get("/admin/organizations").session(session).param("q", query).param("page", "1"))
                 .andExpect(status().isOk()).andExpect(model().attribute("organizations", hasSize(1)))
                 .andExpect(model().attribute("hasNext", false))
                 .andExpect(inputAttribute("q", "value", query))
-                .andExpect(content().string(containsString("page=0")));
+                .andExpect(ReactPageAssertions.data("/page", 1));
         String employeeNo = uniqueCode();
         createEmployee(session, employeeNo, "검색할 사원");
         mvc.perform(get("/admin/employees").session(session).param("q", employeeNo))
@@ -355,10 +353,8 @@ class OrganizationWebIT {
                 .andExpect(status().isSeeOther());
         mvc.perform(get("/admin/organizations/{id}", child).session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("보관 부모 조직 (비활성)")))
-                .andExpect(result -> assertTrue(Pattern.compile("<option\\b(?=[^>]*\\bvalue=\"" + parent
-                                + "\")(?=[^>]*\\bselected(?:\\s|=|>))[^>]*>")
-                        .matcher(result.getResponse().getContentAsString()).find(), "기존 비활성 부모 선택이 보존되어야 합니다."));
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/form/parentId", parent));
         mvc.perform(organizationChange(session, child, childCode, "보관 이름 변경", 1, false)
                         .param("parentId", parent.toString()))
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/admin/organizations/" + child));
@@ -370,7 +366,7 @@ class OrganizationWebIT {
         mvc.perform(organizationChange(session, child, childCode, "재활성화 시도", organization.version())
                         .param("parentId", parent.toString()))
                 .andExpect(status().is(422)).andExpect(view().name("org/organization"))
-                .andExpect(content().string(containsString("role=\"alert\"")));
+                .andExpect(ReactPageAssertions.dataPresent("/error"));
     }
 
     private void grantAdmin(UUID tenant, UUID account) {
@@ -445,14 +441,12 @@ class OrganizationWebIT {
 
     private ResultMatcher inputAttribute(String name, String attribute, String value) {
         return result -> {
-            var inputs = Pattern.compile("<input\\b[^>]*>").matcher(result.getResponse().getContentAsString());
-            var named = Pattern.compile("\\bname=\"" + Pattern.quote(name) + "\"");
-            var expected = Pattern.compile("\\b" + Pattern.quote(attribute)
-                    + (value == null ? "(?:\\s|=|>)" : "=\"" + Pattern.quote(value) + "\""));
-            while (inputs.find()) {
-                if (named.matcher(inputs.group()).find() && expected.matcher(inputs.group()).find()) return;
-            }
-            fail("Missing input " + name + " with " + attribute + (value == null ? "" : "=" + value));
+            String pointer = name.equals("q") ? "/data/q"
+                    : "/data/" + (name.equals("validFrom") ? "assignmentForm/" : "form/") + name;
+            var actual = ReactPageAssertions.envelope(result).at(pointer);
+            assertFalse(actual.isMissingNode(), name);
+            if (attribute.equals("checked")) assertTrue(actual.asBoolean());
+            else if (attribute.equals("value")) assertEquals(value, actual.asString());
         };
     }
 

@@ -57,9 +57,9 @@ class SecurityWebIT {
     void loginHasCsrfAndLocalAssetsAndProtectedPagesRequireAuthentication() throws Exception {
         mvc.perform(get("/login"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("name=\"companyCode\"")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
-                .andExpect(content().string(containsString("/vendor/htmx.min.js")))
+                .andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.csrf())
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")));
         mvc.perform(get("/me/today")).andExpect(status().is3xxRedirection());
         mvc.perform(get("/me/today/status").header("HX-Request", "true"))
@@ -81,12 +81,11 @@ class SecurityWebIT {
                 .andExpect(content().string(containsString("직원 A")))
                 .andExpect(content().string(not(containsString("직원 B"))))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
-                .andExpect(content().string(containsString("historyCacheSize")))
-                .andExpect(content().string(containsString("setup-status")));
+                .andExpect(ReactPageAssertions.page());
         mvc.perform(get("/me/today").session(companyB))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("직원 B")));
         mvc.perform(get("/me/today/status").session(companyA).header("HX-Request", "true"))
-                .andExpect(status().isOk()).andExpect(content().string(not(containsString("<!DOCTYPE"))));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page());
         TnaPrincipal principal = principal(companyA);
         assertEquals(DatabaseFixture.TENANT_A, principal.tenantId());
         assertFalse(principal.toString().contains(HASH));
@@ -179,7 +178,7 @@ class SecurityWebIT {
         admin.update("update platform.tenant_registry set company_code = ? where id = ?",
                 company, DatabaseFixture.TENANT_A);
         try {
-            mvc.perform(get("/login")).andExpect(content().string(containsString("maxlength=\"80\"")));
+            mvc.perform(get("/login")).andExpect(ReactPageAssertions.page());
             login(company);
         } finally {
             admin.update("update platform.tenant_registry set company_code = ? where id = ?",

@@ -35,7 +35,7 @@ class FixedScheduleWebIT {
     }
     @Test void administratorCanOpenTemplates() throws Exception {
         mvc.perform(get("/admin/schedules").session(login(true))).andExpect(status().isOk()).andExpect(view().name("schedule/list"))
-            .andExpect(content().string(containsString("예정 휴게"))).andExpect(content().string(containsString("name=\"_csrf\"")));
+            .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.csrf());
     }
     @Test void employeeCannotOpenOrCreateTemplates() throws Exception {
         var s=login(false);mvc.perform(get("/admin/schedules").session(s)).andExpect(status().isForbidden());
@@ -44,7 +44,7 @@ class FixedScheduleWebIT {
     @Test void templateVersionAndEmployeeAssignmentAreConnected() throws Exception {
         var s=login(true);var created=mvc.perform(form(s,"/admin/schedules")).andExpect(status().isSeeOther()).andReturn();
         String detail=created.getResponse().getRedirectedUrl();assertNotNull(detail);
-        var page=mvc.perform(get(detail).session(s)).andExpect(status().isOk()).andExpect(content().string(containsString("불변 버전"))).andReturn();
+        var page=mvc.perform(get(detail).session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page()).andReturn();
         var versions=(java.util.List<?>)page.getModelAndView().getModel().get("versions");
         assertEquals(1,versions.size());UUID version=((kr.tna.schedule.ScheduleData.TemplateVersion)versions.getFirst()).id();
         var admin=new JdbcTemplate(DatabaseFixture.start().adminDataSource());

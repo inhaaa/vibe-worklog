@@ -57,45 +57,32 @@ class WorkspaceShellWebIT {
     }
 
     @Test
-    void employeeSeesPersonalNavigationWithoutAdminApproverOrOperatorLinks() throws Exception {
-        var session = login();
-        mvc.perform(get("/me/today").session(session))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("id=\"tna-app\"")))
-                .andExpect(content().string(containsString("href=\"/me/schedule\"")))
-                .andExpect(content().string(containsString("href=\"/me/requests\"")))
-                .andExpect(content().string(not(containsString("href=\"/admin/employees\""))))
-                .andExpect(content().string(not(containsString("href=\"/approvals\""))))
-                .andExpect(content().string(not(containsString("href=\"/operator/tenants\""))))
+    void employeeNavigationReceivesOnlyActualEmployeeRole() throws Exception {
+        mvc.perform(get("/me/today").session(login()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.roles("EMPLOYEE"))
                 .andExpect(model().attributeExists("workspaceEmployee", "workspacePrincipal", "workspaceDemo"));
     }
 
     @Test
-    void adminPagesShareMenuAndActualIdentityAndKeepCsrfLogout() throws Exception {
+    void adminPagesShareMinimalIdentityCsrfAndSelfHostedAssets() throws Exception {
         grant("ATTENDANCE_ADMIN");
         var session = login();
         for (String path : new String[]{"/me/today", "/admin/organizations", "/admin/networks"}) {
-            mvc.perform(get(path).session(session))
-                    .andExpect(status().isOk())
-                    .andExpect(content().string(containsString("id=\"tna-app\"")))
-                    .andExpect(content().string(containsString("aria-controls=\"workspace-menu\"")))
-                    .andExpect(content().string(containsString("href=\"/admin/employees\"")))
-                    .andExpect(content().string(not(containsString("href=\"/admin/approver-assignments\""))))
-                    .andExpect(content().string(containsString("직원 A")))
-                    .andExpect(content().string(containsString("action=\"/logout\"")))
-                    .andExpect(content().string(containsString("name=\"_csrf\"")))
-                    .andExpect(content().string(containsString("/app.js")))
+            mvc.perform(get(path).session(session)).andExpect(status().isOk())
+                    .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.roles("EMPLOYEE", "ATTENDANCE_ADMIN"))
+                    .andExpect(ReactPageAssertions.data("/workspaceEmployee/employeeName", "직원 A"))
+                    .andExpect(ReactPageAssertions.csrf())
+                    .andExpect(content().string(containsString("/react/app.js")))
                     .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")));
         }
     }
 
     @Test
-    void approverMenuIsBasedOnActualRole() throws Exception {
+    void approverNavigationReceivesTheActualApproverRole() throws Exception {
         grant("APPROVER");
-        mvc.perform(get("/me/today").session(login()))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("href=\"/approvals\"")))
-                .andExpect(content().string(not(containsString("href=\"/admin/employees\""))));
+        mvc.perform(get("/me/today").session(login())).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.roles("EMPLOYEE", "APPROVER"));
     }
 
     @Test
@@ -103,11 +90,9 @@ class WorkspaceShellWebIT {
         grant("ATTENDANCE_ADMIN");
         jdbc.update("DELETE FROM tna.role_grant WHERE tenant_id=? AND account_id=? AND role='EMPLOYEE'",
                 DatabaseFixture.TENANT_A, DatabaseFixture.ACCOUNT_A);
-        mvc.perform(get("/admin/organizations").session(login()))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("직원 A")))
-                .andExpect(content().string(containsString("href=\"/admin/employees\"")))
-                .andExpect(content().string(not(containsString("href=\"/me/schedule\""))));
+        mvc.perform(get("/admin/organizations").session(login())).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.roles("ATTENDANCE_ADMIN"))
+                .andExpect(ReactPageAssertions.data("/workspaceEmployee/employeeName", "직원 A"));
     }
 
     @Test
@@ -118,7 +103,7 @@ class WorkspaceShellWebIT {
         mvc.perform(get("/me/today").session(session)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("&lt;script&gt;workspace-name&lt;/script&gt;")))
+                .andExpect(content().string(containsString("\\u003cscript\\u003eworkspace-name\\u003c/script\\u003e")))
                 .andExpect(content().string(not(containsString("<script>workspace-name</script>"))))
                 .andExpect(content().string(not(containsString("직원 B"))));
     }

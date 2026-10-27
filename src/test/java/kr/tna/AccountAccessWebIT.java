@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.org.AccountData;
@@ -73,9 +72,9 @@ class AccountAccessWebIT {
         mvc.perform(get("/admin/employees/{id}/access", DatabaseFixture.EMPLOYEE_A).session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/access"))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
-                .andExpect(content().string(containsString("name=\"_csrf\"")))
-                .andExpect(content().string(containsString("value=\"EMPLOYEE\"")))
-                .andExpect(content().string(containsString("담당자 역할만으로 승인 권한을 얻지 않습니다")));
+                .andExpect(ReactPageAssertions.csrf())
+                .andExpect(ReactPageAssertions.dataPresent("/rolesForm/roles"))
+                .andExpect(ReactPageAssertions.page());
     }
 
     @Test
@@ -141,8 +140,7 @@ class AccountAccessWebIT {
         assertEquals(false, row.get("active"));
         assertEquals(false, row.get("credential_set"));
         mvc.perform(get("/admin/employees/{id}/access", employee).session(session).param("invited", ""))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("초대 대기")))
-                .andExpect(content().string(containsString("로컬 모의 메일함")))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(containsString(message.token()))));
         String audit = admin.queryForObject("""
                 SELECT string_agg(before_state::text || after_state::text, '') FROM tna.org_audit_event
@@ -160,7 +158,7 @@ class AccountAccessWebIT {
         for (String company : List.of(DatabaseFixture.COMPANY_A, "UNKNOWN-COMPANY")) {
             mvc.perform(get("/invite/{companyCode}", company))
                     .andExpect(status().isOk()).andExpect(view().name("invite"))
-                    .andExpect(content().string(containsString("name=\"_csrf\"")))
+                    .andExpect(ReactPageAssertions.csrf())
                     .andExpect(content().string(containsString("no-referrer")))
                     .andExpect(content().string(not(containsString(DatabaseFixture.EMAIL))))
                     .andExpect(content().string(not(containsString("직원 A"))));
@@ -198,7 +196,7 @@ class AccountAccessWebIT {
                     return httpRequest;
                 }))) {
             mvc.perform(request).andExpect(status().is(422)).andExpect(view().name("invite"))
-                    .andExpect(content().string(containsString("role=\"alert\"")))
+                    .andExpect(ReactPageAssertions.dataPresent("/error"))
                     .andExpect(content().string(not(containsString(message.token()))))
                     .andExpect(content().string(not(containsString(PASSWORD))));
         }
@@ -229,7 +227,7 @@ class AccountAccessWebIT {
         Member member = member("역할 검증", false);
         var invalid = mvc.perform(roles(session, member.employee(), 0, "APPROVER"))
                 .andExpect(status().is(422)).andExpect(view().name("org/access"))
-                .andExpect(content().string(containsString("role=\"alert\""))).andReturn();
+                .andExpect(ReactPageAssertions.dataPresent("/error")).andReturn();
         var form = (AccountData.RolesForm) invalid.getModelAndView().getModel().get("rolesForm");
         assertEquals(Set.of("APPROVER"), form.roles());
         assertEquals(0, admin.queryForObject("""
@@ -264,7 +262,7 @@ class AccountAccessWebIT {
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl(access(employee)));
         mvc.perform(approver(session, employee, next.employee(), 2)).andExpect(status().isSeeOther());
         var page = mvc.perform(get(access(employee)).session(session)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("당일 교체·해제"))).andReturn();
+                .andExpect(ReactPageAssertions.page()).andReturn();
         var current = (AccountData.ApproverAssignment) page.getModelAndView().getModel().get("currentAssignment");
         assertEquals(next.employee(), current.approverEmployeeId());
         assertTrue(current.eligible());
@@ -280,12 +278,12 @@ class AccountAccessWebIT {
         mvc.perform(approver(session, employee, approver.employee(), 0)).andExpect(status().isSeeOther());
         mvc.perform(roles(session, approver.employee(), 0, "EMPLOYEE")).andExpect(status().isSeeOther());
         mvc.perform(get(access(employee)).session(session)).andExpect(status().isOk())
-                .andExpect(content().string(containsString("재지정 필요")))
+                .andExpect(ReactPageAssertions.page())
                 .andExpect(selectedOption(approver.employee()));
         mvc.perform(approver(session, employee, null, 1)).andExpect(status().isSeeOther());
         mvc.perform(get(access(employee)).session(session)).andExpect(status().isOk())
                 .andExpect(model().attribute("currentAssignment", org.hamcrest.Matchers.nullValue()))
-                .andExpect(content().string(containsString("지정 승인자가 없습니다")));
+                .andExpect(ReactPageAssertions.page());
         assertEquals(1, admin.queryForObject("""
                 SELECT count(*) FROM tna.approver_assignment WHERE tenant_id=? AND employee_id=? AND superseded_at IS NOT NULL
                 """, Integer.class, DatabaseFixture.TENANT_A, employee));
@@ -386,9 +384,7 @@ class AccountAccessWebIT {
     }
 
     private ResultMatcher selectedOption(UUID value) {
-        return result -> assertTrue(Pattern.compile("<option(?=[^>]*\\bvalue=\"" + value
-                        + "\")(?=[^>]*\\bselected(?:\\s|=|>))[^>]*>")
-                .matcher(result.getResponse().getContentAsString()).find(), "선택한 승인자 값이 보존되어야 합니다.");
+        return ReactPageAssertions.data("/approverForm/approverEmployeeId", value);
     }
 
     private String email() { return UUID.randomUUID() + "@example.test"; }

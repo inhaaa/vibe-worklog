@@ -72,7 +72,7 @@ class LeaveBalanceSelectionWebIT {
     void allThreeHundredEmployeesCanBeSelectedWithoutListPaginationTruncation() throws Exception {
         var result = mvc.perform(get("/admin/leave-balances").session(login("manager@example.test")))
                 .andExpect(status().isOk()).andExpect(view().name("request/balances"))
-                .andExpect(content().string(containsString("E0300 · 합성 사원 300")))
+                .andExpect(ReactPageAssertions.data("/employees/299/id", lastEmployee))
                 .andReturn();
         var options = options(result.getModelAndView().getModel().get("employees"));
         assertEquals(300, options.size());
@@ -84,7 +84,7 @@ class LeaveBalanceSelectionWebIT {
     void lastEmployeeCanBeSelectedAndAnOpeningEntryCanBeCreated() throws Exception {
         var session = login("manager@example.test");
         mvc.perform(get("/admin/leave-balances").session(session).param("employeeId", lastEmployee.toString()))
-                .andExpect(status().isOk()).andExpect(content().string(containsString("value=\"" + lastEmployee + "\" selected=\"selected\"")));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/form/employeeId", lastEmployee));
         UUID command = UUID.randomUUID();
         mvc.perform(post("/admin/leave-balances/entries").session(session).with(csrf())
                         .param("employeeId", lastEmployee.toString()).param("baseDate", TODAY.toString())
