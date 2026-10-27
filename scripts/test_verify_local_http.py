@@ -1,5 +1,6 @@
 """Login-page parsing and one-hop redirect boundary; no HTTP, DB, or Docker."""
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -8,15 +9,25 @@ spec = importlib.util.spec_from_file_location("local_http", Path(__file__).with_
 probe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(probe)
 FORM = '<input type="hidden" name="_csrf" value="synthetic-csrf">'
+PAGE_TYPE = "application/vnd.worklog.page+json"
+
+
+def bootstrap(payload):
+    return '<script id="worklog-page" type="application/json">' + json.dumps(payload) + '</script>'
+
+
+BOOT = bootstrap({"page": "login", "data": {}, "csrf": {"token": "synthetic-csrf", "parameterName": "_csrf"}})
 
 
 class Requests:
     def __init__(self, *responses):
         self.responses = list(responses)
         self.paths = []
+        self.headers = []
 
-    def __call__(self, path):
+    def __call__(self, path, headers=None):
         self.paths.append(path)
+        self.headers.append(headers)
         return self.responses.pop(0)
 
 
@@ -26,6 +37,54 @@ class LoginPageTest(unittest.TestCase):
         for html in ["<p>No token</p>", '<input name="_csrf" value="">']:
             with self.subTest(html=html), self.assertRaises(AssertionError):
                 probe.csrf(html)
+
+    def test_csrf_bootstrap_reads_escaped_json_without_executing_or_html_unescaping_it(self):
+        token = "opaque+csrf/<script>&\u2028"
+        html = bootstrap({"csrf": {"token": token, "parameterName": "_csrf"}})
+        html = html.replace("<script>&", r"\u003cscript\u003e\u0026")
+        self.assertEqual(token, probe.csrf(html))
+        self.assertEqual("synthetic-csrf", probe.csrf(BOOT))
+        self.assertEqual("synthetic-csrf", probe.csrf(BOOT.replace('id="worklog-page" type="application/json"',
+                                                                              "type='application/json' id='worklog-page'")))
+
+    def test_csrf_bootstrap_rejects_missing_empty_or_wrongly_typed_contract_values(self):
+        payloads = [None, [], {}, {"csrf": None}, {"csrf": []},
+                    {"csrf": {"token": "token"}},
+                    {"csrf": {"token": "token", "parameterName": ""}},
+                    {"csrf": {"token": "token", "parameterName": "other"}},
+                    {"csrf": {"token": "token", "parameterName": 3}}]
+        for token in [None, "", " \t", 0, [], {}]:
+            payloads.append({"csrf": {"token": token, "parameterName": "_csrf"}})
+        for payload in payloads:
+            with self.subTest(payload=payload), self.assertRaises(AssertionError):
+                probe.csrf(bootstrap(payload))
+
+    def test_csrf_bootstrap_rejects_malformed_duplicate_or_non_json_scripts(self):
+        for html in [BOOT.replace('"token": "synthetic-csrf"', '"token": broken'), BOOT + BOOT,
+                     BOOT.replace('type="application/json"', 'type="text/javascript"'),
+                     BOOT.replace('</script>', ''),
+                     '<script id="worklog-page" type="application/json"></script>']:
+            with self.subTest(html=html), self.assertRaises(AssertionError):
+                probe.csrf(html + FORM)
+        self.assertEqual("synthetic-csrf", probe.csrf('<script type="module" src="/react/app.js"></script>' + FORM))
+
+    def test_normal_and_one_hop_demo_login_accept_react_bootstrap(self):
+        for request in [Requests((200, {}, BOOT)), Requests((302, {"Location": "/demo"}, ""), (200, {}, BOOT))]:
+            self.assertEqual(({}, BOOT), probe.login_page(request))
+
+    def test_anonymous_react_navigation_requires_401_page_json_and_no_store(self):
+        payload = {"page": "org/problem", "data": {"status": 401}, "csrf": {}}
+        headers = {"Cache-Control": "no-store", "Content-Type": PAGE_TYPE + ";charset=UTF-8"}
+        request = Requests((401, headers, json.dumps(payload)))
+        probe.anonymous_react_page(request)
+        self.assertEqual(["/me/today/status"], request.paths)
+        self.assertEqual([{"Accept": PAGE_TYPE}], request.headers)
+        for response in [(302, {"Location": "/login"}, ""), (403, headers, json.dumps(payload)),
+                         (401, {}, json.dumps(payload)), (401, headers, "invalid-json"),
+                         (401, headers, json.dumps({"page": "today", "data": {"status": 401}})),
+                         (401, headers, json.dumps({"page": "org/problem", "data": {"status": 403}}))]:
+            with self.subTest(response=response), self.assertRaises(AssertionError):
+                probe.anonymous_react_page(Requests(response))
 
     def test_normal_login_is_read_without_a_redirect(self):
         headers = {"Cache-Control": "no-store"}

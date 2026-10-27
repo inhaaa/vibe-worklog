@@ -1,23 +1,33 @@
 """Authenticated, paced, local-only HTTP mixed load using disposable synthetic fixture metadata."""
 import argparse
+import calendar
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta, datetime, timezone
-from html.parser import HTMLParser
+import hashlib
 import http.cookiejar
 import io
 import json
 import math
 from pathlib import Path
 import random
-import re
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
 import zipfile
+
+PAGE_TYPE = "application/vnd.worklog.page+json"
+PAGE_OPERATIONS = {
+    "login.form": "login", "login.verify": "today", "today": "today", "clock.form": "today",
+    "historicalDay": "clock/history", "month": "worktime/month", "adminMonthForm": "worktime/month",
+    "resultDetail": "worktime/result", "myRequests": "request/mine", "leave.form": "request/mine",
+    "auditPage": "worktime/audit", "employeeList": "org/employees", "approvalInbox": "request/list",
+    "approve.form": "request/detail", "approved.detail": "request/detail",
+}
 
 
 def local_base(value):
@@ -36,30 +46,56 @@ def local_location(base, value):
     return urllib.parse.urlunsplit(("", "", target.path, target.query, ""))
 
 
-class Forms(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.forms, self.current = [], None
-
-    def handle_starttag(self, tag, attrs):
-        attrs = dict(attrs)
-        if tag == "form":
-            self.current = (attrs.get("action", ""), {})
-        elif tag == "input" and self.current is not None and attrs.get("name"):
-            self.current[1][attrs["name"]] = attrs.get("value", "")
-
-    def handle_endtag(self, tag):
-        if tag == "form" and self.current is not None:
-            self.forms.append(self.current)
-            self.current = None
+def month_bounds(value):
+    first = date.fromisoformat(value + "-01")
+    return first, first.replace(day=calendar.monthrange(first.year, first.month)[1])
 
 
-def form_fields(html, action):
-    parser = Forms()
-    parser.feed(html)
-    found = [fields for name, fields in parser.forms if name == action]
-    assert len(found) == 1 and found[0].get("_csrf"), "Expected one form with CSRF: " + action
-    return found[0]
+def csrf_fields(page):
+    csrf = page.get("csrf")
+    assert isinstance(csrf, dict) and csrf.get("parameterName") == "_csrf", "Invalid CSRF parameter"
+    assert csrf.get("headerName") == "X-CSRF-TOKEN", "Invalid CSRF header"
+    assert isinstance(csrf.get("token"), str) and csrf["token"].strip(), "Missing CSRF token"
+    return {"_csrf": csrf["token"]}
+
+
+def command_id(value):
+    try:
+        assert isinstance(value, str) and str(uuid.UUID(value)) == value
+    except (ValueError, AttributeError, AssertionError):
+        raise AssertionError("Invalid command identifier") from None
+    return value
+
+
+def form_fields(page, action):
+    fields, data, name = csrf_fields(page), page["data"], page["page"]
+    if (name, action) in [("login", "/login"), ("today", "/logout")]:
+        return fields
+    if name == "request/mine" and action == "/me/requests/leave":
+        form = data["form"]
+        fields.update({key: form[key] if form[key] is not None else "" for key in
+                       ["bucketId", "from", "to", "predecessorRequestId", "reason", "commandId"]})
+    elif name == "worktime/month" and action in ["/admin/calculations", "/admin/reports/exports"]:
+        fields.update({key: data[key] for key in ["employeeId", "from", "to"]})
+        fields["commandId"] = data["exportCommand" if action.endswith("/exports") else "calculateCommand"]
+    elif name == "request/detail" and action == "/requests/" + data["request"]["id"] + "/approve":
+        version = data["request"].get("version")
+        assert type(version) is int and version >= 0, "Missing optimistic version"
+        fields.update(expectedVersion=version, commandId=data.get("pageCommand"))
+    else:
+        raise AssertionError("Unknown JSON form action")
+    command_id(fields.get("commandId"))
+    return fields
+
+
+def page_envelope(body, expected):
+    try:
+        page = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise AssertionError("Malformed page JSON") from None
+    assert isinstance(page, dict) and page.get("page") == expected, "Unexpected page envelope"
+    assert isinstance(page.get("data"), dict) and isinstance(page.get("csrf"), dict), "Invalid page schema"
+    return page
 
 
 def summarize(rows):
@@ -190,8 +226,78 @@ class Client:
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()), NoRedirect())
         self.lock, self.random = threading.Lock(), random.Random(str(data["employeeId"]))
         self.leave_count = 0
+        self.workbook_digests = {}
 
-    def http(self, operation, path, form=None, expected=200, contains=None, paced=True):
+    def validate_page(self, operation, path, page, leave_scope=None):
+        data, name = page["data"], page["page"]
+        csrf_fields(page)
+        assert not data.get("error"), "Page returned an application error"
+        if name == "login":
+            return
+        marker = self.data["marker"]
+        assert data["workspaceEmployee"]["companyName"].startswith(marker), "Wrong workspace identity"
+        roles = data["workspacePrincipal"]["roles"]
+        assert isinstance(roles, list) and "EMPLOYEE" in roles, "Employee session missing"
+        if operation in ["auditPage", "employeeList", "adminMonthForm"]:
+            assert "ATTENDANCE_ADMIN" in roles, "Admin authorization missing"
+        if operation in ["approvalInbox", "approve.form"]:
+            assert "APPROVER" in roles, "Approver authorization missing"
+        if name in ["today", "clock/history"]:
+            day = data["day"]
+            expected = self.run.data["today" if name == "today" else "historyDate"]
+            assert day["employeeId"] == self.data["employeeId"] and day["workDate"] == expected, "Wrong employee/day"
+            if name == "clock/history":
+                assert day.get("confirmation") and {event["kind"] for event in day["effectiveEvents"]} == {"IN", "OUT"}, "Historical confirmation missing"
+        elif name == "worktime/month":
+            target = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get("employeeId", [self.data["employeeId"]])[0]
+            view = data["overview"]
+            assert data["employeeId"] == target and view["month"] == self.run.data["historyMonth"], "Wrong monthly scope"
+            assert isinstance(view["days"], list) and view["days"], "Monthly results missing"
+            first, last = month_bounds(self.run.data["historyMonth"])
+            assert data["from"] == str(first) and data["to"] == str(last), "Wrong monthly command period"
+            expected_dates = {str(first + timedelta(days=offset)) for offset in range(last.day)}
+            assert len(view["days"]) == last.day and {day["workDate"] for day in view["days"]} == expected_dates, "Incomplete or duplicate monthly results"
+            for day in view["days"]:
+                assert day["employeeId"] == target and day["workDate"].startswith(view["month"] + "-"), "Foreign monthly result"
+                assert day["result"]["workDate"] == day["workDate"], "Result date mismatch"
+                assert day["result"]["status"] == "CALCULATED" and day["result"]["actualWorkMillis"] == 28_800_000, "Seeded eight-hour result changed"
+            assert view["summary"]["result"]["confirmedWorkMillis"] == len(view["days"]) * 28_800_000, "Monthly total mismatch"
+        elif name == "worktime/result":
+            day = data["detail"]["day"]
+            assert day["id"] == self.data["resultId"] == path.rsplit("/", 1)[1], "Wrong result identifier"
+            assert day["employeeId"] == self.data["employeeId"] and day["workDate"] == self.run.data["historyDate"], "Wrong result owner/day"
+            assert day["result"]["status"] == "CALCULATED" and day["result"]["actualWorkMillis"] == 28_800_000, "Seeded result changed"
+        elif name == "request/mine":
+            assert isinstance(data["requests"], list) and isinstance(data["buckets"], list), "Request lists missing"
+            assert all(item["targetEmployeeId"] == self.data["employeeId"] for item in data["requests"]), "Foreign personal request"
+            assert all(item["employeeId"] == self.data["employeeId"] for item in data["buckets"]), "Foreign leave bucket"
+            form_fields(page, "/me/requests/leave")
+        elif name == "request/list":
+            assert data["title"] == "지정 승인함" and isinstance(data["requests"], list), "Approval inbox missing"
+            assert all(item["currentApproverId"] == self.data["employeeId"] for item in data["requests"]), "Wrong inbox approver"
+        elif name == "request/detail":
+            request = data["request"]
+            assert request["id"] == path.rsplit("/", 1)[1] and data["detail"]["request"] == request, "Wrong request detail"
+            assert request["kind"] == "LEAVE_DAY" and request["quantityDays"] == 1, "Unexpected leave request"
+            assert leave_scope and request["targetEmployeeId"] == leave_scope[0], "Wrong selected leave employee"
+            assert request["fromDate"] == request["toDate"] == leave_scope[1], "Wrong selected leave date"
+            if operation == "approve.form":
+                assert request["status"] == "PENDING" and data["canDecide"] is True, "Request cannot be independently approved"
+                assert request["currentApproverId"] == self.data["employeeId"] != request["targetEmployeeId"], "Self or wrong approver"
+                form_fields(page, path + "/approve")
+            else:
+                assert request["targetEmployeeId"] == self.data["employeeId"], "Foreign approved request"
+                assert request["status"] == "APPROVED" and request["effectStatus"] == "EFFECTIVE", "Leave approval effect missing"
+        elif name == "worktime/audit":
+            assert isinstance(data["audits"], list) and data["audits"] and data["page"]["rows"] == data["audits"], "Audit page missing"
+        elif name == "org/employees":
+            assert isinstance(data["employees"], list) and data["employees"], "Employee directory missing"
+            assert all(item["displayName"].startswith(marker) for item in data["employees"]), "Foreign directory entry"
+            assert data["pageEmployeeCount"] == len(data["employees"]), "Directory count mismatch"
+        else:
+            raise AssertionError("Unknown page semantics")
+
+    def http(self, operation, path, form=None, expected=200, contains=None, paced=True, leave_scope=None):
         assert path.startswith("/") and not path.startswith("//"), "Relative local path required"
         status, ok, error = 0, False, ""
         with self.lock:
@@ -201,7 +307,8 @@ class Client:
             try:
                 data = None if form is None else urllib.parse.urlencode(form).encode()
                 try:
-                    response = self.opener.open(urllib.request.Request(self.run.base + path, data=data), timeout=15)
+                    response = self.opener.open(urllib.request.Request(self.run.base + path, data=data,
+                        headers={"Accept": PAGE_TYPE}), timeout=15)
                 except urllib.error.HTTPError as failure:
                     response = failure
                 with response:
@@ -209,9 +316,6 @@ class Client:
                 assert status == expected, f"Expected {expected}, received {status}"
                 assert "no-store" in headers.get("Cache-Control", ""), "Response is cacheable"
                 content_type = headers.get("Content-Type", "")
-                if contains:
-                    assert "text/html" in content_type, "Required page did not return HTML"
-                    assert contains in body.decode("utf-8"), "Required page semantics missing"
                 if operation == "workbookDownload":
                     assert "spreadsheetml" in content_type, "Workbook media type missing"
                 if content_type.startswith("text/") or "json" in content_type:
@@ -219,14 +323,35 @@ class Client:
                     for other in [1, 2, 3]:
                         if other != self.data["group"]:
                             assert f"SOAK_T{other}_" not in text, "Foreign tenant marker exposed"
+                    if contains:
+                        assert contains in text, "Required page semantics missing"
                 elif "spreadsheetml" in content_type:
                     assert body.startswith(b"PK"), "Invalid workbook"
                     with zipfile.ZipFile(io.BytesIO(body)) as workbook:
                         sheet = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
-                    assert "REVIEW" in sheet and self.data["tenantId"] in sheet, "Workbook tenant metadata missing"
+                    namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+                    rows = [[cell.findtext(namespace + "is/" + namespace + "t", "")
+                             for cell in row.findall(namespace + "c")]
+                            for row in ET.fromstring(sheet).findall(namespace + "sheetData/" + namespace + "row")]
+                    assert len(rows) >= 3 and rows[0] and "REVIEW" in rows[0][0], "Workbook purpose missing"
+                    assert len(rows[1]) == 4 and rows[1][2:] == ["고객사 ID", self.data["tenantId"]], "Workbook tenant metadata missing"
+                    first, last = month_bounds(self.run.data["historyMonth"])
+                    employee = self.run.groups[self.data["group"]]["employee"].data["employeeId"]
+                    assert rows[2] == ["조회 시작일", str(first), "조회 종료일", str(last), "사원 ID", employee], "Workbook export scope mismatch"
                     for other in [1, 2, 3]:
                         if other != self.data["group"]:
                             assert f"SOAK_T{other}_" not in sheet, "Foreign workbook marker exposed"
+                    digest = hashlib.sha256(body).hexdigest()
+                    assert self.workbook_digests.setdefault(path, digest) == digest, "Immutable workbook changed"
+                if status == 200 and operation != "workbookDownload" or status in (403, 404):
+                    assert content_type.split(";", 1)[0].strip().lower() == PAGE_TYPE, "Expected React page JSON media type"
+                    expected_page = "org/problem" if status in (403, 404) else PAGE_OPERATIONS.get(operation)
+                    assert expected_page is not None, "Unknown page operation"
+                    body = page_envelope(body, expected_page)
+                    if status in (403, 404):
+                        assert body["data"].get("status") == status, "Wrong denial semantics"
+                    else:
+                        self.validate_page(operation, path, body, leave_scope)
                 if status in (302, 303):
                     assert headers.get("Location"), "Redirect destination missing"
                     local_location(self.run.base, headers["Location"])
@@ -243,7 +368,7 @@ class Client:
 
     def login(self):
         _, page = self.http("login.form", "/login", paced=False)
-        form = form_fields(page.decode(), "/login")
+        form = form_fields(page, "/login")
         form.update(companyCode=self.data["companyCode"], email=self.data["email"], password=self.run.data["password"])
         headers, _ = self.http("login.submit", "/login", form, expected=302, paced=False)
         assert local_location(self.run.base, headers["Location"]) == "/me/today", "No authenticated session"
@@ -265,29 +390,29 @@ class Client:
         if roll < 25:
             self.http("today", "/me/today", contains=self.data["marker"])
         elif roll < 40:
-            self.http("historicalDay", "/me/attendance?date=" + self.run.data["historyDate"], contains="실제 근로")
+            self.http("historicalDay", "/me/attendance?date=" + self.run.data["historyDate"])
         elif roll < 60:
-            self.http("month", "/me/worktime?month=" + self.run.data["historyMonth"], contains="월 요약")
+            self.http("month", "/me/worktime?month=" + self.run.data["historyMonth"])
         elif roll < 70:
             self.http("resultDetail", "/worktime/results/" + self.data["resultId"], contains=self.data["resultId"])
         elif roll < 80:
-            self.http("myRequests", "/me/requests", contains="내 근태 신청")
+            self.http("myRequests", "/me/requests")
         elif roll < 86:
             _, page = self.http("clock.form", "/me/today", contains=self.data["marker"])
-            csrf = form_fields(page.decode(), "/logout")["_csrf"]
+            csrf = form_fields(page, "/logout")["_csrf"]
             self.http("clock.replay", "/me/attendance/events", {"_csrf": csrf, "eventKind": "IN", "commandId": self.data["clockCommand"]}, expected=303)
         elif roll < 90:
             other = next(client for client in self.run.clients if client.data["group"] != self.data["group"])
             self.http("foreignResultDenied", "/worktime/results/" + other.data["resultId"], expected=404)
         elif self.data["kind"] == "admin":
             if roll < 95:
-                self.http("auditPage", "/admin/audit", contains="감사")
+                self.http("auditPage", "/admin/audit")
             elif roll < 97:
                 self.http("employeeList", "/admin/employees", contains=self.data["marker"])
             else:
                 self.administrative(export=roll == 99)
         elif self.data["kind"] == "approver":
-            self.http("approvalInbox", "/approvals", contains="지정 승인함")
+            self.http("approvalInbox", "/approvals")
         elif roll < 94:
             self.leave_flow()
         else:
@@ -296,9 +421,9 @@ class Client:
     def administrative(self, export):
         target = self.run.groups[self.data["group"]]["employee"].data["employeeId"]
         path = "/admin/attendance?" + urllib.parse.urlencode({"employeeId": target, "month": self.run.data["historyMonth"]})
-        _, page = self.http("adminMonthForm", path, contains="월 요약")
+        _, page = self.http("adminMonthForm", path)
         action = "/admin/reports/exports" if export else "/admin/calculations"
-        form = form_fields(page.decode(), action)
+        form = form_fields(page, action)
         form["reason"] = "합성 HTTP 혼합 부하 검토"
         headers, _ = self.http("exportPrepare" if export else "recalculate", action, form, expected=303)
         if export:
@@ -308,25 +433,27 @@ class Client:
 
     def leave_flow(self):
         if self.leave_count >= 90:
-            self.http("myRequests", "/me/requests", contains="내 근태 신청")
+            self.http("myRequests", "/me/requests")
             return
         approver = self.run.groups[self.data["group"]]["approver"]
-        _, page = self.http("leave.form", "/me/requests", contains="내 근태 신청")
-        used = set(re.findall(r"\d{4}-\d{2}-\d{2}", page.decode()))
+        _, page = self.http("leave.form", "/me/requests")
+        used = [(date.fromisoformat(item["fromDate"]), date.fromisoformat(item["toDate"]))
+                for item in page["data"]["requests"] if item.get("fromDate") and item.get("toDate")]
         day = date.fromisoformat(self.run.data["today"]) + timedelta(days=1)
-        while str(day) in used:
+        while any(start <= day <= end for start, end in used):
             day += timedelta(days=1)
-        form = form_fields(page.decode(), "/me/requests/leave")
+        form = form_fields(page, "/me/requests/leave")
         form.update(bucketId=self.data["bucketId"], **{"from": str(day), "to": str(day)}, reason="합성 HTTP 종일 연차")
         headers, _ = self.http("leave.submit", "/me/requests/leave", form, expected=303)
         path = local_location(self.run.base, headers["Location"])
         assert path.startswith("/requests/") and uuid.UUID(path.rsplit("/", 1)[1])
-        _, page = approver.http("approve.form", path, contains="PENDING")
+        scope = (self.data["employeeId"], str(day))
+        _, page = approver.http("approve.form", path, leave_scope=scope)
         action = path + "/approve"
-        form = form_fields(page.decode(), action)
+        form = form_fields(page, action)
         form["reason"] = "합성 HTTP 독립 승인"
         approver.http("approve.submit", action, form, expected=303)
-        self.http("approved.detail", path, contains="APPROVED")
+        self.http("approved.detail", path, leave_scope=scope)
         self.leave_count += 1
 
 

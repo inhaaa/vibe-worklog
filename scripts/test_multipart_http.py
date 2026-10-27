@@ -23,7 +23,19 @@ def metadata():
                 for group in range(1, 4) for index in range(1, 7)]}
 
 
-FORM = b'<form action="/login"><input name="_csrf" value="synthetic-csrf-secret"></form>'
+CSRF = {"token": "synthetic-csrf-secret", "parameterName": "_csrf", "headerName": "X-CSRF-TOKEN"}
+
+
+def bootstrap(page="login", data=None, csrf=None):
+    payload = {"page": page, "data": data if data is not None else {},
+               "csrf": CSRF if csrf is None else csrf}
+    return ('<script id="worklog-page" type="application/json">' + json.dumps(payload)
+            + '</script>').encode()
+
+
+FORM = bootstrap()
+TODAY = bootstrap("today", {"workspaceEmployee": {
+    "employeeName": "SOAK_T1_0001", "companyName": "SOAK_T1_COMPANY"}})
 
 
 def response(status, location=None, body=b"", content_type="text/html;charset=UTF-8"):
@@ -42,14 +54,15 @@ class FakeSession:
         return self.responses.pop(0)
 
 
-def sessions(multipart_enabled=False, header_status=None, positive_type="text/html;charset=UTF-8"):
-    positive = FakeSession([response(200, body=FORM), response(302, "/me/today"),
-                            response(200, body=b"SOAK_T1_", content_type=positive_type)])
-    missing = FakeSession([response(200, body=FORM), response(403), response(302, "/login")])
+def sessions(multipart_enabled=False, header_status=None, positive_type="text/html;charset=UTF-8",
+             login_body=FORM, positive_body=TODAY):
+    positive = FakeSession([response(200, body=login_body), response(302, "/me/today"),
+                            response(200, body=positive_body, content_type=positive_type)])
+    missing = FakeSession([response(200, body=login_body), response(403), response(302, "/login")])
     enabled = multipart_enabled
-    valid = FakeSession([response(200, body=FORM),
+    valid = FakeSession([response(200, body=login_body),
                          response(header_status or 302, "/me/today" if enabled else "/login?error"),
-                         response(200, body=b"SOAK_T1_") if enabled else response(302, "/login")])
+                         response(200, body=TODAY) if enabled else response(302, "/login")])
     pending = [positive, missing, valid]
     return pending, lambda base: pending.pop(0)
 
@@ -82,8 +95,11 @@ class MultipartHttpTest(unittest.TestCase):
         output = root / "target/runtime-revalidation-20261026/multipart-probe/result.json"
         fixture = root / "target/synthetic-fixture.json"
         self.assertEqual((fixture, output), probe.checked_paths(fixture, output))
+        fresh = root / "target/react-runtime-20261027/multipart-probe/result.json"
+        self.assertEqual((fixture, fresh), probe.checked_paths(fixture, fresh))
         for source, destination in [(root / "README.md", output), (fixture, root / "result.json"),
-                                    (fixture, fixture), (fixture, output.with_suffix(".txt"))]:
+                                    (fixture, fixture), (fixture, output.with_suffix(".txt")),
+                                    (fixture, root / "target/other/result.json")]:
             with self.subTest(destination=destination), self.assertRaises(ValueError):
                 probe.checked_paths(source, destination)
 
@@ -122,6 +138,31 @@ class MultipartHttpTest(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertFalse(result["checks"][-2]["passed"])
         self.assertFalse(result["checks"][-1]["passed"])
+
+    def test_login_requires_one_valid_react_bootstrap_and_its_csrf_contract(self):
+        legacy = b'<form action="/login"><input name="_csrf" value="legacy-token"></form>'
+        malformed = [legacy, FORM + FORM, FORM.replace(b'</script>', b''),
+                     FORM.replace(b'application/json', b'text/javascript'),
+                     b'<script id="worklog-page" type="application/json">broken</script>',
+                     bootstrap("today"), bootstrap(csrf={}),
+                     bootstrap(csrf={**CSRF, "token": ""}),
+                     bootstrap(csrf={**CSRF, "parameterName": "other"}),
+                     bootstrap(csrf={**CSRF, "headerName": "Other-CSRF"})]
+        for body in malformed:
+            _, factory = sessions(login_body=body)
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                probe.run_probe(metadata(), session_factory=factory)
+
+    def test_positive_login_requires_today_bootstrap_with_matching_tenant_identity(self):
+        invalid = [b'<p>SOAK_T1_</p>', bootstrap("login"), bootstrap("today"),
+                   bootstrap("today", {"workspaceEmployee": {
+                       "employeeName": "SOAK_T2_0001", "companyName": "SOAK_T2_COMPANY"}})]
+        for body in invalid:
+            _, factory = sessions(positive_body=body + b'<p>SOAK_T1_</p>')
+            with self.subTest(body=body):
+                result = probe.run_probe(metadata(), session_factory=factory)
+                self.assertFalse(result["passed"])
+                self.assertFalse(result["checks"][1]["passed"])
 
     def test_valid_header_csrf_must_reach_authentication_rejection_not_403(self):
         pending, factory = sessions(header_status=403)

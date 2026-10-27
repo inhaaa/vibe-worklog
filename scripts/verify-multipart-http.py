@@ -17,6 +17,9 @@ MAX_BODY = 1_048_576
 helper_spec = importlib.util.spec_from_file_location("multipart_soak_helpers", Path(__file__).with_name("http-mixed-soak.py"))
 helpers = importlib.util.module_from_spec(helper_spec)
 helper_spec.loader.exec_module(helpers)
+page_spec = importlib.util.spec_from_file_location("multipart_page_helpers", Path(__file__).with_name("verify-local-http.py"))
+pages = importlib.util.module_from_spec(page_spec)
+page_spec.loader.exec_module(pages)
 
 
 def require(condition):
@@ -53,8 +56,26 @@ def validate_metadata(data):
 def checked_paths(metadata, output):
     source, destination = Path(metadata).resolve(), Path(output).resolve()
     require(source.is_relative_to(ROOT / "target") and source.suffix == ".json")
-    require(destination.is_relative_to(OUTPUT_ROOT) and destination.suffix == ".json" and destination != source)
+    require(destination.is_relative_to(ROOT / "target") and destination.parent.name == "multipart-probe"
+            and destination.suffix == ".json" and destination != source)
     return source, destination
+
+
+def page_bootstrap(body, expected_page):
+    try:
+        parser = pages.BootstrapParser()
+        parser.feed(body.decode("utf-8"))
+        parser.close()
+        require(parser.parts is None and len(parser.payloads) == 1)
+        page = pages.json_object(parser.payloads[0])
+        require(page.get("page") == expected_page and isinstance(page.get("data"), dict))
+        csrf = page.get("csrf")
+        require(isinstance(csrf, dict) and csrf.get("parameterName") == "_csrf"
+                and csrf.get("headerName") == "X-CSRF-TOKEN"
+                and isinstance(csrf.get("token"), str) and csrf["token"].strip())
+        return page
+    except (AssertionError, UnicodeError):
+        raise ValueError("Multipart probe contract was not satisfied") from None
 
 
 def multipart(fields, with_file=False):
@@ -107,14 +128,21 @@ def run_probe(data, with_file=False, session_factory=Session):
         elif location is not None:
             passed = False
         if marker is not None:
-            passed = passed and "text/html" in headers.get("Content-Type", "") and marker.encode() in body
+            try:
+                require("text/html" in headers.get("Content-Type", ""))
+                identity = page_bootstrap(body, "today")["data"].get("workspaceEmployee")
+                require(isinstance(identity, dict) and all(isinstance(identity.get(key), str)
+                        and identity[key].startswith(marker) for key in ("employeeName", "companyName")))
+            except ValueError:
+                passed = False
         checks.append({"name": name, "status": status, "passed": passed})
 
     def session_with_token():
         client = session_factory(base)
         status, headers, page = client.request("/login")
-        require(status == 200 and "text/html" in headers.get("Content-Type", ""))
-        return client, helpers.form_fields(page.decode("utf-8"), "/login")["_csrf"]
+        require(status == 200 and "text/html" in headers.get("Content-Type", "")
+                and "no-store" in headers.get("Cache-Control", ""))
+        return client, page_bootstrap(page, "login")["csrf"]["token"]
 
     positive, token = session_with_token()
     encoded = urllib.parse.urlencode({**credentials, "_csrf": token}).encode("utf-8")

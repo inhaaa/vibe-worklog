@@ -6,7 +6,41 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
+
+PAGE_TYPE = "application/vnd.worklog.page+json"
+
+
+class BootstrapParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.payloads = []
+        self.parts = None
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "script" and attrs.get("id") == "worklog-page":
+            assert attrs.get("type") == "application/json", "Bootstrap must be non-executable JSON"
+            self.parts = []
+
+    def handle_data(self, data):
+        if self.parts is not None:
+            self.parts.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "script" and self.parts is not None:
+            self.payloads.append("".join(self.parts))
+            self.parts = None
+
+
+def json_object(body):
+    try:
+        value = json.loads(body)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise AssertionError("Invalid page JSON") from error
+    assert isinstance(value, dict), "Expected a page JSON object"
+    return value
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -15,10 +49,31 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def csrf(html):
+    parser = BootstrapParser()
+    parser.feed(html)
+    parser.close()
+    assert parser.parts is None, "Unclosed page bootstrap"
+    if parser.payloads:
+        assert len(parser.payloads) == 1, "Duplicate page bootstrap"
+        contract = json_object(parser.payloads[0]).get("csrf")
+        assert isinstance(contract, dict) and contract.get("parameterName") == "_csrf", "Invalid CSRF parameter name"
+        token = contract.get("token")
+        assert isinstance(token, str) and token.strip(), "Missing CSRF bootstrap token"
+        return token
     found = re.search(r'<input[^>]+name="_csrf"[^>]+value="([^"]+)"', html)
     if not found:
         raise AssertionError("Missing CSRF input")
     return found.group(1)
+
+
+def anonymous_react_page(request):
+    status, headers, body = request("/me/today/status", headers={"Accept": PAGE_TYPE})
+    assert status == 401, "Anonymous React navigation must return 401"
+    assert "no-store" in headers.get("Cache-Control", ""), "React errors must not be cached"
+    assert headers.get("Content-Type", "").split(";", 1)[0].strip().lower() == PAGE_TYPE, "Expected page JSON MIME"
+    page = json_object(body)
+    assert page.get("page") == "org/problem" and isinstance(page.get("data"), dict), "Expected safe problem page"
+    assert page["data"].get("status") == 401, "Expected unauthorized problem status"
 
 
 def login_page(request, base=None):
@@ -41,6 +96,8 @@ def main():
         parser.error("port must be between 1 and 65535")
     if args.self_test:
         assert csrf('<input type="hidden" name="_csrf" value="synthetic">') == "synthetic"
+        assert csrf('<script id="worklog-page" type="application/json">'
+                    '{"csrf":{"token":"synthetic","parameterName":"_csrf"}}</script>') == "synthetic"
         try:
             csrf("<p>no token</p>")
         except AssertionError:
@@ -87,9 +144,8 @@ def main():
         assert status in (401, 403) or (status == 302 and headers.get("Location", "").endswith("/login")), path
         assert "no-store" in headers.get("Cache-Control", ""), path
         passed(f"anonymous business path denied: {path}")
-    status, headers, body = request("/me/today/status", headers={"HX-Request": "true"})
-    assert status == 401 and headers.get("HX-Redirect") == "/login"
-    passed("expired htmx redirects to login without private fragments")
+    anonymous_react_page(request)
+    passed("anonymous React navigation returns safe 401 page JSON with no-store")
     for path in ["/actuator/env", "/actuator/configprops", "/actuator/heapdump", "/operator/login", "/operator/tenants"]:
         status, headers, body = request(path)
         assert status in (401, 403) or (status == 302 and headers.get("Location", "").endswith("/login")), path
