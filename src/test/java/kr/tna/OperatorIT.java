@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import kr.tna.common.auth.InvitationAcceptance;
 import kr.tna.common.auth.InvitationDelivery;
@@ -90,6 +92,42 @@ class OperatorIT {
         var actor=operator();var stale=new OperatorPrincipal(actor.id(),actor.loginId(),actor.authVersion()+1,Instant.now());
         assertStatus(403,()->operators.tenants(stale));db().update("UPDATE platform.operator_account SET active=false WHERE id=?",actor.id());
         assertStatus(403,()->operators.onboard(actor,form()));
+    }
+    @Test void revocationCommittedWhileTheMetadataReadWaitsBlocksItsResult() throws Exception {
+        var actor=operator();
+        UUID tenant=UUID.randomUUID();
+        db().update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 조회 경계')",
+                tenant,"OP-READ-"+tenant);
+        try(var blocker=DatabaseFixture.start().adminDataSource().getConnection();
+                var executor=Executors.newVirtualThreadPerTaskExecutor()) {
+            blocker.setAutoCommit(false);
+            try {
+                int blockerPid;
+                try(var statement=blocker.createStatement();var rows=statement.executeQuery("SELECT pg_backend_pid()")) {
+                    rows.next();blockerPid=rows.getInt(1);
+                }
+                try(var statement=blocker.createStatement()) {
+                    statement.execute("LOCK TABLE platform.tenant_registry IN ACCESS EXCLUSIVE MODE");
+                }
+                var reader=executor.submit(()->{
+                    try {operators.tenants(actor);return 200;}
+                    catch(OrgException error){return error.status();}
+                });
+                boolean waiting=false;
+                for(int attempt=0;attempt<250;attempt++) {
+                    waiting=db().queryForObject("""
+                            SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+                            WHERE wait_event_type='Lock' AND ?=ANY(pg_blocking_pids(pid)))
+                            """,Boolean.class,blockerPid);
+                    if(waiting)break;
+                    Thread.sleep(20);
+                }
+                assertTrue(waiting,"운영자 현재 권한 검사 뒤 메타데이터 조회가 잠금에서 대기해야 합니다.");
+                assertEquals(1,db().update("UPDATE platform.operator_account SET auth_version=auth_version+1 WHERE id=?",actor.id()));
+                blocker.rollback();
+                assertEquals(403,reader.get(10,TimeUnit.SECONDS),"조회 대기 중 회수된 운영자에게 자료를 반환하면 안 됩니다.");
+            } finally {blocker.rollback();}
+        }
     }
     @Test void missingRelationshipEvidenceAndFutureFirstEmploymentAreRejected(){
         var actor=operator();var form=form();
