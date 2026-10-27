@@ -26,4 +26,6 @@
 
 ## 보존 및 실패 처리
 
+2026-10-28 진행: 준비 커밋 `180689d`의 로컬 회귀(Java530·프론트96·Python69)와 새 DB 자료 준비 검증을 완료했다. DNS 추가·서버 PostgreSQL 빌드 exit0·검증된 runtime 소스 전달을 확인했다. Webconsole 빈 화면은 미해결이며 Docker Manager의 별도 제한 컨테이너로 로그 조회·전용 경로 전송만 수행했다. Docker socket을 연결하는 임시 관리 컨테이너는 구체 설정을 검토한 뒤 별도 승인을 요청했고 아직 실행하지 않았다. 서버 app/migrate 빌드·DB 기동·Caddy/TLS·외부 검증은 남아 있다. 세부 근거는 [진행 보고](../../quality/hostinger-public-demo.md)를 따른다.
+
 `/srv/pricesys`, `/srv/pricesys-demo`, `/srv/inhaa-portfolio`, 기존 컨테이너·볼륨·포트를 변경하지 않는다. 기존 Caddy 전체 백업과 후보 diff를 확인한다. 실패하면 WorkLog 앱과 새 호스트 블록만 이전 상태로 되돌리고 전용 DB 볼륨은 보존한다. 강제 Push·reset·rebase·전체 Docker 정리·기존 데이터 삭제는 실행하지 않는다. 서버 접근 방법은 Hostinger 관리 화면이며 비밀번호·OTP·DB 비밀값을 채팅·문서·Git에 기록하지 않는다.

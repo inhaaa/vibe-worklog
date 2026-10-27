@@ -1,6 +1,6 @@
 # Hostinger 공개 데모 배포 진행
 
-기준일: 2026-10-27, Asia/Seoul. **로컬 배포 준비·검증을 완료했고, 서버 콘솔 재연결을 기다리고 있다. 공개 HTTPS 배포는 아직 완료하지 않았다.** 사용자는 서버 접속·DNS/설정 변경·전용 DB 생성·배포를 승인했다. [실행 계획](../superpowers/plans/2026-10-27-hostinger-public-demo.md)과 [배포 절차](../../deploy/worklog/README.md)를 따른다.
+기준일: 2026-10-28, Asia/Seoul. **로컬 배포 준비·검증과 서버 PostgreSQL 이미지·검증 소스 전달을 완료했다. Webconsole 복구와 임시 Docker 관리 연결 승인은 대기 중이며 공개 HTTPS 배포는 아직 완료하지 않았다.** 사용자는 서버 접속·DNS/설정 변경·전용 DB 생성·배포를 승인했다. [실행 계획](../superpowers/plans/2026-10-27-hostinger-public-demo.md)과 [배포 절차](../../deploy/worklog/README.md)를 따른다.
 
 ## 구현과 격리
 
@@ -40,10 +40,23 @@
 - 기존 빌더를 변경하지 않고 `worklog-demo-builder`를 만들었다. 실제 memory1,610,612,736bytes·CPU quota75,000/period100,000을 확인했다. no-XML PostgreSQL 이미지 빌드를 nohup으로 시작했고 configure 진행까지 관측했다.
 - 이어 Hostinger 콘솔이 `Session expired`가 됐다. 관리 화면에서 새 세션 발급/재연결을 시도했으나 빈 화면·`Invalid session_id`가 나타나 사용자에게 콘솔 연결을 요청했다.
 
+## Webconsole 진단과 대체 경로
+
+- 사용자는 Chrome에서도 새 Webconsole이 빈 화면이라고 보고했다. IAB의 관측에서는 터미널이 생기기 전 앱 루트가 비어 있었다. 세션 URL의 토큰은 문서·Git·보고에 기록하지 않는다.
+- Hostinger 공개 상태 페이지는 해당 관측 시점에 정상으로 표시됐으나 개별 콘솔의 정상 여부를 보장하지 않는다. 정적 JavaScript 모듈34개의 다운로드·구문·모듈 연결은 성공했다. 실제 브라우저 예외 원인은 확인되지 않았으며 Chrome의 첫 오류 한 줄을 요청했다. 재부팅이나 기존 서비스 설정 변경은 하지 않았다.
+- 서버 SSH22는 timeout이었고 로컬 Tailscale 연결·서버 SSH 자격은 확보하지 못했다. 방화벽을 완화하거나 새 로그인 자격을 만들지 않았다.
+- 로그인된 Hostinger Docker Manager에서 별도 임시 프로젝트 `worklog-diagnostics-20261028`를 사용했다. 공개 포트·Docker socket 없이 전용 경로만 mount하고 CPU·메모리·PID·로그를 제한했다. 기존 PriceSys 프로젝트는 변경하지 않았다.
+- 전용 빌드 로그와 종료 파일을 읽어 PostgreSQL 빌드 **exit0**을 확인했다. 이미지 ID는 `sha256:527cbff2154ce6294a46af160e70c4988ed625db9d3ccacd43ccee159731d8c8`이다.
+- 준비 커밋 `180689dd0ee4a213a85159fc07d1e77b32ab43c3`의 runtime 변경분41,242bytes를 분할 전송했다. 서버에서 SHA256 `9142ab479f512165feb1785646a5dc269eea8bed971c7e83c8fad66be23046b8` 대조와 source 준비 표식을 확인했다. 문서·Git·로컬 DB·비밀파일은 전송하지 않았다.
+- 소스 전달 후 외부 HTTP는 PriceSys401·데모 health200·포트폴리오200으로 기존 기준을 유지했다. 이 시점의 컨테이너 ID/시작시각 재대조는 아직 수행하지 못했다.
+- 다음 빌드·기동을 위한 임시 Docker CLI 프로젝트의 구체 설정을 준비했다. Docker socket 연결은 컨테이너 제한과 별개로 호스트 전체 Docker 관리 권한을 부여하므로 실행 직전 별도 승인을 요청했으며 **아직 연결하지 않았다**. 승인 후에도 기존 서비스는 조회·전후 비교만 하고 작업 뒤 관리 연결을 해제한다.
+
+진단·전송 근거와 화면은 ignored `target/console-diagnostic/`에 보존한다. 이 대체 경로 확보를 Webconsole 복구 완료로 표현하지 않는다.
+
 ## 남은 작업
 
-1. 콘솔 복구 후 PostgreSQL 빌드 exit/log를 확인한다. 마지막 관측 이후 성공·실패를 아직 확인하지 못했다.
-2. 검증한 공개 데모 변경분·샘플 SQL을 전송하고 app/migrate 이미지를 전용 빌더로 만든다.
+1. 실제 Chrome 오류 근거를 확보하고 Webconsole 복구 여부를 확인한다. 기존 서비스 영향이 있는 재부팅은 임의로 하지 않는다.
+2. 임시 Docker 관리 연결 승인 후 기존 컨테이너 ID/시작시각을 재대조하고 app/migrate 이미지를 자원 제한한 전용 빌더로 만든다.
 3. 서버 전용 비밀파일을 생성하고 전용 DB healthy → migration → owner 사전 검사 → bootstrap → 샘플 검증 → app 순으로 기동한다.
 4. 실제 Docker gateway 하나만 신뢰하도록 설정하고, 기존 Caddy 원본 hash 재확인·새 호스트 블록 후보 diff/validate 후 HTTPS를 적용한다.
 5. 외부 HTTPS·브라우저·위조 전달 헤더·직접 backend/DB 비공개와 기존 서비스 ID/시작시각·HTTP 기준을 전후 대조한다.

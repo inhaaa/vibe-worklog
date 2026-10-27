@@ -5,7 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 공개 데모 배포 준비: Hostinger DNS 추가·로컬530개 Java 회귀 완료, 서버 콘솔 재연결 대기 ([진행 보고](docs/quality/hostinger-public-demo.md)). 공개 HTTPS 배포는 아직 완료하지 않았습니다.
+- 공개 데모 배포 준비: Hostinger DNS·서버 PostgreSQL 이미지·검증 소스 전달 완료, Webconsole 복구와 임시 Docker 관리 연결 승인 대기 ([진행 보고](docs/quality/hostinger-public-demo.md)). 공개 HTTPS 배포는 아직 완료하지 않았습니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
