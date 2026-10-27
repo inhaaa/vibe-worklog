@@ -7,6 +7,7 @@ import com.github.dockerjava.api.model.Ports;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.net.URI;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -19,6 +20,8 @@ import org.flywaydb.core.Flyway;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.utility.DockerImageName;
 
 /** Synthetic data in a dedicated local database; never targets an existing service. */
 public final class DatabaseFixture {
@@ -53,7 +56,8 @@ public final class DatabaseFixture {
         String adminUser;
         String adminPassword;
         if (suppliedUrl == null || suppliedUrl.isBlank()) {
-            container = new PostgreSQLContainer("postgres:18.6-bookworm")
+            container = new PostgreSQLContainer(DockerImageName.parse(postgresImage().get())
+                    .asCompatibleSubstituteFor("postgres"))
                     .withDatabaseName(DATABASE_NAME)
                     .withUsername("tna_test_admin")
                     .withPassword("Synthetic-Test-Admin-Only-43!")
@@ -104,6 +108,10 @@ public final class DatabaseFixture {
     static void bindOwnedPostgresToLoopback(CreateContainerCmd command) {
         command.getHostConfig().withPublishAllPorts(false).withPortBindings(
                 new PortBinding(Ports.Binding.bindIp("127.0.0.1"), ExposedPort.tcp(5432)));
+    }
+
+    static ImageFromDockerfile postgresImage() {
+        return new ImageFromDockerfile().withFileFromPath("Dockerfile", Path.of("infra/postgres/Dockerfile"));
     }
 
     public String jdbcUrl() {

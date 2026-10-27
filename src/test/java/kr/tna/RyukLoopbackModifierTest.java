@@ -23,6 +23,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.core.CreateContainerCmdModifier;
+import org.testcontainers.utility.TestcontainersConfiguration;
 
 class RyukLoopbackModifierTest {
     private static final String RYUK_IMAGE = "testcontainers/ryuk:0.14.0";
@@ -100,6 +101,11 @@ class RyukLoopbackModifierTest {
                 .map(ServiceLoader.Provider::get).toList();
 
         assertEquals(1, providers.size());
+    }
+
+    @Test
+    void effectiveTestcontainersConfigurationDisablesPrivilegedRyuk() {
+        assertFalse(TestcontainersConfiguration.getInstance().isRyukPrivileged());
     }
 
     private static CreateContainerCmd command(String image, ExposedPort[] ports, HostConfig config) {
