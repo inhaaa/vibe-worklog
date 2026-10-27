@@ -648,3 +648,13 @@ Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문
 app/migrate 새 빌드 종료0, 앱 running·migrate V10 no-op/종료0, 검증/실행 JAR production251개 항목 바이트 일치와 UID10001·읽기 전용 root·cap drop·NNP·loopback·테스트 Ryuk SPI 미포함을 확인했다. 기본 DB 집계·Flyway·RLS·역할/ACL과 DB 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. app은 `sha256:82d9a09897f8a931530d8ad7906aa98e0559152f7c41c20851b09c9d9fcf934c`, migrate는 `sha256:d24ea3b2c9eb558af79bdd68c4b00780533bcb329b2f14f51d6d85883279843e`다.
 
 이번 표시명 단위에서 전체 Java467개·Python42개 회귀, 새 SBOM/취약점 스캔·33분 부하·Ryuk 정리 실측·외부 배포는 재실행하지 않았다. 이전 검증 이력과 미해결 보안 조건을 유지한다. 원시 로그·DB 전후/JAR 비교·HTTP·브라우저 JSON/PNG는 Git 제외 `target/worklog-brand-20261026/`에 보존했다. 현재 로컬 주소는 `http://127.0.0.1:18080/`다.
+
+## React 권한·메뉴·내 정보 (2026-10-27)
+
+사용자 승인으로 확장 1단계를 구현했다. `/me/profile`은 본인 읽기, `/admin/access`는 관리자 권한 목록/기존 사원별 변경 진입, `/company/attendance`·`/company/requests`는 현재 관리자 또는 대표의 같은 회사 읽기다. 대표는 관리자 설정·재집계·감사·관리자 Excel을 사용할 수 없으며 APPROVER와 현재 배정이 없는 신청을 결재하지 못한다. 역할 변경의 세션 회수·마지막 관리자 보호를 유지한다.
+
+새 V11은 역할 CHECK만 확장했다. 기본 DB의 업무34개+Flyway1개 총35개 테이블과 기존 행·RLS/ACL·컨테이너/이미지/볼륨을 보존했고 기존 V10에 V11 한 건만 추가됐다. 별도 migrate와 app만 새 이미지로 반영했으며 고정 데모 계정의 기존 EMPLOYEE·ATTENDANCE_ADMIN은 그대로다. 실제 대표 검증은 분리한 합성 DB의 기존 관리자 역할 POST로 수행했다.
+
+프로젝트 JDK25의 `mvnw.cmd -B -o -s target/local-maven-settings.xml -Dfrontend.skip=true verify`는 단위98·전용 PostgreSQL 통합417=515개를 실패/오류/skip0으로 통과했다. React113개·타입/Vite build, Python 도구62개 기준 회귀, 실제 HTTP51개(기본 보안24+기능27), PC/390px 총9회 관측의 가로 넘침/콘솔 오류0을 확인했다. 실행 JAR의 production234개 항목은 검증 JAR과 바이트가 같다.
+
+원본·DB 백업·전후/JAR 대조·화면 PNG는 Git 제외 `target/identity-access-20261027/`에 보존했다. 현재 실행은 [검증 보고](../quality/identity-access.md)를 따른다. 이번 새 이미지의33분 부하·전체 취약점 검사는 수행하지 않았으며 [이전 이미지 부하](../quality/no-xml-soak.md)와 구분한다. 조직장·시트·새 결재선·코드·본인 연도별 모달·월간 그래프·운영 공개는 후속이다.

@@ -103,6 +103,23 @@ class ReactPageViewTest {
                 .at("/data/detail/correction/actualBreaks").asString()).get(0).get("startAt").asString());
     }
 
+    @Test
+    void identityAndCompanyPagesExposeOnlyTheirExplicitSafeModels() throws Exception {
+        var pages = Map.of("workspace/profile", "profile", "org/access-list", "accessRows",
+                "company/attendance", "companyAttendance", "company/requests", "companyRequests");
+        for (var page : pages.entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey() + " must have an explicit React page contract");
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("label", "합성 조회"),
+                    "privateSource", "NEVER_EXPOSE_PRIVATE_SOURCE"), request(true), response);
+            var data = json.readTree(response.getContentAsString()).get("data");
+            assertEquals("합성 조회", data.at("/" + page.getValue() + "/label").asString());
+            assertFalse(response.getContentAsString().contains("NEVER_EXPOSE_PRIVATE_SOURCE"));
+            assertEquals("no-store", response.getHeader("Cache-Control"));
+        }
+    }
+
     private MockHttpServletRequest request(boolean api) {
         var request = new MockHttpServletRequest();
         if (api) request.addHeader("Accept", "application/vnd.worklog.page+json");

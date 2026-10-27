@@ -23,8 +23,8 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
-- 현재 로컬 데모: 전체 화면 React 전환, 입력 없는 데모·하루 흐름 홈·개인 달력·관리/신청/집계, Java496개·Python62개·PostgreSQL XML 경로 제거와 데이터 보존 검증 ([최신 검증](docs/quality/libxml-containment.md))
-- 현재 XML·JIT 차단 구성: 단계별5회 commit/push 후 새33분15,471요청·오류0·7.999req/s·p95 252.791ms, 사전 성능 조사 경고0·원장/Excel/기본 DB 보존 ([부하 재검증](docs/quality/no-xml-soak.md))
+- 현재 로컬 데모: React 내 정보·역할별 메뉴·권한 관리·대표 회사 조회, Java515개·React113개·실제 HTTP51개·PC/모바일9회 관측·V11과 기존 데이터 보존 ([현재 검증](docs/quality/identity-access.md))
+- XML·JIT 차단 당시 이미지: 단계별5회 commit/push 후 새33분15,471요청·오류0·7.999req/s·p95 252.791ms, 사전 성능 조사 경고0·원장/Excel/기본 DB 보존 ([부하 재검증](docs/quality/no-xml-soak.md)). 이번 업무 확장 이미지의 재측정은 아님
 
 ## Overview
 
@@ -128,9 +128,10 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 
 ## Documentation
 
+- [React 권한·메뉴·내 정보](docs/quality/identity-access.md): 대표 회사 읽기·관리자 변경 분리, 현재 역할·본인 조회, 전체 회귀·V11·실제 로컬 검증과 남은 범위
 - [React 전체 전환](docs/quality/react-migration.md): 전체 화면의 React·JSON/폼 계약·회귀·로컬 실행·브라우저 검증, [기술 결정](docs/adr/0003-react-frontend.md)
 - [XML·JIT 차단 구성의 장시간 부하](docs/quality/no-xml-soak.md): 기존 변경의 단계별 게시·새33분 부하·이전 구성 비교·자원/종료 정합성
-- [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 내 정보·시트형 관리·공통/관리자/대표·조직장/결재선·코드 관리·연도별 모달 신청·월간 현황. 2026-10-26 승인 방향의 후속 설계이며 해당 기능 구현·운영 수용은 미완료
+- [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 1단계 권한·메뉴·내 정보는 React 구현·로컬 검증 완료. 시트·조직장/결재선·코드·본인 연도별 모달·월간 개선과 운영 수용은 후속
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
 - [Market Research](docs/research/market.md): 공식 제품 비교·문제 가설·파일럿 검증 계획
@@ -170,6 +171,8 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 - [x] 로컬 모의 계정 초대·수락·역할·당일 승인자 배정 검증
 - [x] 고정 근무 템플릿·사원별 적용일 배정
 - [ ] 운영 환경·배포 파이프라인 구성
+- [x] 대표 역할·React 역할별 메뉴·내 정보·권한 관리 진입·회사 읽기와 V11 로컬 검증
+- [ ] 시트형 관리·조직장·결재선·공통/근태코드·본인 연도별 모달·월간 현황 개선
 - [x] 고정 근무 핵심 업무 흐름의 로컬 연결·회귀 검증
 - [x] 계산 당시 입력·정책·실행 근거 상세와 현재성·버전 구분
 - [x] 안전한 감사 전후 상세·추적 ID·양방향 커서 페이지 탐색

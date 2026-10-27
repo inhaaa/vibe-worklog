@@ -1,5 +1,7 @@
 # 화면·HTTP 인터페이스 설계
 
+> 2026-10-27 업무 확장 1단계: `/me/profile`, `/admin/access`, `/company/attendance`, `/company/requests`와 역할별 React 메뉴를 추가했다. [검증 결과](../quality/identity-access.md)와 [실행 계약](../superpowers/plans/2026-10-27-react-identity-access.md)을 따른다. 아래 초기 화면 계약 중 새 네 경로는 이 후속 계약으로 확장하며 시트·조직장/결재선·코드·본인 연도별 모달·월간 그래프는 계속 후속이다.
+
 > 2026-10-26 전체 React 전환: 기존 URL·폼 인코딩·명령/버전·상태·업무 권한을 유지하고, 실제 화면은 React가 렌더한다. 화면 JSON Accept·bootstrap·세션 오류·탐색/입력 보존의 최신 표현 계약은 [전체 전환 명세](../superpowers/specs/2026-10-26-react-full-migration.md), 기술 결정은 [ADR-0003](../adr/0003-react-frontend.md)을 따른다. 아래 SSR/htmx 설명은 이전 구현 이력이다.
 
 ## 1. 상태와 화면 원칙

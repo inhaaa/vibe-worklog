@@ -50,11 +50,13 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
-                                "/admin/employees", "/admin/employees/**",
+                                "/admin/employees", "/admin/employees/**", "/admin/access",
                                 "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/company/attendance", "/company/requests")
+                            .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")
                         .requestMatchers("/approvals").hasRole("APPROVER")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/me/schedule").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/me/schedule", "/me/profile").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll();

@@ -23,6 +23,7 @@ import kr.tna.clock.ClockData;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
+import kr.tna.common.tenant.CompanyReadAccess;
 import kr.tna.org.EmployeeAdminMapper;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgCommands.Change;
@@ -41,13 +42,14 @@ public final class WorktimeService {
     private final EmployeeAdminMapper employees;
     private final ClockService clocks;
     private final BusinessCommands commands;
+    private final CompanyReadAccess companyAccess;
     private final OrgCommands administration;
     private final Clock clock;
     private final WorktimeCalculator calculator=new WorktimeCalculator();
     private final JsonMapper json=JsonMapper.builder().build();
     public WorktimeService(WorktimeMapper mapper,EmployeeAdminMapper employees,ClockService clocks,
-            BusinessCommands commands,OrgCommands administration,Clock clock) {
-        this.mapper=mapper;this.employees=employees;this.clocks=clocks;this.commands=commands;this.administration=administration;this.clock=clock;
+            BusinessCommands commands,CompanyReadAccess companyAccess,OrgCommands administration,Clock clock) {
+        this.mapper=mapper;this.employees=employees;this.clocks=clocks;this.commands=commands;this.companyAccess=companyAccess;this.administration=administration;this.clock=clock;
     }
     public ResultDetail detail(TnaPrincipal actor,UUID resultId) {
         if(actor==null)throw OrgException.forbidden();if(resultId==null)throw OrgException.notFound();
@@ -79,6 +81,11 @@ public final class WorktimeService {
     public List<DayView> days(TnaPrincipal actor,UUID employeeId,LocalDate from,LocalDate to) {
         range(from,to);UUID target=target(actor,employeeId);
         return read(actor,target,()->readDays(actor.tenantId(),employee(actor.tenantId(),target),from,to));
+    }
+    /** Company reads reuse the same current-source comparison without granting administration commands. */
+    public List<DayView> companyDays(TnaPrincipal actor,UUID employeeId,YearMonth month) {
+        if(employeeId==null||month==null||month.getYear()<1||month.getYear()>9999)throw OrgException.invalid("대상 사원과 조회 월을 확인해 주세요.");
+        return companyAccess.read(actor,()->readDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()));
     }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(month==null)throw OrgException.invalid("조회 월을 입력해 주세요.");UUID target=target(actor,employeeId);

@@ -7,6 +7,7 @@ import { AdminPages } from './pages/AdminPages';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
+import { formatRoles, IdentityPages } from './pages/IdentityPages';
 
 const publicPages = new Set([
   'login',
@@ -20,12 +21,16 @@ const publicPages = new Set([
 ]);
 const titles: Record<string, string> = {
   today: '홈',
+  'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
   'org/employees': '직원 목록',
   'org/employee': '직원 상세',
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
   'org/access': '계정·권한',
+  'org/access-list': '권한 관리',
+  'company/attendance': '회사 근무현황',
+  'company/requests': '회사 신청 현황',
   'schedule/list': '근무 설정',
   'schedule/form': '근무 템플릿',
   'schedule/detail': '근무 템플릿',
@@ -55,21 +60,31 @@ const titles: Record<string, string> = {
 const navigation = [
   {
     group: '내 업무',
-    role: 'EMPLOYEE',
+    roles: ['EMPLOYEE'],
     items: [
       ['/me/today', '홈', 'home'],
+      ['/me/profile', '내 정보', 'people'],
       ['/me/schedule', '내 근무 일정', 'calendar'],
       ['/me/requests', '휴가·신청', 'request'],
       ['/me/worktime', '근로시간', 'clock'],
     ],
   },
-  { group: '승인 업무', role: 'APPROVER', items: [['/approvals', '신청 승인', 'request']] },
+  { group: '승인 업무', roles: ['APPROVER'], items: [['/approvals', '신청 승인', 'request']] },
+  {
+    group: '회사 현황',
+    roles: ['ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'],
+    items: [
+      ['/company/attendance', '회사 근무현황', 'chart'],
+      ['/company/requests', '회사 신청 현황', 'request'],
+    ],
+  },
   {
     group: '관리 업무',
-    role: 'ATTENDANCE_ADMIN',
+    roles: ['ATTENDANCE_ADMIN'],
     items: [
       ['/admin/employees', '직원 목록', 'people'],
       ['/admin/organizations', '조직 관리', 'building'],
+      ['/admin/access', '권한 관리', 'people'],
       ['/admin/schedules', '근무 설정', 'settings'],
       ['/admin/calendar', '근무일·휴일', 'calendar'],
       ['/admin/networks', '허용 네트워크', 'settings'],
@@ -145,17 +160,13 @@ function Workspace({
           <span>
             {employee?.companyName ?? '워크스페이스'}
             <small>
-              {roles.includes('ATTENDANCE_ADMIN')
-                ? '근태 관리자'
-                : roles.includes('APPROVER')
-                  ? '지정 승인자'
-                  : '직원'}
+              {formatRoles(roles)}
             </small>
           </span>
         </div>
         <nav aria-label="업무 메뉴">
           {navigation
-            .filter((group) => roles.includes(group.role))
+            .filter((group) => group.roles.some((role) => roles.includes(role)))
             .map((group) => (
               <div key={group.group}>
                 <p className="t-nav-group">{group.group}</p>
@@ -203,10 +214,10 @@ function Workspace({
         </div>
         <div className="t-profile">
           {demo && <span className="t-demo-pill">DEMO</span>}
-          <span className="t-profile-copy">
+          <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>
-          </span>
+          </a>
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
           </span>
@@ -224,6 +235,7 @@ function Content(props: PageProps) {
     <>
       <AuthPages {...props} />
       <CorePages {...props} />
+      <IdentityPages {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>

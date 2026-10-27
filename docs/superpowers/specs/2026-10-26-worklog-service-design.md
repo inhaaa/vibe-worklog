@@ -2,6 +2,8 @@
 
 > 기술 선택 후속 결정: 2026-10-26 사용자가 전체 React 전환을 승인해 아래 Thymeleaf 유지 전제는 [ADR-0003](../../adr/0003-react-frontend.md)으로 대체했다. 이 문서의 신규 업무 기능·권한·데이터 계약은 후속 구현 범위로 유지하며, 프론트 기술 전환만으로 구현 완료가 되지 않는다.
 
+> 2026-10-27 실행: 1단계 대표 역할·메뉴·내 정보·권한 목록/단건 변경·회사 읽기를 React 기준으로 구현·로컬 검증했다. [실행 계획](../plans/2026-10-27-react-identity-access.md)과 [실제 결과](../../quality/identity-access.md)를 따른다. 2절은 최초 설계 당시 기준이며 나머지 단위·운영 수용은 미완료다. 조직장 없는 본인 정보에는 현재 지정 승인자까지 제공하며 조직장 배정은 다음 단위다.
+
 ## 1. 상태·승인·적용 범위
 
 - 작성일: **2026-10-26, Asia/Seoul**. 조사 기준: `caf1074`의 소스·V1~V10 마이그레이션과 기존 설계·검증 기록.
@@ -10,7 +12,7 @@
 - 아래 세부 정책은 승인된 방향을 구체화한 설계 기준이다. 다단계 결재·새 휴가 계산·법정 한도·자동 연차 발생을 이번 승인에 포함된 구현으로 확대하지 않는다.
 - 기존 [PRD](../../prd.md), [조직·사원](../../design/org-management.md), [계정·권한](../../design/account-access.md), [신청·승인](../../design/leave-workflow.md), [계산](../../design/worktime-engine.md), [결과 조회](../../design/worktime-results.md), [보안](../../design/security.md)을 기반으로 한다. 현재 실행 사실은 해당 문서와 [개발 안내](../../development/local.md)의 변경 단위별 결과를 따른다.
 
-## 2. 현재 구현과 목표의 차이
+## 2. 설계 당시 구현과 목표의 차이
 
 | 영역 | 현재 실제 구현 | 이번 설계의 목표 |
 | --- | --- | --- |
@@ -22,7 +24,7 @@
 | 연차 | 정수 DAY 기초 묶음·원장·현재 잔여 | 조회연도별 사용·대기·예정 및 근거 있는 귀속연도 정보 |
 | 월 현황 | 실근로 부분합·일 결과·월 경계 주 참고량 | 카드·주간 그래프·간결한 일별 표, 검토된 정책 기준 표시 |
 
-현재 근거는 [공통 메뉴](../../../src/main/resources/templates/fragments/workspace.html), [권한 화면](../../../src/main/resources/templates/org/access.html), [신청 화면](../../../src/main/resources/templates/request/mine.html), [월 현황](../../../src/main/resources/templates/worktime/month.html), [신청 Controller](../../../src/main/java/kr/tna/request/RequestController.java), [원장/신청 Mapper](../../../src/main/java/kr/tna/request/LeaveWorkflowMapper.java), [승인자 배정 스키마](../../../src/main/resources/db/migration/V3__account_access.sql), [신청·원장 스키마](../../../src/main/resources/db/migration/V6__leave_workflow.sql)다. 표의 목표 기능은 아직 구현되지 않았다.
+설계 당시 근거는 [보존된 공통 메뉴](../../../src/main/resources/templates/fragments/workspace.html), [권한 화면](../../../src/main/resources/templates/org/access.html), [신청 화면](../../../src/main/resources/templates/request/mine.html), [월 현황](../../../src/main/resources/templates/worktime/month.html), [신청 Controller](../../../src/main/java/kr/tna/request/RequestController.java), [원장/신청 Mapper](../../../src/main/java/kr/tna/request/LeaveWorkflowMapper.java), [승인자 배정 스키마](../../../src/main/resources/db/migration/V3__account_access.sql), [신청·원장 스키마](../../../src/main/resources/db/migration/V6__leave_workflow.sql)다. 실제 후속 구현은 상단 실행 기록으로 구분한다.
 
 ## 3. 설계 선택과 메뉴
 

@@ -38,7 +38,7 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(this).addPathPatterns("/me/**", "/admin/**", "/approvals",
-                "/requests/**", "/worktime/**");
+                "/requests/**", "/worktime/**", "/company/**");
     }
 
     @Override
