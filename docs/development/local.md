@@ -1,5 +1,7 @@
 # 로컬 개발 환경
 
+> 2026-10-27 후속 부하: 기존 변경을5단계로 각각 commit/push한 뒤 현재 XML·JIT 차단 구성의33분15,471요청을 새로 실행했다. 오류/업무 검증 실패0·steady7.999req/s·p95 253.014ms(이전247.396ms)·사전 조사 경고0이며 원장/Excel·기본35테이블/서비스 보존을 확인했다. 단계별 프론트95개·Python62개·최종 Java496개 검증과 상세 비교·한계는 [새 부하 보고서](../quality/no-xml-soak.md)를 따른다. 아래 검증 수치는 각 실행 당시 이력이다.
+
 > 현재 PostgreSQL 실행 이미지는 같은 PGDG18.6 source 기반 `18.6-1.pgdg12+2+worklog1`이다. XML/XSLT/LLVM을 비활성화하고 libxml2·XSLT·LLVM/JIT·xml2 모듈을 제외했다. **현재 SQL/XML·JIT는 지원하지 않는다.** upstream SQL231개·Java496개(97+399)·Python62개·실제 HTTP/Excel·기존 물리/논리 백업 복원과 기본 데이터35테이블 보존은 [최신 보고서](../quality/libxml-containment.md)를 따른다. source/패키징 hash·빌드 profile·업데이트 조건은 [ADR-0004](../adr/0004-postgresql-without-xml.md)에 기록했다. 첫 PG 콜드 빌드는 source 컴파일·자체 회귀로 시간이 필요하며 Testcontainers INFO 출력이 간략할 수 있다. 이후에는 Docker 빌드 cache를 사용한다.
 
 > 2026-10-27 잔여 보완 최신 결과: Java493개(단위97·PG 통합396)·Python62개·실제 HTTP 보안24개·multipart12개·60초 smoke와 합성 DB dump/restore·기본 DB35개 테이블 보존을 확인했다. PostgreSQL에서 runtime 불필요 GPG·SQLite 16개를 제외했으며 `src/test/resources/testcontainers.properties`의 공식 `ryuk.container.privileged=false`와 실제 자동 정리를 검증했다. 환경/홈 설정이 우선하므로 다른 Docker 환경은 실효 설정과 지원 여부를 확인해야 한다. libxml2와 빌드·테스트 도구의 잔여 조건 및 재검사 범위는 [서비스 영향 보고서](../quality/react-residual-impact.md)를 따른다. 아래 이전 검증의 프론트95개·33분 부하는 이번에 재실행하지 않았다.

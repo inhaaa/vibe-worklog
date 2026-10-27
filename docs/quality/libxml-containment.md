@@ -2,6 +2,8 @@
 
 기준일: 2026-10-27, Asia/Seoul. 사용자 요청에 따라 **현재 PostgreSQL runtime의 XML parser와 libxml2 소비자를 제거하고 로컬 기본 DB에 반영했다.** 이는 libxml2 upstream 패치가 아니라 현재 구성의 취약 컴포넌트·입력 경로 제거다. 이전 [잔여 영향 보고서](react-residual-impact.md)의 libxml2 P1은 아래 고정 이미지에서 조치했으며, 다른 잔여 경고·운영 수용까지 종료한 것은 아니다.
 
+후속으로 기존 변경을5단계 commit/push한 뒤 **새33분 부하15,471요청·오류0·steady7.999req/s·사전 성능 조사 경고0**과 원장/Excel/기본 DB 보존을 확인했다. [후속 부하 보고서](no-xml-soak.md)를 따른다. 아래60초·미커밋·장시간 부하 미실시 문구는 이 차단 조치 당시 이력이며 운영 용량/SLA·대규모 분석 성능은 여전히 검증하지 않았다.
+
 ## 방법과 변경 범위
 
 - [ADR-0004](../adr/0004-postgresql-without-xml.md)에 따라 같은 PostgreSQL18.6·PGDG18.6-1.pgdg12+2 원본/패치/패키징을 사용해 server/client를 **18.6-1.pgdg12+2+worklog1**의 프로젝트 DEB로 빌드했다. 서버 코드는 수정하지 않고 공식 configure의 XML/XSLT/LLVM만 비활성화했다.

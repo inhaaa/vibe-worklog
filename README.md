@@ -24,6 +24,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
 - 현재 로컬 데모: 전체 화면 React 전환, 입력 없는 데모·하루 흐름 홈·개인 달력·관리/신청/집계, Java496개·Python62개·PostgreSQL XML 경로 제거와 데이터 보존 검증 ([최신 검증](docs/quality/libxml-containment.md))
+- 현재 XML·JIT 차단 구성: 단계별5회 commit/push 후 새33분15,471요청·오류0·7.999req/s·p95 252.791ms, 사전 성능 조사 경고0·원장/Excel/기본 DB 보존 ([부하 재검증](docs/quality/no-xml-soak.md))
 
 ## Overview
 
@@ -128,6 +129,7 @@ AI 활용은 개발 지원 방식이며 서비스에 AI 기능이 탑재된다�
 ## Documentation
 
 - [React 전체 전환](docs/quality/react-migration.md): 전체 화면의 React·JSON/폼 계약·회귀·로컬 실행·브라우저 검증, [기술 결정](docs/adr/0003-react-frontend.md)
+- [XML·JIT 차단 구성의 장시간 부하](docs/quality/no-xml-soak.md): 기존 변경의 단계별 게시·새33분 부하·이전 구성 비교·자원/종료 정합성
 - [WorkLog 사용자·관리 업무 확장 설계](docs/superpowers/specs/2026-10-26-worklog-service-design.md): 내 정보·시트형 관리·공통/관리자/대표·조직장/결재선·코드 관리·연도별 모달 신청·월간 현황. 2026-10-26 승인 방향의 후속 설계이며 해당 기능 구현·운영 수용은 미완료
 - [Project Kickoff](docs/kickoff.md): 프로젝트 방향 및 초기 기술 설계
 - [Product Requirements](docs/prd.md): 제품 요구사항과 MVP 결정 기록
