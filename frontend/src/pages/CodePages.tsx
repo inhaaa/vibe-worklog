@@ -3,8 +3,9 @@ import type { FormEvent } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import type { PageProps } from '../types';
 import { Form, fmtDate, fmtDateTime } from '../ui';
-import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import type { WorklogSheetHandle } from '../components/WorklogSheet';
+import type { SheetEditorField } from '../components/SheetCellEditor';
 
 type Value = string | number | boolean | null | undefined;
 interface Entry {
@@ -148,6 +149,10 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       event.preventDefault();
       return;
     }
+    if (sheet.current && !sheet.current.validate()) {
+      event.preventDefault();
+      return;
+    }
     const anotherDraft = Array.from(document.querySelectorAll('[data-unsaved-changes="true"]')).some(element => element !== sheetElement.current);
     if (anotherDraft && !window.confirm('다른 시트에도 저장하지 않은 변경이 있습니다. 다른 시트의 편집을 버리고 이 시트를 저장할까요?')) event.preventDefault();
   }
@@ -155,26 +160,33 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
     if (field.kind === 'check') return value ? '사용' : '미사용';
     return field.choices?.find(([key]) => key === value)?.[1] ?? String(value ?? '');
   }
-  function cell(row: Row, index: number, field: Field) {
+  function editorField(row: Row, index: number, field: Field): SheetEditorField {
     const original = row.id ? latest.get(row.id) : undefined;
     const rowError = errors.find(item => item.clientRowId === row.clientRowId && item.field === field.key);
-    const id = `${title}-${row.clientRowId}-${field.key}`;
     const label = !attendance || field.key === 'code' || field.key === 'name' ? `${title} ${field.label} ${index + 1}` : `${field.label} ${index + 1}`;
     const systemFixed = attendance && Boolean(row.systemKind) && ['unit', 'deductionRule', 'recognitionRule'].includes(field.key);
     const customFixed = attendance && !row.systemKind && ['enabled', 'deductionRule', 'recognitionRule'].includes(field.key);
     const disabled = lockedGroup || original?.systemOwned === true || systemFixed || customFixed || (row.operation === 'DEACTIVATE' && field.key !== 'effectiveFrom');
-    const shared = { id, disabled, 'aria-invalid': Boolean(rowError), 'aria-describedby': rowError ? `${id}-error` : undefined, 'data-error-focus': rowError ? 'true' : undefined, 'data-changed': String(!original || row[field.key] !== original[field.key]) };
-    return <>
-      <label className="t-sr-only" htmlFor={id}>{label}</label>
-      {field.kind === 'select' ? <select {...shared} className="t-select" value={String(row[field.key] ?? '')} onChange={event => update(row.clientRowId, field.key, event.target.value)}>
-        {field.choices?.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-      </select> : field.kind === 'check' ? <input {...shared} className="t-sheet-check" type="checkbox" checked={Boolean(row[field.key])} onChange={event => update(row.clientRowId, field.key, event.target.checked)} />
-        : <input {...shared} className="t-input" type={field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : 'text'}
-          value={String(row[field.key] ?? '')} readOnly={field.key === 'code' && Boolean(row.id)} maxLength={field.max}
-          min={field.kind === 'date' ? today : field.kind === 'number' ? 0 : undefined} step={field.kind === 'number' ? 1 : undefined} required={field.required}
-          onChange={event => update(row.clientRowId, field.key, field.kind === 'number' ? (event.target.value === '' ? '' : Number(event.target.value)) : event.target.value)} />}
-      {rowError && <p className="t-sheet-error" id={`${id}-error`}>{rowError.message}</p>}
-    </>;
+    return {
+      label, value: String(row[field.key] ?? ''), disabled,
+      readOnly: field.key === 'code' && Boolean(row.id),
+      type: field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : 'text',
+      options: field.choices, maxLength: field.max, required: field.required,
+      min: field.kind === 'date' ? today : field.kind === 'number' ? 0 : undefined,
+      step: field.kind === 'number' ? 1 : undefined,
+      changed: !original || row[field.key] !== original[field.key], error: rowError?.message,
+      onChange: value => update(row.clientRowId, field.key, field.kind === 'number' ? (value === '' ? '' : Number(value)) : value),
+      onCancel: () => {
+        setRows(current => current.map(item => item.clientRowId === row.clientRowId ? row : item));
+        renew();
+      },
+    };
+  }
+  function checkCell(row: Row, index: number, field: Field) {
+    const state = editorField(row, index, field);
+    return <input className="t-sheet-check" type="checkbox" aria-label={state.label}
+      disabled={state.disabled} checked={Boolean(row[field.key])} data-changed={String(state.changed)}
+      aria-invalid={Boolean(state.error)} onChange={event => update(row.clientRowId, field.key, event.target.checked)} />;
   }
   function protection(row: Row) {
     const original = row.id ? latest.get(row.id) : undefined;
@@ -183,7 +195,8 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
   }
   const state = (row: Row) => row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : changed(row) ? '수정' : '저장됨';
   const columns = [
-    ...fields.map(field => sheetColumn<Row>({
+    ...fields.map(field => {
+      const column: ColDef<Row> = {
       colId: field.key, headerName: field.label,
       pinned: field.key === 'code' ? 'left' : undefined,
       minWidth: field.kind === 'check' || field.kind === 'number' ? 110 : field.key === 'description' || field.key === 'basis' ? 240 : 160,
@@ -192,7 +205,11 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       filter: field.kind === 'number' ? 'agNumberColumnFilter' : 'agTextColumnFilter',
       cellClass: field.kind === 'number' ? 'w-sheet-number' : field.kind === 'check' ? 'w-sheet-center' : undefined,
       valueGetter: ({ data }) => data ? field.kind === 'number' ? data[field.key] : display(data[field.key], field) : '',
-    }, (row, index) => cell(row, index, field))),
+      };
+      return field.kind === 'check'
+        ? sheetColumn<Row>(column, (row, index) => checkCell(row, index, field))
+        : sheetEditorColumn<Row>(column, (row, index) => editorField(row, index, field));
+    }),
     sheetColumn<Row>({ colId: 'protection', headerName: attendance ? '유형·신청 가능' : '보호·상세', minWidth: attendance ? 280 : 180,
       valueGetter: ({ data }) => data ? attendance ? `${systemText(data.systemKind)} ${data.id ? latest.get(data.id)?.capabilityMessage ?? '' : ''}` : data.id && latest.get(data.id)?.systemOwned ? '시스템 보호' : '사용자 관리' : '',
     }, row => protection(row)),

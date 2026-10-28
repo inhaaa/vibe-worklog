@@ -24,12 +24,86 @@ async function show(initial: PageEnvelope) {
     view.findByRole('grid', { name: sheet.getAttribute('aria-label')! })));
   return view;
 }
+async function editCell(view: ReturnType<typeof render>, label: string, value: string, finish = true) {
+  const display = await view.findByLabelText(label);
+  if (!display.matches('input,select')) fireEvent.click(display.closest('.ag-cell')!, { detail: 1 });
+  const input = await waitFor(() => {
+    const editor = view.getByLabelText(label);
+    expect(editor.matches('input,select')).toBe(true);
+    return editor;
+  });
+  fireEvent.change(input, { target: { value } });
+  if (finish) {
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => expect(input.isConnected).toBe(false));
+  }
+  return input;
+}
 function form(view: ReturnType<typeof render>, action = '/admin/attendance-types/bulk') { return view.container.querySelector(`form[action="${action}"]`) as HTMLFormElement; }
 function payload(view: ReturnType<typeof render>, action?: string) { return JSON.parse(String(new FormData(form(view, action)).get('rows'))) as Record<string, unknown>[]; }
 beforeEach(() => { history.replaceState(null, '', '/admin/attendance-types'); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('공통코드·근태코드 React 관리', () => {
+  it('평소 입력 박스 없이 값을 표시하고 클릭한 셀만 편집한다', async () => {
+    const view = await show(common());
+    const grid = view.getByRole('grid', { name: '코드그룹 편집 시트' });
+    expect(grid.querySelector('input:not([type=checkbox]),select')).toBeNull();
+    const name = view.getByLabelText('코드그룹 이름 1');
+    expect(name.textContent).toBe(group.name);
+    fireEvent.click(name.closest('.ag-cell')!, { detail: 1 });
+    const editor = await view.findByRole('textbox', { name: '코드그룹 이름 1' });
+    fireEvent.change(editor, { target: { value: '클릭 편집' } });
+    expect(payload(view, '/admin/common-code-groups/bulk')[0].name).toBe('클릭 편집');
+    fireEvent.keyDown(editor, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]));
+  });
+
+  it('편집 중 저장해도 마지막 값과 새 명령을 함께 보낸다', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetcher);
+    const view = await show(common());
+    fireEvent.click(view.getByLabelText('코드그룹 이름 1').closest('.ag-cell')!, { detail: 1 });
+    const editor = await view.findByRole('textbox', { name: '코드그룹 이름 1' });
+    fireEvent.change(editor, { target: { value: '저장 직전 값' } });
+    fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '표시명 정리' } });
+    fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const body = fetcher.mock.calls[0][1]?.body as URLSearchParams;
+    expect(JSON.parse(body.get('rows')!)[0].name).toBe('저장 직전 값');
+    expect(body.get('commandId')).not.toBe('command-g-1');
+  });
+
+  it('선택 셀은 한글 표시명을 보여주고 원시 코드로 저장한다', async () => {
+    const view = await show(attendance());
+    expect(view.getByLabelText('유급 구분 1').textContent).toBe('미확인');
+    await editCell(view, '유급 구분 1', 'PAID', false);
+    expect(payload(view)[0]).toMatchObject({ payKind: 'PAID', effectiveFrom: '2026-10-28' });
+    fireEvent.keyDown(view.getByLabelText('유급 구분 1'), { key: 'Tab', code: 'Tab' });
+    await waitFor(() => expect(view.getByLabelText('유급 구분 1').textContent).toBe('유급'));
+  });
+
+  it('비편집 상태의 필수값 누락도 저장 전에 검사한다', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const view = await show(common());
+    await editCell(view, '코드그룹 이름 1', '');
+    fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '누락 검증' } });
+    fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
+    expect(fetcher).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(view.getByRole('textbox', { name: '코드그룹 이름 1' })));
+    expect(view.getByRole('navigation', { name: '코드그룹 편집 시트 오류 위치' })).toBeTruthy();
+  });
+
+  it('근태코드 셀 편집을 Esc로 취소하면 자동 보정한 적용일도 시작값으로 복원한다', async () => {
+    const view = await show(attendance());
+    const editor = await editCell(view, '근태코드 이름 1', '임시 이름', false);
+    expect(payload(view)[0]).toMatchObject({ name: '임시 이름', effectiveFrom: '2026-10-28' });
+    fireEvent.keyDown(editor, { key: 'Escape', code: 'Escape' });
+    await waitFor(() => expect(payload(view)).toEqual([]));
+    expect(view.getByLabelText('적용일 1').textContent).toBe('0001-01-01');
+  });
+
   it('그룹·상세 편집을 안정적인 행 ID의 공통 그리드로 표시한다', async () => {
     const view = await show(common());
     const groups = await view.findByRole('grid', { name: '코드그룹 편집 시트' });
@@ -54,7 +128,7 @@ describe('공통코드·근태코드 React 관리', () => {
     const grid = await view.findByRole('grid', { name: '코드그룹 편집 시트' });
     fireEvent.click(within(within(grid).getByRole('columnheader', { name: /^정렬/ })).getByText('정렬'));
     await waitFor(() => expect(grid.querySelector('[row-id="row-g-2"]')?.getAttribute('row-index')).toBe('0'));
-    fireEvent.change(view.getByLabelText('코드그룹 이름 1'), { target: { value: '수정 근무 구분' } });
+    await editCell(view, '코드그룹 이름 1', '수정 근무 구분');
     fireEvent.click(view.getByLabelText('코드그룹 1행 선택'));
     fireEvent.change(view.getByLabelText('코드그룹 편집 시트 현재 페이지 필터'), { target: { value: '두번째' } });
     await waitFor(() => expect(view.getByText('숨은 선택 1행 · 숨은 변경 1행')).toBeTruthy());
@@ -65,7 +139,7 @@ describe('공통코드·근태코드 React 관리', () => {
     fireEvent.click(groups.getByRole('button', { name: '취소' }));
     expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]);
     fireEvent.change(view.getByLabelText('코드그룹 편집 시트 현재 페이지 필터'), { target: { value: '' } });
-    expect((await view.findByLabelText('코드그룹 이름 1') as HTMLInputElement).value).toBe(group.name);
+    expect((await view.findByLabelText('코드그룹 이름 1')).textContent).toBe(group.name);
     expect((view.getByLabelText('코드그룹 1행 선택') as HTMLInputElement).checked).toBe(false);
   });
 
@@ -75,7 +149,7 @@ describe('공통코드·근태코드 React 관리', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = await show(common({ groups: [group, second], groupSheet: { ...sheet(group), rows: [row(group), row(second)], latestRows: [group, second] } }));
     await view.findByRole('grid', { name: '코드그룹 편집 시트' });
-    fireEvent.change(view.getByLabelText('코드그룹 이름 1'), { target: { value: '숨은 변경' } });
+    await editCell(view, '코드그룹 이름 1', '숨은 변경');
     fireEvent.change(view.getByLabelText('코드그룹 편집 시트 현재 페이지 필터'), { target: { value: '두번째' } });
     await waitFor(() => expect(view.getByText('숨은 선택 0행 · 숨은 변경 1행')).toBeTruthy());
     fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '표시명 정리' } });
@@ -98,8 +172,8 @@ describe('공통코드·근태코드 React 관리', () => {
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = await show(common());
-    fireEvent.change(view.getByLabelText('코드그룹 이름 1'), { target: { value: '그룹 편집' } });
-    fireEvent.change(view.getByLabelText('상세코드 이름 1'), { target: { value: '상세 편집' } });
+    await editCell(view, '코드그룹 이름 1', '그룹 편집');
+    await editCell(view, '상세코드 이름 1', '상세 편집');
     fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
     expect(confirm).toHaveBeenCalledWith('다른 시트에도 저장하지 않은 변경이 있습니다. 다른 시트의 편집을 버리고 이 시트를 저장할까요?');
     expect(fetcher).not.toHaveBeenCalled();
@@ -157,7 +231,7 @@ describe('공통코드·근태코드 React 관리', () => {
     for (const scope of [groups, codes]) expect(scope.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]);
     expect(payload(view, '/admin/common-codes/bulk')).toEqual([]);
-    fireEvent.change(view.getByLabelText('코드그룹 이름 1'), { target: { value: '수정 그룹' } });
+    await editCell(view, '코드그룹 이름 1', '수정 그룹');
     expect(payload(view, '/admin/common-code-groups/bulk')[0]).toMatchObject({ id: 'g-1', expectedVersion: 2, name: '수정 그룹' });
     expect(payload(view, '/admin/common-codes/bulk')).toEqual([]);
     expect(new FormData(form(view, '/admin/common-code-groups/bulk')).get('_csrf')).toBe('csrf');
@@ -166,10 +240,10 @@ describe('공통코드·근태코드 React 관리', () => {
   it('저장된 코드를 고정하고 새 행 제거·저장행 비활성 예정·취소를 지원한다', async () => {
     const view = await show(common());
     const codes = within(view.getByRole('region', { name: '상세코드 관리' }));
-    expect((view.getByLabelText('상세코드 코드 1') as HTMLInputElement).readOnly).toBe(true);
+    expect(view.getByLabelText('상세코드 코드 1').getAttribute('aria-readonly')).toBe('true');
     fireEvent.click(codes.getByRole('button', { name: '입력' }));
-    fireEvent.change(await view.findByLabelText('상세코드 코드 2'), { target: { value: 'REMOTE' } });
-    fireEvent.change(view.getByLabelText('상세코드 이름 2'), { target: { value: '재택' } });
+    await editCell(view, '상세코드 코드 2', 'REMOTE');
+    await editCell(view, '상세코드 이름 2', '재택');
     expect(payload(view, '/admin/common-codes/bulk')[0]).toMatchObject({ operation: 'CREATE', code: 'REMOTE' });
     fireEvent.click(view.getByLabelText('상세코드 2행 선택'));
     fireEvent.click(codes.getByRole('button', { name: '비활성화' }));
@@ -184,8 +258,8 @@ describe('공통코드·근태코드 React 관리', () => {
 
   it('시스템 소유 그룹·상세를 보호하고 미선택 그룹의 상세 입력을 막는다', async () => {
     const view = await show(common({ groups: [{ ...group, systemOwned: true }], groupSheet: sheet({ ...group, systemOwned: true }), codes: [{ ...code, systemOwned: true }], codeSheet: sheet({ ...code, systemOwned: true }) }));
-    expect((view.getByLabelText('코드그룹 이름 1') as HTMLInputElement).disabled).toBe(true);
-    expect((view.getByLabelText('상세코드 이름 1') as HTMLInputElement).disabled).toBe(true);
+    expect(view.getByLabelText('코드그룹 이름 1').getAttribute('aria-disabled')).toBe('true');
+    expect(view.getByLabelText('상세코드 이름 1').getAttribute('aria-disabled')).toBe('true');
     expect((view.getByLabelText('상세코드 1행 선택') as HTMLInputElement).disabled).toBe(true);
     cleanup();
     const empty = await show(common({ groupId: null, codes: [], codeSheet: { ...sheet(code), rows: [], latestRows: [] } }));
@@ -197,8 +271,8 @@ describe('공통코드·근태코드 React 관리', () => {
     expect(view.getByRole('heading', { name: '근태코드 관리' })).toBeTruthy();
     expect(payload(view)).toEqual([]);
     fireEvent.click(view.getByRole('button', { name: '입력' }));
-    fireEvent.change(await view.findByLabelText('근태코드 코드 2'), { target: { value: 'SICK' } });
-    fireEvent.change(view.getByLabelText('근태코드 이름 2'), { target: { value: '병가' } });
+    await editCell(view, '근태코드 코드 2', 'SICK');
+    await editCell(view, '근태코드 이름 2', '병가');
     expect(payload(view)[0]).toMatchObject({ operation: 'CREATE', systemKind: null, enabled: false, effectiveFrom: '2026-10-28' });
     expect((view.getByLabelText('신규 신청 허용 2') as HTMLInputElement).disabled).toBe(true);
     expect(view.getAllByText(/계산·차감 계약 미지원/).length).toBeGreaterThan(0);
@@ -206,9 +280,9 @@ describe('공통코드·근태코드 React 관리', () => {
 
   it('기존 근태코드 수정은 새 정책 내용만 보내고 버전 이력을 표시한다', async () => {
     const view = await show(attendance());
-    expect((view.getByLabelText('근태코드 코드 1') as HTMLInputElement).readOnly).toBe(true);
-    fireEvent.change(view.getByLabelText('근태코드 이름 1'), { target: { value: '연차 표시 변경' } });
-    fireEvent.change(view.getByLabelText('적용일 1'), { target: { value: '2026-11-01' } });
+    expect(view.getByLabelText('근태코드 코드 1').getAttribute('aria-readonly')).toBe('true');
+    await editCell(view, '근태코드 이름 1', '연차 표시 변경');
+    await editCell(view, '적용일 1', '2026-11-01');
     expect(payload(view)[0]).toMatchObject({ expectedVersion: 1, name: '연차 표시 변경', effectiveFrom: '2026-11-01' });
     expect(view.getByRole('heading', { name: '근태코드 버전 이력' })).toBeTruthy();
     expect(view.getByText('기초 정책')).toBeTruthy();
@@ -220,8 +294,8 @@ describe('공통코드·근태코드 React 관리', () => {
     fireEvent.click(view.getByLabelText('근태코드 1행 선택'));
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(payload(view)[0]).toMatchObject({ operation: 'DEACTIVATE', enabled: false, effectiveFrom: '2026-10-28' });
-    expect((view.getByLabelText('적용일 1') as HTMLInputElement).disabled).toBe(false);
-    fireEvent.change(view.getByLabelText('적용일 1'), { target: { value: '2026-11-10' } });
+    expect(view.getByLabelText('적용일 1').getAttribute('aria-disabled')).toBe('false');
+    await editCell(view, '적용일 1', '2026-11-10');
     expect(payload(view)[0].effectiveFrom).toBe('2026-11-10');
     fireEvent.click(view.getByRole('button', { name: '취소' }));
     expect(payload(view)).toEqual([]);
@@ -233,7 +307,7 @@ describe('공통코드·근태코드 React 관리', () => {
     expect(payload(view)[0].clientRowId).toBe(draft.clientRowId);
     expect(new FormData(form(view)).get('commandId')).toBe('failed-command');
     await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('근태코드 이름 1')));
-    expect(view.getByText('이름을 입력하세요')).toBeTruthy();
+    expect(view.getByRole('button', { name: /이름을 입력하세요/ })).toBeTruthy();
     expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
   });
 
@@ -263,18 +337,18 @@ describe('공통코드·근태코드 React 관리', () => {
     Object.defineProperty(response, 'url', { value: new URL('/admin/attendance-types/bulk', location.href).href });
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response.clone()); vi.stubGlobal('fetch', fetcher);
     const view = await show(attendance());
-    fireEvent.change(view.getByLabelText('근태코드 이름 1'), { target: { value: '변경명' } });
+    await editCell(view, '근태코드 이름 1', '변경명');
     fireEvent.change(view.getByLabelText('근태코드 일괄 변경 사유'), { target: { value: '검토' } });
     const command = new FormData(form(view)).get('commandId');
     fireEvent.submit(form(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(view.getByText('결과 확인 필요')).toBeTruthy());
-    await waitFor(() => expect((view.getByLabelText('근태코드 이름 1') as HTMLInputElement).disabled).toBe(false));
+    await waitFor(() => expect(view.getByLabelText('근태코드 이름 1').hasAttribute('disabled')).toBe(false));
     fireEvent.submit(form(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect((fetcher.mock.calls[1][1]?.body as URLSearchParams).get('commandId')).toBe(command);
-    await waitFor(() => expect((view.getByLabelText('근태코드 이름 1') as HTMLInputElement).disabled).toBe(false));
-    fireEvent.change(view.getByLabelText('근태코드 이름 1'), { target: { value: '다시 수정' } });
+    await waitFor(() => expect(view.getByLabelText('근태코드 이름 1').hasAttribute('disabled')).toBe(false));
+    await editCell(view, '근태코드 이름 1', '다시 수정');
     expect(new FormData(form(view)).get('commandId')).not.toBe(command);
   });
 });
