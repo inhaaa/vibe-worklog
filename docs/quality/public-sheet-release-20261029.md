@@ -25,7 +25,15 @@
 
 이 기준선 JAR의 SHA256은 `b65bcc7a10b49a32b79a677c96d4ddfa56336b91c5014a40c0ccf03aa4d94933`이다. ignored `target/vibe-attendance-public-sheet-bbd525c.jar`와 `public-sheet-artifact-proof-bbd525c.json`, `public-sheet-source-proof-bbd525c.json`에 당시 artifact와 대조 근거를 보존했다. npm 설치·build·공개 AuthPages·package 로그도 같은 target에 보존한다.
 
-이 UI 통합 전후 Java main/test·main resources·pom의 Git 객체가 `3894948`과 모두 동일함을 확인했다. 따라서 위39개 보안/PG 검증의 Java 범위는 유지되며 새 전체 Java 회귀를 실행했다고 표현하지 않는다. 독립 검토에서 발견된 셀 로컬 검증의 `aria-invalid`·오류 설명 연결 보완은 현재 원본에서 진행 중이며 아직 이 기준선에 포함하지 않았다. 그 후속 커밋과 최종 전체 프론트 결과를 반영하기 전 이 artifact를 최종 공개 배포 대상으로 확정하지 않는다.
+이 UI 통합 전후 Java main/test·main resources·pom의 Git 객체가 `3894948`과 모두 동일함을 확인했다. 따라서 위39개 보안/PG 검증의 Java 범위는 유지되며 새 전체 Java 회귀를 실행했다고 표현하지 않는다. 독립 검토의 셀 로컬 검증 `aria-invalid`·오류 설명 연결 보완이 아직 없던 `bbd525c` 기준선은 최종 공개 배포 대상으로 확정하지 않았으며, 아래 후속 artifact와 구분해 보존한다.
+
+## 접근성 후속과 최종 로컬 패키지
+
+후속 `86c9e68`을 `af0bb72`로 통합했다. 셀 표시와 활성 편집기에 현재 오류의 `aria-invalid`·설명 연결을 제공하고 AG Grid가 편집 시작 때 보관한 매개변수 대신 현재 오류/콜백을 React context로 전달한다. 이 후보의 공통 프론트37파일은 원본과 LF 정규화 manifest가 다시 일치한다(`2909117f1fe4a4964073c7f00cc0418b36b04b891cbe613a741942774319774b`). 공개 AuthPages 두 파일만 기존 공개 안내 차이로 유지된다.
+
+이후 타입/Vite production build와 JDK25 `package -Dfrontend.skip=true -DskipTests`를 다시 실행해 둘 다 종료0을 확인했다. 최종 dist와 JAR의8파일 집합·각 바이트, CSS 외부 자산 참조·data URL 부재, public-demo 설정·공유 identity guard 포함을 다시 대조했다. 최종 JAR SHA256은 `1747398e773e613204dadbee4a4faa0690dd99da300bb89dc59c6ccf260484bb`이다. 실제 JAR은 ignored `target/vibe-attendance-public-sheet-86c9e68.jar`, 원시 대조는 `target/public-sheet-artifact-proof-86c9e68.json`·`public-sheet-source-proof-86c9e68.json`, 실행 로그는 `public-sheet-ui-build-final.log`·`public-sheet-package-final.log`에 보존한다.
+
+Java main/test·main resources·pom은 위39개 검증의 Git 객체와 다시 동일함을 확인했다. 공개 AuthPages·해당 테스트·공통 ui·package/lock도 앞선9개 통과 이후 변경0이어서 그 결과를 재사용하며 추가 실행하지 않았다. 원본의 최종 공통 프론트 전체 회귀는 진행 중이므로 아직 통과 수치를 기록하지 않는다. 후보에서 전체 프론트·Java 검증을 중복 실행하지 않았고 접근성 수정의 전체 회귀 결과도 원본의 실제 종료 결과를 받은 뒤 반영한다.
 
 ## 서버 반영 전 남은 조건
 
@@ -33,4 +41,4 @@
 
 V14는 신규4테이블과 `approval_request.attendance_type_version_id`의 NOT NULL/FK를 포함한다. 공개 서버의 현재 SHA·스키마를 먼저 읽고 WorkLog 전용 백업→독립 복원→V14 시험과 기존 열/행·ACL/RLS 대조→WorkLog 앱만 중지·최종 백업→별도 migration 역할→후보 앱의 순서로 진행해야 한다. V14 후 과거 앱은 정책 버전 없는 신청 INSERT와 호환되지 않으므로 구 앱만 무조건 되돌리지 않는다. bootstrap·sample-data는 재실행하지 않는다.
 
-최초39개 Maven 검증 시점에는 dist가 없었으며 그때 생성한 JAR을 배포 대상으로 사용하지 않았다. 이후 위 기준선에서 프론트를 실제 빌드해 JAR 포함까지 검증했다. 접근성 후속 커밋·최종 공통 프론트 결과와 app/migrate 이미지의 revision·ID 검증은 남아 있다. 후보 전체 Java 회귀·새 이미지 취약점/장시간 부하·서버 백업/복원·공개 HTTPS/PC·모바일 검증도 이번 선택 검증의 통과로 확대하지 않는다.
+최초39개 Maven 검증 시점에는 dist가 없었으며 그때 생성한 JAR을 배포 대상으로 사용하지 않았다. 이후 위 두 기준선에서 프론트를 실제 빌드해 JAR 포함까지 검증했다. 최종 공통 프론트 결과와 app/migrate 이미지의 revision·ID 검증은 남아 있다. 후보 전체 Java 회귀·새 이미지 취약점/장시간 부하·서버 백업/복원·공개 HTTPS/PC·모바일 검증도 이번 선택 검증의 통과로 확대하지 않는다.
