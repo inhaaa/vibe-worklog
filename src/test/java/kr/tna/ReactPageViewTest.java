@@ -24,6 +24,18 @@ class ReactPageViewTest {
     private final ReactPageViewResolver resolver = new ReactPageViewResolver(json);
 
     @Test
+    void codeManagementPagesExposeOnlyTheirNamedModels() throws Exception {
+        for (var entry : Map.of("org/common-codes", "commonCodes", "org/attendance-types", "attendanceTypes").entrySet()) {
+            var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);
+            assertNotNull(view, entry.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(entry.getValue(), Map.of("code", "SAFE"), "privateSource", "NEVER_EXPOSE"), request(true), response);
+            assertEquals("SAFE", json.readTree(response.getContentAsString()).at("/data/" + entry.getValue() + "/code").asString());
+            assertFalse(response.getContentAsString().contains("NEVER_EXPOSE"));
+        }
+    }
+
+    @Test
     void jsonUsesOnlyThePageAllowlistAndMinimalIdentity() throws Exception {
         var request = request(true);
         var model = new LinkedHashMap<String, Object>();

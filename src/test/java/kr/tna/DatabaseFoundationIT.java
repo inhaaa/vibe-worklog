@@ -34,8 +34,8 @@ class DatabaseFoundationIT {
                 """, String.class);
         assertEquals(List.of("account_token", "allowed_network", "approval_event", "approval_request",
                 "approval_route", "approval_route_assignment", "approval_route_snapshot", "approval_route_version",
-                "approver_assignment", "attendance_event", "calculation_run", "calendar_day",
-                "calendar_version", "correction_detail", "day_input_revision", "day_result",
+                "approver_assignment", "attendance_event", "attendance_type", "attendance_type_version", "calculation_run", "calendar_day",
+                "calendar_version", "common_code", "common_code_group", "correction_detail", "day_input_revision", "day_result",
                 "employee", "employee_assignment", "employment_rule_assessment", "leave_bucket",
                 "leave_ledger", "leave_request_day", "org_audit_event", "organization", "organization_head_assignment",
                 "report_snapshot", "request_effect", "role_grant", "schedule_assignment",

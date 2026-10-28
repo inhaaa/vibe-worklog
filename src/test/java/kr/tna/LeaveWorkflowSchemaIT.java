@@ -141,9 +141,12 @@ class LeaveWorkflowSchemaIT {
     private int request(Scope s,UUID id,String kind,UUID target,UUID actor,UUID approver,UUID bucket,UUID original,String date) {
         return app.update("""
                 INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
-                    approver_assignment_id,approver_assignment_version,reason,original_request_id,leave_bucket_id,from_date,to_date,client_command_id)
-                VALUES (?,?,?,?,?,'PENDING',?,?,0,'합성 신청',?,?,?::date,?::date,?)
-                """,s.tenant(),id,target,actor,kind,approver,s.assignment(),original,bucket,date,date,UUID.randomUUID());
+                    approver_assignment_id,approver_assignment_version,reason,original_request_id,leave_bucket_id,from_date,to_date,client_command_id,attendance_type_version_id)
+                VALUES (?,?,?,?,?,'PENDING',?,?,0,'합성 신청',?,?,?::date,?::date,?,
+                  (SELECT v.id FROM tna.attendance_type_version v JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id
+                   WHERE t.tenant_id=? AND t.system_kind=? AND v.revision=1))
+                """,s.tenant(),id,target,actor,kind,approver,s.assignment(),original,bucket,date,date,UUID.randomUUID(),s.tenant(),
+                    kind.equals("ATTENDANCE_CORRECTION")?"ATTENDANCE_CORRECTION":"ANNUAL_LEAVE");
     }
     private int effect(Scope s,UUID id,UUID request,String kind,String date,UUID reverses,UUID supersedes) {return app.update("""
             INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,work_date,effect_kind,effect_status,

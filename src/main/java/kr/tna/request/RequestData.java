@@ -32,8 +32,17 @@ public final class RequestData {
             String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
             Long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
-            long version,String effectStatus,int quantityDays,UUID routeSnapshotId) {
+            long version,String effectStatus,int quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId) {
         @org.apache.ibatis.annotations.AutomapConstructor public RequestView { }
+        public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
+                String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
+                Long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
+                UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
+                long version,String effectStatus,int quantityDays,UUID routeSnapshotId) {
+            this(id,targetEmployeeId,targetEmployeeName,authorAccountId,kind,status,currentApproverId,approverName,
+                    approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,
+                    originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,routeSnapshotId,null);
+        }
         public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
                 String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
                 long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
@@ -41,7 +50,7 @@ public final class RequestData {
                 long version,String effectStatus,int quantityDays) {
             this(id,targetEmployeeId,targetEmployeeName,authorAccountId,kind,status,currentApproverId,approverName,
                     approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,
-                    originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,null);
+                    originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,null,null);
         }
     }
     public record RequestDay(LocalDate leaveDate,int quantityDays,UUID scheduleVersionId,UUID calendarVersionId,String zeroReason) { }
@@ -54,10 +63,17 @@ public final class RequestData {
     public record RouteSnapshot(String routeCode,String routeName,long revision,String scopeKind,String approverKind,
             String organizationName,String resolvedApproverName,Instant resolvedAt) { }
     public record ApprovalPage(List<RequestView> requests,int page,boolean hasNext,boolean completed) { }
+    public record AttendancePolicy(UUID id,UUID typeId,String code,String systemKind,long revision,
+            LocalDate effectiveFrom,boolean enabled,String name,String unit,String payKind,String deductionRule,
+            String recognitionRule,String basis) { }
     public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
-            List<ApprovalHistory> history,RouteSnapshot routeSnapshot) {
+            List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy) {
+        public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
+                List<ApprovalHistory> history,RouteSnapshot routeSnapshot) {
+            this(request,days,correction,history,routeSnapshot,null);
+        }
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,List<ApprovalHistory> history) {
-            this(request,days,correction,history,null);
+            this(request,days,correction,history,null,null);
         }
     }
 }

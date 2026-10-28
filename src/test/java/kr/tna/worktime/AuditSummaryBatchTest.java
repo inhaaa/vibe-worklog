@@ -6,6 +6,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuditSummaryBatchTest {
     @Test
+    void codePolicySummaryIncludesOnlyTypedPolicyMetadata() {
+        UUID type = UUID.randomUUID(), version = UUID.randomUUID(), group = UUID.randomUUID();
+        var summary = AuditSummary.project("""
+                {"attendanceTypeId":"%s","attendanceTypeVersionId":"%s","groupId":"%s",
+                 "effectiveFrom":"2026-10-28","enabled":false,"systemOwned":true,
+                 "systemKind":"ANNUAL_LEAVE","unit":"DAY","payKind":"UNSPECIFIED",
+                 "deductionRule":"LEAVE_DAY","recognitionRule":"NOT_SUPPORTED",
+                 "basis":"NEVER_EXPOSE","description":"NEVER_EXPOSE"}
+                """.formatted(type, version, group));
+        assertEquals(type.toString(), summary.get("attendanceTypeId"));
+        assertEquals(version.toString(), summary.get("attendanceTypeVersionId"));
+        assertEquals(group.toString(), summary.get("groupId"));
+        assertEquals("2026-10-28", summary.get("effectiveFrom"));
+        assertEquals("false", summary.get("enabled"));
+        assertEquals("true", summary.get("systemOwned"));
+        assertEquals("ANNUAL_LEAVE", summary.get("systemKind"));
+        assertEquals("DAY", summary.get("unit"));
+        assertEquals("UNSPECIFIED", summary.get("payKind"));
+        assertFalse(summary.toString().contains("NEVER_EXPOSE"));
+        assertTrue(AuditSummary.project("{\"systemKind\":\"UNTRUSTED\",\"unit\":\"SCRIPT\"}").isEmpty());
+    }
+    @Test
     void approvalSummaryKeepsTypedReferencesWithoutExposingPrivateText() {
         UUID route = UUID.randomUUID(), snapshot = UUID.randomUUID();
         var summary = AuditSummary.project("""

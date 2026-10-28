@@ -45,6 +45,8 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("org/organization-heads", "organizationHeads"),
             page("org/approval-routes", "approvalRoutes"),
             page("org/approval-route-assignments", "approvalRouteAssignments"),
+            page("org/common-codes", "commonCodes"),
+            page("org/attendance-types", "attendanceTypes"),
             page("company/organizations", "companyOrganizations"),
             page("org/employee", "employee", "assignments", "form", "assignmentForm", "options", "orgNames"),
             page("org/access", "employee", "account", "localDelivery", "eligibleEmployee", "invitationForm", "rolesForm",

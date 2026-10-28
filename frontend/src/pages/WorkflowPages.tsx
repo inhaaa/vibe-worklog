@@ -207,6 +207,18 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
         </p>
         <p>{r.reason}</p>
         <p>현재 결재 담당 {r.approverName}</p>
+        {d.attendancePolicy && <section className="t-request-route">
+          <h3>제출 당시 근태정책</h3>
+          <dl>
+            <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
+            <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
+            <dt>단위</dt><dd>{d.attendancePolicy.unit === 'DAY' ? '종일(DAY)' : d.attendancePolicy.unit === 'HOUR' ? '시간(HOUR)' : '해당 없음'}</dd>
+            <dt>유급 구분</dt><dd>{d.attendancePolicy.payKind === 'PAID' ? '유급' : d.attendancePolicy.payKind === 'UNPAID' ? '무급' : '미확인'} (정책 메타데이터)</dd>
+            <dt>차감 규칙</dt><dd>{d.attendancePolicy.deductionRule === 'LEAVE_DAY' ? '승인 시 연차 DAY 차감' : '차감 없음'}</dd>
+            <dt>정책 근거</dt><dd>{d.attendancePolicy.basis}</dd>
+          </dl>
+          <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
+        </section>}
         {d.routeSnapshot ? <section className="t-request-route">
           <h3>제출 당시 결재선</h3>
           <dl>

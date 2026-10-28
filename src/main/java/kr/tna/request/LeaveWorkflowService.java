@@ -41,12 +41,14 @@ public final class LeaveWorkflowService {
     private final ClockService clocks;
     private final Clock clock;
     private final ApprovalRouteResolver routes;
+    private final AttendanceTypeResolver attendanceTypes;
     private final JsonMapper json=JsonMapper.builder().build();
     public LeaveWorkflowService(LeaveWorkflowMapper mapper,BusinessCommands commands,OrgCommands administration,
             EmployeeAdminMapper employees,ApproverMapper approvers,ClockService clocks,Clock clock) {
         this.mapper=mapper;this.commands=commands;this.administration=administration;this.employees=employees;
         this.approvers=approvers;this.clocks=clocks;this.clock=clock;
         this.routes=new ApprovalRouteResolver(mapper,approvers,employees);
+        this.attendanceTypes=new AttendanceTypeResolver(mapper);
     }
     public List<Bucket> buckets(TnaPrincipal actor,UUID employeeId) {
         return targetRead(actor,employeeId,()->{employee(actor.tenantId(),employeeId);return mapper.listBuckets(actor.tenantId(),employeeId,today());});
@@ -181,6 +183,7 @@ public final class LeaveWorkflowService {
             checkVersion(form.expectedVersion(),before.version());pending(before);currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
             String status=form.decision().equals("APPROVE")?"APPROVED":"REJECTED";
             if(status.equals("APPROVED")) {
+                attendanceTypes.stored(actor.tenantId(),before);
                 switch(before.kind()) {
                     case "LEAVE_DAY" -> approveLeave(actor,before,reason);
                     case "CANCEL_LEAVE" -> approveCancellation(actor,before,reason);
@@ -261,12 +264,15 @@ public final class LeaveWorkflowService {
         changed(mapper.insertEffect(actor.tenantId(),effect,request.id(),request.targetEmployeeId(),d.workDate(),"CORRECTION",json.writeValueAsString(List.of(evidence)),null,previous==null?null:previous.id(),actor.accountId()));
     }
     private RequestView createRequest(TnaPrincipal actor,UUID target,String kind,LocalDate from,LocalDate to,String reason,UUID predecessor,UUID original,UUID bucket,boolean exceptional,UUID commandId) {
+        // Cancellation carries the original contract even after its type was disabled for new requests.
+        var policy=original==null?attendanceTypes.forSubmission(actor.tenantId(),kind,from,to)
+                :attendanceTypes.stored(actor.tenantId(),request(actor.tenantId(),original));
         var resolution=routes.resolve(actor,target,today());resolution.requireEligible();
         var legacy=resolution.legacy();UUID snapshotId=legacy==null?UUID.randomUUID():null;
         Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var request=new RequestView(UUID.randomUUID(),target,employee(actor.tenantId(),target).displayName(),actor.accountId(),kind,"PENDING",resolution.approverId(),
                 resolution.approverName(),legacy==null?null:legacy.assignmentId(),legacy==null?null:legacy.assignmentVersion(),at,
-                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId);
+                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy.id());
         changed(mapper.insertRequest(actor.tenantId(),request,commandId));
         routes.persist(actor.tenantId(),resolution,snapshotId,request.id(),at);
         return request;
@@ -339,7 +345,7 @@ public final class LeaveWorkflowService {
     private <T>T targetRead(TnaPrincipal actor,UUID employeeId,Supplier<T> action) {
         if(actor==null)throw OrgException.forbidden();return actor.employeeId().equals(employeeId)?commands.read(actor,action):administration.read(actor,action);
     }
-    private RequestDetail detail(UUID tenant,RequestView request) {return new RequestDetail(request,mapper.requestDays(tenant,request.id()),mapper.correction(tenant,request.id()),mapper.history(tenant,request.id()),mapper.routeSnapshot(tenant,request.id()));}
+    private RequestDetail detail(UUID tenant,RequestView request) {return new RequestDetail(request,mapper.requestDays(tenant,request.id()),mapper.correction(tenant,request.id()),mapper.history(tenant,request.id()),mapper.routeSnapshot(tenant,request.id()),request.attendanceTypeVersionId()==null?null:mapper.attendancePolicy(tenant,request.attendanceTypeVersionId()));}
     private RequestView request(UUID tenant,UUID id) {var value=mapper.findRequest(tenant,id);if(value==null)throw OrgException.notFound();return value;}
     private Bucket bucket(UUID tenant,UUID id) {var value=mapper.findBucket(tenant,id,today());if(value==null)throw OrgException.notFound();return value;}
     private Employee employee(UUID tenant,UUID id) {var e=employees.get(tenant,id);if(e==null)throw OrgException.notFound();return e;}
