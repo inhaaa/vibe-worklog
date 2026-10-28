@@ -1,5 +1,7 @@
 # Hostinger 공개 데모 배포 진행
 
+이 문서는 `180689d`·V10 **최초 배포 이력**이다. 이후 최신 완료 메뉴 `efd13ea`·V13의 실제 반영·검증은 [후속 배포 결과](public-menu-deploy-20261028.md)를 따른다.
+
 기준일: 2026-10-28, Asia/Seoul. **[공개 합성 데모](https://worklog.inhaaa.com) 배포와 외부 HTTP40개·브라우저 입장 검증을 완료했다. Webconsole의 새 root 세션 응답과 임시 Docker 관리 연결 해제도 확인했다.** 배포 소스는 `180689dd0ee4a213a85159fc07d1e77b32ab43c3`이다. 사용자는 서버 접속·DNS/설정 변경·전용 DB 생성·배포와 임시 Docker socket 연결·작업 후 해제를 명시 승인했다. [실행 계획](../superpowers/plans/2026-10-27-hostinger-public-demo.md)과 [배포 절차](../../deploy/worklog/README.md)를 따른다. 상용 운영·실고객 수용 완료를 뜻하지 않는다.
 
 ## 구현과 격리

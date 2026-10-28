@@ -5,8 +5,8 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 검증 소스 `180689d` 배포, 외부 HTTP40개·브라우저 입장 검증 완료. Webconsole 재접속과 임시 Docker 관리 연결 해제를 확인했습니다 ([배포 결과](docs/quality/hostinger-public-demo.md)).
-- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 기존 PriceSys·demo 보존과 배포 전후 검증을 포함하며 이번 문서 작업에서 새 메뉴를 배포하지 않았습니다.
+- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 최신 완료 V13 메뉴를 통합 소스 `efd13ea`로 배포했습니다. Java624개·프론트153개·Python69개, 공개 보안/메뉴63항목·프록시/포트4항목·PC/모바일6회 관측과 DB 백업/복원·자료/권한 보존을 검증했습니다 ([최신 배포 결과](docs/quality/public-menu-deploy-20261028.md)).
+- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 이번 배포에서 기존 PriceSys·demo 컨테이너/설정과 임시 관리 연결 해제 상태를 보존했습니다. 작성 중인 코드 관리/V14는 포함하지 않았습니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
@@ -67,7 +67,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 | Build | Maven 3.9.16, Maven Wrapper 3.3.4 |
 | Migration | Flyway 12.4.0 (웹앱과 별도 실행) |
 | Testing | Boot 관리 JUnit 6.0.3, Testcontainers, Vitest 5.0.5 |
-| Infrastructure | Docker Compose 로컬 구성; Caddy·Linux VPS는 후속 |
+| Infrastructure | Docker Compose 로컬·공개 데모, Caddy·Linux VPS; 상용 운영 수용은 후속 |
 | 기타 | Spring Boot Actuator; 검토용 XLSX는 JDK 최소 OOXML ([ADR-0002](docs/adr/0002-review-xlsx.md)) |
 
 [ADR-0001](docs/adr/0001-technology-baseline.md)에 백엔드 기준선을, [ADR-0003](docs/adr/0003-react-frontend.md)에 전체 React 전환 근거를 기록했습니다. 직전 보안·부하 검증의 Java489개(단위96·전용 PostgreSQL 통합393)·프론트95개·Python62개·HTTP24개·multipart12개, 33분15,471요청 예상 밖 오류0·p95 247.902ms와 전체 이미지7종 검사·보안 수정·DB 보존은 [최종 보안·부하 보고서](docs/quality/react-soak-security.md)를 따릅니다. 탐색·다운로드·운영자 조회 3건 수정 이력은 [당시 보고서](docs/quality/react-review-fixes.md)에 보존합니다. 최초 전환 이력은 [React 전환 보고서](docs/quality/react-migration.md)에 보존합니다. 이전 하루 흐름 홈의467개·Python42개·HTTP62개·브라우저10개 관측은 [당시 결과](docs/quality/dayflow-home.md)의 이력입니다. 최신 보안 이미지의 실제33분·이미지 검사를 이전 [A안 검사](docs/quality/workspace-ui.md)·홈 이미지 기록과 구분합니다. 고정 일정·출퇴근·연차/정정 승인·집계·Excel·계정 복구·운영자 권한 경계를 포함합니다. 데모 최초 적용 당시 이미지 보안·Ryuk 검증은 [보안 재검사 이력](docs/quality/security-runtime-recheck.md), 이전 Linux 이미지의 HTTP·지속 부하는 [최종 Linux 재검증](docs/quality/runtime-image-soak.md), 이전 업무 연결·격리·동시성·논리 복원은 [기존 품질 보고서](docs/quality/phase6-report.md), 전체 의존성·이미지 보안 패치와 잔여 취약점은 [후속 검사 보고서](docs/quality/http-soak-vulnerability.md), 실행 방법은 [개발 안내](docs/development/local.md)를 따릅니다. 전이 의존성120개의 [라이선스 메타데이터](docs/development/dependency-licenses.csv)는 배포물 전체의 법률 감사 완료를 뜻하지 않습니다.
