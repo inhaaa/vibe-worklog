@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
+import { flushSync } from 'react-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import type { ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
+import { SheetCellEditor, validateSheetField } from './SheetCellEditor';
+import type { SheetEditorField } from './SheetCellEditor';
+export type { SheetEditorField } from './SheetCellEditor';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -20,7 +24,47 @@ export function sheetColumn<T>(column: ColDef<T>, render: (row: T, index: number
   return { ...column, cellRenderer: RenderCell<T>, cellRendererParams: { render } };
 }
 
-export interface WorklogSheetHandle { focusCell: (rowId: string, field?: string) => void }
+type EditorField<T> = (row: T, index: number) => SheetEditorField;
+function editorField<T>(column: ColDef<T>): EditorField<T> | undefined { return column.context?.sheetEditorField; }
+function fieldFor<T>(column: ColDef<T>, data: T | undefined, context: SheetContext<T>) {
+  return data ? editorField(column)?.(data, context.index.get(context.getRowId(data)) ?? 0) : undefined;
+}
+function displayField(field?: SheetEditorField) { return field?.options?.find(([key]) => key === field.value)?.[1] ?? field?.value ?? ''; }
+
+export function sheetEditorColumn<T>(column: ColDef<T>, field: EditorField<T>): ColDef<T> {
+  return {
+    ...column, context: { ...column.context, sheetEditorField: field }, cellDataType: false,
+    editable: params => {
+      const item = fieldFor(params.colDef, params.data, params.context);
+      return Boolean(item && !item.disabled && !item.readOnly && document.getElementById('tna-app')?.getAttribute('aria-busy') !== 'true');
+    },
+    valueGetter: params => fieldFor(params.colDef, params.data, params.context)?.value ?? '',
+    valueFormatter: params => displayField(fieldFor(params.colDef, params.data, params.context)),
+    getQuickFilterText: params => displayField(fieldFor(params.colDef, params.data, params.context)),
+    comparator: column.comparator ?? ((left, right, nodeA, nodeB) => {
+      const leftField = nodeA.data && field(nodeA.data, 0);
+      const rightField = nodeB.data && field(nodeB.data, 0);
+      if (leftField?.type === 'number') return Number(left) - Number(right);
+      const a = leftField ? displayField({ ...leftField, value: String(left ?? '') }) : String(left ?? '');
+      const b = rightField ? displayField({ ...rightField, value: String(right ?? '') }) : String(right ?? '');
+      return a === b ? 0 : a > b ? 1 : -1;
+    }),
+    filterValueGetter: params => {
+      const item = fieldFor(params.colDef, params.data, params.context);
+      return item?.type === 'number' ? item.value : displayField(item);
+    },
+    cellEditor: SheetCellEditor<T>,
+    cellEditorParams: (params: ICellRendererParams<T>) => ({ field: fieldFor(params.colDef!, params.data, params.context) }),
+    cellRenderer: RenderCell<T>, cellRendererParams: { render: (row: T, index: number) => {
+      const item = field(row, index);
+      return <span className={`w-sheet-value${item.disabled || item.readOnly ? ' w-sheet-readonly' : ' w-sheet-editable'}`}
+        aria-label={item.label} aria-readonly={Boolean(item.readOnly)} aria-disabled={Boolean(item.disabled)}
+        aria-invalid={Boolean(item.error)} data-changed={String(Boolean(item.changed))} title={item.error ?? displayField(item)}>{displayField(item) || '—'}</span>;
+    } },
+  };
+}
+
+export interface WorklogSheetHandle { focusCell: (rowId: string, field?: string) => void; validate: () => boolean }
 export interface SheetFieldError { clientRowId: string; field: string; message: string }
 interface Props<T> {
   label: string;
@@ -40,7 +84,9 @@ interface Props<T> {
 }
 const defaults = {
   flex: 1, minWidth: 130, sortable: true, filter: 'agTextColumnFilter', resizable: true,
-  suppressKeyboardEvent: ({ event }) => {
+  suppressKeyboardEvent: ({ event, editing }) => {
+    if (event.isComposing || event.keyCode === 229) return true;
+    if (editing) return !['Tab', 'Enter', 'Escape'].includes(event.key);
     const target = event.target as HTMLElement;
     // Native input keys edit values; Tab and grid-cell arrow keys remain grid navigation.
     return Boolean(target.closest('input,select,textarea')) && event.key !== 'Tab';
@@ -64,6 +110,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
   const rowId = useRef(getRowId);
   rowId.current = getRowId;
   const [query, setQuery] = useState('');
+  const [validationErrors, setValidationErrors] = useState<SheetFieldError[]>([]);
   const [narrowViewport, setNarrowViewport] = useState(() => typeof window !== 'undefined' && window.innerWidth < 600);
   useEffect(() => {
     const resize = () => setNarrowViewport(window.innerWidth < 600);
@@ -72,7 +119,8 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
   }, []);
   const viewportColumns = narrowViewport ? columns.map(column => ({ ...column, pinned: null })) : columns;
   const [visible, setVisible] = useState(() => new Set(rows.map(getRowId)));
-  const context = useMemo<SheetContext<T>>(() => ({ index: new Map(rows.map((row, index) => [getRowId(row), index])), getRowId, errors }), [rows, getRowId, errors]);
+  const allErrors = [...errors, ...validationErrors];
+  const context = useMemo<SheetContext<T>>(() => ({ index: new Map(rows.map((row, index) => [getRowId(row), index])), getRowId, errors: allErrors }), [rows, getRowId, errors, validationErrors]);
   const stableRowId = useCallback(({ data }: { data: T }) => rowId.current(data), []);
 
   function renderedCell(id: string, columnId: string) {
@@ -97,6 +145,9 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
     grid.ensureNodeVisible(node);
     grid.ensureColumnVisible(column);
     grid.setFocusedCell(node.rowIndex, column);
+    if (editorField(column.getColDef()) && column.isCellEditable(node)) {
+      grid.startEditingCell({ rowIndex: node.rowIndex, colKey: column });
+    }
     const focusInput = () => {
       const cell = renderedCell(id, column.getColId());
       (cell?.querySelector<HTMLElement>('input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a,button:not(:disabled)') ?? cell)?.focus();
@@ -104,7 +155,33 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
     focusInput();
     setTimeout(focusInput, 0);
   }, []);
-  useImperativeHandle(ref, () => ({ focusCell }), [focusCell]);
+  function validate() {
+    const next: SheetFieldError[] = [];
+    rows.forEach((row, index) => columns.forEach(column => {
+      if (changedIds && !changedIds.has(getRowId(row))) return;
+      const field = editorField(column)?.(row, index);
+      const message = field && validateSheetField(field);
+      if (message) next.push({ clientRowId: getRowId(row), field: String(column.colId ?? column.field), message });
+    }));
+    setValidationErrors(next);
+    if (next.length) focusCell(next[0].clientRowId, next[0].field);
+    return next.length === 0;
+  }
+  useImperativeHandle(ref, () => ({ focusCell, validate }));
+  useEffect(() => {
+    setValidationErrors(current => {
+      const next = current.flatMap(error => {
+        if (changedIds && !changedIds.has(error.clientRowId)) return [];
+        const index = rows.findIndex(item => getRowId(item) === error.clientRowId);
+        const row = rows[index];
+        const column = columns.find(item => String(item.colId ?? item.field) === error.field);
+        const field = row && column ? editorField(column)?.(row, index) : undefined;
+        const message = field && validateSheetField(field);
+        return message ? [message === error.message ? error : { ...error, message }] : [];
+      });
+      return next.length === current.length && next.every((error, index) => error === current[index]) ? current : next;
+    });
+  }, [rows, columns, getRowId, changedIds]);
 
   function syncSelection() {
     if (!selectedIds || !api.current || api.current.isDestroyed()) return;
@@ -139,6 +216,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       const input = event.target as HTMLElement;
       const cell = input.closest<HTMLElement>('.ag-cell');
+      if (cell?.classList.contains('ag-cell-inline-editing')) return;
       if (event.key === 'Enter' && input.matches('input') && (cell || input.id === filterId)) {
         event.preventDefault();
       }
@@ -162,8 +240,8 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
         placeholder={scope === 'page' ? '현재 페이지에서 찾기' : '목록에서 찾기'} onChange={event => setQuery(event.target.value)} />
       <span className="w-sheet-note">{scope === 'page' ? '정렬·필터는 현재 페이지에 적용됩니다.' : '정렬·필터는 불러온 전체 목록에 적용됩니다.'}</span>
     </div>
-    {errors.length > 0 && <nav className="w-sheet-errors" aria-label={`${label} 오류 위치`}>
-      {errors.map((error, index) => <button className="t-btn" type="button" key={`${error.clientRowId}-${error.field}-${index}`}
+    {allErrors.length > 0 && <nav className="w-sheet-errors" aria-label={`${label} 오류 위치`}>
+      {allErrors.map((error, index) => <button className="t-btn" type="button" key={`${error.clientRowId}-${error.field}-${index}`}
         onClick={() => focusCell(error.clientRowId, error.field)}>
         {(context.index.get(error.clientRowId) ?? 0) + 1}행 · {columns.find(column => (column.colId ?? column.field) === error.field)?.headerName ?? error.field}: {error.message}
       </button>)}
@@ -181,7 +259,13 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
         }}
         quickFilterText={query} localeText={{ ...localeText, noRowsToShow: rows.length ? '필터와 일치하는 항목이 없습니다.' : emptyMessage }}
         suppressColumnVirtualisation suppressRowVirtualisation suppressAnimationFrame animateRows={false}
-        suppressMultiSort enableCellTextSelection ensureDomOrder
+        suppressMultiSort enableCellTextSelection ensureDomOrder singleClickEdit readOnlyEdit
+        stopEditingWhenCellsLoseFocus enterNavigatesVerticallyAfterEdit
+        onCellEditRequest={event => {
+          const field = fieldFor(event.colDef, event.data, event.context);
+          const value = String(event.newValue ?? '');
+          if (field && !field.disabled && !field.readOnly && field.value !== value) flushSync(() => field.onChange(value));
+        }}
         onGridReady={event => { api.current = event.api; event.api.setGridAriaProperty('label', label); updateVisible(); syncSelection(); }}
         onRowDataUpdated={syncSelection}
         onCellFocused={event => {

@@ -63,6 +63,10 @@
 .w-sheet-grid .ag-row-selected .ag-cell,
 .w-sheet-grid .w-sheet-row-selected .ag-cell { background: var(--ag-selected-row-background-color); }
 .w-sheet-grid .ag-cell-focus:not(.ag-cell-range-selected) { border-color: #2f6fec; }
+.w-sheet-value { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-sheet-editable { cursor: text; }
+.w-sheet-grid .ag-cell-inline-editing { padding: 0; border: 2px solid #2f6fec; background: #fff; }
+.w-sheet-grid .ag-cell-edit-wrapper { width: 100%; height: 100%; }
 
 #tna-app .w-sheet-grid input:not([type=checkbox]),
 #tna-app .w-sheet-grid select,
@@ -109,6 +113,16 @@
   height: 16px;
   margin: 0;
   padding: 0;
+}
+
+#tna-app .w-sheet-grid .w-sheet-editor {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  background: #fff;
 }
 
 /* The existing app button selector is highly specific; isolate its reset to grid controls. */
