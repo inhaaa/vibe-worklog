@@ -25,7 +25,12 @@ function page(kind: 'organizations' | 'employees' = 'organizations', overrides: 
     }, ...overrides,
   } };
 }
-function show(initial = page()) { return render(<App initial={initial} />); }
+async function show(initial = page()) {
+  const view = render(<App initial={initial} />);
+  await Promise.all(Array.from(view.container.querySelectorAll('.w-sheet[role="region"]')).map(sheet =>
+    view.findByRole('grid', { name: sheet.getAttribute('aria-label')! })));
+  return view;
+}
 function bulkForm(view: ReturnType<typeof render>, kind = 'organizations') {
   return view.container.querySelector(`form[action="/admin/${kind}/bulk"]`) as HTMLFormElement;
 }
@@ -41,8 +46,15 @@ beforeEach(() => { history.replaceState(null, '', '/admin/organizations?q=개발
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('조직·사원 시트 편집', () => {
-  it('도구 모음과 고정 코드·사번을 표시하고 미변경 행은 전송하지 않는다', () => {
-    const view = show();
+  it.each(['organizations', 'employees'] as const)('%s 편집을 안정적인 행 ID의 공통 그리드로 표시한다', async (kind) => {
+    const view = await show(page(kind));
+    const sheet = view.getByRole('region', { name: kind === 'organizations' ? '조직 편집 시트' : '사원 편집 시트' });
+    expect(sheet.querySelector('.ag-root-wrapper')).toBeTruthy();
+    expect(sheet.querySelector(`[row-id="${kind === 'organizations' ? 'row-org' : 'row-employee'}"]`)).toBeTruthy();
+  });
+
+  it('도구 모음과 고정 코드·사번을 표시하고 미변경 행은 전송하지 않는다', async () => {
+    const view = await show();
     for (const label of ['조회', '입력', '삭제', '저장', '취소']) expect(view.getByRole('button', { name: label })).toBeTruthy();
     expect((view.getByLabelText('조직 코드 1') as HTMLInputElement).readOnly).toBe(true);
     expect(postedRows(view)).toEqual([]);
@@ -50,10 +62,10 @@ describe('조직·사원 시트 편집', () => {
     expect(new FormData(bulkForm(view)).get('_csrf')).toBe('csrf');
   });
 
-  it('새 행은 저장 전 추가·제거하며 취소는 조회값으로 복원한다', () => {
-    const view = show();
+  it('새 행은 저장 전 추가·제거하며 취소는 조회값으로 복원한다', async () => {
+    const view = await show();
     fireEvent.click(view.getByRole('button', { name: '입력' }));
-    const code = view.getByLabelText('조직 코드 2') as HTMLInputElement;
+    const code = await view.findByLabelText('조직 코드 2') as HTMLInputElement;
     expect(code.readOnly).toBe(false);
     fireEvent.change(code, { target: { value: 'HR' } });
     fireEvent.change(view.getByLabelText('조직 이름 2'), { target: { value: '인사팀' } });
@@ -67,8 +79,8 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toEqual([]);
   });
 
-  it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', () => {
-    const view = show();
+  it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
+    const view = await show();
     fireEvent.click(view.getByLabelText('1행 선택'));
     fireEvent.click(view.getByRole('button', { name: '삭제' }));
     expect(view.getByText('비활성 예정')).toBeTruthy();
@@ -78,8 +90,8 @@ describe('조직·사원 시트 편집', () => {
     expect(view.queryByText('비활성 예정')).toBeNull();
   });
 
-  it('변경 행만 보내고 수정 필드·변경 수를 표시한다', () => {
-    const view = show(page('organizations', { organizationSheet: {
+  it('변경 행만 보내고 수정 필드·변경 수를 표시한다', async () => {
+    const view = await show(page('organizations', { organizationSheet: {
       commandId: 'batch-command', reason: '', rows: [orgRow, { ...orgRow, id: 'o-2', clientRowId: 'row-2', code: 'HR', name: '인사팀' }],
       latestRows: [organization, { ...organization, id: 'o-2', code: 'HR', name: '인사팀' }], errors: [],
     } }));
@@ -91,8 +103,32 @@ describe('조직·사원 시트 편집', () => {
     expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
   });
 
-  it('50행을 넘는 입력을 막고 이유를 알려준다', () => {
-    const view = show(page('organizations', { organizationSheet: {
+  it('정렬·필터 후에도 숨은 선택 행과 편집값을 같은 행 ID로 저장·취소한다', async () => {
+    const second = { ...organization, id: 'o-2', code: 'ADMIN', name: '관리팀' };
+    const view = await show(page('organizations', { organizationSheet: {
+      commandId: 'batch-command', reason: '', rows: [orgRow, { ...second, clientRowId: 'row-2', expectedVersion: 3, operation: 'UPDATE' }],
+      latestRows: [organization, second], errors: [],
+    } }));
+    fireEvent.click(view.getByRole('columnheader', { name: /조직 코드/ }).querySelector('.ag-header-cell-label')!);
+    await waitFor(() => expect(view.container.querySelector('[row-id="row-2"]')?.getAttribute('row-index')).toBe('0'));
+    const input = view.getByLabelText('조직 이름 1') as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: '개발수정' } });
+    expect(document.activeElement).toBe(input);
+    expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', clientRowId: 'row-org', name: '개발수정' });
+    fireEvent.click(view.getByLabelText('1행 선택'));
+    fireEvent.change(view.getByLabelText('조직 편집 시트 현재 페이지 필터'), { target: { value: '관리팀' } });
+    await waitFor(() => expect(view.getByText('숨은 선택 1행 · 숨은 변경 1행')).toBeTruthy());
+    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', operation: 'DEACTIVATE' });
+    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    expect(postedRows(view)).toEqual([]);
+    fireEvent.change(view.getByLabelText('조직 편집 시트 현재 페이지 필터'), { target: { value: '' } });
+    await waitFor(() => expect((view.getByLabelText('조직 이름 1') as HTMLInputElement).value).toBe('개발팀'));
+  });
+
+  it('50행을 넘는 입력을 막고 이유를 알려준다', async () => {
+    const view = await show(page('organizations', { organizationSheet: {
       commandId: 'batch-command', reason: '', rows: Array.from({ length: 49 }, (_, i) => ({ clientRowId: `new-${i}`, operation: 'CREATE', code: `N${i}`, name: '새 조직', parentId: null, active: true })), latestRows: [], errors: [],
     } }));
     fireEvent.click(view.getByRole('button', { name: '입력' }));
@@ -101,8 +137,8 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toHaveLength(50);
   });
 
-  it('사원 시트는 재직·활성만 편집하고 배정·계정 화면으로 연결한다', () => {
-    const view = show(page('employees'));
+  it('사원 시트는 재직·활성만 편집하고 배정·계정 화면으로 연결한다', async () => {
+    const view = await show(page('employees'));
     expect((view.getByLabelText('사번 1') as HTMLInputElement).readOnly).toBe(true);
     fireEvent.change(view.getByLabelText('이름 1'), { target: { value: '김수정' } });
     expect(postedRows(view, 'employees')[0]).toMatchObject({ displayName: '김수정', expectedVersion: 7, joinedOn: '2026-10-01' });
@@ -113,10 +149,10 @@ describe('조직·사원 시트 편집', () => {
     expect(data.get('status')).toBe('active');
   });
 
-  it('미저장 링크·조회·뒤로가기 이동을 거절하면 현재 편집을 보존한다', () => {
+  it('미저장 링크·조회·뒤로가기 이동을 거절하면 현재 편집을 보존한다', async () => {
     const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const view = show();
+    const view = await show();
     fireEvent.change(view.getByLabelText('조직 이름 1'), { target: { value: '편집 중' } });
     fireEvent.click(view.getByRole('link', { name: '내 정보' }));
     fireEvent.submit(view.container.querySelector('form[method="get"]')!);
@@ -131,7 +167,7 @@ describe('조직·사원 시트 편집', () => {
   it('불명확한503 재전송은 같은 명령을 유지하고 편집하면 새 명령을 발급한다', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ page: 'org/problem', csrf, data: { message: '저장 결과 확인 필요' } }, 503));
     vi.stubGlobal('fetch', fetcher);
-    const view = show();
+    const view = await show();
     fireEvent.change(view.getByLabelText('조직 이름 1'), { target: { value: '새 이름' } });
     fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '업무 검토' } });
     fireEvent.submit(bulkForm(view));
@@ -152,19 +188,19 @@ describe('조직·사원 시트 편집', () => {
       latestRows: [organization], errors: [{ clientRowId: 'new-row', field: 'code', message: '조직 코드가 중복됩니다.' }],
     } });
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
-    const view = show(initial);
+    const view = await show(initial);
     fireEvent.change(view.getByLabelText('조직 이름 1'), { target: { value: '중복팀' } });
     fireEvent.submit(bulkForm(view));
     await waitFor(() => expect(view.getByText('조직 코드가 중복됩니다.')).toBeTruthy());
     expect(view.getByText('비활성 예정')).toBeTruthy();
     expect((view.getByLabelText('조직 코드 2') as HTMLInputElement).value).toBe('NEW');
-    expect(document.activeElement).toBe(view.getByLabelText('조직 코드 2'));
+    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 코드 2')));
     expect(new FormData(bulkForm(view)).get('commandId')).toBe('posted-command');
     expect(postedRows(view).map(row => row.clientRowId)).toEqual(['row-org', 'new-row']);
   });
 
-  it('409는 최신값과 편집값을 함께 보여주고 재확인은 최신 버전·새 명령을 사용한다', () => {
-    const view = show(page('organizations', { organizationSheet: {
+  it('409는 최신값과 편집값을 함께 보여주고 재확인은 최신 버전·새 명령을 사용한다', async () => {
+    const view = await show(page('organizations', { organizationSheet: {
       commandId: 'conflicted-command', reason: '업무 검토', rows: [{ ...orgRow, name: '내 편집값' }],
       latestRows: [{ ...organization, name: '다른 관리자 저장값', version: 4 }],
       errors: [{ clientRowId: 'row-org', field: 'expectedVersion', message: '최신 버전을 확인하세요.' }],
@@ -177,8 +213,8 @@ describe('조직·사원 시트 편집', () => {
     expect((view.getByLabelText('조직 이름 1') as HTMLInputElement).value).toBe('내 편집값');
   });
 
-  it('상위 조직·활성 필드 오류도 숨기지 않고 표시한다', () => {
-    const view = show(page('organizations', { organizationSheet: {
+  it('상위 조직·활성 필드 오류도 숨기지 않고 표시한다', async () => {
+    const view = await show(page('organizations', { organizationSheet: {
       commandId: 'batch-command', reason: '검토', rows: [orgRow], latestRows: [organization],
       errors: [{ clientRowId: 'row-org', field: 'parentId', message: '상위 조직 순환입니다.' }, { clientRowId: 'row-org', field: 'active', message: '소속이 남아 있습니다.' }],
     } }));
@@ -186,12 +222,12 @@ describe('조직·사원 시트 편집', () => {
     expect(view.getByText('소속이 남아 있습니다.')).toBeTruthy();
   });
 
-  it('조직·사원 시트에 현재 조직장·근무를 읽기 전용으로 표시한다', () => {
-    const org = show(page('organizations', { organizationHeadsById: { 'o-1': { employeeName: '박조직장', eligible: false, approverEligible: false } } }));
+  it('조직·사원 시트에 현재 조직장·근무를 읽기 전용으로 표시한다', async () => {
+    const org = await show(page('organizations', { organizationHeadsById: { 'o-1': { employeeName: '박조직장', eligible: false, approverEligible: false } } }));
     expect(org.container.querySelector('main')?.textContent).toContain('박조직장 · 재지정 필요');
     cleanup();
-    const view = show(page('employees', { employeeContext: { 'e-1': { organizationName: '개발팀', organizationHeadName: '박조직장', organizationHeadEligible: true, organizationHeadApproverEligible: true, scheduleName: '고정 근무' } } }));
-    const row = view.container.querySelector('[data-client-row-id="row-employee"]')!;
+    const view = await show(page('employees', { employeeContext: { 'e-1': { organizationName: '개발팀', organizationHeadName: '박조직장', organizationHeadEligible: true, organizationHeadApproverEligible: true, scheduleName: '고정 근무' } } }));
+    const row = view.container.querySelector('[row-id="row-employee"] .ag-cell[col-id="assignments"]')!;
     expect(row.textContent).toContain('박조직장'); expect(row.textContent).toContain('고정 근무');
     expect(row.querySelector('input[name="organizationId"],input[name="scheduleName"]')).toBeNull();
     expect(postedRows(view, 'employees')).toEqual([]);
@@ -200,7 +236,7 @@ describe('조직·사원 시트 편집', () => {
   it('저장 중 이동은 손실 확인 없이 차단하고 진행 중 POST를 유지한다', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {})); vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const view = show();
+    const view = await show();
     fireEvent.change(view.getByLabelText('조직 이름 1'), { target: { value: '저장 중' } });
     fireEvent.submit(bulkForm(view));
     fireEvent.click(view.getByRole('link', { name: '내 정보' }));
@@ -213,7 +249,7 @@ describe('조직·사원 시트 편집', () => {
     let reject!: (reason: Error) => void;
     const fetcher = vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>((resolve, fail) => { complete = resolve; reject = fail; }));
     vi.stubGlobal('fetch', fetcher);
-    const view = show(page('organizations', { organizationSheet: {
+    const view = await show(page('organizations', { organizationSheet: {
       commandId: 'pending-command', reason: '검토', rows: [orgRow, { ...orgRow, clientRowId: 'pending-deactivate', id: 'o-2', code: 'OLD', name: '비활성 예정 조직', operation: 'DEACTIVATE' }],
       latestRows: [organization, { ...organization, id: 'o-2', code: 'OLD', name: '비활성 예정 조직' }], errors: [],
     } }));
@@ -257,7 +293,7 @@ describe('조직·사원 시트 편집', () => {
       .mockResolvedValueOnce(response(page('employees'), 200, '/admin/employees'));
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const view = show();
+    const view = await show();
     fireEvent.click(view.getByRole('link', { name: '직원 목록' }));
     await waitFor(() => expect(view.getByLabelText('이름 1')).toBeTruthy());
     fireEvent.change(view.getByLabelText('이름 1'), { target: { value: '직원 편집' } });
@@ -294,10 +330,19 @@ function featurePage(name: string, data: Record<string, unknown>, roles = ['EMPL
   return { page: name, data: { workspacePrincipal: { roles }, workspaceEmployee: { employeeName: '직원', companyName: '합성회사' }, ...data }, csrf };
 }
 describe('조직장·조직도', () => {
+  it('조직장 이력과 선택 조직 직원을 공통 조회 그리드로 표시한다', async () => {
+    const heads = await show(featurePage('org/organization-heads', { organizationHeads }));
+    expect(heads.getByRole('region', { name: '조직장 배정 이력' }).querySelector('.ag-root-wrapper')).toBeTruthy();
+    cleanup();
+    const company = await show(featurePage('company/organizations', { companyOrganizations }));
+    expect(company.getByRole('region', { name: '선택 조직 직원' }).querySelector('[row-id="e-1"]')).toBeTruthy();
+    expect(company.getByRole('navigation', { name: '조직 계층' }).querySelector('details > summary')).toBeTruthy();
+  });
+
   it('조직장 POST 대기 중 다른 배정·종료 폼 입력도 잠그고 실패하면 복구한다', async () => {
     let complete!: (value: Response) => void;
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>(resolve => { complete = resolve; })));
-    const view = show(featurePage('org/organization-heads', { organizationHeads }));
+    const view = await show(featurePage('org/organization-heads', { organizationHeads }));
     const assignment = view.container.querySelector('form[action="/admin/organization-heads"][method="post"]')!;
     const otherReason = view.getByLabelText('종료 사유') as HTMLTextAreaElement;
     const endButton = view.getByRole('button', { name: '배정 종료' }) as HTMLButtonElement;
@@ -309,8 +354,8 @@ describe('조직장·조직도', () => {
     expect(otherReason.disabled).toBe(false); expect(endButton.disabled).toBe(true);
     expect(otherReason.value).toBe('조직장 검토');
   });
-  it('관리자 조직장 배정과 종료는 별도 POST·버전·적용일·사유를 보낸다', () => {
-    const view = show(featurePage('org/organization-heads', { organizationHeads }));
+  it('관리자 조직장 배정과 종료는 별도 POST·버전·적용일·사유를 보낸다', async () => {
+    const view = await show(featurePage('org/organization-heads', { organizationHeads }));
     const assign = view.container.querySelector('form[action="/admin/organization-heads"][method="post"]') as HTMLFormElement;
     const end = view.container.querySelector('form[action="/admin/organization-heads/end"]') as HTMLFormElement;
     expect(assign).toBeTruthy(); expect(end).toBeTruthy();
@@ -322,8 +367,8 @@ describe('조직장·조직도', () => {
     expect(view.getByText(/조직장 배정으로 관리·결재 권한/)).toBeTruthy();
     expect(view.getByRole('link', { name: '조직장 배정' }).getAttribute('href')).toBe('/admin/organization-heads');
   });
-  it('조직장 이력·부재와 결재 적격성을 구분하고 오류 입력을 보존한다', () => {
-    const view = show(featurePage('org/organization-heads', { error: '재직 기간을 확인하세요.', organizationHeads: { ...organizationHeads, form: { ...headForm, employeeId: 'missing', reason: '기존 입력' } } }));
+  it('조직장 이력·부재와 결재 적격성을 구분하고 오류 입력을 보존한다', async () => {
+    const view = await show(featurePage('org/organization-heads', { error: '재직 기간을 확인하세요.', organizationHeads: { ...organizationHeads, form: { ...headForm, employeeId: 'missing', reason: '기존 입력' } } }));
     expect(view.getByText('이전조직장')).toBeTruthy();
     expect(view.getByText('재지정 필요')).toBeTruthy();
     expect(view.getByText('결재 자격 없음')).toBeTruthy();
@@ -333,8 +378,8 @@ describe('조직장·조직도', () => {
     expect(new FormData(assign).get('reason')).toBe('기존 입력');
     expect(view.getByText('현재 선택값 (재지정 필요)')).toBeTruthy();
   });
-  it('대표 조직도는 계층을 접고 펼치며 현재 조직장과 선택 조직 직원만 읽는다', () => {
-    const view = show(featurePage('company/organizations', { companyOrganizations }, ['EMPLOYEE', 'COMPANY_REPRESENTATIVE']));
+  it('대표 조직도는 계층을 접고 펼치며 현재 조직장과 선택 조직 직원만 읽는다', async () => {
+    const view = await show(featurePage('company/organizations', { companyOrganizations }, ['EMPLOYEE', 'COMPANY_REPRESENTATIVE']));
     expect(view.getByRole('heading', { name: '조직도' })).toBeTruthy();
     const tree = view.getByRole('navigation', { name: '조직 계층' });
     expect(tree.querySelector('details > summary')).toBeTruthy();
@@ -345,8 +390,8 @@ describe('조직장·조직도', () => {
     expect(view.queryByRole('link', { name: '조직장 배정' })).toBeNull();
     expect(view.getByRole('link', { name: '조직도' }).getAttribute('href')).toBe('/company/organizations');
   });
-  it('조직도 검색·페이지 조건을 보존하고 조직 선택은 페이지를 초기화한다', () => {
-    const view = show(featurePage('company/organizations', { companyOrganizations }));
+  it('조직도 검색·페이지 조건을 보존하고 조직 선택은 페이지를 초기화한다', async () => {
+    const view = await show(featurePage('company/organizations', { companyOrganizations }));
     const next = new URL(view.getByRole('link', { name: '다음' }).getAttribute('href')!, location.origin);
     expect(next.searchParams.get('q')).toBe('김 & 개발'); expect(next.searchParams.get('organizationId')).toBe('o-1'); expect(next.searchParams.get('page')).toBe('2');
     const link = new URL(view.getByRole('link', { name: 'BACK · 백엔드팀' }).getAttribute('href')!, location.origin);
@@ -354,8 +399,8 @@ describe('조직장·조직도', () => {
     expect((view.getByLabelText('선택 조직 사번·이름 검색') as HTMLInputElement).value).toBe('김 & 개발');
     expect((view.getByLabelText('선택 조직 사번·이름 검색') as HTMLInputElement).maxLength).toBe(100);
   });
-  it('공석·부적격 조직장·직원 없음은 실제 상태를 표시한다', () => {
-    const view = show(featurePage('company/organizations', { companyOrganizations: { ...companyOrganizations, selectedOrganization: { ...companyOrganizations.selectedOrganization, headEligible: false }, employees: [], hasNext: false } }));
+  it('공석·부적격 조직장·직원 없음은 실제 상태를 표시한다', async () => {
+    const view = await show(featurePage('company/organizations', { companyOrganizations: { ...companyOrganizations, selectedOrganization: { ...companyOrganizations.selectedOrganization, headEligible: false }, employees: [], hasNext: false } }));
     const main = view.container.querySelector('main')!;
     expect(main.textContent).toContain('조직장 미배정'); expect(main.textContent).toContain('재지정 필요'); expect(main.textContent).toContain('조회된 직원이 없습니다.');
   });

@@ -3,6 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import type { WorklogSheetHandle } from '../components/WorklogSheet';
 
 type Operation = 'CREATE' | 'UPDATE' | 'DEACTIVATE';
 interface RowBase { clientRowId: string; id?: string | null; expectedVersion?: number | null; operation: Operation; active: boolean }
@@ -52,7 +54,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
   const [commandId, setCommandId] = useState(model.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
-  const table = useRef<HTMLTableElement>(null);
+  const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(row => [row.id, row])), [model.latestRows]);
   const dirty = rows.filter(row => changed(row, row.id ? latest.get(row.id) : undefined, organization));
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
@@ -79,7 +81,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
       ? { ...base, code: '', name: '', parentId: null }
       : { ...base, employeeNo: '', displayName: '', joinedOn: '', leftOn: null }]);
     renew();
-    setTimeout(() => table.current?.querySelector<HTMLInputElement>('tbody tr:last-child input:not([type="checkbox"])')?.focus(), 0);
+    setTimeout(() => sheet.current?.focusCell(base.clientRowId, organization ? 'code' : 'employeeNo'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row =>
@@ -134,6 +136,30 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
     </div>;
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
+  const columns = [
+    sheetColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left', valueGetter: ({ data }) => data ? businessValue(data, organization ? 'code' : 'employeeNo') : '' },
+      (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: true })),
+    sheetColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180, valueGetter: ({ data }) => data ? businessValue(data, organization ? 'name' : 'displayName') : '' },
+      (row, index) => input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })),
+    ...(organization ? [
+      sheetColumn<Row>({ colId: 'parentId', headerName: '상위 조직', minWidth: 180, valueGetter: ({ data }) => data && isOrganization(data) ? m.options.find(option => option.id === data.parentId)?.name ?? '' : '' }, (row, index) => isOrganization(row) ? <>
+        <label className="t-sr-only" htmlFor={`sheet-${row.clientRowId}-parentId`}>상위 조직 {index + 1}</label>
+        <select className="t-select" id={`sheet-${row.clientRowId}-parentId`} value={row.parentId ?? ''} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || !latest.has(row.id) || businessValue(row, 'parentId') !== businessValue(latest.get(row.id)!, 'parentId'))} onChange={event => update(row.clientRowId, 'parentId', event.target.value || null)}>
+          <option value="">없음</option>{m.options.filter(option => option.id !== row.id && (option.active || option.id === row.parentId)).map(option => <option value={option.id} key={option.id}>{option.name}{option.active ? '' : ' (비활성)'}</option>)}
+        </select>
+      </> : null),
+      sheetColumn<Row>({ colId: 'organizationHead', headerName: '조직장', minWidth: 190, valueGetter: ({ data }) => data?.id ? m.organizationHeadsById?.[data.id]?.employeeName ?? '' : '' }, row => headCell(row)),
+    ] : [
+      sheetColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160, valueGetter: ({ data }) => data ? businessValue(data, 'joinedOn') : '' }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })),
+      sheetColumn<Row>({ colId: 'leftOn', headerName: '마지막 재직일', minWidth: 160, valueGetter: ({ data }) => data ? businessValue(data, 'leftOn') : '' }, (row, index) => input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })),
+      sheetColumn<Row>({ colId: 'assignments', headerName: '현재 소속·배정', minWidth: 270, flex: 1, valueGetter: ({ data }) => data?.id ? m.employeeContext?.[data.id]?.organizationName ?? m.employeeOrganizations?.[data.id] ?? '' : '' }, row => employeeCell(row, row.id ? latest.get(row.id) : undefined)),
+    ]),
+    sheetColumn<Row>({ colId: 'active', field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
+    sheetColumn<Row>({ colId: 'state', headerName: '변경 상태', minWidth: 120, valueGetter: ({ data }) => data ? data.operation === 'DEACTIVATE' ? '비활성 예정' : data.operation === 'CREATE' ? '신규' : changed(data, data.id ? latest.get(data.id) : undefined, organization) ? '수정' : '저장됨' : '' }, row => {
+      const modified = changed(row, row.id ? latest.get(row.id) : undefined, organization);
+      return <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : modified ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : row.operation === 'CREATE' ? '신규' : modified ? '수정' : '저장됨'}</span>;
+    }),
+  ];
   return <section className="t-org-sheet" data-unsaved-changes={String(unsaved)}>
     <header className="t-pagehead"><div><p className="t-eyebrow">인사 관리</p><h1>{title}</h1><p className="t-muted">여러 행을 편집하고 한 번에 저장하세요.</p></div><a className="t-btn" href="/company/organizations">조직도</a></header>
     <section className="t-card">
@@ -155,22 +181,10 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
         </div>
         <p className="t-subtle" id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
         {(m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
-        <div className="t-tablewrap t-sheet-scroll" role="region" aria-label={`${label} 편집 시트`} tabIndex={0}>
-          <table className="t-table t-sheet-table" ref={table}><caption className="t-sr-only">{label} 행 선택과 기본정보 편집</caption><thead><tr><th scope="col">선택</th><th scope="col">{organization ? '조직 코드' : '사번'}</th><th scope="col">{organization ? '조직 이름' : '이름'}</th>{organization ? <><th scope="col">상위 조직</th><th scope="col">조직장</th></> : <><th scope="col">입사일</th><th scope="col">마지막 재직일</th><th scope="col">현재 소속·배정</th></>}<th scope="col">활성</th><th scope="col">변경 상태</th></tr></thead><tbody>
-            {rows.map((row, index) => {
-              const previous = row.id ? latest.get(row.id) : undefined;
-              return <tr key={row.clientRowId} data-client-row-id={row.clientRowId} data-operation={row.operation}>
-                <td><input className="t-sheet-check" type="checkbox" aria-label={`${index + 1}행 선택`} checked={selected.has(row.clientRowId)} onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(row.clientRowId); else next.delete(row.clientRowId); return next; })} /></td>
-                <td>{input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: true })}</td>
-                <td>{input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })}</td>
-                {organization && isOrganization(row) ? <><td><label className="t-sr-only" htmlFor={`sheet-${row.clientRowId}-parentId`}>상위 조직 {index + 1}</label><select className="t-select" id={`sheet-${row.clientRowId}-parentId`} value={row.parentId ?? ''} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!previous || businessValue(row, 'parentId') !== businessValue(previous, 'parentId'))} onChange={event => update(row.clientRowId, 'parentId', event.target.value || null)}><option value="">없음</option>{m.options.filter(option => option.id !== row.id && (option.active || option.id === row.parentId)).map(option => <option value={option.id} key={option.id}>{option.name}{option.active ? '' : ' (비활성)'}</option>)}</select></td><td>{headCell(row)}</td></> : <><td>{input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })}</td><td>{input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })}</td><td>{employeeCell(row, previous)}</td></>}
-                <td><input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!previous || row.active !== previous.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} /></td>
-                <td><span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : changed(row, previous, organization) ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : row.operation === 'CREATE' ? '신규' : changed(row, previous, organization) ? '수정' : '저장됨'}</span></td>
-              </tr>;
-            })}
-          </tbody></table>
-          {rows.length === 0 && <p className="t-muted">조회된 {label}이 없습니다. 입력 버튼으로 새 행을 추가하세요.</p>}
-        </div>
+        <WorklogSheet ref={sheet} label={`${label} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
+          rowHeight={organization ? 64 : 112} selectedIds={selected} onSelectionChange={setSelected}
+          selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} />
+        {rows.length === 0 && <p className="t-muted">조회된 {label}이 없습니다. 입력 버튼으로 새 행을 추가하세요.</p>}
         {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
         <div className="t-sheet-reason"><label htmlFor="sheet-reason">일괄 변경 사유</label><textarea id="sheet-reason" name="reason" value={reason} maxLength={500} rows={2} required onChange={event => { setReason(event.target.value); renew(); }} /><p className="t-subtle">변경한 모든 행에 적용됩니다. 500자 이내로 입력하고 불필요한 개인정보는 적지 마세요.</p></div>
       </Form>
@@ -204,13 +218,21 @@ function HeadCommandFields({ form }: { form: HeadForm }) {
 function OrganizationHeadsPage({ model: m, error }: { model: OrganizationHeads; error?: string | null }) {
   const selected = m.organizations.find(organization => organization.id === m.organizationId);
   const missing = m.form.employeeId && !m.candidates.some(employee => employee.id === m.form.employeeId);
+  type Head = OrganizationHeads['history'][number];
+  const columns = [
+    sheetColumn<Head>({ colId: 'employeeName', field: 'employeeName', headerName: '조직장', minWidth: 170, pinned: 'left' }, head => <><strong>{head.employeeName}</strong><small className="t-subtle">{head.employeeNo}</small></>),
+    sheetColumn<Head>({ field: 'validFrom', headerName: '시작일 (포함)', minWidth: 145 }, head => fmtDate(head.validFrom)),
+    sheetColumn<Head>({ field: 'validTo', headerName: '종료일 (제외)', minWidth: 145 }, head => head.validTo ? fmtDate(head.validTo) : '종료일 없음'),
+    sheetColumn<Head>({ colId: 'state', headerName: '상태', minWidth: 190, valueGetter: ({ data: head }) => head ? head.supersededAt ? '교체 이력' : head.validTo && head.validTo <= m.today ? '종료' : head.validFrom > m.today ? '예정' : '현재 배정' : '' }, head => <><span className="t-tag gray">{head.supersededAt ? '교체 이력' : head.validTo && head.validTo <= m.today ? '종료' : head.validFrom > m.today ? '예정' : '현재 배정'}</span>{!head.eligible && <span className="t-tag amber">재지정 필요</span>}{!head.approverEligible && <span className="t-subtle">결재 자격 없음</span>}</>),
+    sheetColumn<Head>({ field: 'reason', headerName: '사유', minWidth: 220, flex: 1 }, head => head.reason),
+  ];
   return <div className="t-organization-heads">
     <header className="t-pagehead"><div><p className="t-eyebrow">인사 관리</p><h1>조직장 배정</h1><p className="t-muted">조직별 한 명을 지정하고 적용일별 이력을 보존합니다.</p></div><a className="t-btn" href="/company/organizations">조직도</a></header>
     <section className="t-card"><form action="/admin/organization-heads" method="get" className="t-toolbar"><div><SelectField label="배정할 조직" name="organizationId" value={m.organizationId}><option value="">조직을 선택하세요</option>{m.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.code} · {organization.name}{organization.active ? '' : ' (비활성)'}</option>)}</SelectField></div><button className="t-btn primary" type="submit">조회</button></form><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p></section>
     <ErrorNotice message={error} />
     {selected ? <>
       <section className="t-card t-head-history"><h2>{selected.name} 조직장 이력</h2><p className="t-subtle">시작일은 포함하고 종료일은 제외합니다. 당일 교체와 종료 이력도 보존합니다.</p>
-        {m.history.length === 0 ? <p className="notice">등록된 조직장이 없습니다.</p> : <div className="t-tablewrap" role="region" aria-label="조직장 배정 이력" tabIndex={0}><table className="t-table"><thead><tr><th scope="col">조직장</th><th scope="col">시작일 (포함)</th><th scope="col">종료일 (제외)</th><th scope="col">상태</th><th scope="col">사유</th></tr></thead><tbody>{m.history.map(head => <tr key={head.id}><td><strong>{head.employeeName}</strong><small className="t-subtle">{head.employeeNo}</small></td><td>{fmtDate(head.validFrom)}</td><td>{head.validTo ? fmtDate(head.validTo) : '종료일 없음'}</td><td><span className="t-tag gray">{head.supersededAt ? '교체 이력' : head.validTo && head.validTo <= m.today ? '종료' : head.validFrom > m.today ? '예정' : '현재 배정'}</span>{!head.eligible && <span className="t-tag amber">재지정 필요</span>}{!head.approverEligible && <span className="t-subtle">결재 자격 없음</span>}</td><td>{head.reason}</td></tr>)}</tbody></table></div>}
+        {m.history.length === 0 ? <p className="notice">등록된 조직장이 없습니다.</p> : <WorklogSheet label="조직장 배정 이력" rows={m.history} columns={columns} getRowId={head => head.id} rowHeight={64} scope="all" />}
       </section>
       <div className="t-head-forms"><section className="t-card"><h2>조직장 지정·교체</h2><p className="t-muted">조직장 배정으로 관리·결재 권한이 자동 부여되지 않습니다. 소속과 다른 조직의 사원도 겸직할 수 있습니다.</p><Form action="/admin/organization-heads" className="admin-form"><HeadCommandFields form={m.form} /><SelectField label="새 조직장" name="employeeId" value={m.form.employeeId} required><option value="">사원을 선택하세요</option>{missing && <option value={m.form.employeeId!}>현재 선택값 (재지정 필요)</option>}{m.candidates.map(employee => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.employeeName}</option>)}</SelectField><Field label="적용 시작일 (포함)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="지정·교체 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /><p className="t-subtle">오늘 이후 날짜만 선택하세요. 기존 대기 신청의 결재자는 자동 변경되지 않습니다.</p><button className="t-btn primary" disabled={!selected.active || m.candidates.length === 0} title={!selected.active ? '비활성 조직에는 배정할 수 없습니다.' : m.candidates.length === 0 ? '배정 가능한 재직 사원이 없습니다.' : undefined}>조직장 저장</button></Form></section>
       <section className="t-card"><h2>조직장 배정 종료</h2><p className="t-muted">해당 적용일부터 조직장을 비워 둡니다. 이전 배정과 신청 이력은 보존합니다.</p><Form action="/admin/organization-heads/end" className="admin-form"><HeadCommandFields form={m.form} /><Field label="종료 적용일 (제외)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="종료 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /><button className="t-btn" disabled={m.history.every(head => head.supersededAt || (head.validTo && head.validTo <= m.today))} title="열려 있는 배정이 있을 때 종료할 수 있습니다.">배정 종료</button></Form></section></div>
@@ -219,13 +241,19 @@ function OrganizationHeadsPage({ model: m, error }: { model: OrganizationHeads; 
 }
 function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations }) {
   const ids = new Set(m.organizations.map(organization => organization.id));
+  type CompanyEmployee = CompanyOrganizations['employees'][number];
+  const columns = [
+    sheetColumn<CompanyEmployee>({ field: 'employeeNo', headerName: '사번', minWidth: 140, pinned: 'left' }, employee => employee.employeeNo),
+    sheetColumn<CompanyEmployee>({ field: 'employeeName', headerName: '이름', minWidth: 150 }, employee => employee.employeeName),
+    sheetColumn<CompanyEmployee>({ field: 'organizationName', headerName: '현재 소속', minWidth: 180, flex: 1 }, employee => employee.organizationName ?? '미배정'),
+  ];
   const children = (parentId: string | null) => m.organizations.filter(organization => parentId === null ? !organization.parentId || !ids.has(organization.parentId) : organization.parentId === parentId);
   function node(organization: OrganizationNode): ReactNode {
     const nested = children(organization.id);
     const summary = <><a href={queryHref('/company/organizations', { organizationId: organization.id, q: m.q, page: 0 })} aria-current={organization.id === m.organizationId ? 'true' : undefined}>{organization.code} · {organization.name}</a>{!organization.active && <span className="t-tag gray">비활성</span>}<HeadStatus name={organization.headEmployeeName} eligible={organization.headEligible} approverEligible={organization.headApproverEligible} /></>;
     return <li key={organization.id}>{nested.length ? <details open><summary>{summary}</summary><ul>{nested.map(node)}</ul></details> : <div className="t-org-leaf">{summary}</div>}</li>;
   }
-  return <div className="t-company-organizations"><header className="t-pagehead"><div><p className="t-eyebrow">회사 현황</p><h1>조직도</h1><p className="t-muted">현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요.</p></div></header><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p><div className="t-org-layout"><section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section><section className="t-card"><h2>{m.selectedOrganization ? `${m.selectedOrganization.name} 직원` : '조직별 직원'}</h2>{m.selectedOrganization ? <><div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div><p className="t-subtle">선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p><form action="/company/organizations" method="get" className="t-toolbar"><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><div><Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} /></div><button className="t-btn primary">조회</button></form>{m.employees.length ? <div className="t-tablewrap" role="region" aria-label="선택 조직 직원" tabIndex={0}><table className="t-table"><thead><tr><th scope="col">사번</th><th scope="col">이름</th><th scope="col">현재 소속</th></tr></thead><tbody>{m.employees.map(employee => <tr key={employee.id}><td>{employee.employeeNo}</td><td>{employee.employeeName}</td><td>{employee.organizationName ?? '미배정'}</td></tr>)}</tbody></table></div> : <p className="notice">조회된 직원이 없습니다.</p>}<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav></> : <p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p>}</section></div></div>;
+  return <div className="t-company-organizations"><header className="t-pagehead"><div><p className="t-eyebrow">회사 현황</p><h1>조직도</h1><p className="t-muted">현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요.</p></div></header><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p><div className="t-org-layout"><section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section><section className="t-card"><h2>{m.selectedOrganization ? `${m.selectedOrganization.name} 직원` : '조직별 직원'}</h2>{m.selectedOrganization ? <><div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div><p className="t-subtle">선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p><form action="/company/organizations" method="get" className="t-toolbar"><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><div><Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} /></div><button className="t-btn primary">조회</button></form>{m.employees.length ? <WorklogSheet label="선택 조직 직원" rows={m.employees} columns={columns} getRowId={employee => employee.id} /> : <p className="notice">조회된 직원이 없습니다.</p>}<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav></> : <p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p>}</section></div></div>;
 }
 
 export function OrgSheetPages({ page, data }: PageProps): ReactNode {
