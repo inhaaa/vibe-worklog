@@ -89,6 +89,19 @@
   box-shadow: 0 0 0 2px #2f6fec26;
 }
 
+#tna-app .w-sheet-grid input[readonly],
+#tna-app .w-sheet-grid input:disabled,
+#tna-app .w-sheet-grid select:disabled {
+  background: #f8fafc;
+  border-color: transparent;
+  color: #607089;
+}
+
+#tna-app .w-sheet-grid [data-changed=true]:not(:disabled):not([readonly]) {
+  background: #f0f5ff;
+  border-color: #8ba8ef;
+}
+
 #tna-app .w-sheet-grid input[type=checkbox] {
   width: 16px;
   min-width: 16px;
@@ -114,4 +127,9 @@
 @media (max-width: 600px) {
   .w-sheet-toolbar { align-items: flex-start; }
   .w-sheet-grid { --ag-font-size: 12px; }
+  #tna-app .t-org-sheet .t-sheet-toolbar .t-btn {
+    white-space: nowrap;
+    min-width: max-content;
+    flex: 1 0 auto;
+  }
 }
