@@ -524,7 +524,11 @@ describe('React 앱 탐색과 제출', () => {
       window.history.pushState(null, '', '/admin/employees');
       render(<App initial={employees} />);
       const replaced = vi.spyOn(window.history, 'replaceState');
-      act(() => window.history.back());
+      await act(async () => {
+        const navigated = new Promise<void>(resolve => window.addEventListener('popstate', () => resolve(), { once: true }));
+        window.history.back();
+        await navigated;
+      });
       await screen.findByRole('alert');
       expect(window.location.pathname).toBe('/admin/organizations');
       expect(document.body.textContent).not.toContain('민감직원');
