@@ -3,6 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Form, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import type { WorklogSheetHandle } from '../components/WorklogSheet';
 type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD';
 interface Route {
   id: string;
@@ -136,7 +138,7 @@ function RouteSheet({ model: m, error }: {
   const [commandId, setCommandId] = useState(m.sheet.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(m.sheet.errors ?? []);
-  const table = useRef<HTMLTableElement>(null);
+  const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(m.sheet.latestRows.map(route => [route.id, route])), [m.sheet.latestRows]);
   const dirty = rows.filter(row => routeChanged(row, row.id ? latest.get(row.id) : undefined));
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
@@ -149,9 +151,10 @@ function RouteSheet({ model: m, error }: {
     renew();
   }
   function add() {
-    setRows(current => [...current, { clientRowId: crypto.randomUUID(), operation: 'CREATE', code: '', name: '', active: true, approverKind: 'ORGANIZATION_HEAD', employeeId: null }]);
+    const clientRowId = crypto.randomUUID();
+    setRows(current => [...current, { clientRowId, operation: 'CREATE', code: '', name: '', active: true, approverKind: 'ORGANIZATION_HEAD', employeeId: null }]);
     renew();
-    setTimeout(() => table.current?.querySelector<HTMLInputElement>('tbody tr:last-child input:not([type=checkbox])')?.focus(), 0);
+    setTimeout(() => sheet.current?.focusCell(clientRowId, 'code'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row => selected.has(row.clientRowId) && row.id && latest.get(row.id)?.active ? { ...row, operation: 'DEACTIVATE' } : row));
@@ -239,6 +242,21 @@ function RouteSheet({ model: m, error }: {
       event.preventDefault();
   }
   const payload = dirty.map(row => ({ clientRowId: row.clientRowId, id: row.id || undefined, expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation, code: row.code, name: row.name, active: row.active, approverKind: row.approverKind, employeeId: row.employeeId }));
+  const columns = [
+    sheetColumn<Row>({ field: 'code', headerName: '코드', minWidth: 150, pinned: 'left' }, (row, index) => cell(row, index, 'code', '결재선 코드')),
+    sheetColumn<Row>({ field: 'name', headerName: '이름', minWidth: 180, flex: 1 }, (row, index) => cell(row, index, 'name', '결재선 이름')),
+    sheetColumn<Row>({ field: 'approverKind', headerName: '결재 방식', minWidth: 210, valueGetter: ({ data }) => data ? kindText(data.approverKind) : '' }, (row, index) => cell(row, index, 'approverKind', '결재 방식')),
+    sheetColumn<Row>({ field: 'employeeId', headerName: '지정 사원', minWidth: 210, valueGetter: ({ data }) => data ? displayValue(data, 'employeeId') : '' }, (row, index) => cell(row, index, 'employeeId', '지정 결재 사원')),
+    sheetColumn<Row>({ colId: 'revision', headerName: '현재 버전', minWidth: 130, valueGetter: ({ data }) => data?.id ? latest.get(data.id)?.revision ?? '' : '' }, row => {
+      const previous = row.id ? latest.get(row.id) : undefined;
+      return previous ? `v${previous.revision}` : '저장 후 생성';
+    }),
+    sheetColumn<Row>({ field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => cell(row, index, 'active', '활성')),
+    sheetColumn<Row>({ colId: 'state', headerName: '변경 상태', minWidth: 120, valueGetter: ({ data }) => data ? data.operation === 'DEACTIVATE' ? '비활성 예정' : !data.id ? '신규' : routeChanged(data, latest.get(data.id)) ? '수정' : '저장됨' : '' }, row => {
+      const modified = routeChanged(row, row.id ? latest.get(row.id) : undefined);
+      return <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : modified ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : modified ? '수정' : '저장됨'}</span>;
+    }),
+  ];
   return <section className="t-org-sheet t-approval-routes" data-unsaved-changes={String(unsaved)}>
     <header className="t-pagehead">
       <div>
@@ -270,7 +288,7 @@ function RouteSheet({ model: m, error }: {
         <input type="hidden" name="page" value={m.page} />
         <div className="t-sheet-toolbar" role="group" aria-label="결재선 시트 편집">
           <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50}>입력</button>
-          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="기존 행은 비활성 예정으로 표시합니다.">삭제</button>
+          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
           <button
             type="submit"
             className="t-btn primary"
@@ -291,67 +309,10 @@ function RouteSheet({ model: m, error }: {
             {item.message}
           </p>)}
         </div>}
-        <div className="t-tablewrap t-sheet-scroll" role="region" aria-label="결재선 편집 시트" tabIndex={0}>
-          <table className="t-table t-sheet-table" ref={table}>
-            <caption className="t-sr-only">결재선 행 선택과 1단계 결재 방식 편집</caption>
-            <thead>
-              <tr>
-                <th scope="col">선택</th>
-                <th scope="col">코드</th>
-                <th scope="col">이름</th>
-                <th scope="col">결재 방식</th>
-                <th scope="col">지정 사원</th>
-                <th scope="col">현재 버전</th>
-                <th scope="col">활성</th>
-                <th scope="col">변경 상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => {
-                const previous = row.id ? latest.get(row.id) : undefined; return <tr key={row.clientRowId} data-operation={row.operation}>
-                  <td>
-                    <input
-                      className="t-sheet-check"
-                      type="checkbox"
-                      aria-label={`${index + 1}행 선택`}
-                      checked={selected.has(row.clientRowId)}
-                      onChange={event => setSelected(current => {
-                        const next = new Set(current); if (event.target.checked)
-                          next.add(row.clientRowId);
-                        else
-                          next.delete(row.clientRowId); return next;
-                      })} />
-                  </td>
-                  <td>
-                    {cell(row, index, 'code', '결재선 코드')}
-                  </td>
-                  <td>
-                    {cell(row, index, 'name', '결재선 이름')}
-                  </td>
-                  <td>
-                    {cell(row, index, 'approverKind', '결재 방식')}
-                  </td>
-                  <td>
-                    {cell(row, index, 'employeeId', '지정 결재 사원')}
-                  </td>
-                  <td>
-                    {previous ? `v${previous.revision}` : '저장 후 생성'}
-                  </td>
-                  <td>
-                    {cell(row, index, 'active', '활성')}
-                  </td>
-                  <td>
-                    <span
-                      className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : routeChanged(row, previous) ? 'blue' : 'gray'}`}>
-                      {row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : routeChanged(row, previous) ? '수정' : '저장됨'}
-                    </span>
-                  </td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
-          {!rows.length && <p className="notice">등록된 결재선이 없습니다. 입력 버튼으로 추가하세요.</p>}
-        </div>
+        <WorklogSheet ref={sheet} label="결재선 편집 시트" rows={rows} columns={columns} getRowId={row => row.clientRowId}
+          selectedIds={selected} onSelectionChange={setSelected} selectionLabel={(_row, index) => `${index + 1}행 선택`}
+          changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} rowHeight={errors.length ? 64 : 40} />
+        {!rows.length && <p className="notice">등록된 결재선이 없습니다. 입력 버튼으로 추가하세요.</p>}
         {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교">
           <h2>최신값을 확인하세요</h2>
           {conflicts.map(row => {
@@ -402,35 +363,14 @@ function RouteSheet({ model: m, error }: {
 function VersionTable({ versions }: {
   versions: Version[];
 }) {
-  return versions.length ? <div className="t-tablewrap" role="region" aria-label="결재선 버전 이력" tabIndex={0}>
-    <table className="t-table">
-      <thead>
-        <tr>
-          <th scope="col">코드·이름</th>
-          <th scope="col">버전</th>
-          <th scope="col">결재자</th>
-          <th scope="col">등록 시각 (서울)</th>
-          <th scope="col">변경 사유</th>
-        </tr>
-      </thead>
-      <tbody>
-        {versions.map(version => <tr key={version.id}>
-          <td>{version.code} · {version.name}{!version.active && <span className="t-tag gray">정의 비활성</span>}</td>
-          <td>v{version.revision}</td>
-          <td>
-            {kindText(version.approverKind)}
-            {version.employeeName ? ` · ${version.employeeName}` : ''}
-          </td>
-          <td>
-            {fmtDateTime(version.createdAt)}
-          </td>
-          <td>
-            {version.reason}
-          </td>
-        </tr>)}
-      </tbody>
-    </table>
-  </div> : <p className="notice">등록된 버전이 없습니다.</p>;
+  const columns = [
+    sheetColumn<Version>({ colId: 'name', headerName: '코드·이름', minWidth: 200, pinned: 'left', valueGetter: ({ data }) => data ? `${data.code} · ${data.name}` : '' }, version => <>{version.code} · {version.name}{!version.active && <span className="t-tag gray">정의 비활성</span>}</>),
+    sheetColumn<Version>({ field: 'revision', headerName: '버전', minWidth: 90 }, version => `v${version.revision}`),
+    sheetColumn<Version>({ colId: 'approver', headerName: '결재자', minWidth: 230, valueGetter: ({ data }) => data ? `${kindText(data.approverKind)}${data.employeeName ? ` · ${data.employeeName}` : ''}` : '' }, version => <>{kindText(version.approverKind)}{version.employeeName ? ` · ${version.employeeName}` : ''}</>),
+    sheetColumn<Version>({ field: 'createdAt', headerName: '등록 시각 (서울)', minWidth: 185 }, version => fmtDateTime(version.createdAt)),
+    sheetColumn<Version>({ field: 'reason', headerName: '변경 사유', minWidth: 220, flex: 1 }, version => version.reason),
+  ];
+  return versions.length ? <WorklogSheet label="결재선 버전 이력" rows={versions} columns={columns} getRowId={version => version.id} rowHeight={64} /> : <p className="notice">등록된 버전이 없습니다.</p>;
 }
 function RouteAssignments({ model: m, error }: {
   model: Assignments;
@@ -455,6 +395,13 @@ function RouteAssignments({ model: m, error }: {
   function start() { document.getElementById('route-version')?.focus(); }
   const selectedVersion = m.versions.find(version => version.id === form.routeVersionId);
   const missingVersion = form.routeVersionId && !selectedVersion;
+  const columns = [
+    sheetColumn<Assignment>({ colId: 'routeName', headerName: '결재선·버전', minWidth: 230, pinned: 'left', valueGetter: ({ data }) => data ? `${data.routeCode} · ${data.routeName} · v${data.revision}` : '' }, assignment => `${assignment.routeCode} · ${assignment.routeName} · v${assignment.revision}`),
+    sheetColumn<Assignment>({ colId: 'approver', headerName: '결재 방식', minWidth: 230, valueGetter: ({ data }) => data ? `${kindText(data.approverKind)}${data.approverEmployeeName ? ` · ${data.approverEmployeeName}` : ''}` : '' }, assignment => <>{kindText(assignment.approverKind)}{assignment.approverEmployeeName ? ` · ${assignment.approverEmployeeName}` : ''}</>),
+    sheetColumn<Assignment>({ field: 'validFrom', headerName: '적용 기간 (종료 제외)', minWidth: 230 }, assignment => `${fmtDate(assignment.validFrom)} ~ ${assignment.validTo ? fmtDate(assignment.validTo) : '종료 미정'}`),
+    sheetColumn<Assignment>({ colId: 'state', headerName: '상태', minWidth: 230, valueGetter: ({ data }) => data ? data.supersededAt ? '대체됨' : data.validTo && data.validTo <= m.today ? '종료' : data.validFrom > m.today ? '예정' : '현재 배정' : '' }, assignment => <><span className="t-tag gray">{assignment.supersededAt ? '대체됨' : assignment.validTo && assignment.validTo <= m.today ? '종료' : assignment.validFrom > m.today ? '예정' : '현재 배정'}</span>{!assignment.routeActive && <span className="t-tag amber">결재선 비활성 · 신청 차단</span>}</>),
+    sheetColumn<Assignment>({ field: 'reason', headerName: '사유', minWidth: 220, flex: 1 }, assignment => assignment.reason),
+  ];
   return <section className="t-approval-assignments" data-unsaved-changes={String(dirty)}>
     <header className="t-pagehead">
       <div>
@@ -576,38 +523,7 @@ function RouteAssignments({ model: m, error }: {
       </section>
       <section className="t-card">
         <h2>적용 배정 이력</h2>
-        {m.history.length ? <div className="t-tablewrap" role="region" aria-label="결재선 배정 이력" tabIndex={0}>
-          <table className="t-table">
-            <thead>
-              <tr>
-                <th scope="col">결재선·버전</th>
-                <th scope="col">결재 방식</th>
-                <th scope="col">적용 기간 (종료 제외)</th>
-                <th scope="col">상태</th>
-                <th scope="col">사유</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.history.map(assignment => <tr key={assignment.id}>
-                <td>{assignment.routeCode} · {assignment.routeName} · v{assignment.revision}</td>
-                <td>
-                  {kindText(assignment.approverKind)}
-                  {assignment.approverEmployeeName ? ` · ${assignment.approverEmployeeName}` : ''}
-                </td>
-                <td>{fmtDate(assignment.validFrom)} ~ {assignment.validTo ? fmtDate(assignment.validTo) : '종료 미정'}</td>
-                <td>
-                  <span className="t-tag gray">
-                    {assignment.supersededAt ? '대체됨' : assignment.validTo && assignment.validTo <= m.today ? '종료' : assignment.validFrom > m.today ? '예정' : '현재 배정'}
-                  </span>
-                  {!assignment.routeActive && <span className="t-tag amber">결재선 비활성 · 신청 차단</span>}
-                </td>
-                <td>
-                  {assignment.reason}
-                </td>
-              </tr>)}
-            </tbody>
-          </table>
-        </div> : <p className="notice">등록된 배정이 없습니다.</p>}
+        {m.history.length ? <WorklogSheet label="결재선 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} rowHeight={64} scope="all" /> : <p className="notice">등록된 배정이 없습니다.</p>}
       </section>
     </> : <section className="t-card">
       <p className="notice">대상 사원 또는 조직을 선택해 조회하세요.</p>

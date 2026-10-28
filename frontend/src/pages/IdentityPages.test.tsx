@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../App';
 
@@ -24,24 +24,29 @@ const requests = {
   requests: [{ id: 'r-1', employeeNo: 'E001', employeeName: '김직원', organizationName: '개발팀', kind: 'LEAVE_DAY', status: 'APPROVED', fromDate: '2026-10-26', toDate: '2026-10-26', quantityDays: 1, effectStatus: 'EFFECTIVE', submittedAt: '2026-10-25T15:00:00Z' }],
 };
 
-function show(page: string, data: Record<string, unknown>) {
-  return render(<App initial={{ page, data: {
+async function show(page: string, data: Record<string, unknown>) {
+  const view = render(<App initial={{ page, data: {
     workspacePrincipal: { roles: ['EMPLOYEE', 'COMPANY_REPRESENTATIVE'] },
     workspaceEmployee: { employeeName: '김직원', companyName: '합성회사' }, ...data,
   }, csrf: { token: 'csrf', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' } }} />);
+  await waitFor(() => {
+    for (const sheet of view.container.querySelectorAll('.w-sheet'))
+      expect(sheet.querySelector('[row-id]')).not.toBeNull();
+  });
+  return view;
 }
 afterEach(cleanup);
 
 describe('내 정보·권한 목록·회사 현황', () => {
-  it('본인의 현재 조직장과 조직장·결재 자격을 구분해 표시한다', () => {
-    const view = show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장', organizationHeadEligible: false, organizationHeadApproverEligible: false } });
+  it('본인의 현재 조직장과 조직장·결재 자격을 구분해 표시한다', async () => {
+    const view = await show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장', organizationHeadEligible: false, organizationHeadApproverEligible: false } });
     const main = view.container.querySelector('main')!;
     expect(main.textContent).toContain('현재 조직장');
     expect(main.textContent).toContain('김조직장 · 재지정 필요');
     expect(main.textContent).toContain('조직장 결재 자격 없음');
   });
-  it('내 정보에 본인 계정·현재 배정·보유 역할을 읽기 전용으로 표시한다', () => {
-    const view = show('workspace/profile', { profile });
+  it('내 정보에 본인 계정·현재 배정·보유 역할을 읽기 전용으로 표시한다', async () => {
+    const view = await show('workspace/profile', { profile });
     const main = view.container.querySelector('main')!;
     expect(view.getByRole('heading', { name: '내 정보' })).toBeTruthy();
     for (const text of ['E001', '김직원', 'employee@example.test', '개발팀', '고정 근무', '박승인', '공통 · 관리자 · 대표 · 결재 담당 가능', '2026-10-27 00:00:00.000'])
@@ -50,23 +55,23 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(main.textContent).not.toContain('조직장');
   });
 
-  it('미배정 정보와 부적격 결재 담당을 추정하지 않고 구분한다', () => {
-    const view = show('workspace/profile', { profile: { ...profile, organizationName: null, scheduleName: null, approverName: '퇴사한 승인자', approverEligible: false } });
+  it('미배정 정보와 부적격 결재 담당을 추정하지 않고 구분한다', async () => {
+    const view = await show('workspace/profile', { profile: { ...profile, organizationName: null, scheduleName: null, approverName: '퇴사한 승인자', approverEligible: false } });
     const main = view.container.querySelector('main')!;
     expect(main.textContent?.match(/미배정/g)).toHaveLength(2);
     expect(main.textContent).toContain('퇴사한 승인자 · 재지정 필요');
   });
 
-  it('결재 담당이 없으면 미배정으로 표시하고 본인 정보도 이스케이프한다', () => {
-    const view = show('workspace/profile', { profile: { ...profile, employeeName: '<script>이름</script>', approverName: null, approverEligible: false } });
+  it('결재 담당이 없으면 미배정으로 표시하고 본인 정보도 이스케이프한다', async () => {
+    const view = await show('workspace/profile', { profile: { ...profile, employeeName: '<script>이름</script>', approverName: null, approverEligible: false } });
     const main = view.container.querySelector('main')!;
     expect(main.textContent).toContain('<script>이름</script>');
     expect(main.querySelector('script')).toBeNull();
     expect(main.textContent).toContain('미배정');
   });
 
-  it('권한 목록의 검색·페이지 조건과 기존 단건 권한 관리 연결을 제공한다', () => {
-    const view = show('org/access-list', { accessRows: [{ employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', roles: profile.roles, active: true }, { employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원', roles: ['EMPLOYEE'], active: false }], q: '김 & 개발', page: 1, hasNext: true });
+  it('권한 목록의 검색·페이지 조건과 기존 단건 권한 관리 연결을 제공한다', async () => {
+    const view = await show('org/access-list', { accessRows: [{ employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', roles: profile.roles, active: true }, { employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원', roles: ['EMPLOYEE'], active: false }], q: '김 & 개발', page: 1, hasNext: true });
     expect((view.getByLabelText('사번·이름 검색') as HTMLInputElement).value).toBe('김 & 개발');
     expect(view.getByRole('link', { name: '김직원 권한 관리' }).getAttribute('href')).toBe('/admin/employees/e-1/access');
     const next = new URL(view.getByRole('link', { name: '다음' }).getAttribute('href')!, location.origin);
@@ -75,17 +80,35 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(view.container.querySelector('main')?.textContent).toContain('공통 · 관리자 · 대표 · 결재 담당 가능');
     expect(view.container.querySelector('main')?.textContent).toContain('비활성');
     expect(view.container.querySelector('main form[method="post"]')).toBeNull();
+    expect(view.getByRole('grid', { name: '계정별 권한' })).toBeTruthy();
+    expect(view.container.querySelector('[row-id="e-2"]')?.textContent).toContain('박직원');
   });
 
-  it('권한 검색 결과가 없으면 빈 상태를 표시한다', () => {
-    const view = show('org/access-list', { accessRows: [], q: '', page: 0, hasNext: false });
+  it('권한 검색 결과가 없으면 빈 상태를 표시한다', async () => {
+    const view = await show('org/access-list', { accessRows: [], q: '', page: 0, hasNext: false });
     expect(view.getByText('조회된 계정이 없습니다.')).toBeTruthy();
     expect(view.queryByRole('link', { name: '다음' })).toBeNull();
     expect(view.queryByRole('link', { name: '이전' })).toBeNull();
   });
 
-  it('회사 근무현황에서 월·현재 조직·사원 조건과 페이지를 유지한다', () => {
-    const view = show('company/attendance', { companyAttendance: attendance });
+  it('권한 시트 정렬·표시 필터 후에도 해당 사원의 관리 링크를 보존한다', async () => {
+    const view = await show('org/access-list', {
+      accessRows: [
+        { employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원', roles: ['EMPLOYEE'], active: false },
+        { employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', roles: profile.roles, active: true },
+      ], q: '', page: 0, hasNext: false,
+    });
+    const grid = view.getByRole('grid', { name: '계정별 권한' });
+    fireEvent.click(within(grid).getByRole('columnheader', { name: /이름/ }).querySelector('.ag-header-cell-label')!);
+    await waitFor(() => expect(grid.querySelector('[row-id]')?.getAttribute('row-id')).toBe('e-1'));
+    fireEvent.change(view.getByLabelText('계정별 권한 현재 페이지 필터'), { target: { value: '비활성' } });
+    await waitFor(() => expect(view.queryByRole('link', { name: '김직원 권한 관리' })).toBeNull());
+    expect(view.getByRole('link', { name: '박직원 권한 관리' }).getAttribute('href')).toBe('/admin/employees/e-2/access');
+    expect(grid.querySelector('[row-id="e-2"]')).not.toBeNull();
+  });
+
+  it('회사 근무현황에서 월·현재 조직·사원 조건과 페이지를 유지한다', async () => {
+    const view = await show('company/attendance', { companyAttendance: attendance });
     expect((view.getByLabelText('기준 월 (서울)') as HTMLInputElement).value).toBe('2026-10');
     expect((view.getByLabelText('현재 조직 (서울 오늘)') as HTMLSelectElement).value).toBe('o-1');
     const selected = new URL(view.getByRole('link', { name: 'E001 · 김직원' }).getAttribute('href')!, location.origin);
@@ -99,11 +122,13 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(view.container.querySelector('main')?.textContent).toContain('8:00:00.000');
     expect(view.container.querySelector('main form[method="post"]')).toBeNull();
     expect(view.container.querySelector('main a[href^="/admin/"]')).toBeNull();
+    expect(view.getByRole('grid', { name: '회사 현황 대상 사원' })).toBeTruthy();
+    expect(view.getByRole('grid', { name: '사원 일별 근무현황' })).toBeTruthy();
   });
 
-  it('선택한 사원의 월만 변경하면 해당 사원으로 조회한다', () => {
+  it('선택한 사원의 월만 변경하면 해당 사원으로 조회한다', async () => {
     const second = { ...employee, id: 'e-2', employeeNo: 'E002', employeeName: '박직원' };
-    const view = show('company/attendance', { companyAttendance: {
+    const view = await show('company/attendance', { companyAttendance: {
       ...attendance, q: '', employeeId: second.id, selectedEmployee: second, employees: [employee, second],
     } });
     fireEvent.change(view.getByLabelText('기준 월 (서울)'), { target: { value: '2026-11' } });
@@ -115,8 +140,8 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(submitted.get('q')).toBe('');
   });
 
-  it('조직을 변경하면 선택 사원을 비워 새 조직의 첫 사원으로 조회한다', () => {
-    const view = show('company/attendance', { companyAttendance: {
+  it('조직을 변경하면 선택 사원을 비워 새 조직의 첫 사원으로 조회한다', async () => {
+    const view = await show('company/attendance', { companyAttendance: {
       ...attendance, organizations: [organization, { id: 'o-2', code: 'HR', name: '인사팀' }],
     } });
     const form = view.container.querySelector('form[action="/company/attendance"]') as HTMLFormElement;
@@ -127,8 +152,8 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(submitted.get('organizationId')).toBe('o-2');
   });
 
-  it('검색어를 변경하면 선택 사원을 비워 새 검색 결과의 첫 사원으로 조회한다', () => {
-    const view = show('company/attendance', { companyAttendance: attendance });
+  it('검색어를 변경하면 선택 사원을 비워 새 검색 결과의 첫 사원으로 조회한다', async () => {
+    const view = await show('company/attendance', { companyAttendance: attendance });
     const form = view.container.querySelector('form[action="/company/attendance"]') as HTMLFormElement;
     expect(new FormData(form).get('employeeId')).toBe('e-1');
     fireEvent.change(view.getByLabelText('사번·이름 검색'), { target: { value: '박직원' } });
@@ -138,22 +163,37 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect((view.getByLabelText('사번·이름 검색') as HTMLInputElement).maxLength).toBe(100);
   });
 
-  it('회사 일별 현황의 미산정·오래된 결과를 정상 0시간으로 표시하지 않는다', () => {
-    const view = show('company/attendance', { companyAttendance: { ...attendance, days: [{ workDate: '2026-10-26', scheduledMillis: 28800000, actualWorkMillis: 0, leaveDays: 0, status: 'REVIEW_REQUIRED', current: false }] } });
-    const row = view.container.querySelector('main tbody tr[data-work-date="2026-10-26"]')!;
+  it('회사 일별 현황의 미산정·오래된 결과를 정상 0시간으로 표시하지 않는다', async () => {
+    const view = await show('company/attendance', { companyAttendance: { ...attendance, days: [{ workDate: '2026-10-26', scheduledMillis: 28800000, actualWorkMillis: 0, leaveDays: 0, status: 'REVIEW_REQUIRED', current: false }] } });
+    const row = view.container.querySelector('main [row-id="2026-10-26"]')!;
     expect(row.textContent).toContain('미산정·재집계 필요');
     expect(row.textContent?.match(/미확정/g)).toHaveLength(3);
     expect(row.textContent).not.toContain('0:00:00.000');
   });
 
-  it('선택할 사원과 일별 결과가 없을 때 조회 범위를 분명히 표시한다', () => {
-    const view = show('company/attendance', { companyAttendance: { ...attendance, employees: [], selectedEmployee: null, employeeId: null, days: [], hasNext: false, page: 0 } });
+  it('회사 근무현황은 표시 문자열이 아닌 실제 근로시간 값으로 정렬한다', async () => {
+    const view = await show('company/attendance', { companyAttendance: {
+      ...attendance,
+      days: [
+        { ...attendance.days[0], workDate: '2026-10-27', actualWorkMillis: 36000000 },
+        { ...attendance.days[0], workDate: '2026-10-26', actualWorkMillis: 28800000 },
+      ],
+    } });
+    const grid = view.getByRole('grid', { name: '사원 일별 근무현황' });
+    fireEvent.click(within(grid).getByRole('columnheader', { name: /실근로/ }).querySelector('.ag-header-cell-label')!);
+    await waitFor(() => expect(grid.querySelector('[row-id]')?.getAttribute('row-id')).toBe('2026-10-26'));
+    expect(grid.textContent).toContain('10:00:00.000');
+    expect(grid.textContent).toContain('8:00:00.000');
+  });
+
+  it('선택할 사원과 일별 결과가 없을 때 조회 범위를 분명히 표시한다', async () => {
+    const view = await show('company/attendance', { companyAttendance: { ...attendance, employees: [], selectedEmployee: null, employeeId: null, days: [], hasNext: false, page: 0 } });
     expect(view.getByText('조회할 사원이 없습니다.')).toBeTruthy();
     expect(view.getByText('사원을 선택하면 해당 월의 일별 현황을 볼 수 있습니다.')).toBeTruthy();
   });
 
-  it('회사 신청은 연도·현재 조직·상태를 유지하고 조회연도 수량만 안전하게 표시한다', () => {
-    const view = show('company/requests', { companyRequests: { ...requests, requests: requests.requests.map((request) => ({ ...request, reason: '민감 사유', email: 'private@example.test', clientIp: '192.0.2.1' })) } });
+  it('회사 신청은 연도·현재 조직·상태를 유지하고 조회연도 수량만 안전하게 표시한다', async () => {
+    const view = await show('company/requests', { companyRequests: { ...requests, requests: requests.requests.map((request) => ({ ...request, reason: '민감 사유', email: 'private@example.test', clientIp: '192.0.2.1' })) } });
     expect((view.getByLabelText('조회연도 (서울)') as HTMLInputElement).value).toBe('2026');
     expect((view.getByLabelText('신청 상태') as HTMLSelectElement).value).toBe('APPROVED');
     const next = new URL(view.getByRole('link', { name: '다음' }).getAttribute('href')!, location.origin);
@@ -163,10 +203,12 @@ describe('내 정보·권한 목록·회사 현황', () => {
     for (const text of ['E001', '김직원', '개발팀', '종일 연차', '승인', '유효', '조회연도 신청일량 (DAY)', '2026-10-26 00:00:00.000']) expect(main.textContent).toContain(text);
     for (const text of ['민감 사유', 'private@example.test', '192.0.2.1']) expect(main.textContent).not.toContain(text);
     expect(main.querySelector('a[href^="/requests/"],form[method="post"]')).toBeNull();
+    expect(view.getByRole('grid', { name: '회사 신청 목록' })).toBeTruthy();
+    expect(main.querySelector('[row-id="r-1"]')?.textContent).toContain('종일 연차');
   });
 
-  it('회사 신청 목록의 빈 상태를 표시한다', () => {
-    const view = show('company/requests', { companyRequests: { ...requests, requests: [], page: 0, hasNext: false } });
+  it('회사 신청 목록의 빈 상태를 표시한다', async () => {
+    const view = await show('company/requests', { companyRequests: { ...requests, requests: [], page: 0, hasNext: false } });
     expect(view.getByText('조회된 신청이 없습니다.')).toBeTruthy();
   });
 });

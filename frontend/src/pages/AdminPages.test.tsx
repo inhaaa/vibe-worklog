@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { cleanup, fireEvent, render as renderDom } from '@testing-library/react';
+import { cleanup, fireEvent, render as renderDom, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AdminPages } from './AdminPages';
 import type { PageProps } from '../types';
@@ -66,25 +65,30 @@ const access = {
   selectedApproverMissing: false,
 };
 
-function render(page: string, data: Record<string, unknown>) {
+async function render(page: string, data: Record<string, unknown>) {
   const props: PageProps = {
     page,
     data,
     csrf: { token: 'csrf-token', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
     reload: () => {},
   };
-  return renderToStaticMarkup(<AdminPages {...props} />);
+  const view = renderDom(<AdminPages {...props} />);
+  await waitFor(() => {
+    for (const sheet of view.container.querySelectorAll('.w-sheet'))
+      expect(sheet.querySelector('[row-id]')).not.toBeNull();
+  });
+  return view.container.innerHTML;
 }
 
 afterEach(cleanup);
 
 describe('관리 React 페이지', () => {
-  it('다른 페이지는 처리하지 않는다', () => {
-    expect(render('me/today', {})).toBe('');
+  it('다른 페이지는 처리하지 않는다', async () => {
+    expect(await render('me/today', {})).toBe('');
   });
 
-  it('직원 검색·필터·선택과 페이지 이동에 조건을 보존한다', () => {
-    const html = render('org/employees', {
+  it('직원 검색·필터·선택과 페이지 이동에 조건을 보존한다', async () => {
+    const html = await render('org/employees', {
       employees: [employee],
       selectedEmployee: employee,
       employeeOrganizations: { 'e-1': '개발팀' },
@@ -109,10 +113,12 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('href="/admin/employees/e-1/access"');
     expect(html).toContain('name="employeeNo"');
     expect(html).toContain('name="_active"');
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="e-1"');
   });
 
-  it('직원 목록의 빈 상태와 오류 입력을 보존한다', () => {
-    const html = render('org/employees', {
+  it('직원 목록의 빈 상태와 오류 입력을 보존한다', async () => {
+    const html = await render('org/employees', {
       employees: [],
       selectedEmployee: null,
       employeeOrganizations: {},
@@ -134,8 +140,8 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('value="김직원"');
   });
 
-  it('사원 수정과 소속 이동의 독립 명령·버전을 유지한다', () => {
-    const html = render('org/employee', {
+  it('사원 수정과 소속 이동의 독립 명령·버전을 유지한다', async () => {
+    const html = await render('org/employee', {
       employee,
       form: employeeForm,
       assignmentForm: {
@@ -159,13 +165,15 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('action="/admin/employees/e-1/assignments"');
     expect(html.match(/name="expectedVersion"/g)).toHaveLength(2);
     expect(html).toContain('value="assignment-1"');
-    expect(html).toContain('readOnly=""');
+    expect(html).toContain('readonly=""');
     expect(html).toContain('종료일 없음');
     expect(html).not.toContain('value="inactive"');
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="a-1"');
   });
 
-  it('조직 목록은 검색·페이지와 신규 등록 필드를 렌더링한다', () => {
-    const html = render('org/organizations', {
+  it('조직 목록은 검색·페이지와 신규 등록 필드를 렌더링한다', async () => {
+    const html = await render('org/organizations', {
       organizations: [organization],
       orgNames: {},
       options: [organization],
@@ -178,10 +186,12 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('name="parentId"');
     expect(html).toContain('name="commandId"');
     expect(html).toContain('page=1');
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="o-1"');
   });
 
-  it('조직 상세는 자신을 부모에서 제외하며 기존 비활성 부모를 보존한다', () => {
-    const html = render('org/organization', {
+  it('조직 상세는 자신을 부모에서 제외하며 기존 비활성 부모를 보존한다', async () => {
+    const html = await render('org/organization', {
       organization,
       form: { ...organizationForm, parentId: 'inactive' },
       options: [
@@ -197,8 +207,8 @@ describe('관리 React 페이지', () => {
     expect(html).not.toContain('선택 불가');
   });
 
-  it('로컬 전달이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', () => {
-    const html = render('org/access', {
+  it('로컬 전달이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', async () => {
+    const html = await render('org/access', {
       ...access,
       localDelivery: false,
       selectedApproverMissing: true,
@@ -213,8 +223,8 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('action="/admin/approver-assignments"');
   });
 
-  it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', () => {
-    const html = render('org/access', {
+  it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', async () => {
+    const html = await render('org/access', {
       ...access,
       account: {
         id: 'account-1',
@@ -228,20 +238,32 @@ describe('관리 React 페이지', () => {
     });
     expect(html).not.toContain('/invitations"');
     expect(html).toContain('action="/admin/employees/e-1/roles"');
-    expect(html).toContain('name="roles" value="EMPLOYEE"');
+    expect(new DOMParser().parseFromString(html, 'text/html').querySelector('input[name="roles"][value="EMPLOYEE"]')).not.toBeNull();
     expect(html).toContain('value="APPROVER"');
     expect(html).toContain('value="ATTENDANCE_ADMIN"');
     expect(html).toContain('checked=""');
   });
 
-  it('부적격 사원에게 변경 폼을 제공하지 않는다', () => {
-    const html = render('org/access', { ...access, eligibleEmployee: false });
+  it('승인자 배정 이력은 안정된 ID의 조회 시트에서 교체 상태와 사유를 보존한다', async () => {
+    const html = await render('org/access', {
+      ...access,
+      assignments: [{ id: 'approver-a-1', approverEmployeeId: 'e-2', approverName: '박승인', validFrom: '2026-10-26', validTo: null, supersededAt: '2026-10-26T01:00:00Z', reason: '담당 변경', eligible: false }],
+    });
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="approver-a-1"');
+    expect(html).toContain('당일 교체·해제');
+    expect(html).toContain('담당 변경');
+    expect(html).toContain('action="/admin/approver-assignments"');
+  });
+
+  it('부적격 사원에게 변경 폼을 제공하지 않는다', async () => {
+    const html = await render('org/access', { ...access, eligibleEmployee: false });
     expect(html).toContain('현재 재직 중인 활성 사원만');
     expect(html).not.toContain('<form');
   });
 
-  it('고정 일정의 일곱 요일과 Spring 바인딩 명칭을 보존한다', () => {
-    const html = render('schedule/list', {
+  it('고정 일정의 일곱 요일과 Spring 바인딩 명칭을 보존한다', async () => {
+    const html = await render('schedule/list', {
       templates: [],
       form: scheduleForm,
       today: '2026-10-26',
@@ -258,15 +280,15 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('min="2026-10-26"');
   });
 
-  it('일정 폼 조각도 수정 대상을 유지한 React 폼으로 표시한다', () => {
-    const html = render('schedule/form', { template, form: scheduleForm, today: '2026-10-26' });
+  it('일정 폼 조각도 수정 대상을 유지한 React 폼으로 표시한다', async () => {
+    const html = await render('schedule/form', { template, form: scheduleForm, today: '2026-10-26' });
     expect(html).toContain('action="/admin/schedules/s-1/versions"');
     expect(html).toContain('name="days[6].weekday"');
     expect(html).toContain('name="reason"');
   });
 
-  it('일정 상세에 불변 버전과 근무·휴게를 표시한다', () => {
-    const html = render('schedule/detail', {
+  it('일정 상세에 불변 버전과 근무·휴게를 표시한다', async () => {
+    const html = await render('schedule/detail', {
       template,
       versions: [version],
       versionDays: {
@@ -289,11 +311,14 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('비근로일');
     expect(html).toContain('해당 없음');
     expect(html).toContain('12:00');
-    expect(html).toContain('readOnly=""');
+    expect(html).toContain('readonly=""');
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="v-1:1"');
+    expect(new DOMParser().parseFromString(html, 'text/html').querySelectorAll('table')).toHaveLength(1);
   });
 
-  it('일정 배정에 현재 선택한 버전·사원 버전을 보존한다', () => {
-    const html = render('schedule/assignment', {
+  it('일정 배정에 현재 선택한 버전·사원 버전을 보존한다', async () => {
+    const html = await render('schedule/assignment', {
       employee,
       assignments: [],
       versions: [version],
@@ -307,7 +332,20 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('name="expectedVersion"');
   });
 
-  it('허용망은 유효 이력만 종료 폼과 위험 확인 항목을 표시한다', () => {
+  it('근무 배정 이력은 안정된 ID의 조회 시트에 기간과 사유를 표시한다', async () => {
+    const html = await render('schedule/assignment', {
+      employee,
+      assignments: [{ id: 'schedule-a-1', templateName: '고정 근무', revision: 2, validFrom: '2026-10-26', validTo: null, reason: '신규 배정' }],
+      versions: [version], templateNames: { 's-1': '고정 근무' }, today: '2026-10-26',
+      form: { ...command, scheduleVersionId: 'v-1', validFrom: '2026-10-27' },
+    });
+    expect(html).toContain('role="grid"');
+    expect(html).toContain('row-id="schedule-a-1"');
+    expect(html).toContain('종료 없음');
+    expect(html).toContain('신규 배정');
+  });
+
+  it('허용망은 유효 이력만 종료 폼과 위험 확인 항목을 표시한다', async () => {
     const network = {
       id: 'n-1',
       network: '192.0.2.0/24',
@@ -317,7 +355,7 @@ describe('관리 React 페이지', () => {
       reason: '검토',
       version: 2,
     };
-    const html = render('clock/networks', {
+    const html = await render('clock/networks', {
       networks: [network, { ...network, id: 'n-2', validTo: '2026-10-26T00:00:00Z' }],
       pageCommand: 'close-command',
       form: { ...command, network: '', label: '', wideConfirmed: false },
@@ -329,8 +367,8 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('action="/admin/networks/changes"');
   });
 
-  it('휴일 캘린더는 명시 검토와 예외·기간·근거 필드를 요구한다', () => {
-    const html = render('clock/calendar', {
+  it('휴일 캘린더는 명시 검토와 예외·기간·근거 필드를 요구한다', async () => {
+    const html = await render('clock/calendar', {
       calendars: [],
       form: {
         ...command,
@@ -348,15 +386,17 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('미등록 날짜는 미확인');
   });
 
-  it('사원·조직 이름과 오류를 React 텍스트로 이스케이프한다', () => {
-    const html = render('org/organization', {
+  it('사원·조직 이름과 오류를 React 텍스트로 이스케이프한다', async () => {
+    const html = await render('org/organization', {
       organization: { ...organization, name: '<script>alert(1)</script>' },
       form: { ...organizationForm, name: '<img src=x onerror=alert(1)>' },
       options: [],
       error: '<b>오류</b>',
     });
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe('<img src=x onerror=alert(1)>');
+    expect(doc.querySelector('img')).toBeNull();
     expect(html).toContain('&lt;b&gt;오류&lt;/b&gt;');
     expect(html).not.toContain('<script>');
   });

@@ -285,10 +285,12 @@ class ProfileCompanyWebIT {
                 tenant, bucket, employee.employeeId(), today.minusYears(2), today.minusYears(2), PRIVATE_REASON, representative.accountId());
         db.update("""
                 INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
-                  approver_assignment_id,approver_assignment_version,reason,leave_bucket_id,from_date,to_date,client_command_id)
-                VALUES (?,?,?,?,'LEAVE_DAY',?,?,?,0,?,?,?,?,?)
+                  approver_assignment_id,approver_assignment_version,reason,leave_bucket_id,from_date,to_date,client_command_id,attendance_type_version_id)
+                VALUES (?,?,?,?,'LEAVE_DAY',?,?,?,0,?,?,?,?,?,
+                  (SELECT v.id FROM tna.attendance_type_version v JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id
+                   WHERE t.tenant_id=? AND t.system_kind='ANNUAL_LEAVE' AND v.revision=1))
                 """, tenant, id, employee.employeeId(), employee.accountId(), status, approver.employeeId(), assignment,
-                PRIVATE_REASON, bucket, from, to, UUID.randomUUID());
+                PRIVATE_REASON, bucket, from, to, UUID.randomUUID(), tenant);
         return id;
     }
 

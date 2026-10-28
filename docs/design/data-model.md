@@ -1,5 +1,7 @@
 # 개념·논리 데이터 모델
 
+> 2026-10-28 코드 확장: V14의 공통코드 그룹/상세·근태유형/불변 정책 버전과 신청의 `attendance_type_version_id` 복합 FK는 아래 [4단계 모델](#10-공통코드근태유형-4단계-물리-모델)·[상세 계약](code-management.md)을 따른다. 기존 신청은 실제 고정 종류에 해당하는 기초 버전 참조만 보강하고 기존 열·결정·효력·원장을 유지한다. 실제 V13→V14 자료 보존·기본 DB 반영·복원 결과는 [4단계 보고서](../quality/code-management.md)로 구분한다.
+
 > 2026-10-28 결재선 확장: V13의 정의·불변 버전·적용일 배정·신청별 스냅샷과 기존 신청 참조 XOR/지연 FK 계약은 [결재선 상세](approval-routes.md#v13과-db-경계)를 따른다. 기존 신청·결정·원장 행을 변환하지 않는다. 실제 마이그레이션·검증 범위는 [3단계 보고서](../quality/approval-routes.md)에 기록하며, 아래 최초 논리 설계의 미실행 표기는 당시 상태다.
 
 ## 1. 모델 상태와 공통 표기
@@ -152,3 +154,21 @@ ERD는 주요 관계만 표시한다. 신청 한 건의 날짜별 휴가 상세�
 원천 출퇴근·신청 원문·결정·원장·결과는 업무 정정으로 삭제하지 않는다. 조직·템플릿·계정은 비활성화해 과거 참조를 유지한다. FK 연쇄 삭제를 업무 처리로 사용하지 않는다. 이는 영구 보존 결정이 아니며, 법정 보존 의무·계약·목적 종료를 검증해 개인정보의 보존 기간·분리·파기와 감사 식별자를 별도로 정해야 한다.
 
 Phase 4의 제약 검증에는 복합 FK의 타 고객사 연결 차단, 일정 구간 중첩, self-approval, 원장 역분개 유일성, 승인 동시성, 원장·잔액 일치, 사실/검토 개정 변경 중 계산, 과거 버전 재현을 포함한다. 확인 저장으로 사실개정이 바뀌지 않음, 대기 정정 제출 후 기존 확인의 사실 결속 유지, 사실 변경 뒤 재확인, 승인 증거의 새 사실개정 결속도 회귀 기준이다. 이 문서 작성에서는 DB 계정·테이블·스키마나 테스트 데이터를 생성하지 않았다.
+
+## 10. 공통코드·근태유형 4단계 물리 모델
+
+아래는 [V14](../../src/main/resources/db/migration/V14__code_management.sql)의 구현 계약이다. 초기 논리 설계와 실제 적용·검증을 구분하며, 결과는 [4단계 보고서](../quality/code-management.md)를 따른다.
+
+| 테이블·참조 | 필드·보존 계약 |
+| --- | --- |
+| `common_code_group` | tenant/id·code·name·description·sort_order·active·system_owned·version·주체/시각. 회사별 code 유일·저장 후 불변 |
+| `common_code` | tenant/id·group_id·code와 표시/정렬/상태 필드. tenant/group 복합 FK·그룹 내 code 유일. 저장된 그룹/코드 불변 |
+| `attendance_type` | tenant/id·code·system_kind·active·version·주체/시각. 회사별 code/system_kind 유일. 시스템유형은 `ANNUAL_LEAVE`, `ATTENDANCE_CORRECTION` 또는 사용자 초안의 NULL |
+| `attendance_type_version` | tenant/id·type_id·revision·effective_from·enabled·name·unit·pay_kind·deduction_rule·recognition_rule·basis·reason·system_seed·등록자/시각. tenant/type 복합 FK·type/revision 유일. UPDATE/DELETE 권한 없음 |
+| `approval_request.attendance_type_version_id` | NOT NULL, tenant/version 복합 FK. 기존 고정 종류는 기초 정책으로 연결하고 원래 업무 열·결정·효력·원장은 유지. 신규 제출은 해석한 버전을 고정, 취소는 원신청 버전 승계 |
+
+일반 정책은 서울 오늘 이후 적용일로 새 revision을 추가한다. 대상일 이하 가장 늦은 적용일과 동일일 최고 revision이 적용되며 이후 적용일 전까지 유효하다. 관리 시트의 최신 등록 revision·마스터 active는 미래 예약을 포함한 편집 상태이므로 현재 신청 가능 여부의 전역 차단값으로 사용하지 않는다.
+
+기존 tenant와 신규 tenant의 고정 시스템 코드/기초 정책은 V14의 전용 초기화 함수·tenant 생성 trigger로 제공한다. 이는 고정 메타데이터 등록이며 정책 선택·capability·신청 규칙은 Java 서비스가 담당한다. 함수는 고정 search_path·PUBLIC 실행 회수·tenant 컨텍스트 복원을 사용하고, 기존 tenant 순회용 임시 migration 정책은 같은 V14에서 제거한다. 시스템 기초만 등록자 NULL을 허용하며 일반 편집은 현재 계정·사유를 요구한다.
+
+네 테이블은 명시 tenant SQL·복합 FK·FORCE RLS와 최소 앱 권한으로 보호한다. 시스템 소유 표시와 시스템유형/seed 입력 권한을 일반 앱에 주지 않고, 시스템 공통그룹/상세의 편집·비활성은 서비스에서 차단한다. 공통코드가 권한·프로세스 상태·법적 계산 규칙을 대체하지 않는다. 귀속연도 분류·참고상한 모델은 이번 단위에 추가하지 않는다.

@@ -1,5 +1,7 @@
 # 1단계 결재선·조직장 결재 계약
 
+> 2026-10-29 화면 공통화: 결재선 편집·불변 버전·사원/조직 배정 이력 표는 [WorklogSheet](../superpowers/specs/2026-10-29-common-sheet-design.md)를 사용한다. 지정 사원·조직장 해석, 저장·충돌·명령·자기 승인 차단은 그대로다. 정의 편집의 정렬·필터는 현재 페이지에만 적용하고 전체 배정/버전 이력은 불러온 전체 목록임을 구분한다.
+
 2026-10-28 사용자가 승인한 [업무 확장 3단계](../superpowers/specs/2026-10-26-worklog-service-design.md#6-결재선과-결재)의 상세 계약이다. 기존 [신청·승인](leave-workflow.md)과 [계정·직접 승인자](account-access.md), [조직장](org-management.md)의 업무·권한 경계를 유지한다. 구현 순서는 [실행 계획](../superpowers/plans/2026-10-28-react-approval-routes.md), 실제 검증과 미실시 범위는 별도 품질 보고서에 기록한다.
 
 ## 결재선 정의와 적용

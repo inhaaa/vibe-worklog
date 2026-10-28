@@ -16,7 +16,7 @@ public interface LeaveWorkflowMapper {
           r.leave_bucket_id,r.from_date,r.to_date,r.exceptional,r.version,
           COALESCE(f.effect_status,'NONE') AS effect_status,
           COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id),0)::integer AS quantity_days,
-          r.route_snapshot_id
+          r.route_snapshot_id,r.attendance_type_version_id
         FROM tna.approval_request r
         JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
         JOIN tna.employee p ON p.tenant_id=r.tenant_id AND p.id=r.current_approver_id
@@ -77,10 +77,10 @@ public interface LeaveWorkflowMapper {
     @Insert("""
         INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
           approver_assignment_id,approver_assignment_version,submitted_at,reason,predecessor_request_id,original_request_id,
-          leave_bucket_id,from_date,to_date,exceptional,client_command_id,route_snapshot_id)
+          leave_bucket_id,from_date,to_date,exceptional,client_command_id,route_snapshot_id,attendance_type_version_id)
         VALUES(#{tenantId},#{r.id},#{r.targetEmployeeId},#{r.authorAccountId},#{r.kind},'PENDING',#{r.currentApproverId},
           #{r.approverAssignmentId},#{r.approverAssignmentVersion},#{r.submittedAt},#{r.reason},#{r.predecessorRequestId},
-          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId},#{r.routeSnapshotId})
+          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId},#{r.routeSnapshotId},#{r.attendanceTypeVersionId})
         """)
     int insertRequest(@Param("tenantId") UUID tenantId,@Param("r") RequestView request,@Param("commandId") UUID commandId);
     @Update("UPDATE tna.approval_request SET status=#{status},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND status='PENDING' AND version=#{version}")
@@ -186,6 +186,25 @@ public interface LeaveWorkflowMapper {
         WHERE s.tenant_id=#{tenantId} AND s.request_id=#{requestId}
         """)
     RouteSnapshot routeSnapshot(@Param("tenantId") UUID tenantId,@Param("requestId") UUID requestId);
+    String ATTENDANCE_POLICY_SELECT="""
+        SELECT v.id,v.type_id,t.code,t.system_kind,v.revision,v.effective_from,v.enabled,v.name,
+          v.unit,v.pay_kind,v.deduction_rule,v.recognition_rule,v.basis
+        FROM tna.attendance_type_version v
+        JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id
+        """;
+    @Select(ATTENDANCE_POLICY_SELECT+" WHERE v.tenant_id=#{tenantId} AND v.id=#{id}")
+    AttendancePolicy attendancePolicy(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    @Select(ATTENDANCE_POLICY_SELECT+"""
+        WHERE v.tenant_id=#{tenantId} AND t.system_kind=#{systemKind} AND v.effective_from<=#{date}
+        ORDER BY v.effective_from DESC,v.revision DESC LIMIT 1
+        """)
+    AttendancePolicy effectiveAttendancePolicy(@Param("tenantId") UUID tenantId,@Param("systemKind") String systemKind,@Param("date") LocalDate date);
+    @Select("""
+        SELECT EXISTS(SELECT 1 FROM tna.attendance_type_version
+          WHERE tenant_id=#{tenantId} AND type_id=#{typeId} AND effective_from>#{from} AND effective_from<=#{to})
+        """)
+    boolean attendancePolicyBoundary(@Param("tenantId") UUID tenantId,@Param("typeId") UUID typeId,
+            @Param("from") LocalDate from,@Param("to") LocalDate to);
     @Insert("""
         INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
         VALUES(#{tenantId},#{employeeId},#{date},#{factDelta},1,true)

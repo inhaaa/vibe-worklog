@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import type { ReactElement } from 'react';
+import { cleanup, render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CorePages } from './CorePages';
 import type { PageProps } from '../types';
 
@@ -33,9 +34,18 @@ const props = (page: string, data: Record<string, unknown>): PageProps => ({
   csrf: { token: 't', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
   reload: () => {},
 });
+const renderMarkup = async (element: ReactElement) => {
+  const view = render(element);
+  await waitFor(() => {
+    for (const sheet of view.container.querySelectorAll('.w-sheet'))
+      expect(sheet.querySelector('[role="grid"][aria-label]')).not.toBeNull();
+  });
+  return view.container.innerHTML;
+};
+afterEach(cleanup);
 describe('개인 홈과 일정', () => {
-  it('미배정·미등록·미확인을 0시간이나 0일로 바꾸지 않는다', () => {
-    const html = renderToStaticMarkup(
+  it('미배정·미등록·미확인을 0시간이나 0일로 바꾸지 않는다', async () => {
+    const html = await renderMarkup(
       <CorePages
         {...props('today', {
           day: snapshot,
@@ -56,13 +66,14 @@ describe('개인 홈과 일정', () => {
     expect(html).toContain('근무 일정 미배정');
     expect(html).toContain('미등록');
     expect(html).toContain('실제 근로 미확인');
-    expect(html).toContain('name="eventKind" value="IN"');
-    expect(html).toContain('name="commandId" value="out"');
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelector('input[name="eventKind"][value="IN"]')).not.toBeNull();
+    expect(doc.querySelector('input[name="commandId"][value="out"]')).not.toBeNull();
     expect(html).toContain('&lt;사용자&gt;');
     expect(html).not.toContain('<사용자>');
   });
-  it('선택한 월과 날짜를 그대로 보존하고 취소/대기 신청을 승인으로 바꾸지 않는다', () => {
-    const html = renderToStaticMarkup(
+  it('선택한 월과 날짜를 그대로 보존하고 취소/대기 신청을 승인으로 바꾸지 않는다', async () => {
+    const html = await renderMarkup(
       <CorePages
         {...props('workspace/schedule', {
           workspaceCalendar: {
@@ -96,7 +107,7 @@ describe('개인 홈과 일정', () => {
     expect(html).toContain('month=2026-11');
     expect(html).toContain('/me/attendance?date=2026-10-26');
   });
-  it('달력은 기존 7열·빈칸·주말·오늘·선택·미확인 표시와 날짜 접근성 계약을 유지한다', () => {
+  it('달력은 기존 7열·빈칸·주말·오늘·선택·미확인 표시와 날짜 접근성 계약을 유지한다', async () => {
     const pending = {
       request: { id: 'pending' },
       kindLabel: '정정',
@@ -127,7 +138,7 @@ describe('개인 홈과 일정', () => {
         },
       ],
     };
-    const markup = renderToStaticMarkup(
+    const markup = await renderMarkup(
       <CorePages
         {...props('workspace/schedule', {
           workspaceCalendar: {
@@ -167,5 +178,21 @@ describe('개인 홈과 일정', () => {
       [...selected.querySelectorAll('.t-day-event')].map((item) => item.textContent),
     ).toContain('확인된 휴일');
     expect(doc.querySelector('.t-day-detail h2 time')?.getAttribute('datetime')).toBe('2026-10-25');
+  });
+
+  it('최근 신청을 안정된 신청 ID의 조회 시트에 표시하고 상세 링크와 상태를 보존한다', async () => {
+    const view = render(<CorePages {...props('today', {
+      day: snapshot,
+      workspaceHome: {
+        employee: { employeeName: '직원', companyName: '회사' }, today: day, week: [],
+        availableLeaveDays: null, pendingRequests: 1,
+        recentRequests: [{ request: { id: 'request-1', fromDate: '2026-10-26', toDate: '2026-10-27' }, kindLabel: '종일 연차', statusLabel: '대기', tone: 'amber', effectiveLeave: false }],
+      }, inCommand: 'in', outCommand: 'out', confirmationForm: {},
+    })} />);
+    expect(await view.findByRole('grid', { name: '최근 내 신청' })).toBeTruthy();
+    expect((await view.findByRole('link', { name: '종일 연차' })).getAttribute('href')).toBe('/requests/request-1');
+    const row = view.container.querySelector('[row-id="request-1"]')!;
+    expect(row.textContent).toContain('2026-10-26 ~ 2026-10-27');
+    expect(row.textContent).toContain('대기');
   });
 });

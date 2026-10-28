@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PageProps } from '../types';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import {
   Form,
   Field,
@@ -23,10 +24,13 @@ import type {
   CorrectionModel,
   BalancesModel,
   LedgerModel,
+  LedgerEntry,
   MonthModel,
+  DayView,
   PoliciesModel,
   ResultModel,
   AuditModel,
+  AuditRow,
   AuditDetail,
   DaySnapshot,
 } from './WorkflowTypes';
@@ -99,39 +103,14 @@ function storedIntervals(value: string | null): string {
 }
 
 function RequestRows({ requests }: { requests: RequestView[] }) {
-  return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>대상</th>
-            <th>종류</th>
-            <th>기간</th>
-            <th>상태·효력</th>
-            <th>승인자</th>
-          </tr>
-        </thead>
-        <tbody>
-          {requests.map((r) => (
-            <tr key={r.id}>
-              <td>{r.targetEmployeeName}</td>
-              <td>
-                <a href={`/requests/${r.id}`}>{r.kind}</a>
-              </td>
-              <td>
-                {fmtDate(r.fromDate)} ~ {fmtDate(r.toDate)}
-              </td>
-              <td>
-                {r.status} / {r.effectStatus}
-              </td>
-              <td>{r.approverName}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {requests.length === 0 && <p>신청이 없습니다.</p>}
-    </div>
-  );
+  const columns = [
+    sheetColumn<RequestView>({ field: 'targetEmployeeName', headerName: '대상', minWidth: 170, pinned: 'left' }, request => request.targetEmployeeName),
+    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170 }, request => <a href={`/requests/${request.id}`}>{request.kind}</a>),
+    sheetColumn<RequestView>({ field: 'fromDate', headerName: '기간', minWidth: 230, valueGetter: ({ data }) => data ? `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}` : '' }, request => `${fmtDate(request.fromDate)} ~ ${fmtDate(request.toDate)}`),
+    sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${data.status} / ${data.effectStatus}` : '' }, request => `${request.status} / ${request.effectStatus}`),
+    sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.approverName),
+  ];
+  return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." />;
 }
 function Mine({ model: m }: { model: MineModel }) {
   const f = m.form;
@@ -207,6 +186,18 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
         </p>
         <p>{r.reason}</p>
         <p>현재 결재 담당 {r.approverName}</p>
+        {d.attendancePolicy && <section className="t-request-route">
+          <h3>제출 당시 근태정책</h3>
+          <dl>
+            <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
+            <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
+            <dt>단위</dt><dd>{d.attendancePolicy.unit === 'DAY' ? '종일(DAY)' : d.attendancePolicy.unit === 'HOUR' ? '시간(HOUR)' : '해당 없음'}</dd>
+            <dt>유급 구분</dt><dd>{d.attendancePolicy.payKind === 'PAID' ? '유급' : d.attendancePolicy.payKind === 'UNPAID' ? '무급' : '미확인'} (정책 메타데이터)</dd>
+            <dt>차감 규칙</dt><dd>{d.attendancePolicy.deductionRule === 'LEAVE_DAY' ? '승인 시 연차 DAY 차감' : '차감 없음'}</dd>
+            <dt>정책 근거</dt><dd>{d.attendancePolicy.basis}</dd>
+          </dl>
+          <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
+        </section>}
         {d.routeSnapshot ? <section className="t-request-route">
           <h3>제출 당시 결재선</h3>
           <dl>
@@ -496,35 +487,18 @@ function Balances({ model: m }: { model: BalancesModel }) {
 }
 function Ledger({ model: m }: { model: LedgerModel }) {
   const f = m.adjustment;
+  const columns = [
+    sheetColumn<LedgerEntry>({ field: 'entryKind', headerName: '종류', minWidth: 160, pinned: 'left' }, entry => entry.entryKind),
+    sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: 'DAY 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
+    sheetColumn<LedgerEntry>({ field: 'effectiveOn', headerName: '기준일', minWidth: 150 }, entry => fmtDate(entry.effectiveOn)),
+    sheetColumn<LedgerEntry>({ colId: 'basis', headerName: '근거·사유', minWidth: 280, flex: 1, valueGetter: ({ data }) => data ? `${data.sourceReference} · ${data.reason}` : '' }, entry => `${entry.sourceReference} · ${entry.reason}`),
+  ];
   return (
     <>
       <h1>연차 원장</h1>
       <section className="panel">
         <p>추가한 이력은 덮어쓰지 않습니다. 사용·복원은 원효력을 참조합니다.</p>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>종류</th>
-                <th>DAY 증감</th>
-                <th>기준일</th>
-                <th>근거·사유</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.ledger.map((e, i) => (
-                <tr key={e.id ?? i}>
-                  <td>{e.entryKind}</td>
-                  <td>{e.signedQuantityDays}</td>
-                  <td>{fmtDate(e.effectiveOn)}</td>
-                  <td>
-                    {e.sourceReference} · {e.reason}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <WorklogSheet label="연차 원장" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
       </section>
       <section className="panel">
         <h2>증감 조정</h2>
@@ -568,6 +542,21 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
+  const columns = [
+    sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 145, pinned: 'left' }, day => fmtDate(day.workDate)),
+    sheetColumn<DayView>({ colId: 'state', headerName: '상태·최신성', minWidth: 230, valueGetter: ({ data }) => data ? `${data.result.status} / ${data.current ? '최신' : '미산정·재집계 필요'}` : '' }, day => `${day.result.status} / ${day.current ? '최신' : '미산정·재집계 필요'}`),
+    sheetColumn<DayView>({ colId: 'actualTime', headerName: '실근로 (시:분:초.밀리초)', minWidth: 210, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter', valueGetter: ({ data }) => data?.result.actualWorkMillis ?? null, getQuickFilterText: ({ data }) => data ? m.actualTimes?.[data.workDate] ?? '미확정' : '' }, day => m.actualTimes?.[day.workDate] ?? '미확정'),
+    sheetColumn<DayView>({ colId: 'actualWorkMillis', field: 'result.actualWorkMillis', headerName: '실근로 ms', minWidth: 150, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.actualWorkMillis)),
+    sheetColumn<DayView>({ colId: 'confirmedBreakMillis', field: 'result.confirmedBreakMillis', headerName: '휴게 ms', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.confirmedBreakMillis)),
+    sheetColumn<DayView>({ colId: 'over8hMillis', field: 'result.over8hMillis', headerName: '일8시간 초과 ms', minWidth: 175, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.over8hMillis)),
+    sheetColumn<DayView>({ colId: 'leaveDays', field: 'result.leaveDays', headerName: '휴가 DAY', minWidth: 130, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => day.result.leaveDays),
+    sheetColumn<DayView>({ colId: 'evidence', headerName: '근거·예외·버전', minWidth: 310, flex: 1, autoHeight: true, wrapText: true, valueGetter: ({ data }) => data ? `${data.result.reasons.join(' · ')} · ${data.ruleVersion} · 결과 v${data.resultRevision} · ${data.id ?? ''} · 사실 ${data.result.inputRevision} / 검토 ${data.result.reviewRevision}` : '' }, day => <div className="reason-cell">
+      <p><Reasons reasons={day.result.reasons} /></p>
+      <p>{day.ruleVersion} · 결과 v{day.resultRevision} · {day.id}</p>
+      {day.id && <p><a href={`/worktime/results/${day.id}`}>계산 근거 상세</a></p>}
+      <p>사실 {day.result.inputRevision} / 검토 {day.result.reviewRevision}</p>
+    </div>),
+  ];
   const periodFields = (
     <>
       {hidden('employeeId', m.employeeId)}
@@ -611,53 +600,7 @@ function Month({ model: m }: { model: MonthModel }) {
       </section>
       <section className="panel">
         <h2>일 결과</h2>
-        <div className="table-scroll" role="region" aria-label="일별 계산 결과" tabIndex={0}>
-          <table>
-            <thead>
-              <tr>
-                <th>근무일</th>
-                <th>상태·최신성</th>
-                <th>실근로 (시:분:초.밀리초)</th>
-                <th>실근로 ms</th>
-                <th>휴게 ms</th>
-                <th>일8시간 초과 ms</th>
-                <th>휴가 DAY</th>
-                <th>근거·예외·버전</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.days.map((d) => (
-                <tr key={d.workDate}>
-                  <td>{fmtDate(d.workDate)}</td>
-                  <td>
-                    {d.result.status} / {d.current ? '최신' : '미산정·재집계 필요'}
-                  </td>
-                  <td>{m.actualTimes?.[d.workDate] ?? '미확정'}</td>
-                  <td>{rawMillis(d.result.actualWorkMillis)}</td>
-                  <td>{rawMillis(d.result.confirmedBreakMillis)}</td>
-                  <td>{rawMillis(d.result.over8hMillis)}</td>
-                  <td>{d.result.leaveDays}</td>
-                  <td className="reason-cell">
-                    <p>
-                      <Reasons reasons={d.result.reasons} />
-                    </p>
-                    <p>
-                      {d.ruleVersion} · 결과 v{d.resultRevision} · {d.id}
-                    </p>
-                    {d.id && (
-                      <p>
-                        <a href={`/worktime/results/${d.id}`}>계산 근거 상세</a>
-                      </p>
-                    )}
-                    <p>
-                      사실 {d.result.inputRevision} / 검토 {d.result.reviewRevision}
-                    </p>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <WorklogSheet label="일별 계산 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} rowHeight={112} scope="all" />
       </section>
       <section className="panel">
         <h2>월 경계를 포함한 주간 참고량</h2>
@@ -780,28 +723,12 @@ function Policies({ model: m }: { model: PoliciesModel }) {
   );
 }
 function EventTable({ events, label }: { events: ClockEvent[] | null; label: string }) {
-  return (
-    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
-      <table>
-        <thead>
-          <tr>
-            <th>사건 ID</th>
-            <th>종류</th>
-            <th>발생 시각 (서울)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(events ?? []).map((e) => (
-            <tr key={e.id}>
-              <td>{e.id}</td>
-              <td>{e.kind}</td>
-              <td>{fmtDateTime(e.occurredAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns = [
+    sheetColumn<ClockEvent>({ field: 'id', headerName: '사건 ID', minWidth: 200, pinned: 'left' }, event => event.id),
+    sheetColumn<ClockEvent>({ field: 'kind', headerName: '종류', minWidth: 100 }, event => event.kind),
+    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '발생 시각 (서울)', minWidth: 240, flex: 1, valueGetter: ({ data }) => data ? fmtDateTime(data.occurredAt) : '' }, event => fmtDateTime(event.occurredAt)),
+  ];
+  return <WorklogSheet label={label} rows={events ?? []} columns={columns} getRowId={event => event.id} scope="all" />;
 }
 function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
   const confirmation = c.confirmation;
@@ -1086,6 +1013,13 @@ function Result({ model: m }: { model: ResultModel }) {
 }
 
 function Audit({ model: m }: { model: AuditModel }) {
+  const columns = [
+    sheetColumn<AuditRow>({ field: 'at', headerName: '서울 시각', minWidth: 230, pinned: 'left', valueGetter: ({ data }) => data ? fmtDateTime(data.at) : '' }, row => fmtDateTime(row.at)),
+    sheetColumn<AuditRow>({ field: 'action', headerName: '행위·상세', minWidth: 180 }, row => <a href={`/admin/audit/${row.id}`}>{row.action}</a>),
+    sheetColumn<AuditRow>({ colId: 'target', headerName: '대상', minWidth: 260, valueGetter: ({ data }) => data ? `${data.targetKind} · ${data.targetId}` : '' }, row => `${row.targetKind} · ${row.targetId}`),
+    sheetColumn<AuditRow>({ field: 'actorAccountId', headerName: '처리 계정', minWidth: 220 }, row => row.actorAccountId),
+    sheetColumn<AuditRow>({ field: 'reason', headerName: '사유', minWidth: 240, flex: 1 }, row => row.reason),
+  ];
   return (
     <>
       <h1>고객사 감사 이력</h1>
@@ -1102,34 +1036,7 @@ function Audit({ model: m }: { model: AuditModel }) {
         {m.audits.length === 0 && (
           <p>이 범위에 감사 기록이 없습니다. 최신 목록에서 다시 확인할 수 있습니다.</p>
         )}
-        <div className="table-scroll" role="region" aria-label="고객사 감사 목록" tabIndex={0}>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">서울 시각</th>
-                <th scope="col">행위·상세</th>
-                <th scope="col">대상</th>
-                <th scope="col">처리 계정</th>
-                <th scope="col">사유</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.audits.map((r) => (
-                <tr key={r.id}>
-                  <td>{fmtDateTime(r.at)}</td>
-                  <td>
-                    <a href={`/admin/audit/${r.id}`}>{r.action}</a>
-                  </td>
-                  <td>
-                    {r.targetKind} · {r.targetId}
-                  </td>
-                  <td>{r.actorAccountId}</td>
-                  <td className="reason-cell">{r.reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <WorklogSheet label="고객사 감사 목록" rows={m.audits} columns={columns} getRowId={row => row.id} />
         <nav aria-label="감사 페이지">
           {m.page.previousCursor && (
             <a href={`/admin/audit?after=${m.page.previousCursor}`}>이전 페이지 (더 최근)</a>
@@ -1203,6 +1110,10 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
   const m = data as unknown as ClockModel,
     d = m.day,
     f = m.confirmationForm;
+  const columns = [
+    sheetColumn<ClockEvent>({ field: 'kind', headerName: '원천 사건', minWidth: 150, pinned: 'left', valueGetter: ({ data }) => data ? data.kind === 'IN' ? '출근' : '퇴근' : '' }, event => event.kind === 'IN' ? '출근' : '퇴근'),
+    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '서버 저장 시각 (서울)', minWidth: 250, flex: 1, valueGetter: ({ data }) => data ? m.eventTimes?.[data.id] ?? fmtDateTime(data.occurredAt) : '' }, event => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt)),
+  ];
   const changedEvents =
     d.effectiveEvents != null &&
     (d.events.length !== d.effectiveEvents.length ||
@@ -1234,24 +1145,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
         체류시간을 실제 근로로 자동 확정하지 않습니다. 중복·역전·자정 통과 기록은 정정 검토가
         필요합니다.
       </p>
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>원천 사건</th>
-              <th>서버 저장 시각 (서울)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {d.events.map((e) => (
-              <tr key={e.id}>
-                <td>{e.kind === 'IN' ? '출근' : '퇴근'}</td>
-                <td>{m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <WorklogSheet label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
       {changedEvents && (
         <div className="notice">
           <h3>승인 정정 반영값 · 원천은 별도 보존</h3>

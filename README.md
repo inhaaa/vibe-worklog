@@ -5,8 +5,9 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 최신 완료 V13 메뉴를 통합 소스 `efd13ea`로 배포했습니다. Java624개·프론트153개·Python69개, 공개 보안/메뉴63항목·프록시/포트4항목·PC/모바일6회 관측과 DB 백업/복원·자료/권한 보존을 검증했습니다 ([최신 배포 결과](docs/quality/public-menu-deploy-20261028.md)).
-- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 이번 배포에서 기존 PriceSys·demo 컨테이너/설정과 임시 관리 연결 해제 상태를 보존했습니다. 작성 중인 코드 관리/V14는 포함하지 않았습니다.
+- 공통 업무 그리드: AG Grid Community 기반 `WorklogSheet`를 편집·조회 표에 적용했습니다. 정렬/필터·열 조절·모바일 내부 스크롤·키보드·한글 입력과 기존 저장/충돌 계약을 검증했습니다. React207개·Java618개·Python62개·타입/build·PC/390px 결과와 공개 배포 미실행 사유는 [공통 시트 보고서](docs/quality/common-sheet.md)를 따릅니다.
+- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 마지막 완료 배포 기록은 통합 소스 `efd13ea`·V13입니다. Java624개·프론트153개·Python69개, 공개 보안/메뉴63항목·프록시/포트4항목·PC/모바일6회 관측과 DB 백업/복원·자료/권한 보존은 당시 [배포 결과](docs/quality/public-menu-deploy-20261028.md)입니다. 현재 개발본의 코드 관리/V14·공통 시트는 아직 공개 배포하지 않았습니다.
+- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 기존 PriceSys·demo·portfolio와 공개 공유 계정 보호를 유지하고 새 마이그레이션의 백업·독립 복원·자료 보존을 먼저 검증합니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
@@ -25,8 +26,10 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 - 운영자 별도 인증·신규 고객사·최초 초대 복구: 로컬 연결, 운영 환경·외부 배포 미착수
 - HTTP 혼합33분·전체 의존성/이미지 검사: 로컬 실행 완료, 보안 패치와 미해결 취약점 기록
 - 이전 Linux 이미지 부하: multipart·HTTP 보안·33분 15,471요청 오류0·p95 241.014ms (`d58a893`)
-- 업무 확장 3단계: React 결재선 관리·사원/조직별 적용일 배정·조직장 결재·내가 처리한 결재·실제 결재 경로 표시 ([상세 계약](docs/design/approval-routes.md))
-- 3단계 검증: Java586개·React152개/타입·빌드·업무 HTTP123요청·공통 보안24항목·PC/390px10회 관측 통과, 로컬 V13 반영·기존35개 업무 자료/RLS 보존·스냅샷을 포함한40테이블 합성 논리 복원 ([현재 결과](docs/quality/approval-routes.md))
+- 업무 확장 4단계: React 공통코드 그룹/상세 시트와 별도 근태코드 시트, 적용일별 불변 정책·신청 당시 버전 고정 ([상세 계약](docs/design/code-management.md)·[실행 계획](docs/superpowers/plans/2026-10-28-react-codes.md))
+- 4단계 최종 검증: Java618개·React168개/타입·빌드·업무 HTTP129요청·공통 보안24항목·PC/390px6회 관측 통과. 로컬 V14·기존39개 업무 자료/권한 보존·44테이블 합성 논리 복원을 확인했습니다. 별도 V13 공개 배포 작업과 겹치는 공개 작업트리/서버는 변경하지 않았습니다 ([현재 결과](docs/quality/code-management.md)). 신규 병가·반차·시간차 등은 초안이며 신청 활성화는 지원하지 않습니다. 본인 연도별 조회/모달·월간 개선은 후속입니다.
+- 업무 확장 3단계 이력: React 결재선 관리·사원/조직별 적용일 배정·조직장 결재·내가 처리한 결재·실제 결재 경로 표시 ([상세 계약](docs/design/approval-routes.md))
+- 3단계 당시 검증: Java586개·React152개/타입·빌드·업무 HTTP123요청·공통 보안24항목·PC/390px10회 관측 통과, 로컬 V13 반영·기존35개 업무 자료/RLS 보존·스냅샷을 포함한40테이블 합성 논리 복원 ([당시 결과](docs/quality/approval-routes.md))
 - 업무 확장 2단계 이력: React 조직·사원 원자적 시트·조직장 이력·회사 조직도·본인 조직장 표시, 당시 Java548개·React136개·실제 HTTP80개·PC/390px18회 관측·V12와 기존 자료/권한 보존 ([당시 검증](docs/quality/org-sheet-heads.md))
 - 권한 확장 1단계 이력: 내 정보·역할별 메뉴·권한 관리·대표 회사 조회, 당시 Java515개·React113개·HTTP51개·브라우저9회와 V11 검증 ([당시 결과](docs/quality/identity-access.md))
 - XML·JIT 차단 당시 이미지: 단계별5회 commit/push 후 새33분15,471요청·오류0·7.999req/s·p95 252.791ms, 사전 성능 조사 경고0·원장/Excel/기본 DB 보존 ([부하 재검증](docs/quality/no-xml-soak.md)). 이번 업무 확장 이미지의 재측정은 아님

@@ -487,6 +487,11 @@ body.workspace-body { background: #f5f7fb; }
 }
 
 /* Organization and employee sheets */
+#tna-app .t-code-management { min-width: 0; }
+#tna-app .t-code-management > .t-card { margin-bottom: 20px; }
+#tna-app .t-code-management .t-code-help { display: block; margin-top: 6px; overflow-wrap: anywhere; }
+#tna-app .t-code-management .t-type-sheet-table { min-width: 1740px; }
+#tna-app .t-code-management .t-code-versions td { overflow-wrap: anywhere; }
 #tna-app .t-org-sheet { min-width: 0; }
 #tna-app .t-approval-routes > .t-route-versions,
 #tna-app .t-approval-assignments > .t-card { margin-top: 20px; }

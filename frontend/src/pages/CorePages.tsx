@@ -2,6 +2,7 @@ import type { PageProps } from '../types';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 
 interface RequestItem {
   request: { id: string; fromDate: string; toDate: string };
@@ -222,31 +223,26 @@ function Today({ data, reload }: PageProps) {
           <a href="/me/requests">신청 전체 보기</a>
         </header>
         {home.recentRequests.length ? (
-          <table className="t-table">
-            <caption className="t-sr-only">본인 대상 신청 중 최근 최대 3건</caption>
-            <thead>
-              <tr>
-                <th>신청 종류</th>
-                <th>대상 날짜</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {home.recentRequests.map((item) => (
-                <tr key={item.request.id}>
-                  <td>
-                    <a href={`/requests/${item.request.id}`}>{item.kindLabel}</a>
-                  </td>
-                  <td>
-                    {fmtDate(item.request.fromDate)} ~ {fmtDate(item.request.toDate)}
-                  </td>
-                  <td>
-                    <span className={`t-tag ${item.tone}`}>{item.statusLabel}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <p className="t-subtle">본인 대상 신청 중 최근 최대 3건</p>
+            <WorklogSheet
+              label="최근 내 신청"
+              rows={home.recentRequests}
+              getRowId={(item) => item.request.id}
+              scope="all"
+              columns={[
+                sheetColumn<RequestItem>(
+                  { colId: 'kind', headerName: '신청 종류', valueGetter: ({ data }) => data?.kindLabel, minWidth: 160, pinned: 'left' },
+                  (item) => <a href={`/requests/${item.request.id}`}>{item.kindLabel}</a>,
+                ),
+                { colId: 'period', headerName: '대상 날짜', valueGetter: ({ data }) => data && `${fmtDate(data.request.fromDate)} ~ ${fmtDate(data.request.toDate)}`, minWidth: 260 },
+                sheetColumn<RequestItem>(
+                  { colId: 'status', headerName: '상태', valueGetter: ({ data }) => data?.statusLabel, minWidth: 130 },
+                  (item) => <span className={`t-tag ${item.tone}`}>{item.statusLabel}</span>,
+                ),
+              ]}
+            />
+          </>
         ) : (
           <p>아직 본인 대상 신청이 없습니다.</p>
         )}

@@ -10,6 +10,7 @@ import { CorePages } from './pages/CorePages';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
+import { CodePages } from './pages/CodePages';
 
 const publicPages = new Set([
   'login',
@@ -32,6 +33,8 @@ const titles: Record<string, string> = {
   'org/organization-heads': '조직장 배정',
   'org/approval-routes': '결재선 관리',
   'org/approval-route-assignments': '결재선 배정',
+  'org/common-codes': '공통코드 관리',
+  'org/attendance-types': '근태코드 관리',
   'org/access': '계정·권한',
   'org/access-list': '권한 관리',
   'company/attendance': '회사 근무현황',
@@ -95,6 +98,8 @@ const navigation = [
       ['/admin/access', '권한 관리', 'people'],
       ['/admin/approval-routes', '결재선 관리', 'settings'],
       ['/admin/approval-route-assignments', '결재선 배정', 'people'],
+      ['/admin/attendance-types', '근태코드 관리', 'settings'],
+      ['/admin/common-codes', '공통코드 관리', 'settings'],
       ['/admin/schedules', '근무 설정', 'settings'],
       ['/admin/calendar', '근무일·휴일', 'calendar'],
       ['/admin/networks', '허용 네트워크', 'settings'],
@@ -248,6 +253,7 @@ function Content(props: PageProps) {
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
       <ApprovalRoutePages {...props} />
+      <CodePages {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>
