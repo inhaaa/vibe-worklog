@@ -591,9 +591,11 @@ describe('React 앱 탐색과 제출', () => {
     window.history.replaceState(null, '', '/admin/employees');
     try {
       const view = render(<App initial={employees} />);
-      const selected = view.container.querySelector(
-        'a[href*="employeeId=e-1"]',
-      ) as HTMLAnchorElement;
+      const selected = await waitFor(() => {
+        const link = view.container.querySelector<HTMLAnchorElement>('a[href*="employeeId=e-1"]');
+        expect(link).not.toBeNull();
+        return link!;
+      });
       fireEvent.click(selected);
       await waitFor(() => {
         expect(scroll.mock.contexts).toContain(document.getElementById('employee-detail'));

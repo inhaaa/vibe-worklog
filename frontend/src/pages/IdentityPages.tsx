@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import type { PageProps } from '../types';
 import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 
 interface Profile {
   employeeNo: string;
@@ -225,29 +226,22 @@ function AccessListPage({ model: m }: { model: AccessList }) {
           공통은 필수 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여하며 함께 보유할 수 있습니다.
         </p>
         {m.accessRows.length === 0 ? <p>조회된 계정이 없습니다.</p> : (
-          <div className="table-scroll" role="region" aria-label="계정별 권한" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">사번</th><th scope="col">이름</th>
-                  <th scope="col">역할·기능</th><th scope="col">계정 상태</th><th scope="col">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.accessRows.map((row) => (
-                  <tr key={row.employeeId}>
-                    <td>{row.employeeNo}</td><td>{row.employeeName}</td>
-                    <td>{formatRoles(row.roles)}</td><td>{row.active ? '활성' : '비활성'}</td>
-                    <td>
-                      <a href={`/admin/employees/${row.employeeId}/access`} aria-label={`${row.employeeName} 권한 관리`}>
-                        권한 관리
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="계정별 권한"
+            rows={m.accessRows}
+            getRowId={(row) => row.employeeId}
+            scope="page"
+            columns={[
+              { field: 'employeeNo', headerName: '사번', pinned: 'left', minWidth: 120 },
+              { field: 'employeeName', headerName: '이름', minWidth: 130 },
+              { colId: 'roles', headerName: '역할·기능', valueGetter: ({ data }) => data && formatRoles(data.roles), minWidth: 250 },
+              { colId: 'active', headerName: '계정 상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 120 },
+              sheetColumn<AccessList['accessRows'][number]>(
+                { colId: 'manage', headerName: '관리', sortable: false, filter: false, minWidth: 120 },
+                (row) => <a href={`/admin/employees/${row.employeeId}/access`} aria-label={`${row.employeeName} 권한 관리`}>권한 관리</a>,
+              ),
+            ]}
+          />
         )}
         <Pagination path="/admin/access" values={{ q: m.q }} page={m.page} hasNext={m.hasNext} />
       </section>
@@ -286,26 +280,22 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
         </p>
         <h2>대상 사원</h2>
         {m.employees.length === 0 ? <p>조회할 사원이 없습니다.</p> : (
-          <div className="table-scroll" role="region" aria-label="회사 현황 대상 사원" tabIndex={0}>
-            <table>
-              <thead><tr><th scope="col">사번·이름</th><th scope="col">현재 소속</th></tr></thead>
-              <tbody>
-                {m.employees.map((employee) => (
-                  <tr key={employee.id}>
-                    <td>
-                      <a
-                        href={queryHref('/company/attendance', { ...values, employeeId: employee.id, page: m.page })}
-                        aria-current={m.selectedEmployee?.id === employee.id ? 'true' : undefined}
-                      >
-                        {employee.employeeNo} · {employee.employeeName}
-                      </a>
-                    </td>
-                    <td>{employee.organizationName ?? '미배정'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="회사 현황 대상 사원"
+            rows={m.employees}
+            getRowId={(employee) => employee.id}
+            scope="page"
+            columns={[
+              sheetColumn<Employee>(
+                { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
+                (employee) => <a
+                  href={queryHref('/company/attendance', { ...values, employeeId: employee.id, page: m.page })}
+                  aria-current={m.selectedEmployee?.id === employee.id ? 'true' : undefined}
+                >{employee.employeeNo} · {employee.employeeName}</a>,
+              ),
+              { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 160 },
+            ]}
+          />
         )}
         <Pagination path="/company/attendance" values={values} page={m.page} hasNext={m.hasNext} />
       </section>
@@ -319,28 +309,31 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
         {!m.selectedEmployee ? (
           <p>사원을 선택하면 해당 월의 일별 현황을 볼 수 있습니다.</p>
         ) : m.days.length === 0 ? <p>조회된 일별 현황이 없습니다.</p> : (
-          <div className="table-scroll" role="region" aria-label="사원 일별 근무현황" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">근무일</th><th scope="col">상태·최신성</th>
-                  <th scope="col">예정 근무 (시:분:초.밀리초)</th>
-                  <th scope="col">실근로 (시:분:초.밀리초)</th><th scope="col">휴가 (DAY)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.days.map((day) => (
-                  <tr key={day.workDate} data-work-date={day.workDate}>
-                    <td>{fmtDate(day.workDate)}</td>
-                    <td>{statuses[day.status] ?? day.status} · {day.current ? '최신' : '미산정·재집계 필요'}</td>
-                    <td>{duration(day.current ? day.scheduledMillis : null)}</td>
-                    <td>{duration(day.current ? day.actualWorkMillis : null)}</td>
-                    <td>{day.current && day.leaveDays != null ? day.leaveDays : '미확정'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="사원 일별 근무현황"
+            rows={m.days}
+            getRowId={(day) => day.workDate}
+            scope="all"
+            columns={[
+              { colId: 'workDate', headerName: '근무일', valueGetter: ({ data }) => data && fmtDate(data.workDate), minWidth: 140, pinned: 'left' },
+              { colId: 'status', headerName: '상태·최신성', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${data.current ? '최신' : '미산정·재집계 필요'}`, minWidth: 250 },
+              {
+                colId: 'scheduledMillis', headerName: '예정 근무 (시:분:초.밀리초)',
+                valueGetter: ({ data }) => data?.current ? data.scheduledMillis : null,
+                valueFormatter: ({ value }) => duration(value),
+                filterValueGetter: ({ data }) => duration(data?.current ? data.scheduledMillis : null),
+                getQuickFilterText: ({ value }) => duration(value), minWidth: 230, cellClass: 'w-sheet-number',
+              },
+              {
+                colId: 'actualWorkMillis', headerName: '실근로 (시:분:초.밀리초)',
+                valueGetter: ({ data }) => data?.current ? data.actualWorkMillis : null,
+                valueFormatter: ({ value }) => duration(value),
+                filterValueGetter: ({ data }) => duration(data?.current ? data.actualWorkMillis : null),
+                getQuickFilterText: ({ value }) => duration(value), minWidth: 220, cellClass: 'w-sheet-number',
+              },
+              { colId: 'leaveDays', headerName: '휴가 (DAY)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
+            ]}
+          />
         )}
       </section>
     </>
@@ -372,30 +365,21 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
           원신청을 기준으로 합니다. 조회 기준 (서울): {fmtDateTime(m.asOf)}
         </p>
         {m.requests.length === 0 ? <p>조회된 신청이 없습니다.</p> : (
-          <div className="table-scroll" role="region" aria-label="회사 신청 목록" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">사번·이름</th><th scope="col">현재 소속</th><th scope="col">종류</th>
-                  <th scope="col">기간</th><th scope="col">조회연도 신청일량 (DAY)</th>
-                  <th scope="col">상태·효력</th><th scope="col">제출 시각 (서울)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.requests.map((request) => (
-                  <tr key={request.id}>
-                    <td>{request.employeeNo} · {request.employeeName}</td>
-                    <td>{request.organizationName ?? '미배정'}</td>
-                    <td>{kinds[request.kind] ?? request.kind}</td>
-                    <td>{fmtDate(request.fromDate)} ~ {fmtDate(request.toDate)}</td>
-                    <td>{request.quantityDays}</td>
-                    <td>{statuses[request.status] ?? request.status} · {effects[request.effectStatus] ?? request.effectStatus}</td>
-                    <td>{fmtDateTime(request.submittedAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="회사 신청 목록"
+            rows={m.requests}
+            getRowId={(request) => request.id}
+            scope="page"
+            columns={[
+              { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
+              { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
+              { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
+              { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
+              { field: 'quantityDays', headerName: '조회연도 신청일량 (DAY)', minWidth: 220, cellClass: 'w-sheet-number' },
+              { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
+              { colId: 'submittedAt', headerName: '제출 시각 (서울)', valueGetter: ({ data }) => data && fmtDateTime(data.submittedAt), minWidth: 240 },
+            ]}
+          />
         )}
         <Pagination
           path="/company/requests"

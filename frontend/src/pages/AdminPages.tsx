@@ -1,5 +1,6 @@
 import type React from 'react';
 import type { PageProps } from '../types';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import {
   Check,
   ErrorNotice,
@@ -18,6 +19,7 @@ import type {
   EmployeeForm,
   EmployeeModel,
   EmployeesModel,
+  Employee,
   NetworksModel,
   OrganizationForm,
   OrganizationModel,
@@ -243,47 +245,26 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
                 : '검색 결과가 없습니다. 검색어와 필터를 확인해 주세요.'}
             </p>
           ) : (
-            <div className="t-tablewrap" role="region" aria-label="직원 명단" tabIndex={0}>
-              <table className="t-table">
-                <caption className="t-sr-only">이름, 사번, 현재 소속과 활성 상태</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">직원</th>
-                    <th scope="col">사번</th>
-                    <th scope="col">현재 소속</th>
-                    <th scope="col">활성 상태</th>
-                  </tr>
-                </thead>
-                <tbody id="tna-employee-rows">
-                  {m.employees.map((employee) => (
-                    <tr
-                      key={employee.id}
-                      className={selected?.id === employee.id ? 'active' : undefined}
-                    >
-                      <td>
-                        <a
-                          className="t-person-button"
-                          href={`${listHref(m.page, employee.id)}#employee-detail`}
-                          aria-current={selected?.id === employee.id ? 'true' : undefined}
-                        >
-                          <span className="t-avatar" aria-hidden="true">
-                            직
-                          </span>
-                          <strong>{employee.displayName}</strong>
-                        </a>
-                      </td>
-                      <td data-label="사번">{employee.employeeNo}</td>
-                      <td data-label="현재 소속">
-                        {m.employeeOrganizations[employee.id] ?? '미배정'}
-                      </td>
-                      <td data-label="활성 상태">
-                        <ActiveStatus active={employee.active} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <WorklogSheet
+              label="직원 명단"
+              rows={m.employees}
+              getRowId={(employee) => employee.id}
+              scope="page"
+              columns={[
+                sheetColumn<Employee>(
+                  { colId: 'employee', headerName: '직원', valueGetter: ({ data }) => data?.displayName, minWidth: 180, pinned: 'left' },
+                  (employee) => <a className="t-person-button" href={`${listHref(m.page, employee.id)}#employee-detail`} aria-current={selected?.id === employee.id ? 'true' : undefined}>
+                    <span className="t-avatar" aria-hidden="true">직</span><strong>{employee.displayName}</strong>
+                  </a>,
+                ),
+                { field: 'employeeNo', headerName: '사번', minWidth: 120 },
+                { colId: 'organization', headerName: '현재 소속', valueGetter: ({ data }) => data && (m.employeeOrganizations[data.id] ?? '미배정'), minWidth: 160 },
+                sheetColumn<Employee>(
+                  { colId: 'active', headerName: '활성 상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 130 },
+                  (employee) => <ActiveStatus active={employee.active} />,
+                ),
+              ]}
+            />
           )}
           <nav className="t-actions" aria-label="사원 목록 페이지">
             {m.page > 0 && (
@@ -407,31 +388,22 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
         {m.assignments.length === 0 ? (
           <p className="notice">등록된 소속이 없습니다. 아래에서 첫 소속을 등록해 주세요.</p>
         ) : (
-          <div className="table-scroll" role="region" aria-label="소속 이력" tabIndex={0}>
-            <table>
-              <caption className="sr-only">조직, 적용 시작일, 종료일과 등록 사유</caption>
-              <thead>
-                <tr>
-                  <th scope="col">조직</th>
-                  <th scope="col">시작일 (포함)</th>
-                  <th scope="col">종료일 (제외)</th>
-                  <th scope="col">사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.assignments.map((assignment) => (
-                  <tr key={assignment.id}>
-                    <td>{assignment.organizationName}</td>
-                    <td>
-                      <time dateTime={assignment.validFrom}>{fmtDate(assignment.validFrom)}</time>
-                    </td>
-                    <td>{assignment.validTo ? fmtDate(assignment.validTo) : '종료일 없음'}</td>
-                    <td className="reason-cell">{assignment.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="소속 이력"
+            rows={m.assignments}
+            getRowId={(assignment) => assignment.id}
+            scope="all"
+            rowHeight={80}
+            columns={[
+              { field: 'organizationName', headerName: '조직', minWidth: 170, pinned: 'left' },
+              sheetColumn<EmployeeModel['assignments'][number]>(
+                { colId: 'validFrom', headerName: '시작일 (포함)', valueGetter: ({ data }) => data && fmtDate(data.validFrom), minWidth: 160 },
+                (assignment) => <time dateTime={assignment.validFrom}>{fmtDate(assignment.validFrom)}</time>,
+              ),
+              { colId: 'validTo', headerName: '종료일 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '종료일 없음', minWidth: 160 },
+              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+            ]}
+          />
         )}
       </section>
       <section className="panel" aria-labelledby="assignment-create-title">
@@ -588,31 +560,21 @@ function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
               : '등록된 조직이 없습니다. 아래에서 첫 조직을 등록해 주세요.'}
           </p>
         ) : (
-          <div className="table-scroll" role="region" aria-label="조직 목록" tabIndex={0}>
-            <table>
-              <caption className="sr-only">조직 코드, 이름, 상위 조직과 활성 상태</caption>
-              <thead>
-                <tr>
-                  <th scope="col">코드</th>
-                  <th scope="col">이름</th>
-                  <th scope="col">상위 조직</th>
-                  <th scope="col">상태</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.organizations.map((organization) => (
-                  <tr key={organization.id}>
-                    <td>{organization.code}</td>
-                    <td>
-                      <a href={`/admin/organizations/${organization.id}`}>{organization.name}</a>
-                    </td>
-                    <td>{organization.parentId ? m.orgNames[organization.parentId] : '없음'}</td>
-                    <td>{organization.active ? '활성' : '비활성'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="조직 목록"
+            rows={m.organizations}
+            getRowId={(organization) => organization.id}
+            scope="page"
+            columns={[
+              { field: 'code', headerName: '코드', minWidth: 140, pinned: 'left' },
+              sheetColumn<OrganizationsModel['organizations'][number]>(
+                { colId: 'name', headerName: '이름', valueGetter: ({ data }) => data?.name, minWidth: 170 },
+                (organization) => <a href={`/admin/organizations/${organization.id}`}>{organization.name}</a>,
+              ),
+              { colId: 'parent', headerName: '상위 조직', valueGetter: ({ data }) => data?.parentId ? m.orgNames[data.parentId] : '없음', minWidth: 170 },
+              { colId: 'active', headerName: '상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 120 },
+            ]}
+          />
         )}
         <nav className="actions pagination" aria-label="조직 목록 페이지">
           {m.page > 0 && (
@@ -839,39 +801,20 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           </Form>
         )}
         {m.assignments.length > 0 && (
-          <div className="table-scroll" role="region" aria-label="승인자 배정 이력" tabIndex={0}>
-            <table>
-              <caption className="sr-only">승인자와 적용 구간, 변경 사유</caption>
-              <thead>
-                <tr>
-                  <th scope="col">승인자</th>
-                  <th scope="col">시작일</th>
-                  <th scope="col">종료일 (제외)</th>
-                  <th scope="col">상태</th>
-                  <th scope="col">사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.assignments.map((assignment) => (
-                  <tr key={assignment.id}>
-                    <td>{assignment.approverName}</td>
-                    <td>{fmtDate(assignment.validFrom)}</td>
-                    <td>{assignment.validTo ? fmtDate(assignment.validTo) : '미지정'}</td>
-                    <td>
-                      {assignment.supersededAt
-                        ? '당일 교체·해제'
-                        : assignment.validTo
-                          ? '종료'
-                          : assignment.eligible
-                            ? '현재 유효'
-                            : '재지정 필요'}
-                    </td>
-                    <td className="reason-cell">{assignment.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="승인자 배정 이력"
+            rows={m.assignments}
+            getRowId={(assignment) => assignment.id}
+            scope="all"
+            rowHeight={80}
+            columns={[
+              { field: 'approverName', headerName: '승인자', minWidth: 160, pinned: 'left' },
+              { colId: 'validFrom', headerName: '시작일', valueGetter: ({ data }) => data && fmtDate(data.validFrom), minWidth: 150 },
+              { colId: 'validTo', headerName: '종료일 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '미지정', minWidth: 160 },
+              { colId: 'status', headerName: '상태', valueGetter: ({ data }) => data && (data.supersededAt ? '당일 교체·해제' : data.validTo ? '종료' : data.eligible ? '현재 유효' : '재지정 필요'), minWidth: 170 },
+              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+            ]}
+          />
         )}
       </section>
     </div>
@@ -1040,36 +983,19 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
               버전 {version.revision} · 사용 시작 {fmtDate(version.validFrom)}
             </h3>
             <p>{version.reason}</p>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">요일</th>
-                    <th scope="col">구분</th>
-                    <th scope="col">시작</th>
-                    <th scope="col">종료</th>
-                    <th scope="col">예정 휴게</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(m.versionDays[version.id] ?? []).map((day) => (
-                    <tr key={day.weekday}>
-                      <td>{weekdays[day.weekday - 1]}</td>
-                      <td>{day.workday ? '근로일' : '비근로일'}</td>
-                      <td>{day.workday ? fmtTime(day.startTime) : '해당 없음'}</td>
-                      <td>{day.workday ? fmtTime(day.endTime) : '해당 없음'}</td>
-                      <td>
-                        {day.breaks.map((pause, index) => (
-                          <span key={index}>
-                            {fmtTime(pause.startTime)}–{fmtTime(pause.endTime)}{' '}
-                          </span>
-                        ))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <WorklogSheet
+              label={`버전 ${version.revision} 요일별 근무·휴게`}
+              rows={m.versionDays[version.id] ?? []}
+              getRowId={(day) => `${version.id}:${day.weekday}`}
+              scope="all"
+              columns={[
+                { colId: 'weekday', headerName: '요일', valueGetter: ({ data }) => data && weekdays[data.weekday - 1], minWidth: 100, pinned: 'left', comparator: (_a, _b, a, b) => (a.data?.weekday ?? 0) - (b.data?.weekday ?? 0) },
+                { colId: 'workday', headerName: '구분', valueGetter: ({ data }) => data?.workday ? '근로일' : '비근로일', minWidth: 130 },
+                { colId: 'startTime', headerName: '시작', valueGetter: ({ data }) => data?.workday ? fmtTime(data.startTime) : '해당 없음', minWidth: 130 },
+                { colId: 'endTime', headerName: '종료', valueGetter: ({ data }) => data?.workday ? fmtTime(data.endTime) : '해당 없음', minWidth: 130 },
+                { colId: 'breaks', headerName: '예정 휴게', valueGetter: ({ data }) => data?.breaks.map((pause) => `${fmtTime(pause.startTime)}–${fmtTime(pause.endTime)}`).join(' '), minWidth: 220, wrapText: true, autoHeight: true },
+              ]}
+            />
           </article>
         ))}
       </section>
@@ -1099,30 +1025,20 @@ function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }
         {m.assignments.length === 0 ? (
           <p>배정이 없습니다. 일정 누락 날짜를 정상 근로일로 간주하지 않습니다.</p>
         ) : (
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">템플릿</th>
-                  <th scope="col">버전</th>
-                  <th scope="col">시작 (포함)</th>
-                  <th scope="col">종료 (제외)</th>
-                  <th scope="col">사유</th>
-                </tr>
-              </thead>
-              <tbody>
-                {m.assignments.map((assignment) => (
-                  <tr key={assignment.id}>
-                    <td>{assignment.templateName}</td>
-                    <td>{assignment.revision}</td>
-                    <td>{fmtDate(assignment.validFrom)}</td>
-                    <td>{assignment.validTo ? fmtDate(assignment.validTo) : '종료 없음'}</td>
-                    <td>{assignment.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <WorklogSheet
+            label="근무 배정 이력"
+            rows={m.assignments}
+            getRowId={(assignment) => assignment.id}
+            scope="all"
+            rowHeight={80}
+            columns={[
+              { field: 'templateName', headerName: '템플릿', minWidth: 170, pinned: 'left' },
+              { field: 'revision', headerName: '버전', minWidth: 100, cellClass: 'w-sheet-number' },
+              { colId: 'validFrom', headerName: '시작 (포함)', valueGetter: ({ data }) => data && fmtDate(data.validFrom), minWidth: 150 },
+              { colId: 'validTo', headerName: '종료 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '종료 없음', minWidth: 150 },
+              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+            ]}
+          />
         )}
       </section>
       <section className="panel">
