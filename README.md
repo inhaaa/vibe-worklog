@@ -5,7 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 공통 업무 그리드: AG Grid Community 기반 `WorklogSheet`를 편집·조회 표에 적용했습니다. 정렬/필터·열 조절·모바일 내부 스크롤·키보드·한글 입력과 기존 저장/충돌 계약을 검증했습니다. React207개·Java618개·Python62개·타입/build·PC/390px 결과와 공개 배포 미실행 사유는 [공통 시트 보고서](docs/quality/common-sheet.md)를 따릅니다.
+- 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드에 적용했으며 최신 검증·공개 배포 후보와 남은 서버 연결 절차는 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다. 최초 React207개·Java618개·Python62개 검증은 [이전 공통 시트 보고서](docs/quality/common-sheet.md)에 보존합니다.
 - 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 이후 검증된 메뉴 단위는 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 개발본과 공개본의 버전은 다르며 기존 PriceSys·demo 보존과 배포 전후 검증을 포함합니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
