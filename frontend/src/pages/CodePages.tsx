@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import type { ColDef } from 'ag-grid-community';
 import type { PageProps } from '../types';
 import { Form, fmtDate, fmtDateTime } from '../ui';
+import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import type { WorklogSheetHandle } from '../components/WorklogSheet';
 
 type Value = string | number | boolean | null | undefined;
 interface Entry {
@@ -86,7 +89,7 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
   const [commandId, setCommandId] = useState(model.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
-  const table = useRef<HTMLTableElement>(null);
+  const sheet = useRef<WorklogSheetHandle>(null);
   const sheetElement = useRef<HTMLDivElement>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(entry => [entry.id, entry])), [model.latestRows]);
   const changed = (row: Row) => {
@@ -115,7 +118,7 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       ? { ...common, systemKind: null, effectiveFrom: today, unit: 'DAY', payKind: 'UNSPECIFIED', deductionRule: 'NONE', recognitionRule: 'NOT_SUPPORTED', enabled: false, basis: '' }
       : { ...common, description: '', sortOrder: 0, active: true, ...(detail ? { groupId: context.groupId } : {}) };
     setRows(current => [...current, row]); renew();
-    setTimeout(() => table.current?.querySelector<HTMLInputElement>('tbody tr:last-child input:not([type=checkbox])')?.focus(), 0);
+    setTimeout(() => sheet.current?.focusCell(row.clientRowId, 'code'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row => {
@@ -173,6 +176,30 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       {rowError && <p className="t-sheet-error" id={`${id}-error`}>{rowError.message}</p>}
     </>;
   }
+  function protection(row: Row) {
+    const original = row.id ? latest.get(row.id) : undefined;
+    return attendance ? <><strong>{systemText(row.systemKind)}</strong><small className="t-code-help">{original?.supported && row.enabled ? '지원 정책 · 이 버전 신청 허용' : !row.systemKind ? '계산·차감 계약 미지원 · 신청 불가' : '이 버전 신규 신청 미사용'}</small><small className="t-code-help">{original?.capabilityMessage}</small><small className="t-code-help">{original ? `최신 등록 v${original.revision}` : '초안'}</small></>
+      : <>{original?.systemOwned ? <span className="t-tag gray">시스템 보호</span> : '사용자 관리'}{!detail && row.id && <a href={href({ ...context, groupId: row.id, codePage: 0 })}>상세코드 보기</a>}</>;
+  }
+  const state = (row: Row) => row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : changed(row) ? '수정' : '저장됨';
+  const columns = [
+    ...fields.map(field => sheetColumn<Row>({
+      colId: field.key, headerName: field.label,
+      pinned: field.key === 'code' ? 'left' : undefined,
+      minWidth: field.kind === 'check' || field.kind === 'number' ? 110 : field.key === 'description' || field.key === 'basis' ? 240 : 160,
+      flex: field.kind === 'check' || field.kind === 'number' ? 0 : 1,
+      width: field.kind === 'check' || field.kind === 'number' ? 110 : undefined,
+      filter: field.kind === 'number' ? 'agNumberColumnFilter' : 'agTextColumnFilter',
+      cellClass: field.kind === 'number' ? 'w-sheet-number' : field.kind === 'check' ? 'w-sheet-center' : undefined,
+      valueGetter: ({ data }) => data ? field.kind === 'number' ? data[field.key] : display(data[field.key], field) : '',
+    }, (row, index) => cell(row, index, field))),
+    sheetColumn<Row>({ colId: 'protection', headerName: attendance ? '유형·신청 가능' : '보호·상세', minWidth: attendance ? 280 : 180,
+      valueGetter: ({ data }) => data ? attendance ? `${systemText(data.systemKind)} ${data.id ? latest.get(data.id)?.capabilityMessage ?? '' : ''}` : data.id && latest.get(data.id)?.systemOwned ? '시스템 보호' : '사용자 관리' : '',
+    }, row => protection(row)),
+    sheetColumn<Row>({ colId: 'state', headerName: '상태', minWidth: 110, width: 110, flex: 0,
+      valueGetter: ({ data }) => data ? state(data) : '',
+    }, row => <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : changed(row) ? 'blue' : 'gray'}`}>{state(row)}</span>),
+  ];
   const fieldErrors = errors.some(item => fields.some(field => field.key === item.field));
   return <div className="t-org-sheet" ref={sheetElement} data-unsaved-changes={String(unsaved)}>
     <Form action={action} onSubmit={submit} className="t-sheet-form">
@@ -192,25 +219,12 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
         <p>{error ?? '입력을 확인하세요. 편집 내용은 보존되어 있습니다.'}</p>
         {errors.filter(item => !fields.some(field => field.key === item.field)).map((item, index) => <p key={index}>{item.message}</p>)}
       </div>}
-      <div className="t-tablewrap t-sheet-scroll" role="region" aria-label={`${title} 편집 시트`} tabIndex={0}>
-        <table className={`t-table t-sheet-table ${attendance ? 't-type-sheet-table' : ''}`} ref={table}>
-          <caption className="t-sr-only">{title} 일괄 편집</caption>
-          <thead><tr><th scope="col">선택</th>{fields.map(field => <th key={field.key} scope="col">{field.label}</th>)}<th scope="col">{attendance ? '유형·신청 가능' : '보호·상세'}</th><th scope="col">상태</th></tr></thead>
-          <tbody>{rows.map((row, index) => {
-            const original = row.id ? latest.get(row.id) : undefined;
-            const protectedRow = original?.systemOwned === true;
-            return <tr key={row.clientRowId} data-operation={row.operation}>
-              <td><input className="t-sheet-check" type="checkbox" aria-label={`${title} ${index + 1}행 선택`} checked={selected.has(row.clientRowId)} disabled={protectedRow || lockedGroup}
-                onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(row.clientRowId); else next.delete(row.clientRowId); return next; })} /></td>
-              {fields.map(field => <td key={field.key}>{cell(row, index, field)}</td>)}
-              <td>{attendance ? <><strong>{systemText(row.systemKind)}</strong><small className="t-code-help">{original?.supported && row.enabled ? '지원 정책 · 이 버전 신청 허용' : !row.systemKind ? '계산·차감 계약 미지원 · 신청 불가' : '이 버전 신규 신청 미사용'}</small><small className="t-code-help">{original?.capabilityMessage}</small><small className="t-code-help">{original ? `최신 등록 v${original.revision}` : '초안'}</small></>
-                : <>{protectedRow ? <span className="t-tag gray">시스템 보호</span> : '사용자 관리'}{!detail && row.id && <a href={href({ ...context, groupId: row.id, codePage: 0 })}>상세코드 보기</a>}</>}</td>
-              <td><span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : changed(row) ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : changed(row) ? '수정' : '저장됨'}</span></td>
-            </tr>;
-          })}</tbody>
-        </table>
-        {!rows.length && <p className="notice">등록된 {title}가 없습니다. 입력 버튼으로 추가하세요.</p>}
-      </div>
+      <WorklogSheet ref={sheet} label={`${title} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
+        rowHeight={attendance ? 112 : 64} selectedIds={selected} onSelectionChange={setSelected}
+        selectionLabel={(_row, index) => `${title} ${index + 1}행 선택`}
+        isRowSelectable={row => !lockedGroup && !(row.id && latest.get(row.id)?.systemOwned)}
+        changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
+        emptyMessage={`등록된 ${title}가 없습니다. 입력 버튼으로 추가하세요.`} />
       {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label={`${title} 충돌 최신값 비교`}>
         <h3>최신값을 확인하세요</h3>
         {conflicts.map(row => {
@@ -257,6 +271,27 @@ function CommonCodes({ model: m, error }: { model: CommonModel; error?: string |
   </section>;
 }
 function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string | null }) {
+  function period(version: TypeVersion) {
+    const sameType = m.versions.filter(item => item.typeId === version.typeId);
+    const nextDate = sameType.map(item => item.effectiveFrom).filter(date => date > version.effectiveFrom).sort()[0];
+    const latestRevision = Math.max(...sameType.filter(item => item.effectiveFrom === version.effectiveFrom).map(item => item.revision));
+    return latestRevision > version.revision ? `동일 적용일의 v${latestRevision}로 대체` : nextDate ? `${fmtDate(nextDate)} 전까지` : '다음 적용일 전까지 · 현재 종료 미정';
+  }
+  const versions = m.versions.filter(version => m.sheet.latestRows.some(type => type.id === version.typeId));
+  const versionColumns: ColDef<TypeVersion>[] = [
+    sheetColumn<TypeVersion>({ colId: 'code', headerName: '코드·이름', minWidth: 180, pinned: 'left', valueGetter: ({ data }) => data ? `${data.code} ${data.name}` : '' },
+      version => <>{version.code}<small className="t-code-help">{version.name}</small></>),
+    sheetColumn<TypeVersion>({ field: 'revision', headerName: '버전', minWidth: 100, width: 100, flex: 0, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, version => `v${version.revision}`),
+    sheetColumn<TypeVersion>({ colId: 'effectiveFrom', headerName: '적용 기간', minWidth: 240, valueGetter: ({ data }) => data ? `${fmtDate(data.effectiveFrom)}부터 ${period(data)}` : '' },
+      version => <>{fmtDate(version.effectiveFrom)}부터<small className="t-code-help">{period(version)}</small></>),
+    { colId: 'enabled', headerName: '신청', minWidth: 100, valueGetter: ({ data }: { data: TypeVersion | undefined }) => data?.enabled ? '사용' : '미사용' },
+    { colId: 'unit', headerName: '단위·유급', minWidth: 180, valueGetter: ({ data }: { data: TypeVersion | undefined }) => data ? `${typeFields[3].choices?.find(([value]) => value === data.unit)?.[1]} · ${typeFields[4].choices?.find(([value]) => value === data.payKind)?.[1]}` : '' },
+    sheetColumn<TypeVersion>({ colId: 'deductionRule', headerName: '차감·인정', minWidth: 190, valueGetter: ({ data }) => data ? `${data.deductionRule === 'LEAVE_DAY' ? '승인 시 DAY 차감' : '차감 없음'} 근무 인정 산정 미지원` : '' },
+      version => <>{version.deductionRule === 'LEAVE_DAY' ? '승인 시 DAY 차감' : '차감 없음'}<small className="t-code-help">근무 인정 산정 미지원</small></>),
+    { field: 'basis', headerName: '정책 근거', minWidth: 220 },
+    sheetColumn<TypeVersion>({ colId: 'createdAt', headerName: '변경 사유·등록자·시각 (서울)', minWidth: 250, valueGetter: ({ data }) => data ? `${data.reason} ${data.createdByName ?? '시스템 기초'} ${fmtDateTime(data.createdAt)}` : '' },
+      version => <>{version.reason}<small className="t-code-help">{version.createdByName ?? '시스템 기초'}</small><small className="t-code-help">{fmtDateTime(version.createdAt)}</small></>),
+  ];
   return <section className="t-code-management">
     <header className="t-pagehead"><div><p className="t-eyebrow">근태 설정</p><h1>근태코드 관리</h1><p className="t-muted">신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p></div><a className="t-btn" href="/admin/common-codes">공통코드 관리</a></header>
     <section className="t-card">
@@ -268,27 +303,8 @@ function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string
       <Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />
     </section>
     <section className="t-card t-code-versions"><h2>근태코드 버전 이력</h2><p className="t-subtle">조회된 코드의 불변 정책입니다. 대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
-      <div className="t-tablewrap" role="region" aria-label="근태코드 버전 이력" tabIndex={0}>
-        <table className="t-table">
-          <thead><tr><th scope="col">코드·이름</th><th scope="col">버전</th><th scope="col">적용 기간</th><th scope="col">신청</th><th scope="col">단위·유급</th><th scope="col">차감·인정</th><th scope="col">정책 근거</th><th scope="col">변경 사유·등록자·시각 (서울)</th></tr></thead>
-          <tbody>{m.versions.filter(version => m.sheet.latestRows.some(type => type.id === version.typeId)).map(version => {
-            const sameType = m.versions.filter(item => item.typeId === version.typeId);
-            const nextDate = sameType.map(item => item.effectiveFrom).filter(date => date > version.effectiveFrom).sort()[0];
-            const latestRevision = Math.max(...sameType.filter(item => item.effectiveFrom === version.effectiveFrom).map(item => item.revision));
-            return <tr key={version.id}>
-              <td>{version.code}<small className="t-code-help">{version.name}</small></td>
-              <td>v{version.revision}</td>
-              <td>{fmtDate(version.effectiveFrom)}부터<small className="t-code-help">{latestRevision > version.revision ? `동일 적용일의 v${latestRevision}로 대체` : nextDate ? `${fmtDate(nextDate)} 전까지` : '다음 적용일 전까지 · 현재 종료 미정'}</small></td>
-              <td>{version.enabled ? '사용' : '미사용'}</td>
-              <td>{typeFields[3].choices?.find(([value]) => value === version.unit)?.[1]} · {typeFields[4].choices?.find(([value]) => value === version.payKind)?.[1]}</td>
-              <td>{version.deductionRule === 'LEAVE_DAY' ? '승인 시 DAY 차감' : '차감 없음'}<small className="t-code-help">근무 인정 산정 미지원</small></td>
-              <td>{version.basis}</td>
-              <td>{version.reason}<small className="t-code-help">{version.createdByName ?? '시스템 기초'}</small><small className="t-code-help">{fmtDateTime(version.createdAt)}</small></td>
-            </tr>;
-          })}</tbody>
-        </table>
-        {!m.versions.length && <p className="notice">등록된 버전이 없습니다.</p>}
-      </div>
+      <WorklogSheet label="근태코드 버전 이력" rows={versions} columns={versionColumns} getRowId={version => version.id}
+        rowHeight={112} emptyMessage="등록된 버전이 없습니다." />
     </section>
   </section>;
 }
