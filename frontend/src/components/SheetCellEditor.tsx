@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { createContext, useContext, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 import type { CustomCellEditorProps } from 'ag-grid-react';
@@ -19,6 +19,8 @@ export interface SheetEditorField {
   changed?: boolean;
   error?: string;
 }
+
+export const SheetEditorFields = createContext<ReadonlyMap<string, SheetEditorField> | null>(null);
 
 export function validateSheetField(field: SheetEditorField): string | undefined {
   if (field.disabled || field.readOnly) return;
@@ -41,7 +43,9 @@ export function validateSheetField(field: SheetEditorField): string | undefined 
 }
 
 /** AG Grid owns editing/navigation; page state receives each keystroke before a save can run. */
-export function SheetCellEditor<T>({ field, eventKey, onValueChange, onKeyDown: gridKeyDown }: CustomCellEditorProps<T, string> & { field: SheetEditorField }) {
+export function SheetCellEditor<T>({ field: initialField, fieldKey, eventKey, onValueChange, onKeyDown: gridKeyDown }: CustomCellEditorProps<T, string> & { field: SheetEditorField; fieldKey: string }) {
+  // AG Grid keeps editor params from edit start; React context supplies current errors and callbacks.
+  const field = useContext(SheetEditorFields)?.get(fieldKey) ?? initialField;
   const initial = useRef(field.value);
   const cancel = useRef(field.onCancel);
   const errorId = useId();

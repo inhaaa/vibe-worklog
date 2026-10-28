@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 import type { ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
-import { SheetCellEditor, validateSheetField } from './SheetCellEditor';
+import { SheetCellEditor, SheetEditorFields, validateSheetField } from './SheetCellEditor';
 import type { SheetEditorField } from './SheetCellEditor';
 export type { SheetEditorField } from './SheetCellEditor';
 
@@ -26,10 +26,29 @@ export function sheetColumn<T>(column: ColDef<T>, render: (row: T, index: number
 
 type EditorField<T> = (row: T, index: number) => SheetEditorField;
 function editorField<T>(column: ColDef<T>): EditorField<T> | undefined { return column.context?.sheetEditorField; }
+function fieldKey(rowId: string, columnId: string) { return JSON.stringify([rowId, columnId]); }
 function fieldFor<T>(column: ColDef<T>, data: T | undefined, context: SheetContext<T>) {
-  return data ? editorField(column)?.(data, context.index.get(context.getRowId(data)) ?? 0) : undefined;
+  if (!data) return;
+  const id = context.getRowId(data);
+  const field = editorField(column)?.(data, context.index.get(id) ?? 0);
+  if (!field) return;
+  const error = context.errors.find(item => item.clientRowId === id && item.field === String(column.colId ?? column.field))?.message ?? field.error;
+  return error === field.error ? field : { ...field, error };
 }
 function displayField(field?: SheetEditorField) { return field?.options?.find(([key]) => key === field.value)?.[1] ?? field?.value ?? ''; }
+
+function EditorCell<T>({ data, colDef, context }: ICellRendererParams<T>) {
+  const fields = useContext(SheetEditorFields);
+  const errorId = useId();
+  const sheet = context as SheetContext<T>;
+  const field = data && colDef ? fields?.get(fieldKey(sheet.getRowId(data), String(colDef.colId ?? colDef.field))) ?? fieldFor(colDef, data, sheet) : undefined;
+  if (!field) return null;
+  return <><span className={`w-sheet-value${field.disabled || field.readOnly ? ' w-sheet-readonly' : ' w-sheet-editable'}`}
+    aria-label={field.label} aria-readonly={Boolean(field.readOnly)} aria-disabled={Boolean(field.disabled)}
+    aria-invalid={Boolean(field.error)} aria-describedby={field.error ? errorId : undefined}
+    data-changed={String(Boolean(field.changed))} title={field.error ?? displayField(field)}>{displayField(field) || '—'}</span>
+    {field.error && <span id={errorId} className="t-sr-only">{field.error}</span>}</>;
+}
 
 export function sheetEditorColumn<T>(column: ColDef<T>, field: EditorField<T>): ColDef<T> {
   return {
@@ -54,13 +73,10 @@ export function sheetEditorColumn<T>(column: ColDef<T>, field: EditorField<T>): 
       return item?.type === 'number' ? item.value : displayField(item);
     },
     cellEditor: SheetCellEditor<T>,
-    cellEditorParams: (params: ICellRendererParams<T>) => ({ field: fieldFor(params.colDef!, params.data, params.context) }),
-    cellRenderer: RenderCell<T>, cellRendererParams: { render: (row: T, index: number) => {
-      const item = field(row, index);
-      return <span className={`w-sheet-value${item.disabled || item.readOnly ? ' w-sheet-readonly' : ' w-sheet-editable'}`}
-        aria-label={item.label} aria-readonly={Boolean(item.readOnly)} aria-disabled={Boolean(item.disabled)}
-        aria-invalid={Boolean(item.error)} data-changed={String(Boolean(item.changed))} title={item.error ?? displayField(item)}>{displayField(item) || '—'}</span>;
-    } },
+    cellEditorParams: (params: ICellRendererParams<T>) => ({ field: fieldFor(params.colDef!, params.data, params.context),
+      fieldKey: fieldKey((params.context as SheetContext<T>).getRowId(params.data!), String(params.colDef!.colId ?? params.colDef!.field)),
+    }),
+    cellRenderer: EditorCell<T>,
   };
 }
 
@@ -121,6 +137,14 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
   const [visible, setVisible] = useState(() => new Set(rows.map(getRowId)));
   const allErrors = [...errors, ...validationErrors];
   const context = useMemo<SheetContext<T>>(() => ({ index: new Map(rows.map((row, index) => [getRowId(row), index])), getRowId, errors: allErrors }), [rows, getRowId, errors, validationErrors]);
+  const editorFields = useMemo(() => {
+    const fields = new Map<string, SheetEditorField>();
+    rows.forEach(row => columns.forEach(column => {
+      const field = fieldFor(column, row, context);
+      if (field) fields.set(fieldKey(getRowId(row), String(column.colId ?? column.field)), field);
+    }));
+    return fields;
+  }, [rows, columns, context, getRowId]);
   const stableRowId = useCallback(({ data }: { data: T }) => rowId.current(data), []);
 
   function renderedCell(id: string, columnId: string) {
@@ -247,6 +271,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
       </button>)}
     </nav>}
     <div className="ag-theme-quartz w-sheet-grid" style={{ height: Math.min(480, Math.max(152, rows.length * rowHeight + 64)) }}>
+      <SheetEditorFields.Provider value={editorFields}>
       <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...viewportColumns]}
         defaultColDef={{ ...defaults, cellClassRules: {
           'w-sheet-cell-error': params => Boolean(params.data && (params.context as SheetContext<T>).errors.some(error => error.clientRowId === getRowId(params.data!) && error.field === params.column.getColId())),
@@ -286,6 +311,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
           const operation = (data as { operation?: string } | undefined)?.operation;
           return operation === 'DEACTIVATE' ? 'w-sheet-row-inactive' : operation === 'CREATE' ? 'w-sheet-row-new' : data && changedIds?.has(getRowId(data)) ? 'w-sheet-row-changed' : '';
         }} />
+      </SheetEditorFields.Provider>
     </div>
     <div className="w-sheet-footer" role="status">
       <span>표시 {visible.size} / {rows.length}행{selectedIds ? ` · 선택 ${selectedIds.size}행` : ''}{changedIds ? ` · 변경 ${changedIds.size}행` : ''}</span>
