@@ -1,5 +1,7 @@
 # 로컬 개발 환경
 
+> 2026-10-29 공통 업무 그리드: [설계](../superpowers/specs/2026-10-29-common-sheet-design.md)·[ADR](../adr/0005-common-worklog-sheet.md)·[검증 결과](../quality/common-sheet.md)를 따른다. AG Grid Community36.2.0, React207개·Java618개·Python62개·타입/build와 PC/390px를 검증했다. 프론트는 `npm --prefix frontend ci --no-fund`, `npm --prefix frontend test`, `npm --prefix frontend run build`를 사용한다. style-src self를 유지하도록 `/react/sheet.css`와 같은 출처 글꼴/SVG를 함께 공급한다. 공개 데모 반영과 새 장시간 부하/이미지 검사는 이번 로컬 결과와 구분한다.
+
 > 2026-10-28 업무 확장 3단계의 React 결재선 관리·사원/조직 배정·조직장 결재·신청별 스냅샷·본인 처리 결재 조회는 [상세 계약](../design/approval-routes.md)·[실행 계획](../superpowers/plans/2026-10-28-react-approval-routes.md)과 아래 [3단계 안내](#react-결재선-관리조직장-결재-2026-10-28)를 따른다. 최종 테스트·로컬 V13 적용·기존 자료 보존은 [실제 결과](../quality/approval-routes.md)로 구분한다. 아래 수치는 실행 당시 이력이다.
 
 > 2026-10-27 후속 부하: 기존 변경을5단계로 각각 commit/push한 뒤 현재 XML·JIT 차단 구성의33분15,471요청을 새로 실행했다. 오류/업무 검증 실패0·steady7.999req/s·p95 253.014ms(이전247.396ms)·사전 조사 경고0이며 원장/Excel·기본35테이블/서비스 보존을 확인했다. 단계별 프론트95개·Python62개·최종 Java496개 검증과 상세 비교·한계는 [새 부하 보고서](../quality/no-xml-soak.md)를 따른다. 아래 검증 수치는 각 실행 당시 이력이다.
