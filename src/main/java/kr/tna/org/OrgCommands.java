@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -90,6 +91,67 @@ public final class OrgCommands {
         }
     }
 
+    public BulkData.Result executeBatch(TnaPrincipal actor, UUID commandId, String action, String kind,
+            String inputHash, String reason, Supplier<List<BulkData.Change>> mutation) {
+        if (actor == null) throw OrgException.forbidden();
+        if (commandId == null) throw OrgException.invalid("명령 식별자가 필요합니다. 화면을 다시 열어 주세요.");
+        String checkedReason = requiredText(reason, 500, "변경 사유");
+        try {
+            return transactions.execute(actor.tenantId(), () -> {
+                jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text),0))",
+                        Object.class, actor.tenantId());
+                requireAdmin(actor);
+                var previous = jdbc.query("""
+                        SELECT actor_account_id,action,target_kind,input_hash,target_id,after_state::text
+                        FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?
+                        """, (row, index) -> new BatchReplay(new Replay(row.getObject(1, UUID.class), row.getString(2),
+                            row.getString(3), row.getString(4), row.getObject(5, UUID.class)), row.getString(6)),
+                        actor.tenantId(), commandId);
+                if (!previous.isEmpty()) {
+                    var old = previous.getFirst();
+                    if (!old.replay().actor().equals(actor.accountId()) || !old.replay().action().equals(action)
+                            || !old.replay().kind().equals("BATCH") || !old.replay().hash().equals(inputHash)) {
+                        throw OrgException.conflict("같은 명령 식별자로 다른 변경을 요청할 수 없습니다.");
+                    }
+                    var restored = json.readValue(old.result(), BulkData.Result.class);
+                    if (restored.batchId() == null || !restored.batchId().equals(old.replay().target())
+                            || restored.rows() == null || restored.rows().isEmpty() || restored.rows().size() > 50
+                            || restored.rows().stream().anyMatch(row -> row == null || row.id() == null
+                                || row.clientRowId() == null || row.version() < 0)) {
+                        throw new OrgException(503, "저장 결과를 확인할 수 없습니다. 담당자에게 문의해 주세요.");
+                    }
+                    return restored;
+                }
+                List<BulkData.Change> changes = List.copyOf(Objects.requireNonNull(mutation.get()));
+                if (changes.isEmpty() || changes.size() > 50) throw new IllegalStateException("A batch requires 1 to 50 changes");
+                UUID batchId = UUID.randomUUID();
+                var result = new BulkData.Result(batchId, changes.stream()
+                        .map(change -> new BulkData.RowResult(change.clientRowId(), change.id(), change.version())).toList());
+                for (var change : changes) {
+                    batchAudit(actor, UUID.randomUUID(), action + "_ROW", kind, change.id(), inputHash,
+                            checkedReason, change.before(), change.after(), batchId);
+                }
+                batchAudit(actor, commandId, action, "BATCH", batchId, inputHash, checkedReason, null, result, batchId);
+                return result;
+            });
+        } catch (DataIntegrityViolationException conflict) {
+            throw OrgException.conflict("이미 사용 중인 값이나 다른 변경과 충돌합니다. 최신 내용을 확인해 주세요.");
+        } catch (DataAccessException | JacksonException unavailable) {
+            throw new OrgException(503, "변경을 완료하지 못했습니다. 같은 명령으로 다시 확인해 주세요.");
+        }
+    }
+
+    private void batchAudit(TnaPrincipal actor, UUID commandId, String action, String kind, UUID target,
+            String hash, String reason, Object before, Object after, UUID batchId) {
+        jdbc.update("""
+                INSERT INTO tna.org_audit_event
+                (tenant_id,id,command_id,actor_account_id,action,target_kind,target_id,input_hash,
+                 reason,before_state,after_state,request_trace_id)
+                VALUES (?,?,?,?,?,?,?,?,?,CAST(? AS jsonb),CAST(? AS jsonb),?)
+                """, actor.tenantId(), UUID.randomUUID(), commandId, actor.accountId(), action, kind, target,
+                hash, reason, json.writeValueAsString(before), json.writeValueAsString(after), batchId);
+    }
+
     private void requireAdmin(TnaPrincipal actor) {
         if (!actor.roles().contains("ATTENDANCE_ADMIN")) throw OrgException.forbidden();
         int allowed = jdbc.queryForObject("""
@@ -140,4 +202,5 @@ public final class OrgCommands {
 
     public record Change(UUID targetId, Object before, Object after) { }
     private record Replay(UUID actor, String action, String kind, String hash, UUID target) { }
+    private record BatchReplay(Replay replay, String result) { }
 }

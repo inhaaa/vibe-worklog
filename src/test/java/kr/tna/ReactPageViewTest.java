@@ -103,6 +103,54 @@ class ReactPageViewTest {
                 .at("/data/detail/correction/actualBreaks").asString()).get(0).get("startAt").asString());
     }
 
+    @Test
+    void identityAndCompanyPagesExposeOnlyTheirExplicitSafeModels() throws Exception {
+        var pages = Map.of("workspace/profile", "profile", "org/access-list", "accessRows",
+                "company/attendance", "companyAttendance", "company/requests", "companyRequests");
+        for (var page : pages.entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey() + " must have an explicit React page contract");
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("label", "합성 조회"),
+                    "privateSource", "NEVER_EXPOSE_PRIVATE_SOURCE"), request(true), response);
+            var data = json.readTree(response.getContentAsString()).get("data");
+            assertEquals("합성 조회", data.at("/" + page.getValue() + "/label").asString());
+            assertFalse(response.getContentAsString().contains("NEVER_EXPOSE_PRIVATE_SOURCE"));
+            assertEquals("no-store", response.getHeader("Cache-Control"));
+        }
+    }
+
+    @Test
+    void sheetAndOrganizationPagesHaveExplicitSafeModels() throws Exception {
+        var pages = Map.of("org/organizations", "organizationSheet", "org/employees", "employeeSheet",
+                "org/organization-heads", "organizationHeads", "company/organizations", "companyOrganizations");
+        for (var page : pages.entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("commandId", "safe-model"),
+                    "privateSource", "DO_NOT_EXPOSE_SHEET_SOURCE"), request(true), response);
+            assertEquals("safe-model", json.readTree(response.getContentAsString())
+                    .at("/data/" + page.getValue() + "/commandId").asString());
+            assertFalse(response.getContentAsString().contains("DO_NOT_EXPOSE_SHEET_SOURCE"));
+        }
+    }
+
+    @Test
+    void approvalManagementPagesExposeOnlyTheirNamedModels() throws Exception {
+        for (var page : Map.of("org/approval-routes", "approvalRoutes",
+                "org/approval-route-assignments", "approvalRouteAssignments").entrySet()) {
+            var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);
+            assertNotNull(view, page.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(page.getValue(), Map.of("label", "합성 결재선"),
+                    "privateSource", "DO_NOT_EXPOSE_APPROVAL_SOURCE"), request(true), response);
+            assertEquals("합성 결재선", json.readTree(response.getContentAsString())
+                    .at("/data/" + page.getValue() + "/label").asString());
+            assertFalse(response.getContentAsString().contains("DO_NOT_EXPOSE_APPROVAL_SOURCE"));
+        }
+    }
+
     private MockHttpServletRequest request(boolean api) {
         var request = new MockHttpServletRequest();
         if (api) request.addHeader("Accept", "application/vnd.worklog.page+json");

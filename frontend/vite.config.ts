@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => ({
     port: 5173,
     strictPort: true,
     proxy: {
-      '^/(?:$|\\?|(?:login|logout|demo|password-reset|invite|operator|me|admin|approvals|requests|worktime|error)(?:/|\\?|$))':
+      '^/(?:$|\\?|(?:login|logout|demo|password-reset|invite|operator|me|admin|company|approvals|requests|worktime|error)(?:/|\\?|$))':
         pages,
       '^/app\\.css(?:\\?|$)': { target: backend },
     },

@@ -1,12 +1,14 @@
 # 로컬 개발 환경
 
+> 2026-10-28 업무 확장 3단계의 React 결재선 관리·사원/조직 배정·조직장 결재·신청별 스냅샷·본인 처리 결재 조회는 [상세 계약](../design/approval-routes.md)·[실행 계획](../superpowers/plans/2026-10-28-react-approval-routes.md)과 아래 [3단계 안내](#react-결재선-관리조직장-결재-2026-10-28)를 따른다. 최종 테스트·로컬 V13 적용·기존 자료 보존은 [실제 결과](../quality/approval-routes.md)로 구분한다. 아래 수치는 실행 당시 이력이다.
+
 > 2026-10-27 후속 부하: 기존 변경을5단계로 각각 commit/push한 뒤 현재 XML·JIT 차단 구성의33분15,471요청을 새로 실행했다. 오류/업무 검증 실패0·steady7.999req/s·p95 253.014ms(이전247.396ms)·사전 조사 경고0이며 원장/Excel·기본35테이블/서비스 보존을 확인했다. 단계별 프론트95개·Python62개·최종 Java496개 검증과 상세 비교·한계는 [새 부하 보고서](../quality/no-xml-soak.md)를 따른다. 아래 검증 수치는 각 실행 당시 이력이다.
 
 > 현재 PostgreSQL 실행 이미지는 같은 PGDG18.6 source 기반 `18.6-1.pgdg12+2+worklog1`이다. XML/XSLT/LLVM을 비활성화하고 libxml2·XSLT·LLVM/JIT·xml2 모듈을 제외했다. **현재 SQL/XML·JIT는 지원하지 않는다.** upstream SQL231개·Java496개(97+399)·Python62개·실제 HTTP/Excel·기존 물리/논리 백업 복원과 기본 데이터35테이블 보존은 [최신 보고서](../quality/libxml-containment.md)를 따른다. source/패키징 hash·빌드 profile·업데이트 조건은 [ADR-0004](../adr/0004-postgresql-without-xml.md)에 기록했다. 첫 PG 콜드 빌드는 source 컴파일·자체 회귀로 시간이 필요하며 Testcontainers INFO 출력이 간략할 수 있다. 이후에는 Docker 빌드 cache를 사용한다.
 
 > 2026-10-27 잔여 보완 최신 결과: Java493개(단위97·PG 통합396)·Python62개·실제 HTTP 보안24개·multipart12개·60초 smoke와 합성 DB dump/restore·기본 DB35개 테이블 보존을 확인했다. PostgreSQL에서 runtime 불필요 GPG·SQLite 16개를 제외했으며 `src/test/resources/testcontainers.properties`의 공식 `ryuk.container.privileged=false`와 실제 자동 정리를 검증했다. 환경/홈 설정이 우선하므로 다른 Docker 환경은 실효 설정과 지원 여부를 확인해야 한다. libxml2와 빌드·테스트 도구의 잔여 조건 및 재검사 범위는 [서비스 영향 보고서](../quality/react-residual-impact.md)를 따른다. 아래 이전 검증의 프론트95개·33분 부하는 이번에 재실행하지 않았다.
 
-현재 `PostgresImageSecurityIT`의 이미지 전용6개 검증은 소유 Docker DB에서 실행한다. 전용 JDBC를 직접 지정하는 native DB 방식에서는 해당6개를 건너뛰므로 no-XML 이미지 검증을 대체하지 않는다. 현재 최종496개는 Docker 경로에서 skip0이다. 아래493개는 이전 잔여 보완의 이력이다.
+현재 `PostgresImageSecurityIT`의 이미지 전용6개 검증은 소유 Docker DB에서 실행한다. 전용 JDBC를 직접 지정하는 native DB 방식에서는 해당6개를 건너뛰므로 no-XML 이미지 검증을 대체하지 않는다. 당시 최종496개는 Docker 경로에서 skip0이다. 아래493개도 이전 잔여 보완의 이력이다.
 
 > 2026-10-26 최신 프론트는 React19.3.1·TypeScript6.0.3·Vite8.3.5다. Java25 외에 Node.js22.12 이상과 npm이 필요하다. Maven의 generate-resources에서 프로젝트 전용 `npm ci`와 타입 검사·프론트 빌드를 실행해 결과를 JAR에 포함한다. 기존 Thymeleaf/htmx 화면의 검증은 당시 이력이며 [현재 결과](../quality/react-migration.md)와 [ADR-0003](../adr/0003-react-frontend.md)을 따른다.
 
@@ -648,3 +650,47 @@ Ryuk는 여전히 privileged·root·Docker 소켓 RW 권한을 가진다. 평문
 app/migrate 새 빌드 종료0, 앱 running·migrate V10 no-op/종료0, 검증/실행 JAR production251개 항목 바이트 일치와 UID10001·읽기 전용 root·cap drop·NNP·loopback·테스트 Ryuk SPI 미포함을 확인했다. 기본 DB 집계·Flyway·RLS·역할/ACL과 DB 컨테이너 ID·이미지·볼륨·라벨은 전후 동일하다. app은 `sha256:82d9a09897f8a931530d8ad7906aa98e0559152f7c41c20851b09c9d9fcf934c`, migrate는 `sha256:d24ea3b2c9eb558af79bdd68c4b00780533bcb329b2f14f51d6d85883279843e`다.
 
 이번 표시명 단위에서 전체 Java467개·Python42개 회귀, 새 SBOM/취약점 스캔·33분 부하·Ryuk 정리 실측·외부 배포는 재실행하지 않았다. 이전 검증 이력과 미해결 보안 조건을 유지한다. 원시 로그·DB 전후/JAR 비교·HTTP·브라우저 JSON/PNG는 Git 제외 `target/worklog-brand-20261026/`에 보존했다. 현재 로컬 주소는 `http://127.0.0.1:18080/`다.
+
+## React 권한·메뉴·내 정보 (2026-10-27)
+
+사용자 승인으로 확장 1단계를 구현했다. `/me/profile`은 본인 읽기, `/admin/access`는 관리자 권한 목록/기존 사원별 변경 진입, `/company/attendance`·`/company/requests`는 현재 관리자 또는 대표의 같은 회사 읽기다. 대표는 관리자 설정·재집계·감사·관리자 Excel을 사용할 수 없으며 APPROVER와 현재 배정이 없는 신청을 결재하지 못한다. 역할 변경의 세션 회수·마지막 관리자 보호를 유지한다.
+
+새 V11은 역할 CHECK만 확장했다. 기본 DB의 업무34개+Flyway1개 총35개 테이블과 기존 행·RLS/ACL·컨테이너/이미지/볼륨을 보존했고 기존 V10에 V11 한 건만 추가됐다. 별도 migrate와 app만 새 이미지로 반영했으며 고정 데모 계정의 기존 EMPLOYEE·ATTENDANCE_ADMIN은 그대로다. 실제 대표 검증은 분리한 합성 DB의 기존 관리자 역할 POST로 수행했다.
+
+프로젝트 JDK25의 `mvnw.cmd -B -o -s target/local-maven-settings.xml -Dfrontend.skip=true verify`는 단위98·전용 PostgreSQL 통합417=515개를 실패/오류/skip0으로 통과했다. React113개·타입/Vite build, Python 도구62개 기준 회귀, 실제 HTTP51개(기본 보안24+기능27), PC/390px 총9회 관측의 가로 넘침/콘솔 오류0을 확인했다. 실행 JAR의 production234개 항목은 검증 JAR과 바이트가 같다.
+
+원본·DB 백업·전후/JAR 대조·화면 PNG는 Git 제외 `target/identity-access-20261027/`에 보존했다. 1단계 당시 실행은 [검증 보고](../quality/identity-access.md)를 따른다. 해당 이미지의33분 부하·전체 취약점 검사는 수행하지 않았으며 [이전 이미지 부하](../quality/no-xml-soak.md)와 구분한다. 당시 조직장·시트·새 결재선·코드·본인 연도별 모달·월간 그래프·운영 공개는 후속으로 남겼다.
+
+## React 조직·사원 시트·조직장·조직도 (2026-10-27~28)
+
+2026-10-27 착수한 업무 확장 2단계를 2026-10-28 `Asia/Seoul` 기준으로 구현·로컬 검증했다. 조직·사원 시트는 변경분1~50행을 원자적으로 저장하며 입력·비활성 예정·취소·409/422 편집/최신값 비교·명령 결과 복원을 제공한다. 기존 단건 관리·적용일 소속 이동·계정 초대·역할·지정 승인자와 원장/CALC-1은 보존한다. 조직장 적용일 이력·동일일 교체/종료·미래 예약/공백 보존, 관리자/대표 조직도와 본인 조직장 표시를 연결했다. 조직장 배정으로 관리/APPROVER 권한을 부여하거나 기존 신청의 결재자를 이동하지 않는다.
+
+최종 전체 Java는 단위101·전용 PostgreSQL 통합447=548개를 실패/오류/skip0으로 통과했다. 최종 Maven 실행의 클래스만 집계해 과거 target XML은 제외했다. React는11파일136개와 TypeScript/Vite build를 통과했다. 기본 보안24개와 신규 기능56개를 합한 실제 HTTP80개를 확인했으며 PC/390px viewport18회 관측의 최종 가로 넘침은0이다. 콘솔 오류0은 합성 관리자와 최종 기본 실행에서 관측한 범위다. 자세한 결과는 [2단계 검증 보고서](../quality/org-sheet-heads.md)를 따른다.
+
+실제 모바일 시트에서 절대 배치된 화면 낭독기용 레이블의 위치 기준이 없어 본문 clientWidth375px에 scrollWidth553px가 발생했다. `.t-sheet-scroll`에 `position: relative`를 적용해375/375px로 수정하고 실제 화면을 다시 확인했다. CSS 수정 뒤 기존 전체 검증의 부분집합인 관련 Java12개를 통과하고 재패키징·이미지 재빌드, migrate V12 no-op/종료0, 기본 HTTP24개·기본 모바일 화면·DB 보존을 재검증했다. Java/JS 업무 동작은 바꾸지 않았으며12개를 전체548개에 더하지 않는다.
+
+V12는 기존 V1~V11을 수정하지 않고 조직장 이력 테이블을 추가했다. 기존 업무34개 테이블의 전체 행·RLS/ACL·컬럼 권한·정책과 DB 컨테이너/이미지/볼륨은 전후 동일하다. 추가 후 업무35개+Flyway1개 총36개 테이블이며 고정 데모 역할도 보존했다. 실행 앱은 새 이미지 `sha256:b64090b983bb1c2fbea33ea825313c9dce9e59753e5b25a0bd1f9beeaff7ab18`이고 `BOOT-INF/classes/`267개 항목은 검증 JAR과 바이트가 같다. 기존 컨테이너 보안 정책과 loopback 기본 서비스를 유지한다.
+
+별도 합성 HTTP fixture는 정상 종료0으로 마무리하고 소유 컨테이너를 제거했다. 종료 때 원천55,800건·대기3건·승인0·재생 중복0을 확인했다. 기본 서비스 자료에 합성 조직/사원을 남기지 않았으며 기본 서비스는 유지한다. 원시 테스트·HTTP·브라우저·전후 DB/권한·백업·JAR 증거는 Git 제외 `target/org-sheet-20261027/`에 보존한다.
+
+당시 새 결재선·권한/공통/근태코드 시트·본인 연도별 현황/모달·월간 그래프·운영 수용은 후속으로 남겼다. 2단계에서 새33분 부하·전체 취약점 전수 검사·Python 재실행·실고객/실제 메일 검증·외부 서버 접속/배포는 수행하지 않았다. 이전 Python·부하·이미지 검사 이력을 이 실행 결과로 옮기지 않는다.
+
+## React 결재선 관리·조직장 결재 (2026-10-28)
+
+업무 확장 3단계는 관리자 메뉴의 `/admin/approval-routes`에서 결재선 코드·이름·상태와 지정 사원/대상자의 현재 조직장 방식을 관리한다. 정의 시트는 조회·입력·삭제·저장·취소를 제공하고 변경분1~50행을 감사와 함께 원자 저장한다. 저장된 삭제는 비활성이며 내용 수정은 새 불변 버전이다. 기존 배정을 최신 버전으로 자동 바꾸지 않는다.
+
+`/admin/approval-route-assignments`에서 사원 또는 조직을 선택해 특정 버전과 서울 오늘 이후 적용일·사유로 배정한다. 시작 포함·종료 제외 구간과 동일일 교체·종료·미래 예약 이력을 유지한다. 배정 종료는 이력 보존이며 관리자/대표/조직장 지위만으로 APPROVER를 부여하지 않는다. 409/422의 편집·명령/행 ID·사유를 보존하고 명시적으로 최신 대상·버전을 확인한 뒤 저장한다.
+
+제출은 사원 명시 결재선→기존 지정 승인자→오늘 소속 조직 결재선 순으로 해석한다. 상위가 공석·비활성·부적격·자기/작성자 결재이면 우회하지 않고 차단한다. 신규 경로는 실제 담당자와 배정/조직/조직장 참조를 신청별 불변 스냅샷으로 저장한다. 기존 신청은 기존 참조를 유지하며 대기 담당자·완료 결정·원장/CALC-1은 자동 변경하지 않는다. 담당자 부재는 신청 상세의 기존 명시 재할당으로 처리한다.
+
+`/approvals`는 현재 지정 대기함, `/approvals/completed`는 본인이 승인·반려한 결재 이력을 각각50행으로 제공한다. 내 정보는 현재 경로/담당/차단 사유를 표시하고 신청 상세는 최초 해석과 현재 담당/재할당 이력을 구분한다. 결재선 이름은 불변 버전명이며 조직/사원 표시는 당시 식별자의 현재 이름이다.
+
+V13은 결재선 정의·버전·배정·스냅샷 네 테이블과 신청 참조 XOR/결속 FK를 추가한다. 기존 V1~V12를 편집하거나 기존 신청·결정·원장 행을 변환하지 않는다. 기존 신청의 legacy 배정 참조 두 열 UPDATE 권한만 회수하고 재할당용 현재 담당/상태/version 권한은 유지한다. 버전·스냅샷 UPDATE/DELETE, tenant 격리·다른 신청 snapshot 참조와 기존 자료 보존을 별도 검증한다. 새33분 부하·전체 취약점 검사·실고객/실제 메일·운영 배포는 이번 기능 구현과 구분한다.
+
+프로젝트 JDK25의 `mvnw.cmd -B -o -s target/local-maven-settings.xml -Dfrontend.skip=true verify`는 완료 결재의 공통 shell 회귀를 포함한 단위103·전용 PostgreSQL 통합483=586개를 실패/오류/skip0으로 통과했다. React는12파일152개와 TypeScript/Vite 빌드를 통과했다. 새 app/migrate를 빌드하고 별도 migrate로 기본 V12→V13 한 건을 적용해 종료0, 완료 결재 표시 보완 후 재빌드·V13 no-op/종료0과 새 앱의 health200·컨테이너 정책을 다시 확인했다. 최종 실행 JAR의 `BOOT-INF/classes` 288개 항목은 검증 JAR과 바이트가 같다. DB 전후 대조·실제 HTTP/브라우저의 최종 근거와 미실시 범위는 [3단계 검증 보고서](../quality/approval-routes.md)를 따른다.
+
+최종 새 합성 환경의 실제 업무 HTTP는 상태/응답 검증을 포함한123요청을 통과했다. 완료 결재의 현재 APPROVER·본인 이름이 공통 shell에 포함되는 검증도 추가했다. 공통 보안24항목도 최종 이미지에서 다시 통과했으며 요청 수와 보안 항목 수를 합산하지 않는다. 기본 DB 기존35개 테이블의 모든 기존 열 기준 행 해시/행수, 기존 RLS·테이블 ACL과 DB 컨테이너·이미지·볼륨이 전후 같음을 재확인했다. 새 nullable snapshot 열로 기존 행 해시가 달라지지 않도록 이전 열 목록을 고정해 대조했다. legacy 배정 참조 두 열 UPDATE 권한 회수만 의도적 차이이며 다른 기존 권한은 보존했다. 신규 네 테이블은0행이고 V13 이후 업무39개+Flyway1개 총40개 테이블이다. 합성 검증 자료를 기본 데모 DB에 추가하지 않았다.
+
+최종 PC/390px10회 관측에서 완료 결재 메뉴·본인 이름, 상세의 최초 담당/명시 재할당, 시트 실제 저장·배정 기본값·본인의 실제 결재 경로를 확인했다. 확인한2개 탭의 콘솔 오류는0이다. 표시 보완 전7회는 별도 이력이며 최종 관측에 합산하지 않는다.
+
+새 합성 자료의40개 테이블과 신청 스냅샷5개를 포함한 논리 복원에서 전체 행·ACL·RLS 플래그·제약 일치와 원본 불변을 확인했다. 알려진 enum CHECK4개의 varchar-array/text cast 표시 차이만 정규화했으며 다른 제약과 지연 FK는 원문으로 비교했다. runtime에서는 tenant 컨텍스트 없음0행, A의 snapshot5행·A의 타 tenant 조건0행·B의 snapshot0행을 확인했다. 기존 전역 역할을 사용하는 같은 클러스터 복원이며 서버 유실·별도 환경·운영 RPO/RTO 검증은 아니다. 실행 로그·덤프·화면·대조 근거는 Git 제외 `target/approval-routes-20261028/`에 보존하고 [검증 보고서](../quality/approval-routes.md)에 실제 수행 범위를 기록했다.

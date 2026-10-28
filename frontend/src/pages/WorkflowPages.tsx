@@ -206,7 +206,19 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           {r.status} · 현재 효력 {r.effectStatus} / v{r.version}
         </p>
         <p>{r.reason}</p>
-        <p>지정 승인자 {r.approverName}</p>
+        <p>현재 결재 담당 {r.approverName}</p>
+        {d.routeSnapshot ? <section className="t-request-route">
+          <h3>제출 당시 결재선</h3>
+          <dl>
+            <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
+            <dt>적용 범위</dt><dd>{d.routeSnapshot.scopeKind === 'EMPLOYEE' ? '사원별' : '조직별'}</dd>
+            <dt>결재 방식</dt><dd>{d.routeSnapshot.approverKind === 'ORGANIZATION_HEAD' ? '대상자의 현재 조직장' : '지정 사원'}</dd>
+            {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
+            <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
+            <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
+          </dl>
+          <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
+        </section> : <p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p>}
         {r.kind === 'CANCEL_LEAVE' && <p>취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
         {r.originalRequestId && (
           <p>
@@ -1313,9 +1325,11 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       content = (
         <>
           <h1>{m.title}</h1>
+          {m.completed !== undefined && <><nav className="actions" aria-label="결재 목록"><a href="/approvals" aria-current={!m.completed ? 'page' : undefined}>결재 대기함</a><a href="/approvals/completed" aria-current={m.completed ? 'page' : undefined}>내가 처리한 결재</a></nav><p>{m.completed ? '본인이 승인하거나 반려한 신청입니다. 철회는 처리한 결재에 포함하지 않습니다.' : '현재 본인에게 지정된 대기 신청입니다.'}</p></>}
           <section className="panel">
             <RequestRows requests={m.requests} />
           </section>
+          {m.page !== undefined && <nav className="actions pagination" aria-label="결재 페이지"><span>{m.page + 1}페이지</span>{m.page > 0 && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page - 1}`}>이전</a>}{m.hasNext && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page + 1}`}>다음</a>}</nav>}
         </>
       );
       break;

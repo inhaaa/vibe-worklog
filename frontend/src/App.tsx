@@ -7,6 +7,9 @@ import { AdminPages } from './pages/AdminPages';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
+import { formatRoles, IdentityPages } from './pages/IdentityPages';
+import { OrgSheetPages } from './pages/OrgSheetPages';
+import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 
 const publicPages = new Set([
   'login',
@@ -20,12 +23,20 @@ const publicPages = new Set([
 ]);
 const titles: Record<string, string> = {
   today: '홈',
+  'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
   'org/employees': '직원 목록',
   'org/employee': '직원 상세',
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
+  'org/organization-heads': '조직장 배정',
+  'org/approval-routes': '결재선 관리',
+  'org/approval-route-assignments': '결재선 배정',
   'org/access': '계정·권한',
+  'org/access-list': '권한 관리',
+  'company/attendance': '회사 근무현황',
+  'company/requests': '회사 신청 현황',
+  'company/organizations': '조직도',
   'schedule/list': '근무 설정',
   'schedule/form': '근무 템플릿',
   'schedule/detail': '근무 템플릿',
@@ -55,21 +66,35 @@ const titles: Record<string, string> = {
 const navigation = [
   {
     group: '내 업무',
-    role: 'EMPLOYEE',
+    roles: ['EMPLOYEE'],
     items: [
       ['/me/today', '홈', 'home'],
+      ['/me/profile', '내 정보', 'people'],
       ['/me/schedule', '내 근무 일정', 'calendar'],
       ['/me/requests', '휴가·신청', 'request'],
       ['/me/worktime', '근로시간', 'clock'],
     ],
   },
-  { group: '승인 업무', role: 'APPROVER', items: [['/approvals', '신청 승인', 'request']] },
+  { group: '승인 업무', roles: ['APPROVER'], items: [['/approvals', '신청 승인', 'request'], ['/approvals/completed', '내가 처리한 결재', 'request']] },
+  {
+    group: '회사 현황',
+    roles: ['ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'],
+    items: [
+      ['/company/attendance', '회사 근무현황', 'chart'],
+      ['/company/requests', '회사 신청 현황', 'request'],
+      ['/company/organizations', '조직도', 'building'],
+    ],
+  },
   {
     group: '관리 업무',
-    role: 'ATTENDANCE_ADMIN',
+    roles: ['ATTENDANCE_ADMIN'],
     items: [
       ['/admin/employees', '직원 목록', 'people'],
       ['/admin/organizations', '조직 관리', 'building'],
+      ['/admin/organization-heads', '조직장 배정', 'people'],
+      ['/admin/access', '권한 관리', 'people'],
+      ['/admin/approval-routes', '결재선 관리', 'settings'],
+      ['/admin/approval-route-assignments', '결재선 배정', 'people'],
       ['/admin/schedules', '근무 설정', 'settings'],
       ['/admin/calendar', '근무일·휴일', 'calendar'],
       ['/admin/networks', '허용 네트워크', 'settings'],
@@ -145,17 +170,13 @@ function Workspace({
           <span>
             {employee?.companyName ?? '워크스페이스'}
             <small>
-              {roles.includes('ATTENDANCE_ADMIN')
-                ? '근태 관리자'
-                : roles.includes('APPROVER')
-                  ? '지정 승인자'
-                  : '직원'}
+              {formatRoles(roles)}
             </small>
           </span>
         </div>
         <nav aria-label="업무 메뉴">
           {navigation
-            .filter((group) => roles.includes(group.role))
+            .filter((group) => group.roles.some((role) => roles.includes(role)))
             .map((group) => (
               <div key={group.group}>
                 <p className="t-nav-group">{group.group}</p>
@@ -203,10 +224,10 @@ function Workspace({
         </div>
         <div className="t-profile">
           {demo && <span className="t-demo-pill">DEMO</span>}
-          <span className="t-profile-copy">
+          <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>
-          </span>
+          </a>
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
           </span>
@@ -224,6 +245,9 @@ function Content(props: PageProps) {
     <>
       <AuthPages {...props} />
       <CorePages {...props} />
+      <IdentityPages {...props} />
+      <OrgSheetPages {...props} />
+      <ApprovalRoutePages {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>
@@ -239,15 +263,25 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const posting = useRef(false);
   const pending = useRef<AbortController | null>(null);
   const currentUrl = useRef(location.href);
+  const historyPosition = useRef<number>(Number.isInteger(history.state?.worklogPosition) ? history.state.worklogPosition : 0);
+  const restoringHistory = useRef(false);
+  const historyState = (position: number) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position });
   const workspace = !publicPages.has(envelope.page);
   const navigate = useCallback(
     async (
       url: string,
       options: RequestInit = {},
       historyMode: 'push' | 'replace' | 'none' = 'push',
+      discardConfirmed = false,
     ) => {
       if (posting.current && options.method?.toUpperCase() !== 'POST') {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
+        return;
+      }
+      if (!discardConfirmed && options.method?.toUpperCase() !== 'POST' &&
+          document.querySelector('[data-unsaved-changes="true"]') &&
+          !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
+        if (location.href !== currentUrl.current) history.replaceState(null, '', currentUrl.current);
         return;
       }
       if (historyMode !== 'none' && location.href !== currentUrl.current)
@@ -268,8 +302,11 @@ export function App({ initial }: { initial: PageEnvelope }) {
           destination.hash = requested.hash;
         if (destination.origin !== location.origin)
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
-        if (historyMode === 'push' && !formError) history.pushState(null, '', destination.href);
-        else if (historyMode === 'replace') history.replaceState(null, '', destination.href);
+        if (historyMode === 'push' && !formError) {
+          historyPosition.current += 1;
+          history.pushState(historyState(historyPosition.current), '', destination.href);
+        } else if (historyMode === 'replace') history.replaceState(historyState(historyPosition.current), '', destination.href);
+        else if (historyMode === 'none' && Number.isInteger(history.state?.worklogPosition)) historyPosition.current = history.state.worklogPosition;
         currentUrl.current = destination.href;
         setEnvelope(result.envelope);
         setRevision((value) => value + 1);
@@ -310,7 +347,12 @@ export function App({ initial }: { initial: PageEnvelope }) {
     [],
   );
   useEffect(() => {
+    history.replaceState(historyState(historyPosition.current), '', currentUrl.current);
     const back = () => {
+      if (restoringHistory.current) {
+        restoringHistory.current = false;
+        return;
+      }
       const current = new URL(currentUrl.current);
       if (current.pathname === location.pathname && current.search === location.search) {
         currentUrl.current = location.href;
@@ -326,7 +368,20 @@ export function App({ initial }: { initial: PageEnvelope }) {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
-      void navigate(location.href, {}, 'none');
+      if (document.querySelector('[data-unsaved-changes="true"]') &&
+          !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
+        const targetPosition = history.state?.worklogPosition;
+        const delta = Number.isInteger(targetPosition) ? historyPosition.current - targetPosition : 0;
+        if (delta) {
+          restoringHistory.current = true;
+          history.go(delta);
+        } else {
+          historyPosition.current += 1;
+          history.pushState(historyState(historyPosition.current), '', currentUrl.current);
+        }
+        return;
+      }
+      void navigate(location.href, {}, 'none', true);
     };
     window.addEventListener('popstate', back);
     return () => {
@@ -341,6 +396,11 @@ export function App({ initial }: { initial: PageEnvelope }) {
       : envelope.page === 'demo'
         ? 'intro-body'
         : '';
+    const errorField = document.querySelector<HTMLElement>('[data-error-focus="true"]:not(:disabled)');
+    if (errorField) {
+      errorField.focus({ preventScroll: true });
+      return;
+    }
     if (location.hash) {
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
@@ -404,8 +464,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
     }
     posting.current = true;
     const controls = Array.from(
-      form.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
-        'button:not([type="button"]),input[type="submit"]',
+      event.currentTarget.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+        'form button,form input,form select,form textarea',
       ),
     ).filter((control) => !control.disabled);
     controls.forEach((control) => {

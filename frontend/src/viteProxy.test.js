@@ -43,6 +43,13 @@ describe('Vite 업무 프록시', () => {
     expect(matchingProxy('/unknown/download')).toBeUndefined();
   });
 
+  it('회사 조회의 HTML과 JSON을 기존 표현 계약으로 전달한다', () => {
+    expect(matchingProxy('/company/attendance?month=2026-10')).toBeDefined();
+    expect(bypass('/company/attendance?month=2026-10')).toBe('/index.html');
+    expect(bypass('/company/requests', 'GET', 'application/vnd.worklog.page+json')).toBeUndefined();
+    expect(matchingProxy('/companywide')).toBeUndefined();
+  });
+
   it('실제 개발 서버가 XLSX 헤더·바이트와 쿼리를 보존한다', async () => {
     const bytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff, 0x80, 0x42]);
     const disposition = 'attachment; filename=attendance-review.xlsx';

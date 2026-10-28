@@ -80,8 +80,8 @@ public final class Phase6RecoveryProbe {
         check(before.equals(manifest(source)), "Source changed during the dump/restore probe");
         @SuppressWarnings("unchecked")
         List<Map<String,Object>> security = (List<Map<String,Object>>) after.get("rowSecurity");
-        check(security.size() == 34 && security.stream().allMatch(row -> Boolean.TRUE.equals(row.get("relrowsecurity"))
-                && Boolean.TRUE.equals(row.get("relforcerowsecurity"))), "Expected 34 FORCE RLS business tables");
+        check(security.size() == 39 && security.stream().allMatch(row -> Boolean.TRUE.equals(row.get("relrowsecurity"))
+                && Boolean.TRUE.equals(row.get("relforcerowsecurity"))), "Expected 39 FORCE RLS business tables");
         verifyRuntimeRoles(restored);
         verifyIsolation(restoredUrl);
         verifyAuthenticationPurposes(restoredUrl);

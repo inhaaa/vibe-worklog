@@ -11,7 +11,9 @@ import kr.tna.console.LocalDemoBootstrap;
 import kr.tna.org.AccountData.InvitationForm;
 import kr.tna.org.AccountData.RolesForm;
 import kr.tna.org.AccountService;
+import kr.tna.org.BulkData;
 import kr.tna.org.EmployeeService;
+import kr.tna.org.OrgBulkService;
 import kr.tna.org.OrgData.EmployeeForm;
 import kr.tna.org.OrgException;
 import org.junit.jupiter.api.AfterEach;
@@ -43,6 +45,19 @@ class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     void reinvitationIsRejectedByUuidBeforeTheNormalAccountValidation() {
         assertRefusedWithoutChanges(403, () -> accounts.invite(actor, LocalDemoLogin.EMPLOYEE_ID, invitation()));
     }
+
+    @Test
+    void employeeBulkCannotDeactivateTheSharedIdentity() {
+        assertRefusedWithoutChanges(403, () -> bulk.employees(actor, employeeBatch(List.of(
+                employeeRow(LocalDemoLogin.EMPLOYEE_ID, "LOCAL-DEMO", BulkData.Operation.DEACTIVATE)))));
+    }
+
+    @Test
+    void employeeBulkRejectsTheEntireMixedBatchBeforeAnyEmployeeOrAuditChanges() {
+        assertRefusedWithoutChanges(403, () -> bulk.employees(actor, employeeBatch(List.of(
+                employeeRow(null, "NEW-SYNTHETIC", BulkData.Operation.CREATE),
+                employeeRow(LocalDemoLogin.EMPLOYEE_ID, "LOCAL-DEMO", BulkData.Operation.UPDATE)))));
+    }
 }
 
 @SpringBootTest
@@ -65,11 +80,19 @@ class LocalDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     void localDemoKeepsTheExistingAcceptedAccountInvitationRule() {
         assertRefusedWithoutChanges(422, () -> accounts.invite(actor, LocalDemoLogin.EMPLOYEE_ID, invitation()));
     }
+
+    @Test
+    void localDemoStillAllowsTheSharedEmployeeThroughTheBulkEditor() {
+        bulk.employees(actor, employeeBatch(List.of(
+                employeeRow(LocalDemoLogin.EMPLOYEE_ID, "LOCAL-DEMO", BulkData.Operation.UPDATE))));
+        assertEquals("수정한 합성 담당자", employees.get(actor, LocalDemoLogin.EMPLOYEE_ID).displayName());
+    }
 }
 
 abstract class DemoIdentityServiceFixture {
     @Autowired EmployeeService employees;
     @Autowired AccountService accounts;
+    @Autowired OrgBulkService bulk;
     JdbcTemplate database;
     TnaPrincipal actor;
 
@@ -113,6 +136,15 @@ abstract class DemoIdentityServiceFixture {
 
     InvitationForm invitation() {
         return new InvitationForm(LocalDemoLogin.EMAIL, 0L, "합성 담당자 재초대", UUID.randomUUID());
+    }
+
+    BulkData.Form<BulkData.EmployeeRow> employeeBatch(List<BulkData.EmployeeRow> rows) {
+        return new BulkData.Form<>(UUID.randomUUID(), "공유 합성 사원 일괄 변경 검증", rows);
+    }
+
+    BulkData.EmployeeRow employeeRow(UUID employeeId, String number, BulkData.Operation operation) {
+        return new BulkData.EmployeeRow(UUID.randomUUID().toString(), employeeId, employeeId == null ? null : 0L,
+                operation, number, "수정한 합성 담당자", LocalDate.of(2026, 1, 1), null, true);
     }
 
     TnaPrincipal actorWithVersion(long version) {

@@ -413,4 +413,20 @@ describe('관리 React 페이지', () => {
     ) as HTMLFormElement;
     expect(new FormData(form).getAll('roles')).toEqual(['EMPLOYEE', 'ATTENDANCE_ADMIN']);
   });
+
+  it('대표를 추가해도 기존 결재 담당 기능과 필수 공통 역할을 보존한다', () => {
+    const props: PageProps = {
+      page: 'org/access',
+      data: {
+        ...access,
+        account: { id: 'account-1', email: 'employee@example.test', active: true, credentialSet: true, roles: ['EMPLOYEE', 'APPROVER'] },
+      },
+      csrf: { token: '', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' },
+      reload: () => {},
+    };
+    const view = renderDom(<AdminPages {...props} />);
+    fireEvent.click(view.getByLabelText('대표 (COMPANY_REPRESENTATIVE)'));
+    const form = view.container.querySelector('form[action="/admin/employees/e-1/roles"]') as HTMLFormElement;
+    expect(new FormData(form).getAll('roles')).toEqual(['EMPLOYEE', 'APPROVER', 'COMPANY_REPRESENTATIVE']);
+  });
 });

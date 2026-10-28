@@ -58,4 +58,25 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         publicMvc.perform(get("/me/today").session(session)).andExpect(status().isOk());
         publicMvc.perform(get("/operator/tenants").session(session)).andExpect(status().isForbidden());
     }
+
+    @Test
+    void employeeBulkCannotBypassSharedIdentityProtectionWithAnUppercaseUuid() throws Exception {
+        var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
+                        .param("email", "admin").param("password", "admin")
+                        .with(request -> { request.setRemoteAddr("198.51.100.249"); return request; }))
+                .andExpect(redirectedUrl("/me/today"))
+                .andReturn().getRequest().getSession(false);
+        String rows = """
+                [{"clientRowId":"%s","id":"%s","expectedVersion":0,"operation":"UPDATE",
+                  "employeeNo":"LOCAL-DEMO","displayName":"덮어쓰면 안 되는 공유 사원",
+                  "joinedOn":"2026-01-01","leftOn":null,"active":true}]
+                """.formatted(java.util.UUID.randomUUID(),
+                        LocalDemoLogin.EMPLOYEE_ID.toString().toUpperCase(java.util.Locale.ROOT));
+        publicMvc.perform(post("/admin/employees/bulk").session(session).with(csrf())
+                        .param("commandId", java.util.UUID.randomUUID().toString())
+                        .param("reason", "공개 합성 데모 일괄 변경 차단 검증").param("rows", rows))
+                .andExpect(status().isForbidden());
+        publicMvc.perform(get("/me/today").session(session)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/employee/employeeName", "로컬 데모 담당자"));
+    }
 }

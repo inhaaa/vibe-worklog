@@ -16,15 +16,15 @@ import tools.jackson.databind.json.JsonMapper;
 final class AuditSummary {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final SeoulTimeDisplay TIME = new SeoulTimeDisplay();
-    private static final Set<String> NUMBERS = names("version employeeVersion authVersion revision resultRevision inputRevision reviewRevision approverAssignmentVersion quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays dayCount returnedCount confirmedInputRevision baseInputRevision weekday sequence resultCount");
+    private static final Set<String> NUMBERS = names("version employeeVersion organizationVersion authVersion revision resultRevision inputRevision reviewRevision approverAssignmentVersion quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays dayCount returnedCount confirmedInputRevision baseInputRevision weekday sequence resultCount assignmentVersion organizationAssignmentVersion organizationHeadAssignmentVersion");
     private static final Set<String> FLAGS = names("active credentialSet eligible exceptional workday mondayWeekReviewed generalRuleReviewed presenceAsWork breaksMatch breaksConfirmed recalculationRequired current");
-    private static final Set<String> IDS = names("id assignmentId employeeId accountId organizationId parentId approverEmployeeId scheduleVersionId scheduleAssignmentId calendarVersionId templateId versionId requestId originalRequestId predecessorRequestId approverAssignmentId currentApproverId authorAccountId targetEmployeeId leaveBucketId bucketId runId resultId requestEffectId reversesEntryId requestedBy createdBy updatedBy commandId requestTraceId previousApproverId newApproverId");
-    private static final Set<String> DATES = names("validFrom validTo from to fromDate toDate workDate leaveDate baseDate effectiveOn joinedOn leftOn usableFrom usableTo expandedFrom expandedTo createdAt updatedAt occurredAt receivedAt submittedAt confirmedAt calculatedAt startedAt finishedAt supersededAt");
+    private static final Set<String> IDS = names("id assignmentId employeeId accountId organizationId parentId approverEmployeeId scheduleVersionId scheduleAssignmentId calendarVersionId templateId versionId requestId originalRequestId predecessorRequestId approverAssignmentId currentApproverId authorAccountId targetEmployeeId leaveBucketId bucketId runId resultId requestEffectId reversesEntryId requestedBy createdBy updatedBy commandId requestTraceId previousApproverId newApproverId batchId clientRowId headEmployeeId routeId routeVersionId routeSnapshotId organizationAssignmentId organizationHeadAssignmentId resolvedApproverEmployeeId");
+    private static final Set<String> DATES = names("validFrom validTo from to fromDate toDate workDate leaveDate baseDate effectiveOn joinedOn leftOn usableFrom usableTo expandedFrom expandedTo createdAt updatedAt occurredAt receivedAt submittedAt confirmedAt calculatedAt startedAt finishedAt supersededAt resolvedAt");
     private static final Set<String> LOCAL_TIMES = names("startTime endTime");
     private static final Set<String> INSTANTS = names("startAt endAt requestedInAt requestedOutAt");
     private static final Set<String> OMITTED = names("name displayName employeeNo code templateName organizationName employeeName approverName label companyName companyCode targetEmployeeName");
     private static final Set<String> OBJECTS = names("previous current template version account assignment employee schedule confirmation");
-    private static final Set<String> OBJECT_ARRAYS = names("days breaks");
+    private static final Set<String> OBJECT_ARRAYS = names("days breaks rows");
     private static final Set<String> ROLES = names("EMPLOYEE APPROVER ATTENDANCE_ADMIN");
     private static final Map<String,Set<String>> ENUMS = Map.of(
             "status", names("PENDING APPROVED REJECTED WITHDRAWN RUNNING COMPLETED FAILED CALCULATED REVIEW_REQUIRED NO_SCHEDULED_WORK"),
@@ -34,7 +34,9 @@ final class AuditSummary {
             "entryKind", names("OPENING ADJUSTMENT USE RESTORE"),
             "purpose", names("REVIEW INVITE RESET"),
             "ruleVersion", names("CALC-1"),
-            "engineVersion", names("CALC-1"));
+            "engineVersion", names("CALC-1"),
+            "approverKind", names("DIRECT_EMPLOYEE ORGANIZATION_HEAD"),
+            "scopeKind", names("EMPLOYEE ORGANIZATION"));
 
     private AuditSummary() { }
 

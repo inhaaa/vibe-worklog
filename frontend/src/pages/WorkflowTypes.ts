@@ -57,6 +57,16 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
+  routeSnapshot?: {
+    routeCode: string;
+    routeName: string;
+    revision: number;
+    scopeKind: string;
+    approverKind: string;
+    organizationName: string | null;
+    resolvedApproverName: string;
+    resolvedAt: string;
+  } | null;
 }
 export interface RequestDetailModel {
   request: RequestView;
@@ -77,6 +87,9 @@ export interface MineModel {
 export interface ListModel {
   title: string;
   requests: RequestView[];
+  completed?: boolean;
+  page?: number;
+  hasNext?: boolean;
 }
 export interface ClockEvent {
   id: string;

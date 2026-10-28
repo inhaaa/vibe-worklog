@@ -1,6 +1,6 @@
 package kr.tna.org;
 
-public final class OrgException extends RuntimeException {
+public class OrgException extends RuntimeException {
     private final int status;
     public OrgException(int status, String message) { super(message); this.status = status; }
     public int status() { return status; }

@@ -29,6 +29,14 @@ public class AccountAdminController {
         this.commands = commands; this.delivery = delivery;
     }
 
+    @GetMapping("/admin/access")
+    ModelAndView list(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
+        var rows = accounts.list(actor, q, page);
+        return new ModelAndView("org/access-list").addObject("accessRows", rows.stream().limit(50).toList())
+                .addObject("q", q).addObject("page", page).addObject("hasNext", rows.size() > 50);
+    }
+
     @GetMapping("/admin/employees/{id}/access")
     ModelAndView access(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id) {
         return page(actor, id, null, null, null);

@@ -14,6 +14,16 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface EmployeeAdminMapper {
     @Select("""
+            SELECT a.employee_id FROM tna.tenant_account a
+            WHERE a.tenant_id=#{tenantId} AND a.active AND a.credential_set
+              AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id
+                  AND g.active AND g.role='ATTENDANCE_ADMIN')
+              AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id
+                  AND g.active AND g.role='EMPLOYEE')
+            """)
+    List<UUID> administratorEmployees(@Param("tenantId") UUID tenantId);
+
+    @Select("""
             SELECT id, employee_no, display_name, joined_on, left_on, active, version
             FROM tna.employee
             WHERE tenant_id=#{tenantId}
@@ -67,6 +77,15 @@ public interface EmployeeAdminMapper {
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     Employee get(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
+
+    @Select("""
+            <script>
+            SELECT id,employee_no,display_name,joined_on,left_on,active,version
+            FROM tna.employee WHERE tenant_id=#{tenantId} AND id IN
+            <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    List<Employee> getMany(@Param("tenantId") UUID tenantId, @Param("ids") List<UUID> ids);
 
     @Insert("""
             INSERT INTO tna.employee

@@ -745,8 +745,8 @@ function AccessPage({ model: m }: { model: AccessModel }) {
       <section className="panel" aria-labelledby="roles-title">
         <h2 id="roles-title">역할</h2>
         <p className="hint">
-          직원은 기본 역할입니다. 승인자는 지정된 대상만 처리하며 담당자 역할만으로 승인 권한을 얻지
-          않습니다. 역할이 바뀌면 기존 로그인이 종료됩니다.
+          공통은 기본 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여합니다. 대표는 회사
+          현황을 조회하며, 지정된 승인자만 배정된 신청을 처리합니다. 역할이 바뀌면 기존 로그인이 종료됩니다.
         </p>
         {(!account || !account.active || !account.credentialSet) && (
           <p>초대 수락 후 활성 계정의 역할을 변경할 수 있습니다.</p>
@@ -755,7 +755,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           <Form action={`${path}/roles`} method="post" className="admin-form">
             <CommandFields form={m.rolesForm} />
             <Hidden name="roles" value="EMPLOYEE" />
-            <p>직원 (EMPLOYEE) · 필수</p>
+            <p>공통 (EMPLOYEE) · 필수</p>
             <Check
               name="roles"
               label="승인자 (APPROVER)"
@@ -767,6 +767,12 @@ function AccessPage({ model: m }: { model: AccessModel }) {
               label="근태 담당자 (ATTENDANCE_ADMIN)"
               value="ATTENDANCE_ADMIN"
               checked={m.rolesForm.roles?.includes('ATTENDANCE_ADMIN') ?? false}
+            />
+            <Check
+              name="roles"
+              label="대표 (COMPANY_REPRESENTATIVE)"
+              value="COMPANY_REPRESENTATIVE"
+              checked={m.rolesForm.roles?.includes('COMPANY_REPRESENTATIVE') ?? false}
             />
             <p className="hint">
               마지막 유효 담당자는 다른 담당자를 연결하기 전 회수할 수 없습니다.
@@ -1321,6 +1327,8 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
 }
 
 export function AdminPages({ page, data }: PageProps): React.ReactNode | null {
+  if ((page === 'org/employees' && data.employeeSheet) ||
+      (page === 'org/organizations' && data.organizationSheet)) return null;
   switch (page) {
     case 'org/employees':
       return <EmployeesPage model={data as unknown as EmployeesModel} />;
