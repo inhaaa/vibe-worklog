@@ -31,10 +31,69 @@ async function show(element: React.ReactElement) {
     view.findByRole('grid', { name: sheet.getAttribute('aria-label')! })));
   return view;
 }
+async function openCell(view: ReturnType<typeof render>, label: string) {
+  let control = await view.findByLabelText(label);
+  if (!control.matches('input,select')) {
+    fireEvent.click(control, { detail: 1 });
+    control = await waitFor(() => {
+      const editor = view.getByLabelText(label);
+      expect(editor.matches('input,select')).toBe(true);
+      return editor;
+    });
+  }
+  return control as HTMLInputElement | HTMLSelectElement;
+}
+async function changeCell(view: ReturnType<typeof render>, label: string, value: string) {
+  const control = await openCell(view, label);
+  fireEvent.change(control, { target: { value } });
+  fireEvent.keyDown(control, { key: 'Enter' });
+  await waitFor(() => expect(control.isConnected).toBe(false));
+  return control;
+}
+function cellValue(view: ReturnType<typeof render>, label: string) {
+  const cell = view.getByLabelText(label);
+  return cell instanceof HTMLInputElement || cell instanceof HTMLSelectElement ? cell.value : cell.textContent;
+}
 beforeEach(() => { history.replaceState(null, '', '/admin/approval-routes'); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('결재선 React 관리', () => {
+  it('결재선은 텍스트로 조회하며 고정 코드는 Enter로 편집하지 않는다', async () => {
+    const view = await show(<App initial={page()} />);
+    const region = view.getByRole('region', { name: '결재선 편집 시트' });
+    const code = await view.findByLabelText('결재선 코드 1');
+    expect(region.querySelector('.ag-cell input:not([type="checkbox"]),.ag-cell select')).toBeNull();
+    expect(code.textContent).toBe('TEAM');
+    fireEvent.keyDown(code.closest('.ag-cell')!, { key: 'Enter' });
+    expect(region.querySelector('[col-id="code"] input')).toBeNull();
+  });
+
+  it('이름 셀을 클릭해 편집한 마지막 값을 저장 직전까지 보존한다', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetcher);
+    const view = await show(<App initial={page()} />);
+    fireEvent.click(await view.findByLabelText('결재선 이름 1'), { detail: 1 });
+    const editor = await view.findByRole('textbox', { name: '결재선 이름 1' });
+    fireEvent.change(editor, { target: { value: '최종 결재 이름' } });
+    fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '이름 변경' } });
+    fireEvent.submit(form(view));
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const payload = JSON.parse((fetcher.mock.calls[0][1]?.body as URLSearchParams).get('rows')!);
+    expect(payload[0]).toMatchObject({ clientRowId: 'row-1', name: '최종 결재 이름' });
+  });
+
+  it('결재 방식 편집의 Esc는 지정 사원과 편집 시작 전의 다른 셀 수정을 함께 보존한다', async () => {
+    const direct = { ...route, approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2' };
+    const view = await show(<App initial={page({ sheet: { commandId: 'direct-command', reason: '', rows: [{ ...row, ...direct }], latestRows: [direct], errors: [] } })} />);
+    await changeCell(view, '결재선 이름 1', '앞선 이름 수정');
+    const editor = await openCell(view, '결재 방식 1');
+    fireEvent.change(editor, { target: { value: 'ORGANIZATION_HEAD' } });
+    expect(posted(view)[0]).toMatchObject({ approverKind: 'ORGANIZATION_HEAD', employeeId: null });
+    fireEvent.keyDown(editor, { key: 'Escape' });
+    await waitFor(() => expect(editor.isConnected).toBe(false));
+    expect(posted(view)[0]).toMatchObject({ name: '앞선 이름 수정', approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2' });
+  });
+
   it('결재선 편집과 버전 이력에 안정적인 행 ID의 공통 그리드를 사용한다', async () => {
     const view = await show(<App initial={page({ versions: [{ ...version, reason: '최초 등록', createdAt: '2026-10-28T00:00:00Z' }] })} />);
     expect(view.getByRole('region', { name: '결재선 편집 시트' }).querySelector('[row-id="row-1"]')).toBeTruthy();
@@ -58,7 +117,7 @@ describe('결재선 React 관리', () => {
     const view = await show(<App initial={page()} />);
     for (const name of ['조회', '입력', '비활성화', '저장', '취소']) expect(view.getByRole('button', { name })).toBeTruthy();
     expect(view.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
-    expect((view.getByLabelText('결재선 코드 1') as HTMLInputElement).readOnly).toBe(true);
+    expect(view.getByLabelText('결재선 코드 1').getAttribute('aria-readonly')).toBe('true');
     expect(posted(view)).toEqual([]);
     expect(view.getByText(/새 버전을 사용하려면 다시 배정/)).toBeTruthy();
     expect(new FormData(form(view)).get('_csrf')).toBe('csrf');
@@ -67,10 +126,10 @@ describe('결재선 React 관리', () => {
   it('지정 사원과 조직장을 선택하고 새 행·삭제 예정·취소를 처리한다', async () => {
     const view = await show(<App initial={page()} />);
     fireEvent.click(view.getByRole('button', { name: '입력' }));
-    fireEvent.change(await view.findByLabelText('결재선 코드 2'), { target: { value: 'DIRECT' } });
-    fireEvent.change(view.getByLabelText('결재선 이름 2'), { target: { value: '사원 지정' } });
-    fireEvent.change(view.getByLabelText('결재 방식 2'), { target: { value: 'DIRECT_EMPLOYEE' } });
-    fireEvent.change(view.getByLabelText('지정 결재 사원 2'), { target: { value: 'e-2' } });
+    await changeCell(view, '결재선 코드 2', 'DIRECT');
+    await changeCell(view, '결재선 이름 2', '사원 지정');
+    await changeCell(view, '결재 방식 2', 'DIRECT_EMPLOYEE');
+    await changeCell(view, '지정 결재 사원 2', 'e-2');
     expect(posted(view)[0]).toMatchObject({ operation: 'CREATE', code: 'DIRECT', approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2' });
     fireEvent.click(view.getByLabelText('2행 선택'));
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
@@ -98,10 +157,10 @@ describe('결재선 React 관리', () => {
     const failed = page({ sheet: { commandId: 'posted-command', reason: '검토', rows: [{ ...row, name: '중복 이름' }], latestRows: [route], errors: [{ clientRowId: 'row-1', field: 'name', message: '이름을 확인하세요.' }] } });
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
     const view = await show(<App initial={page()} />);
-    fireEvent.change(view.getByLabelText('결재선 이름 1'), { target: { value: '중복 이름' } });
+    await changeCell(view, '결재선 이름 1', '중복 이름');
     fireEvent.submit(form(view));
-    await waitFor(() => expect(view.getByText('이름을 확인하세요.')).toBeTruthy());
-    expect((view.getByLabelText('결재선 이름 1') as HTMLInputElement).value).toBe('중복 이름');
+    await waitFor(() => expect(view.getByRole('button', { name: /이름을 확인하세요/ })).toBeTruthy());
+    expect(cellValue(view, '결재선 이름 1')).toBe('중복 이름');
     expect(new FormData(form(view)).get('commandId')).toBe('posted-command');
     await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('결재선 이름 1')));
   });
@@ -119,17 +178,17 @@ describe('결재선 React 관리', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ page: 'org/problem', csrf, data: { message: '결과 확인 필요' } }, 503));
     vi.stubGlobal('fetch', fetcher);
     const view = await show(<App initial={page()} />);
-    fireEvent.change(view.getByLabelText('결재선 이름 1'), { target: { value: '새 이름' } });
+    await changeCell(view, '결재선 이름 1', '새 이름');
     fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '변경 검토' } });
     const id = new FormData(form(view)).get('commandId');
     fireEvent.submit(form(view));
     await waitFor(() => expect(view.getByText('결과 확인 필요')).toBeTruthy());
-    expect((view.getByLabelText('결재선 이름 1') as HTMLInputElement).disabled).toBe(false);
+    expect(view.getByLabelText('결재선 이름 1').getAttribute('aria-disabled')).toBe('false');
     fireEvent.submit(form(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect((fetcher.mock.calls[1][1]?.body as URLSearchParams).get('commandId')).toBe(id);
-    await waitFor(() => expect((view.getByLabelText('결재선 이름 1') as HTMLInputElement).disabled).toBe(false));
-    fireEvent.change(view.getByLabelText('결재선 이름 1'), { target: { value: '다시 수정' } });
+    await waitFor(() => expect(view.getByLabelText('결재선 이름 1').getAttribute('aria-disabled')).toBe('false'));
+    await changeCell(view, '결재선 이름 1', '다시 수정');
     expect(new FormData(form(view)).get('commandId')).not.toBe(id);
   });
 
