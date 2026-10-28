@@ -108,7 +108,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             response.setContentType("text/html;charset=UTF-8");
             response.getWriter().write("<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"UTF-8\">"
                     + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"referrer\" content=\"no-referrer\"><title>WorkLog</title>"
-                    + "<link rel=\"stylesheet\" href=\"/app.css\"></head><body><div id=\"root\"></div>"
+                    + "<link rel=\"stylesheet\" href=\"/app.css\"><link rel=\"stylesheet\" href=\"/react/sheet.css\"></head><body><div id=\"root\"></div>"
                     + "<noscript>WorkLog 화면을 사용하려면 JavaScript를 켜 주세요.</noscript>"
                     + "<script id=\"worklog-page\" type=\"application/json\">" + escapeBoot(payload) + "</script>"
                     + "<script type=\"module\" src=\"/react/app.js\"></script></body></html>");

@@ -1,0 +1,115 @@
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-quartz.css';
+
+.w-sheet {
+  min-width: 0;
+  max-width: 100%;
+  margin-block: 16px;
+}
+
+.w-sheet-toolbar, .w-sheet-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.w-sheet-toolbar { margin-bottom: 10px; }
+.w-sheet-footer { justify-content: space-between; margin-top: 10px; }
+.w-sheet-note { margin: 8px 0; color: #607089; font-size: 12px; }
+.w-sheet-errors { margin-block: 10px; padding: 10px 14px; border: 1px solid #efb7bb; border-radius: 8px; color: #8a1c24; background: #fff4f4; }
+.w-sheet-errors ul { margin: 6px 0 0; padding-left: 20px; }
+#tna-app .w-sheet-errors button { border: 0; padding: 2px 0; min-height: 28px; background: transparent !important; color: #8a1c24; text-align: left; text-decoration: underline; }
+
+.w-sheet-grid.ag-theme-quartz {
+  --ag-font-family: system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+  --ag-font-size: 13px;
+  --ag-grid-size: 5px;
+  --ag-row-height: 40px;
+  --ag-header-height: 40px;
+  --ag-background-color: #fff;
+  --ag-foreground-color: #17253b;
+  --ag-header-background-color: #f6f8fc;
+  --ag-header-foreground-color: #52627c;
+  --ag-border-color: #dce3ec;
+  --ag-row-border-color: #e6ebf2;
+  --ag-odd-row-background-color: #fff;
+  --ag-row-hover-color: #f4f7fd;
+  --ag-selected-row-background-color: #eaf1ff;
+  --ag-range-selection-border-color: #2f6fec;
+  --ag-input-focus-border-color: #2f6fec;
+  --ag-input-focus-box-shadow: 0 0 0 2px #2f6fec26;
+  --ag-checkbox-checked-color: #2f6fec;
+  --ag-wrapper-border-radius: 8px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  line-height: normal;
+}
+
+.w-sheet-grid .ag-header-cell { font-weight: 600; }
+.w-sheet-grid .ag-cell { display: flex; align-items: center; }
+.w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.w-sheet-grid .ag-cell a { text-underline-offset: 3px; }
+.w-sheet-grid .w-sheet-number { justify-content: flex-end; text-align: right; }
+.w-sheet-grid .w-sheet-center { justify-content: center; text-align: center; }
+.w-sheet-grid .w-sheet-readonly { background: #f8fafc; color: #607089; }
+.w-sheet-grid .w-sheet-row-new .ag-cell { background: #f1fbf5; }
+.w-sheet-grid .w-sheet-row-changed .ag-cell { background: #fffbed; }
+.w-sheet-grid .w-sheet-row-inactive .ag-cell { background: #f4f5f7; color: #607089; }
+.w-sheet-grid .w-sheet-cell-error { box-shadow: inset 0 0 0 2px #c83c47; background: #fff4f4; }
+.w-sheet-grid .ag-row-selected .ag-cell,
+.w-sheet-grid .w-sheet-row-selected .ag-cell { background: var(--ag-selected-row-background-color); }
+.w-sheet-grid .ag-cell-focus:not(.ag-cell-range-selected) { border-color: #2f6fec; }
+
+#tna-app .w-sheet-grid input:not([type=checkbox]),
+#tna-app .w-sheet-grid select,
+#tna-app .w-sheet-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  height: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid #c8d2e2;
+  border-radius: 4px;
+  background: #fff;
+  color: #17253b;
+  font-size: 13px;
+  line-height: normal;
+}
+
+#tna-app .w-sheet-grid input:focus,
+#tna-app .w-sheet-grid select:focus,
+#tna-app .w-sheet-grid textarea:focus {
+  border-color: #2f6fec;
+  outline: 0;
+  box-shadow: 0 0 0 2px #2f6fec26;
+}
+
+#tna-app .w-sheet-grid input[type=checkbox] {
+  width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+/* The existing app button selector is highly specific; isolate its reset to grid controls. */
+#tna-app .w-sheet-grid button {
+  min-height: 28px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px !important;
+  border-color: #c8d2e2 !important;
+  background: #fff !important;
+  color: #234fa3;
+  font-size: 12px;
+  line-height: normal;
+}
+
+@media (max-width: 600px) {
+  .w-sheet-toolbar { align-items: flex-start; }
+  .w-sheet-grid { --ag-font-size: 12px; }
+}

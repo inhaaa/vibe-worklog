@@ -72,6 +72,8 @@ class ReactPageViewTest {
         assertTrue(body.contains("<script id=\"worklog-page\" type=\"application/json\">"));
         assertTrue(body.contains("src=\"/react/app.js\""));
         assertTrue(body.contains("href=\"/app.css\""));
+        assertTrue(body.contains("href=\"/react/sheet.css\""));
+        assertTrue(body.indexOf("href=\"/app.css\"") < body.indexOf("href=\"/react/sheet.css\""));
         assertFalse(body.contains("<img"));
         assertTrue(body.contains("\\u003c/script\\u003e"));
         assertTrue(body.contains("\\u0026\\u2028\\u2029"));

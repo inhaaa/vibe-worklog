@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
+import { sheetAssets } from './build/sheetAssets.ts';
 
 const backend = 'http://127.0.0.1:18080';
 const pages: ProxyOptions = {
@@ -19,7 +20,7 @@ const pages: ProxyOptions = {
 };
 
 export default defineConfig(({ command }) => ({
-  plugins: [react()],
+  plugins: [react(), sheetAssets()],
   base: command === 'serve' ? '/' : '/react/',
   server: {
     host: '127.0.0.1',
@@ -35,11 +36,13 @@ export default defineConfig(({ command }) => ({
     outDir: 'dist',
     emptyOutDir: false,
     rollupOptions: {
-      input: 'src/main.tsx',
+      input: { app: 'src/main.tsx', sheet: 'src/components/worklog-sheet.css' },
       output: {
         entryFileNames: 'app.js',
         chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: '[name]-[hash][extname]',
+        assetFileNames: (asset) => asset.names.some((name) => name.endsWith('.css'))
+          ? 'sheet.css'
+          : '[name]-[hash][extname]',
       },
     },
   },
