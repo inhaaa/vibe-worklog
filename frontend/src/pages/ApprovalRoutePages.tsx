@@ -3,8 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Form, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
-import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
-import type { WorklogSheetHandle } from '../components/WorklogSheet';
+import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
 type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD';
 interface Route {
   id: string;
@@ -179,79 +179,44 @@ function RouteSheet({ model: m, error }: {
     if (field === 'employeeId') return m.candidates.find(employee => employee.id === route.employeeId)?.displayName ?? ('employeeName' in route ? route.employeeName : null) ?? (route.employeeId ? '현재 선택값 · 재확인 필요' : '없음');
     return route[field];
   }
-  function cell(row: Row, index: number, field: typeof routeFields[number], label: string) {
-    const id = `route-${row.clientRowId}-${field}`;
+  function cell(row: Row, index: number, field: Exclude<typeof routeFields[number], 'active'>, label: string): SheetEditorField {
     const fieldError = errors.find(item => item.clientRowId === row.clientRowId && item.field === field);
     const previous = row.id ? latest.get(row.id) : undefined;
-    const attributes = { id, 'aria-invalid': Boolean(fieldError), 'aria-describedby': fieldError ? `${id}-error` : undefined, 'data-error-focus': fieldError ? 'true' : undefined, 'data-changed': String(!previous || row[field] !== previous[field]), disabled: row.operation === 'DEACTIVATE' };
-    const optionLabel = `${label} ${index + 1}`;
-    let control: ReactNode;
-    if (field === 'approverKind')
-      control = <select
-        className="t-select"
-        {...attributes}
-        value={row.approverKind}
-        onChange={event => update(row.clientRowId, field, event.target.value)}>
-        <option value="ORGANIZATION_HEAD">대상자의 현재 조직장</option>
-        <option value="DIRECT_EMPLOYEE">지정 사원</option>
-      </select>;
-    else if (field === 'employeeId') {
+    const shared: SheetEditorField = {
+      label: `${label} ${index + 1}`, value: String(row[field] ?? ''),
+      disabled: row.operation === 'DEACTIVATE', changed: !previous || row[field] !== previous[field], error: fieldError?.message,
+      onChange: value => update(row.clientRowId, field, field === 'employeeId' ? value || null : value),
+      onCancel: () => { setRows(current => current.map(item => item.clientRowId === row.clientRowId ? row : item)); renew(); },
+    };
+    if (field === 'approverKind') return { ...shared, options: [['ORGANIZATION_HEAD', '대상자의 현재 조직장'], ['DIRECT_EMPLOYEE', '지정 사원']] };
+    if (field === 'employeeId') {
       const missing = row.employeeId && !m.candidates.some(employee => employee.id === row.employeeId);
-      control = <select
-        className="t-select"
-        {...attributes}
-        disabled={attributes.disabled || row.approverKind === 'ORGANIZATION_HEAD'}
-        value={row.employeeId ?? ''}
-        required={row.approverKind === 'DIRECT_EMPLOYEE'}
-        onChange={event => update(row.clientRowId, field, event.target.value || null)}>
-        <option value="">
-          {row.approverKind === 'ORGANIZATION_HEAD' ? '제출 시 조직장 해석' : '결재 사원 선택'}
-        </option>
-        {missing && <option value={row.employeeId!}>{previous?.employeeName ?? '현재 선택값'} (재지정 필요)</option>}
-        {m.candidates.map(employee => <option value={employee.id} key={employee.id}>{employee.employeeNo} · {employee.displayName}</option>)}
-      </select>;
+      return { ...shared, disabled: shared.disabled || row.approverKind === 'ORGANIZATION_HEAD', required: row.approverKind === 'DIRECT_EMPLOYEE',
+        options: [['', row.approverKind === 'ORGANIZATION_HEAD' ? '제출 시 조직장 해석' : '결재 사원 선택'],
+          ...(missing ? [[row.employeeId!, `${previous?.employeeName ?? '현재 선택값'} (재지정 필요)`] as const] : []),
+          ...m.candidates.map(employee => [employee.id, `${employee.employeeNo} · ${employee.displayName}`] as const)],
+      };
     }
-    else if (field === 'active')
-      control = <input
-        className="t-sheet-check"
-        {...attributes}
-        type="checkbox"
-        checked={row.active}
-        onChange={event => update(row.clientRowId, field, event.target.checked)} />;
-    else
-      control = <input
-        className="t-input"
-        {...attributes}
-        value={row[field]}
-        readOnly={field === 'code' && Boolean(row.id)}
-        maxLength={field === 'code' ? 40 : 120}
-        required
-        onChange={event => update(row.clientRowId, field, event.target.value)} />;
-    return <>
-      <label className="t-sr-only" htmlFor={id}>
-        {optionLabel}
-      </label>
-      {control}
-      {fieldError && <p className="t-sheet-error" id={`${id}-error`}>
-        {fieldError.message}
-      </p>}
-    </>;
+    return { ...shared, readOnly: field === 'code' && Boolean(row.id), maxLength: field === 'code' ? 40 : 120, required: true };
   }
   function submit(event: FormEvent) {
+    if (!sheet.current?.validate()) { event.preventDefault(); return; }
     if (dirty.length < 1 || dirty.length > 50 || conflicts.length)
       event.preventDefault();
   }
   const payload = dirty.map(row => ({ clientRowId: row.clientRowId, id: row.id || undefined, expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation, code: row.code, name: row.name, active: row.active, approverKind: row.approverKind, employeeId: row.employeeId }));
   const columns = [
-    sheetColumn<Row>({ field: 'code', headerName: '코드', minWidth: 150, pinned: 'left' }, (row, index) => cell(row, index, 'code', '결재선 코드')),
-    sheetColumn<Row>({ field: 'name', headerName: '이름', minWidth: 180, flex: 1 }, (row, index) => cell(row, index, 'name', '결재선 이름')),
-    sheetColumn<Row>({ field: 'approverKind', headerName: '결재 방식', minWidth: 210, valueGetter: ({ data }) => data ? kindText(data.approverKind) : '' }, (row, index) => cell(row, index, 'approverKind', '결재 방식')),
-    sheetColumn<Row>({ field: 'employeeId', headerName: '지정 사원', minWidth: 210, valueGetter: ({ data }) => data ? displayValue(data, 'employeeId') : '' }, (row, index) => cell(row, index, 'employeeId', '지정 결재 사원')),
+    sheetEditorColumn<Row>({ field: 'code', headerName: '코드', minWidth: 150, pinned: 'left' }, (row, index) => cell(row, index, 'code', '결재선 코드')),
+    sheetEditorColumn<Row>({ field: 'name', headerName: '이름', minWidth: 180, flex: 1 }, (row, index) => cell(row, index, 'name', '결재선 이름')),
+    sheetEditorColumn<Row>({ field: 'approverKind', headerName: '결재 방식', minWidth: 210 }, (row, index) => cell(row, index, 'approverKind', '결재 방식')),
+    sheetEditorColumn<Row>({ field: 'employeeId', headerName: '지정 사원', minWidth: 210 }, (row, index) => cell(row, index, 'employeeId', '지정 결재 사원')),
     sheetColumn<Row>({ colId: 'revision', headerName: '현재 버전', minWidth: 130, valueGetter: ({ data }) => data?.id ? latest.get(data.id)?.revision ?? '' : '' }, row => {
       const previous = row.id ? latest.get(row.id) : undefined;
       return previous ? `v${previous.revision}` : '저장 후 생성';
     }),
-    sheetColumn<Row>({ field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => cell(row, index, 'active', '활성')),
+    sheetColumn<Row>({ field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active}
+      disabled={row.operation === 'DEACTIVATE'} aria-invalid={errors.some(error => error.clientRowId === row.clientRowId && error.field === 'active')}
+      data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
     sheetColumn<Row>({ colId: 'state', headerName: '변경 상태', minWidth: 120, valueGetter: ({ data }) => data ? data.operation === 'DEACTIVATE' ? '비활성 예정' : !data.id ? '신규' : routeChanged(data, latest.get(data.id)) ? '수정' : '저장됨' : '' }, row => {
       const modified = routeChanged(row, row.id ? latest.get(row.id) : undefined);
       return <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : modified ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : modified ? '수정' : '저장됨'}</span>;

@@ -3,8 +3,8 @@ import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
-import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
-import type { WorklogSheetHandle } from '../components/WorklogSheet';
+import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
 
 type Operation = 'CREATE' | 'UPDATE' | 'DEACTIVATE';
 interface RowBase { clientRowId: string; id?: string | null; expectedVersion?: number | null; operation: Operation; active: boolean }
@@ -21,7 +21,6 @@ interface SheetPageModel {
   organizationHeadsById?: Record<string, { employeeName: string; eligible: boolean; approverEligible: boolean }>;
   employeeContext?: Record<string, { organizationName: string | null; organizationHeadName: string | null; organizationHeadEligible: boolean; organizationHeadApproverEligible: boolean; scheduleName: string | null }>;
 }
-const isOrganization = (row: Row | Employee | Organization): row is OrganizationRow & Organization => 'code' in row;
 const fields = (organization: boolean) => organization
   ? ['code', 'name', 'parentId', 'active'] as const
   : ['employeeNo', 'displayName', 'joinedOn', 'leftOn', 'active'] as const;
@@ -99,22 +98,20 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
     setRows(current => current.map(row => row.id && latest.has(row.id) ? { ...row, expectedVersion: latest.get(row.id)!.version } : row));
     setErrors([]); renew();
   }
-  function input(row: Row, index: number, field: string, caption: string, options: { type?: string; fixed?: boolean; maxLength?: number; required?: boolean } = {}) {
+  function input(row: Row, index: number, field: string, caption: string, options: { type?: 'text' | 'date'; fixed?: boolean; maxLength?: number; required?: boolean } = {}): SheetEditorField {
     const previous = row.id ? latest.get(row.id) : undefined;
     const error = errors.find(item => item.clientRowId === row.clientRowId && item.field === field);
-    const id = `sheet-${row.clientRowId}-${field}`;
-    return <>
-      <label className="t-sr-only" htmlFor={id}>{caption} {index + 1}</label>
-      <input id={id} className="t-input" type={options.type ?? 'text'} value={String(businessValue(row, field))}
-        readOnly={Boolean(options.fixed && row.id)} disabled={row.operation === 'DEACTIVATE'}
-        maxLength={options.maxLength} required={options.required} aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${id}-error` : undefined} data-error-focus={error ? 'true' : undefined}
-        data-changed={String(!previous || businessValue(row, field) !== businessValue(previous, field))}
-        onChange={event => update(row.clientRowId, field, event.target.value || (field === 'leftOn' ? null : ''))} />
-      {error && <p className="t-sheet-error" id={`${id}-error`}>{error.message}</p>}
-    </>;
+    return {
+      label: `${caption} ${index + 1}`, value: String(businessValue(row, field)), type: options.type,
+      readOnly: Boolean(options.fixed && row.id), disabled: row.operation === 'DEACTIVATE',
+      maxLength: options.maxLength, required: options.required, error: error?.message,
+      changed: !previous || businessValue(row, field) !== businessValue(previous, field),
+      onChange: value => update(row.clientRowId, field, value || (field === 'leftOn' ? null : '')),
+      onCancel: () => { setRows(current => current.map(item => item.clientRowId === row.clientRowId ? row : item)); renew(); },
+    };
   }
   function submit(event: FormEvent) {
+    if (!sheet.current?.validate()) { event.preventDefault(); return; }
     if (dirty.length < 1 || dirty.length > 50 || conflicts.length) event.preventDefault();
   }
   function headCell(row: Row) {
@@ -137,21 +134,20 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
   const columns = [
-    sheetColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left', valueGetter: ({ data }) => data ? businessValue(data, organization ? 'code' : 'employeeNo') : '' },
+    sheetEditorColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left' },
       (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: true })),
-    sheetColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180, valueGetter: ({ data }) => data ? businessValue(data, organization ? 'name' : 'displayName') : '' },
+    sheetEditorColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180 },
       (row, index) => input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })),
     ...(organization ? [
-      sheetColumn<Row>({ colId: 'parentId', headerName: '상위 조직', minWidth: 180, valueGetter: ({ data }) => data && isOrganization(data) ? m.options.find(option => option.id === data.parentId)?.name ?? '' : '' }, (row, index) => isOrganization(row) ? <>
-        <label className="t-sr-only" htmlFor={`sheet-${row.clientRowId}-parentId`}>상위 조직 {index + 1}</label>
-        <select className="t-select" id={`sheet-${row.clientRowId}-parentId`} value={row.parentId ?? ''} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || !latest.has(row.id) || businessValue(row, 'parentId') !== businessValue(latest.get(row.id)!, 'parentId'))} onChange={event => update(row.clientRowId, 'parentId', event.target.value || null)}>
-          <option value="">없음</option>{m.options.filter(option => option.id !== row.id && (option.active || option.id === row.parentId)).map(option => <option value={option.id} key={option.id}>{option.name}{option.active ? '' : ' (비활성)'}</option>)}
-        </select>
-      </> : null),
+      sheetEditorColumn<Row>({ colId: 'parentId', headerName: '상위 조직', minWidth: 180 }, (row, index) => ({
+        ...input(row, index, 'parentId', '상위 조직'),
+        options: [['', '없음'], ...m.options.filter(option => option.id !== row.id && (option.active || option.id === businessValue(row, 'parentId'))).map(option => [option.id, `${option.name}${option.active ? '' : ' (비활성)'}`] as const)],
+        onChange: value => update(row.clientRowId, 'parentId', value || null),
+      })),
       sheetColumn<Row>({ colId: 'organizationHead', headerName: '조직장', minWidth: 190, valueGetter: ({ data }) => data?.id ? m.organizationHeadsById?.[data.id]?.employeeName ?? '' : '' }, row => headCell(row)),
     ] : [
-      sheetColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160, valueGetter: ({ data }) => data ? businessValue(data, 'joinedOn') : '' }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })),
-      sheetColumn<Row>({ colId: 'leftOn', headerName: '마지막 재직일', minWidth: 160, valueGetter: ({ data }) => data ? businessValue(data, 'leftOn') : '' }, (row, index) => input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })),
+      sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })),
+      sheetEditorColumn<Row>({ colId: 'leftOn', headerName: '마지막 재직일', minWidth: 160 }, (row, index) => input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })),
       sheetColumn<Row>({ colId: 'assignments', headerName: '현재 소속·배정', minWidth: 270, flex: 1, valueGetter: ({ data }) => data?.id ? m.employeeContext?.[data.id]?.organizationName ?? m.employeeOrganizations?.[data.id] ?? '' : '' }, row => employeeCell(row, row.id ? latest.get(row.id) : undefined)),
     ]),
     sheetColumn<Row>({ colId: 'active', field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
