@@ -208,7 +208,7 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       {Object.entries(context).map(([name, value]) => value == null ? null : <input key={name} type="hidden" name={name} value={value} />)}
       <div className="t-sheet-toolbar" role="group" aria-label={`${title} 시트 편집`}>
         <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50 || lockedGroup}>입력</button>
-        <button type="button" className="t-btn" onClick={remove} disabled={!selected.size || lockedGroup} title="저장된 행은 이력을 보존하고 비활성화합니다.">삭제</button>
+        <button type="button" className="t-btn" onClick={remove} disabled={!selected.size || lockedGroup} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
         <button type="submit" className="t-btn primary" disabled={!dirty.length || dirty.length > 50 || Boolean(conflicts.length) || lockedGroup}>저장</button>
         <button type="button" className="t-btn" onClick={cancel} disabled={!unsaved}>취소</button>
         <span className="t-tag blue" role="status">변경 {dirty.length}행</span>

@@ -174,7 +174,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
         {!organization && <><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><input type="hidden" name="status" value={m.status ?? 'all'} /></>}
         <div className="t-sheet-toolbar" role="group" aria-label={`${label} 시트 편집`}>
           <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">입력</button>
-          <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title={selected.size === 0 ? '삭제할 행을 선택하세요.' : '기존 행은 비활성 예정으로 표시합니다.'}>삭제</button>
+          <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
           <button className="t-btn primary" type="submit" disabled={dirty.length < 1 || dirty.length > 50 || conflicts.length > 0} title={conflicts.length ? '최신값을 비교하고 확인하세요.' : dirty.length ? '변경 행을 함께 저장합니다.' : '변경한 행이 없습니다.'}>저장</button>
           <button className="t-btn" type="button" onClick={cancel} disabled={!unsaved}>취소</button>
           <span className="t-tag blue" role="status">변경 {dirty.length}행</span>

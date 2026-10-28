@@ -55,7 +55,8 @@ describe('조직·사원 시트 편집', () => {
 
   it('도구 모음과 고정 코드·사번을 표시하고 미변경 행은 전송하지 않는다', async () => {
     const view = await show();
-    for (const label of ['조회', '입력', '삭제', '저장', '취소']) expect(view.getByRole('button', { name: label })).toBeTruthy();
+    for (const label of ['조회', '입력', '비활성화', '저장', '취소']) expect(view.getByRole('button', { name: label })).toBeTruthy();
+    expect(view.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect((view.getByLabelText('조직 코드 1') as HTMLInputElement).readOnly).toBe(true);
     expect(postedRows(view)).toEqual([]);
     expect((view.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true);
@@ -71,7 +72,7 @@ describe('조직·사원 시트 편집', () => {
     fireEvent.change(view.getByLabelText('조직 이름 2'), { target: { value: '인사팀' } });
     expect(postedRows(view)[0]).toMatchObject({ operation: 'CREATE', code: 'HR', name: '인사팀' });
     fireEvent.click(view.getByLabelText('2행 선택'));
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.queryByLabelText('조직 코드 2')).toBeNull();
     fireEvent.change(view.getByLabelText('조직 이름 1'), { target: { value: '개발본부' } });
     fireEvent.click(view.getByRole('button', { name: '취소' }));
@@ -82,7 +83,7 @@ describe('조직·사원 시트 편집', () => {
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
     const view = await show();
     fireEvent.click(view.getByLabelText('1행 선택'));
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.getByText('비활성 예정')).toBeTruthy();
     expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', operation: 'DEACTIVATE', expectedVersion: 3 });
     expect(view.getByText(/이력을 보존하고 비활성화/)).toBeTruthy();
@@ -119,7 +120,7 @@ describe('조직·사원 시트 편집', () => {
     fireEvent.click(view.getByLabelText('1행 선택'));
     fireEvent.change(view.getByLabelText('조직 편집 시트 현재 페이지 필터'), { target: { value: '관리팀' } });
     await waitFor(() => expect(view.getByText('숨은 선택 1행 · 숨은 변경 1행')).toBeTruthy());
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', operation: 'DEACTIVATE' });
     fireEvent.click(view.getByRole('button', { name: '취소' }));
     expect(postedRows(view)).toEqual([]);
@@ -262,7 +263,7 @@ describe('조직·사원 시트 편집', () => {
     const locked = controls.every(control => control.disabled);
     act(() => {
       (view.getByRole('button', { name: '입력' }) as HTMLButtonElement).click();
-      (view.getByRole('button', { name: '삭제' }) as HTMLButtonElement).click();
+      (view.getByRole('button', { name: '비활성화' }) as HTMLButtonElement).click();
       (view.getByRole('button', { name: '취소' }) as HTMLButtonElement).click();
     });
     await act(async () => failure === '503'

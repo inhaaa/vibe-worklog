@@ -56,7 +56,8 @@ describe('결재선 React 관리', () => {
 
   it('시트 도구·고정 코드·미변경 제외와 버전 재배정 안내를 제공한다', async () => {
     const view = await show(<App initial={page()} />);
-    for (const name of ['조회', '입력', '삭제', '저장', '취소']) expect(view.getByRole('button', { name })).toBeTruthy();
+    for (const name of ['조회', '입력', '비활성화', '저장', '취소']) expect(view.getByRole('button', { name })).toBeTruthy();
+    expect(view.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect((view.getByLabelText('결재선 코드 1') as HTMLInputElement).readOnly).toBe(true);
     expect(posted(view)).toEqual([]);
     expect(view.getByText(/새 버전을 사용하려면 다시 배정/)).toBeTruthy();
@@ -72,10 +73,10 @@ describe('결재선 React 관리', () => {
     fireEvent.change(view.getByLabelText('지정 결재 사원 2'), { target: { value: 'e-2' } });
     expect(posted(view)[0]).toMatchObject({ operation: 'CREATE', code: 'DIRECT', approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2' });
     fireEvent.click(view.getByLabelText('2행 선택'));
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.queryByLabelText('결재선 코드 2')).toBeNull();
     fireEvent.click(view.getByLabelText('1행 선택'));
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(posted(view)[0]).toMatchObject({ operation: 'DEACTIVATE', expectedVersion: 3 });
     expect(view.getByText('비활성 예정')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '취소' }));

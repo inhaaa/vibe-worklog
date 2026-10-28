@@ -288,7 +288,7 @@ function RouteSheet({ model: m, error }: {
         <input type="hidden" name="page" value={m.page} />
         <div className="t-sheet-toolbar" role="group" aria-label="결재선 시트 편집">
           <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50}>입력</button>
-          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="기존 행은 비활성 예정으로 표시합니다.">삭제</button>
+          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
           <button
             type="submit"
             className="t-btn primary"

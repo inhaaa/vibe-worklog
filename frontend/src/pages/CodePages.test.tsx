@@ -60,7 +60,7 @@ describe('공통코드·근태코드 React 관리', () => {
     await waitFor(() => expect(view.getByText('숨은 선택 1행 · 숨은 변경 1행')).toBeTruthy());
     expect(payload(view, '/admin/common-code-groups/bulk')[0]).toMatchObject({ clientRowId: 'row-g-1', id: 'g-1', name: '수정 근무 구분' });
     const groups = within(view.getByRole('region', { name: '코드그룹 관리' }));
-    fireEvent.click(groups.getByRole('button', { name: '삭제' }));
+    fireEvent.click(groups.getByRole('button', { name: '비활성화' }));
     expect(payload(view, '/admin/common-code-groups/bulk')[0]).toMatchObject({ clientRowId: 'row-g-1', operation: 'DEACTIVATE' });
     fireEvent.click(groups.getByRole('button', { name: '취소' }));
     expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]);
@@ -150,10 +150,11 @@ describe('공통코드·근태코드 React 관리', () => {
     const view = await show(common());
     const groups = within(view.getByRole('region', { name: '코드그룹 관리' }));
     const codes = within(view.getByRole('region', { name: '상세코드 관리' }));
-    for (const name of ['조회', '입력', '삭제', '저장', '취소']) {
+    for (const name of ['조회', '입력', '비활성화', '저장', '취소']) {
       expect(groups.getByRole('button', { name })).toBeTruthy();
       expect(codes.getByRole('button', { name })).toBeTruthy();
     }
+    for (const scope of [groups, codes]) expect(scope.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]);
     expect(payload(view, '/admin/common-codes/bulk')).toEqual([]);
     fireEvent.change(view.getByLabelText('코드그룹 이름 1'), { target: { value: '수정 그룹' } });
@@ -171,10 +172,10 @@ describe('공통코드·근태코드 React 관리', () => {
     fireEvent.change(view.getByLabelText('상세코드 이름 2'), { target: { value: '재택' } });
     expect(payload(view, '/admin/common-codes/bulk')[0]).toMatchObject({ operation: 'CREATE', code: 'REMOTE' });
     fireEvent.click(view.getByLabelText('상세코드 2행 선택'));
-    fireEvent.click(codes.getByRole('button', { name: '삭제' }));
+    fireEvent.click(codes.getByRole('button', { name: '비활성화' }));
     await waitFor(() => expect(view.queryByLabelText('상세코드 코드 2')).toBeNull());
     fireEvent.click(view.getByLabelText('상세코드 1행 선택'));
-    fireEvent.click(codes.getByRole('button', { name: '삭제' }));
+    fireEvent.click(codes.getByRole('button', { name: '비활성화' }));
     expect(payload(view, '/admin/common-codes/bulk')[0].operation).toBe('DEACTIVATE');
     expect(codes.getByText('비활성 예정')).toBeTruthy();
     fireEvent.click(codes.getByRole('button', { name: '취소' }));
@@ -217,7 +218,7 @@ describe('공통코드·근태코드 React 관리', () => {
   it('근태코드 삭제는 적용일의 비활성 후속 버전이며 취소로 복구한다', async () => {
     const view = await show(attendance());
     fireEvent.click(view.getByLabelText('근태코드 1행 선택'));
-    fireEvent.click(view.getByRole('button', { name: '삭제' }));
+    fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(payload(view)[0]).toMatchObject({ operation: 'DEACTIVATE', enabled: false, effectiveFrom: '2026-10-28' });
     expect((view.getByLabelText('적용일 1') as HTMLInputElement).disabled).toBe(false);
     fireEvent.change(view.getByLabelText('적용일 1'), { target: { value: '2026-11-10' } });
