@@ -266,7 +266,7 @@ describe('조직·사원 시트 편집', () => {
       commandId: 'batch-command', reason: '검토', rows: [orgRow], latestRows: [organization],
       errors: [{ clientRowId: 'row-org', field: 'parentId', message: '상위 조직 순환입니다.' }, { clientRowId: 'row-org', field: 'active', message: '소속이 남아 있습니다.' }],
     } }));
-    expect(view.getByText('상위 조직 순환입니다.')).toBeTruthy();
+    expect(view.getByText('상위 조직 순환입니다.', { selector: 'p' })).toBeTruthy();
     expect(view.getByText('소속이 남아 있습니다.')).toBeTruthy();
   });
 

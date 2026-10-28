@@ -221,6 +221,38 @@ describe('공통 셀 편집기', () => {
     await waitFor(() => expect(view.queryByRole('navigation', { name: '날짜 취소 오류 위치' })).toBeNull());
   });
 
+  it.each([false, true])('로컬 검증 오류를 활성 편집기와 표시 셀에 연결하고 수정 후 해제한다 (기존 편집기 %s)', async editing => {
+    const ref = createRef<WorklogSheetHandle>();
+    function RequiredRows() {
+      const [rows, setRows] = useState(initial.map(row => ({ ...row, name: '' })));
+      return <WorklogSheet label="로컬 오류" ref={ref} rows={rows} getRowId={row => row.id} columns={[
+        sheetEditorColumn<Row>({ field: 'name', headerName: '이름' }, (row, index) => ({ value: row.name, label: `이름 ${index + 1}`, required: true,
+          onChange: value => setRows(current => current.map(item => item.id === row.id ? { ...item, name: value } : item)),
+        })),
+      ]} />;
+    }
+    const view = render(<RequiredRows />);
+    await view.findByRole('grid', { name: '로컬 오류' });
+    if (editing) fireEvent.click(cell(view, 'a', 'name'), { detail: 1 });
+    let valid = true; act(() => { valid = ref.current!.validate(); });
+    expect(valid).toBe(false);
+    const input = await view.findByRole('textbox', { name: '이름 1' });
+    const displayed = view.getByLabelText('이름 2', { selector: '.w-sheet-value' });
+    for (const target of [input, displayed]) {
+      await waitFor(() => expect(target.getAttribute('aria-invalid')).toBe('true'));
+      const description = target.getAttribute('aria-describedby');
+      expect(description).toBeTruthy();
+      expect(document.getElementById(description!)?.textContent).toBe('필수 입력입니다.');
+    }
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '완료' } });
+    await waitFor(() => expect(input.getAttribute('aria-invalid')).toBe('false'));
+    expect(input.getAttribute('aria-describedby')).toBeNull();
+    expect(displayed.getAttribute('aria-invalid')).toBe('true');
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+    expect(view.getByLabelText('이름 1', { selector: '.w-sheet-value' }).getAttribute('aria-invalid')).toBe('false');
+  });
+
   it.each([
     [{ value: '', required: true }, '필수'],
     [{ value: '2026-02-31', type: 'date' }, '날짜'],
