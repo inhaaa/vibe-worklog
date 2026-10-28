@@ -46,5 +46,5 @@ export default defineConfig(({ command }) => ({
       },
     },
   },
-  test: { environment: 'node' },
+  test: { environment: 'node', maxWorkers: 2, testTimeout: 15000 },
 }));

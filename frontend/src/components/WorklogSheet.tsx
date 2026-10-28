@@ -64,6 +64,13 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
   const rowId = useRef(getRowId);
   rowId.current = getRowId;
   const [query, setQuery] = useState('');
+  const [narrowViewport, setNarrowViewport] = useState(() => typeof window !== 'undefined' && window.innerWidth < 600);
+  useEffect(() => {
+    const resize = () => setNarrowViewport(window.innerWidth < 600);
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+  const viewportColumns = narrowViewport ? columns.map(column => ({ ...column, pinned: null })) : columns;
   const [visible, setVisible] = useState(() => new Set(rows.map(getRowId)));
   const context = useMemo<SheetContext<T>>(() => ({ index: new Map(rows.map((row, index) => [getRowId(row), index])), getRowId, errors }), [rows, getRowId, errors]);
   const stableRowId = useCallback(({ data }: { data: T }) => rowId.current(data), []);
@@ -129,8 +136,12 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
 
   return <section className="w-sheet" aria-label={label} role="region" ref={element}
     onKeyDownCapture={event => {
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
       const input = event.target as HTMLElement;
       const cell = input.closest<HTMLElement>('.ag-cell');
+      if (event.key === 'Enter' && input.matches('input') && (cell || input.id === filterId)) {
+        event.preventDefault();
+      }
       if (!cell || !input.matches('input:not([type=checkbox]),textarea') || event.altKey || event.ctrlKey || event.metaKey) return;
       if (!['ArrowUp', 'ArrowDown', 'Enter'].includes(event.key) || input.matches('textarea')) return;
       if (input.matches('input[type=number],input[type=date]') && event.key !== 'Enter') return;
@@ -158,7 +169,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
       </button>)}
     </nav>}
     <div className="ag-theme-quartz w-sheet-grid" style={{ height: Math.min(480, Math.max(152, rows.length * rowHeight + 64)) }}>
-      <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...columns]}
+      <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...viewportColumns]}
         defaultColDef={{ ...defaults, cellClassRules: {
           'w-sheet-cell-error': params => Boolean(params.data && (params.context as SheetContext<T>).errors.some(error => error.clientRowId === getRowId(params.data!) && error.field === params.column.getColId())),
         } }} context={context} getRowId={stableRowId} rowHeight={rowHeight} headerHeight={40}

@@ -8,9 +8,36 @@ import type { WorklogSheetHandle } from './WorklogSheet';
 interface Row { id: string; name: string; locked?: boolean }
 const rows: Row[] = [{ id: 'b', name: '나무' }, { id: 'a', name: '가람', locked: true }];
 const columns = [sheetColumn<Row>({ field: 'name', headerName: '이름' }, row => <span>{row.name}</span>)];
-afterEach(cleanup);
+const initialViewportWidth = window.innerWidth;
+function resizeViewport(width: number) {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  fireEvent(window, new Event('resize'));
+}
+afterEach(() => { cleanup(); resizeViewport(initialViewportWidth); });
 
 describe('WorklogSheet 공통 업무 그리드', () => {
+  it('작은 화면은 선택 열만 고정하고 데스크톱으로 돌아오면 식별 열 고정을 복원한다', async () => {
+    resizeViewport(390);
+    const view = render(<WorklogSheet label="모바일 시트" rows={rows} getRowId={row => row.id}
+      selectedIds={new Set(['b'])} onSelectionChange={() => {}}
+      columns={[
+        sheetColumn<Row>({ field: 'id', headerName: '식별 코드', pinned: 'left', minWidth: 190 }, row => row.id),
+        ...columns,
+      ]} />);
+    await view.findByRole('grid', { name: '모바일 시트' });
+    const pinned = (name: string) => view.getByRole('columnheader', { name: new RegExp(name) }).closest('.ag-grid-pinned-left-cells');
+    expect(pinned('식별 코드')).toBeNull();
+    expect(pinned('선택')).toBeTruthy();
+    resizeViewport(1280);
+    await waitFor(() => expect(pinned('식별 코드')).toBeTruthy());
+    resizeViewport(599);
+    await waitFor(() => expect(pinned('식별 코드')).toBeNull());
+    resizeViewport(600);
+    await waitFor(() => expect(pinned('식별 코드')).toBeTruthy());
+    expect(pinned('선택')).toBeTruthy();
+    expect((view.getByLabelText('모바일 시트 1행 선택') as HTMLInputElement).checked).toBe(true);
+  });
+
   it('접근성 이름과 현재 페이지 범위, 실제 그리드의 행과 열을 표시한다', async () => {
     const view = render(<WorklogSheet label="사원 목록" rows={rows} columns={columns} getRowId={row => row.id} />);
     expect(await view.findByRole('grid', { name: '사원 목록' })).toBeTruthy();
@@ -110,12 +137,65 @@ describe('WorklogSheet 공통 업무 그리드', () => {
     await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('b 설명')));
   });
 
-  it('방향키 이동은 키를 누른 입력의 현재 행과 열을 기준으로 한다', async () => {
+  it.each(['ArrowDown', 'Enter'])('%s 이동은 키를 누른 입력의 현재 행과 열을 기준으로 한다', async (key) => {
     const view = render(<WorklogSheet label="키보드 편집" rows={rows} getRowId={row => row.id} columns={[
       sheetColumn<Row>({ field: 'name', headerName: '이름' }, row => <input aria-label={`${row.id} 이름`} defaultValue={row.name} />),
     ]} />);
     const input = await view.findByLabelText('b 이름');
-    fireEvent.keyDown(input, { key: 'ArrowDown', code: 'ArrowDown' });
+    fireEvent.keyDown(input, { key, code: key });
     await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('a 이름')));
+  });
+
+  it('경계 셀과 선택 체크박스에서 Enter가 저장 폼을 제출하지 않게 한다', async () => {
+    const view = render(<form><WorklogSheet label="키보드 편집" rows={rows} getRowId={row => row.id}
+      selectedIds={new Set()} onSelectionChange={() => {}}
+      columns={[sheetColumn<Row>({ field: 'name', headerName: '이름' }, row => <input aria-label={`${row.id} 이름`} defaultValue={row.name} />)]} />
+      <button type="submit">저장</button></form>);
+    const last = await view.findByLabelText('a 이름');
+    for (const [target, shiftKey] of [[last, false], [view.getByLabelText('b 이름'), true], [view.getByLabelText('키보드 편집 1행 선택'), false]] as const) {
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', shiftKey, bubbles: true, cancelable: true });
+      fireEvent(target, enter);
+      expect(enter.defaultPrevented).toBe(true);
+    }
+  });
+
+  it('현재 페이지 필터의 Enter가 저장 폼을 제출하지 않게 한다', async () => {
+    const view = render(<form><WorklogSheet label="사원 편집" rows={rows} columns={columns} getRowId={row => row.id} />
+      <button type="submit">저장</button></form>);
+    const filter = view.getByLabelText('사원 편집 현재 페이지 필터');
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+    fireEvent(filter, enter);
+    expect(enter.defaultPrevented).toBe(true);
+  });
+
+  it('선택 입력·textarea·링크와 명시 저장 버튼의 기본 Enter 동작은 유지한다', async () => {
+    const view = render(<form><WorklogSheet label="키보드 편집" rows={rows} getRowId={row => row.id} columns={[
+      sheetColumn<Row>({ colId: 'choice', headerName: '유형' }, row => <select aria-label={`${row.id} 유형`}><option>유형</option></select>),
+      sheetColumn<Row>({ colId: 'note', headerName: '메모' }, row => <textarea aria-label={`${row.id} 메모`} />),
+      sheetColumn<Row>({ colId: 'link', headerName: '상세' }, row => <a href={`/employees/${row.id}`}>{row.id} 상세</a>),
+    ]} /><button type="submit">저장</button></form>);
+    await view.findByLabelText('b 유형');
+    for (const target of [view.getByLabelText('b 유형'), view.getByLabelText('b 메모'), view.getByRole('link', { name: 'b 상세' }), view.getByRole('button', { name: '저장' })]) {
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+      fireEvent(target, enter);
+      expect(enter.defaultPrevented).toBe(false);
+    }
+  });
+
+  it('한글 조합 중 Enter·방향키는 셀과 로컬 필터에서 기본 동작과 입력 초점을 유지한다', async () => {
+    const view = render(<WorklogSheet label="한글 편집" rows={rows} getRowId={row => row.id}
+      columns={[sheetColumn<Row>({ field: 'name', headerName: '이름' }, row => <input aria-label={`${row.id} 이름`} defaultValue={row.name} />)]} />);
+    const input = await view.findByLabelText('b 이름');
+    for (const target of [input, view.getByLabelText('한글 편집 현재 페이지 필터')]) {
+      for (const key of ['Enter', 'ArrowDown']) {
+        for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+          target.focus();
+          const event = new KeyboardEvent('keydown', { key, code: key, ...composition, bubbles: true, cancelable: true });
+          fireEvent(target, event);
+          expect(event.defaultPrevented).toBe(false);
+          expect(document.activeElement).toBe(target);
+        }
+      }
+    }
   });
 });
