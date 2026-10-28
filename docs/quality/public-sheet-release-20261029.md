@@ -31,13 +31,19 @@
 
 후속 `86c9e68`을 `af0bb72`로 통합했다. 셀 표시와 활성 편집기에 현재 오류의 `aria-invalid`·설명 연결을 제공하고 AG Grid가 편집 시작 때 보관한 매개변수 대신 현재 오류/콜백을 React context로 전달한다. 이 후보의 공통 프론트37파일은 원본과 LF 정규화 manifest가 다시 일치한다(`2909117f1fe4a4964073c7f00cc0418b36b04b891cbe613a741942774319774b`). 공개 AuthPages 두 파일만 기존 공개 안내 차이로 유지된다.
 
-이후 타입/Vite production build와 JDK25 `package -Dfrontend.skip=true -DskipTests`를 다시 실행해 둘 다 종료0을 확인했다. 최종 dist와 JAR의8파일 집합·각 바이트, CSS 외부 자산 참조·data URL 부재, public-demo 설정·공유 identity guard 포함을 다시 대조했다. 최종 JAR SHA256은 `1747398e773e613204dadbee4a4faa0690dd99da300bb89dc59c6ccf260484bb`이다. 실제 JAR은 ignored `target/vibe-attendance-public-sheet-86c9e68.jar`, 원시 대조는 `target/public-sheet-artifact-proof-86c9e68.json`·`public-sheet-source-proof-86c9e68.json`, 실행 로그는 `public-sheet-ui-build-final.log`·`public-sheet-package-final.log`에 보존한다.
+이후 타입/Vite production build와 JDK25 `package -Dfrontend.skip=true -DskipTests`를 다시 실행해 둘 다 종료0을 확인했다. 당시 dist와 JAR의8파일 집합·각 바이트, CSS 외부 자산 참조·data URL 부재, public-demo 설정·공유 identity guard 포함을 다시 대조했다. `86c9e68` 시점 JAR SHA256은 `1747398e773e613204dadbee4a4faa0690dd99da300bb89dc59c6ccf260484bb`이다. 실제 JAR은 ignored `target/vibe-attendance-public-sheet-86c9e68.jar`, 원시 대조는 `target/public-sheet-artifact-proof-86c9e68.json`·`public-sheet-source-proof-86c9e68.json`, 실행 로그는 `public-sheet-ui-build-final.log`·`public-sheet-package-final.log`에 보존한다.
 
 Java main/test·main resources·pom은 위39개 검증의 Git 객체와 다시 동일함을 확인했다. 공개 AuthPages·해당 테스트·공통 ui·package/lock도 앞선9개 통과 이후 변경0이어서 그 결과를 재사용하며 추가 실행하지 않았다. 원본의 최종 공통 프론트 전체 회귀는 진행 중이므로 아직 통과 수치를 기록하지 않는다. 후보에서 전체 프론트·Java 검증을 중복 실행하지 않았고 접근성 수정의 전체 회귀 결과도 원본의 실제 종료 결과를 받은 뒤 반영한다.
 
-후속 테스트 동기화 `a615d4b`는 `bc1187a`로 통합했다. 원본 전체 실행의503 재인증/뒤로가기 한 건이1초 alert 대기 중 실패했으며 단독 재현은 통과했다. 실제 `popstate` 완료까지 `await act`로 기다리는 helper 보완 뒤 원본 App34개 통과를 확인했다. 후보에서 달라진 파일은 `App.test.tsx` 하나뿐이며 제품 소스·Java·설정·기존 JAR/8자산은 그대로임을 다시 대조했다. 재빌드하지 않았으며 최종 JAR SHA256과8파일 바이트 일치를 재확인했다. 최신 공통37파일의 원본 일치 manifest는 `3d977e320cde0b321181d2f9c0dbedb295855526957182a6808d564066de339e`이며 근거는 ignored `target/public-sheet-source-proof-a615d4b.json`이다. 원본의 최종244개 전체 재실행은 아직 진행 중이다.
+후속 테스트 동기화 `a615d4b`는 `bc1187a`로 통합했다. 원본 전체 실행의503 재인증/뒤로가기 한 건이1초 alert 대기 중 실패했으며 단독 재현은 통과했다. 실제 `popstate` 완료까지 `await act`로 기다리는 helper 보완 뒤 원본 App34개 통과를 확인했다. 후보에서 달라진 파일은 `App.test.tsx` 하나뿐이며 제품 소스·Java·설정·기존 JAR/8자산은 그대로임을 다시 대조했다. 재빌드하지 않았으며 당시 JAR SHA256과8파일 바이트 일치를 재확인했다. 그 시점 공통37파일의 원본 일치 manifest는 `3d977e320cde0b321181d2f9c0dbedb295855526957182a6808d564066de339e`이며 근거는 ignored `target/public-sheet-source-proof-a615d4b.json`이다. 그 시점244개 전체 재실행을 최종 통과로 집계하지 않았다.
 
 원본의 로컬 production 프록시18100 실제 브라우저에서는 신규 빈 행 저장 시 필수 오류3개·저장 차단, 첫 사번 편집기 focus와 `aria-invalid=true`, `aria-describedby`의 실제 `필수 입력입니다.` 연결, 전체 취소 뒤 변경0·신규 행/오류 제거를 관측했다. 해당 관측의 콘솔 warning/error는0이었다. 이 로컬 화면 검증을 공개 HTTPS나 후보 서버 배포 검증으로 확대하지 않는다.
+
+## 무편집 취소 보완과 최신 후보
+
+마지막 제품 보완 `bb58875`를 `db378b2`로 통합했다.503 후 결과 미확정 상태에서 셀을 열고 값 입력 없이 Escape만 누르면 취소 콜백이 재시도 commandId를 바꾸던 문제를 실제 편집한 경우에만 snapshot 취소하도록 보완했다. 원본의 해당 Code503 회귀 RED→GREEN과 core 선택46개·build 통과를 확인했으며 후보에서 중복 테스트하지 않았다. 최종246개 전체 회귀는 원본에서 진행 중이므로 통과 수치로 기록하지 않는다.
+
+후보 타입/Vite build와 JDK package를 다시 실행해 종료0, dist↔JAR8파일 집합·바이트 일치와 공개 설정/guard·CSP 자산 계약을 확인했다. 최신 JAR SHA256은 `50f8ff03583e0ab7205d90ce5e761c7533da9d10418c997edbd6f6b9c36d28cb`다. ignored `target/vibe-attendance-public-sheet-bb58875.jar`, `public-sheet-artifact-proof-bb58875.json`·`public-sheet-source-proof-bb58875.json`, `public-sheet-ui-build-bb58875.log`·`public-sheet-package-bb58875.log`에 보존했다. 공통37파일의 최신 원본 일치 manifest는 `68e5ba41be9e834c98f6945e64229cca35ec7c827beac12e06dbcad273729172`이며 기존 공개 AuthPages2파일만 원본과 다르다. Java39개와 공개 AuthPages9개 범위는 소스/설정/의존성 변경0을 다시 확인해 앞선 실제 통과를 재사용했다.
 
 ## 서버 반영 전 남은 조건
 
