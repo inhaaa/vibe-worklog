@@ -344,6 +344,10 @@ describe('공통코드·근태코드 React 관리', () => {
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(view.getByText('결과 확인 필요')).toBeTruthy());
     await waitFor(() => expect(view.getByLabelText('근태코드 이름 1').hasAttribute('disabled')).toBe(false));
+    fireEvent.click(view.getByLabelText('근태코드 이름 1').closest('.ag-cell')!, { detail: 1 });
+    const unchangedEditor = await view.findByRole('textbox', { name: '근태코드 이름 1' });
+    fireEvent.keyDown(unchangedEditor, { key: 'Escape', code: 'Escape' });
+    expect(new FormData(form(view)).get('commandId')).toBe(command);
     fireEvent.submit(form(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect((fetcher.mock.calls[1][1]?.body as URLSearchParams).get('commandId')).toBe(command);

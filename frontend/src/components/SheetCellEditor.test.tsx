@@ -146,11 +146,34 @@ describe('공통 셀 편집기', () => {
     expect(view.queryByRole('textbox')).toBeNull();
   });
 
-  it('Escape는 값이 같아도 편집 시작 snapshot 취소 콜백을 호출한다', async () => {
+  it('변경 후 원값으로 다시 입력한 Escape도 편집 시작 snapshot 취소 콜백을 호출한다', async () => {
     const onCancel = vi.fn();
     const view = render(<Example field={{ onCancel }} />);
     await view.findByRole('grid', { name: '셀 편집' });
     fireEvent.click(cell(view, 'a', 'name'), { detail: 1 });
+    const input = await view.findByRole('textbox', { name: 'name 1' });
+    fireEvent.change(input, { target: { value: '변경값' } });
+    fireEvent.change(input, { target: { value: '가람' } });
+    fireEvent.keyDown(input, { key: 'Escape', code: 'Escape' });
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it('값을 바꾸지 않은 Escape는 취소·변경 콜백 없이 편집기만 닫는다', async () => {
+    const onCancel = vi.fn(); const onChange = vi.fn();
+    const view = render(<Example field={{ onCancel, onChange }} />);
+    await view.findByRole('grid', { name: '셀 편집' });
+    fireEvent.click(cell(view, 'a', 'name'), { detail: 1 });
+    fireEvent.keyDown(await view.findByRole('textbox', { name: 'name 1' }), { key: 'Escape', code: 'Escape' });
+    await waitFor(() => expect(view.queryByRole('textbox')).toBeNull());
+    expect(onCancel).not.toHaveBeenCalled(); expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('타이핑으로 시작한 Escape는 첫 문자가 원값과 같아도 snapshot을 복원한다', async () => {
+    const onCancel = vi.fn();
+    const view = render(<Example field={{ value: 'x', onCancel }} />);
+    await view.findByRole('grid', { name: '셀 편집' });
+    const target = cell(view, 'a', 'name'); fireEvent.mouseDown(target); target.focus();
+    fireEvent.keyDown(target, { key: 'x', code: 'KeyX' });
     fireEvent.keyDown(await view.findByRole('textbox', { name: 'name 1' }), { key: 'Escape', code: 'Escape' });
     expect(onCancel).toHaveBeenCalledOnce();
   });
