@@ -35,6 +35,10 @@
 
 Java main/test·main resources·pom은 위39개 검증의 Git 객체와 다시 동일함을 확인했다. 공개 AuthPages·해당 테스트·공통 ui·package/lock도 앞선9개 통과 이후 변경0이어서 그 결과를 재사용하며 추가 실행하지 않았다. 원본의 최종 공통 프론트 전체 회귀는 진행 중이므로 아직 통과 수치를 기록하지 않는다. 후보에서 전체 프론트·Java 검증을 중복 실행하지 않았고 접근성 수정의 전체 회귀 결과도 원본의 실제 종료 결과를 받은 뒤 반영한다.
 
+후속 테스트 동기화 `a615d4b`는 `bc1187a`로 통합했다. 원본 전체 실행의503 재인증/뒤로가기 한 건이1초 alert 대기 중 실패했으며 단독 재현은 통과했다. 실제 `popstate` 완료까지 `await act`로 기다리는 helper 보완 뒤 원본 App34개 통과를 확인했다. 후보에서 달라진 파일은 `App.test.tsx` 하나뿐이며 제품 소스·Java·설정·기존 JAR/8자산은 그대로임을 다시 대조했다. 재빌드하지 않았으며 최종 JAR SHA256과8파일 바이트 일치를 재확인했다. 최신 공통37파일의 원본 일치 manifest는 `3d977e320cde0b321181d2f9c0dbedb295855526957182a6808d564066de339e`이며 근거는 ignored `target/public-sheet-source-proof-a615d4b.json`이다. 원본의 최종244개 전체 재실행은 아직 진행 중이다.
+
+원본의 로컬 production 프록시18100 실제 브라우저에서는 신규 빈 행 저장 시 필수 오류3개·저장 차단, 첫 사번 편집기 focus와 `aria-invalid=true`, `aria-describedby`의 실제 `필수 입력입니다.` 연결, 전체 취소 뒤 변경0·신규 행/오류 제거를 관측했다. 해당 관측의 콘솔 warning/error는0이었다. 이 로컬 화면 검증을 공개 HTTPS나 후보 서버 배포 검증으로 확대하지 않는다.
+
 ## 서버 반영 전 남은 조건
 
 현재 정상 SSH 자격과 연결된 Hostinger Webconsole이 없어 서버 명령을 실행하지 않았다. 신규 관리 자격·socket 연결·방화벽 변경으로 우회하지 않았다. 기존 공개 버전과 PriceSys·demo·portfolio는 변경하지 않았다.
