@@ -50,6 +50,7 @@ export function SheetCellEditor<T>({ field: initialField, fieldKey, eventKey, on
   const cancel = useRef(field.onCancel);
   const errorId = useId();
   const startsWithKey = eventKey?.length === 1 && !field.options;
+  const touched = useRef(Boolean(startsWithKey));
   const first = startsWithKey ? eventKey : field.value;
   const [value, setValue] = useState(first);
   const control = useRef<HTMLInputElement | HTMLSelectElement>(null);
@@ -68,6 +69,7 @@ export function SheetCellEditor<T>({ field: initialField, fieldKey, eventKey, on
     }
   }, []);
   function change(next: string) {
+    touched.current = true;
     flushSync(() => {
       setValue(next);
       onValueChange(next);
@@ -87,7 +89,7 @@ export function SheetCellEditor<T>({ field: initialField, fieldKey, eventKey, on
     },
     onKeyDown: (event: KeyboardEvent) => {
       if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) { event.stopPropagation(); return; }
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && touched.current) {
         if (cancel.current) flushSync(() => { setValue(initial.current); onValueChange(initial.current); cancel.current!(); });
         else if (value !== initial.current) change(initial.current);
       }
