@@ -6,6 +6,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 - **Project Status:** Phase 6 · Local Quality Validation
 - 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 검증 소스 `180689d` 배포, 외부 HTTP40개·브라우저 입장 검증 완료. Webconsole 재접속과 임시 Docker 관리 연결 해제를 확인했습니다 ([배포 결과](docs/quality/hostinger-public-demo.md)).
+- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 기존 PriceSys·demo 보존과 배포 전후 검증을 포함하며 이번 문서 작업에서 새 메뉴를 배포하지 않았습니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)
