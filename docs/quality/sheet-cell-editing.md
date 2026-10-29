@@ -47,8 +47,13 @@
 
 최종 제품 소스는 `bb58875`, 후보 통합은 `db378b2`다. 최종 JAR SHA256은 `50f8ff03583e0ab7205d90ce5e761c7533da9d10418c997edbd6f6b9c36d28cb`다. 공개 AuthPages2파일을 제외한 공통 프론트37파일은 원본과 동일하며 LF 정규화 manifest SHA256은 `68e5ba41be9e834c98f6945e64229cca35ec7c827beac12e06dbcad273729172`다. 원본246개 결과와 공개 AuthPages9개 결과를 이 범위에 맞게 사용한다.
 
-정상 SSH 관리 자격·연결된 Hostinger 콘솔이 현재 준비되지 않아 서버 반영은 아직 하지 않았다. 사용자에게 hPanel → VPS `srv1852986.hstgr.cloud` → Browser terminal/Webconsole → root 프롬프트 연결을 요청했다. 비밀번호·세션 URL을 채팅에 보낼 필요는 없다. 서버 작업은 [공개 배포 절차](../development/worklog-public-updates.md)의 `/srv/worklog`·`worklog-demo`·`worklog_demo` 경계와 전용 백업·독립 복원·V14 업그레이드 보존 검증부터 이어간다. V14 뒤 구 앱만 무조건 롤백하지 않는다.
+아래는 셀 구현 완료 당시의 배포 준비 이력이다. 당시 정상 SSH 관리 자격·연결된 Hostinger 콘솔이 준비되지 않아 서버 반영을 하지 않았다. 사용자에게 hPanel → VPS `srv1852986.hstgr.cloud` → Browser terminal/Webconsole → root 프롬프트 연결을 요청했다. 비밀번호·세션 URL을 채팅에 보낼 필요는 없다. 서버 작업은 [공개 배포 절차](../development/worklog-public-updates.md)의 `/srv/worklog`·`worklog-demo`·`worklog_demo` 경계와 전용 백업·독립 복원·V14 업그레이드 보존 검증부터 이어간다. V14 뒤 구 앱만 무조건 롤백하지 않는다.
 
-기본 로컬 DB·기존 공개 서버/DB·PriceSys·demo·portfolio·전역 설정은 변경하지 않았다. 새 API·DB migration·추가 npm 의존성도 없다. 새 장시간 부하·전수 취약점 재검사는 수행하지 않았다. 기존 Vite500KB 번들 경고는 유지된다.
+셀 구현 단위에서는 기본 로컬 DB·기존 공개 서버/DB·PriceSys·demo·portfolio·전역 설정을 변경하지 않았다. 새 API·DB migration·추가 npm 의존성도 없다. 새 장시간 부하·전수 취약점 재검사는 수행하지 않았다. 기존 Vite500KB 번들 경고는 유지된다.
 
 참고한 공식 API: [Cell Editing](https://www.ag-grid.com/react-data-grid/cell-editing/), [Edit Components](https://www.ag-grid.com/react-data-grid/cell-editors/), [Saving Values](https://www.ag-grid.com/react-data-grid/value-setters/). 실제 설치36.2.0의 타입·소스와 테스트 결과를 함께 확인했다.
+
+
+## 후속 공개 반영 완료
+
+사용자가 Hostinger 콘솔 연결을 완료한 뒤 공개 보안을 통합한 `12f0f78`·V14를 실제 반영했다. 독립 복원·39개 테이블399행/권한 보존, 공개72항목·프록시/포트4항목·PC/390px6회를 확인했다. 모바일 긴 코드 겹침은 wrapper 최소 폭 한 줄(`17a9e25`)로 보완하고 선택49개·타입/build·공개 기하 RED→GREEN을 확인했다. 기존246개와 합산하지 않는다. 세부 SHA·이미지·백업·미실시 범위는 [실제 배포 결과](public-sheet-deploy-20261029.md)를 따른다.

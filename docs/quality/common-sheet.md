@@ -65,6 +65,6 @@ Java 검증은 프로젝트 전용 JDK25와 Docker/Testcontainers 경로에서 �
 
 내장 XLSX·Excel형 clipboard·셀 범위 선택은 유료 범위여서 도입하지 않았다. 기존 서버의 검토용 Excel을 유지한다. 새 전체 데이터 정렬 API도 없으며 현재 불러온 행만 정렬한다. 번들은 JS 약1.59MB/gzip438KB·CSS269KB/gzip34KB이며 Vite500KB 경고가 남는다. 새 이미지의 장시간 부하·OS/컨테이너 취약점 전수 검사는 이번에 실행하지 않았다.
 
-공개 `worklog.inhaaa.com` 배포는 **미실행**이다. 마지막 공개 문서 기록은 `efd13ea`·V13이며, 이번에는 health200/UP만 확인했고 현재 서버 내부 SHA·스키마·자원은 조회하지 못했다. 전용 공개 worktree는 clean(`2ac6ea5`)이었다. 정상 SSH 자격·연결이 준비되어 있지 않고 기존 Hostinger Webconsole도 이번 연결 표면에 없어 서버 변경을 실행하지 않았다. 사용자 승인이 부족해서 멈춘 것은 아니다.
+최초 공통 시트 단위 당시 공개 `worklog.inhaaa.com` 배포는 **미실행**이었다. 이후 클릭 편집·모바일 표시 보완과 `12f0f78`·V14 공개 반영은 [후속 실제 배포 결과](public-sheet-deploy-20261029.md)를 따른다. 아래는 당시 연결 준비 이력이다. 마지막 공개 문서 기록은 `efd13ea`·V13이며, 이번에는 health200/UP만 확인했고 현재 서버 내부 SHA·스키마·자원은 조회하지 못했다. 전용 공개 worktree는 clean(`2ac6ea5`)이었다. 정상 SSH 자격·연결이 준비되어 있지 않고 기존 Hostinger Webconsole도 이번 연결 표면에 없어 서버 변경을 실행하지 않았다. 사용자 승인이 부족해서 멈춘 것은 아니다.
 
 개발본에는 공개 문서 기준 아직 반영하지 않은 V14가 포함되어 있으므로 [공개 갱신 절차](../development/worklog-public-updates.md)에 따른 보안 통합·전용 백업·독립 복원·자료 보존 검증을 먼저 해야 한다. 개발본을 현재 공개 소스로 덮어쓰거나 UI만 무마이그레이션 경로로 교체하지 않았다. PriceSys·기존 demo·portfolio와 전역 Docker/DNS/Caddy는 변경하지 않았다.
