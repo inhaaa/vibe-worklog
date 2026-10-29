@@ -72,7 +72,7 @@ OSV에 fixed 범위가 없는 항목은 평가 대기·needed·ignored·deferred
 
 ## 증거와 해시
 
-원본 기준 경로는 ignored `target/sheet-soak-security-20261029/`다. 최종 실효 범위는 `scan/final-nine-role-*`, 모든 시도는 `scan/all-ten-scan-attempts-*`, r1/r2 대체 관계와 기존 manifest 보존은 `scan/r2-scan-verdict.json`과 `scan/sheet-probe-scan-verdict.json`을 따른다. OS·도구의 최종 분류는 `scan/os/final-nine-role-{os-assessment,tools-rows,os-summary}.*`다. 조회 URL·UTC·HTTP 상태·SHA는 `scan/sources/*manifest.json`, `scan/os/{source-manifest,ubuntu-source-manifest}.json`에 보존했다.
+원본은 실제 검사한 `codex/public-sheet-release` 작업트리의 ignored `target/sheet-soak-security-20261029/`에 보존한다. [33분 부하·회귀·보존 결과](sheet-soak-security-20261029.md)와 함께 해석한다. 최종 실효 범위는 `scan/final-nine-role-*`, 모든 시도는 `scan/all-ten-scan-attempts-*`, r1/r2 대체 관계와 기존 manifest 보존은 `scan/r2-scan-verdict.json`과 `scan/sheet-probe-scan-verdict.json`을 따른다. OS·도구의 최종 분류는 `scan/os/final-nine-role-{os-assessment,tools-rows,os-summary}.*`다. 조회 URL·UTC·HTTP 상태·SHA는 `scan/sources/*manifest.json`, `scan/os/{source-manifest,ubuntu-source-manifest}.json`에 보존했다.
 
 | 산출물 | SHA256 |
 | --- | --- |
