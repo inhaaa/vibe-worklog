@@ -273,8 +273,11 @@ class Client:
             assert all(item["employeeId"] == self.data["employeeId"] for item in data["buckets"]), "Foreign leave bucket"
             form_fields(page, "/me/requests/leave")
         elif name == "request/list":
-            assert data["title"] == "지정 승인함" and isinstance(data["requests"], list), "Approval inbox missing"
-            assert all(item["currentApproverId"] == self.data["employeeId"] for item in data["requests"]), "Wrong inbox approver"
+            assert data.get("title") == "결재 대기함" and data.get("completed") is False and isinstance(data.get("requests"), list), "Pending approval inbox missing"
+            requested_page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get("page", ["0"])[0])
+            assert urllib.parse.urlsplit(path).path == "/approvals" and type(data.get("page")) is int and 0 <= data["page"] <= 100_000 and data["page"] == requested_page, "Wrong inbox page"
+            assert type(data.get("hasNext")) is bool and len(data["requests"]) <= 50 and (not data["hasNext"] or len(data["requests"]) == 50), "Invalid inbox pagination"
+            assert all(isinstance(item, dict) and item.get("currentApproverId") == self.data["employeeId"] and item.get("status") == "PENDING" for item in data["requests"]), "Wrong inbox approver or nonpending request"
         elif name == "request/detail":
             request = data["request"]
             assert request["id"] == path.rsplit("/", 1)[1] and data["detail"]["request"] == request, "Wrong request detail"
