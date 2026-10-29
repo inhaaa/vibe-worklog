@@ -5,9 +5,9 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 공통 업무 그리드: AG Grid Community 기반 `WorklogSheet`를 편집·조회 표에 적용했습니다. 정렬/필터·열 조절·모바일 내부 스크롤·키보드·한글 입력과 기존 저장/충돌 계약을 검증했습니다. React207개·Java618개·Python62개·타입/build·PC/390px 결과와 공개 배포 미실행 사유는 [공통 시트 보고서](docs/quality/common-sheet.md)를 따릅니다.
-- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 마지막 완료 배포 기록은 통합 소스 `efd13ea`·V13입니다. Java624개·프론트153개·Python69개, 공개 보안/메뉴63항목·프록시/포트4항목·PC/모바일6회 관측과 DB 백업/복원·자료/권한 보존은 당시 [배포 결과](docs/quality/public-menu-deploy-20261028.md)입니다. 현재 개발본의 코드 관리/V14·공통 시트는 아직 공개 배포하지 않았습니다.
-- 이후 메뉴 개발은 검증된 단위마다 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 기존 PriceSys·demo·portfolio와 공개 공유 계정 보호를 유지하고 새 마이그레이션의 백업·독립 복원·자료 보존을 먼저 검증합니다.
+- 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드 적용과 원본246개 검증은 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다.
+- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `d8a8b03`·V14와 공통 시트를 반영했습니다. 공개72항목·프록시/포트4항목, 독립 복원·39개 업무 자료/권한 보존을 확인했습니다 ([통합·검증 기록](docs/quality/public-sheet-release-20261029.md)). 모바일의 긴 셀 표시 후속 보완은 별도 단위로 진행합니다.
+- 이후 검증된 메뉴 단위도 [후속 배포 절차](docs/development/worklog-public-updates.md)에 따라 공개 보안을 통합하고 기존 PriceSys·demo·portfolio를 보존합니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project
 - **Internal Name:** `tna` (Time & Attendance)

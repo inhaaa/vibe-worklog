@@ -49,6 +49,7 @@
 
 .w-sheet-grid .ag-header-cell { font-weight: 600; }
 .w-sheet-grid .ag-cell { display: flex; align-items: center; line-height: 1.45; }
+.w-sheet-grid .ag-cell-wrapper { min-width: 0; width: 100%; }
 .w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .w-sheet-grid .ag-cell-wrap-text .ag-cell-value { white-space: normal; overflow-wrap: anywhere; }
 #tna-app .w-sheet-grid .reason-cell p { margin: 2px 0; }

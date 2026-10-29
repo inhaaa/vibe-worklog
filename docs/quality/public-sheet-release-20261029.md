@@ -64,3 +64,12 @@ node node_modules/vitest/vitest.mjs run --maxWorkers=1 --testTimeout=30000 --rep
 V14는 신규4테이블과 `approval_request.attendance_type_version_id`의 NOT NULL/FK를 포함한다. 공개 서버의 현재 SHA·스키마를 먼저 읽고 WorkLog 전용 백업→독립 복원→V14 시험과 기존 열/행·ACL/RLS 대조→WorkLog 앱만 중지·최종 백업→별도 migration 역할→후보 앱의 순서로 진행해야 한다. V14 후 과거 앱은 정책 버전 없는 신청 INSERT와 호환되지 않으므로 구 앱만 무조건 되돌리지 않는다. bootstrap·sample-data는 재실행하지 않는다.
 
 최초39개 Maven 검증 시점에는 dist가 없었으며 그때 생성한 JAR을 배포 대상으로 사용하지 않았다. 이후 각 후보 기준선에서 프론트를 실제 빌드해 JAR 포함까지 검증했다. app/migrate 이미지의 revision·ID 검증은 남아 있다. 후보 전체 Java 회귀·새 이미지 취약점/장시간 부하·서버 백업/복원·공개 HTTPS/PC·모바일 검증도 이번 선택 검증의 통과로 확대하지 않는다.
+
+
+## 서버 V14 전환 1차 실제 결과
+
+2026-10-29 10:44 KST에 정상 Hostinger Webconsole로 `d8a8b0326717d8f71e06c7681b5673560284934b`를 반영했다. 전용 제한 빌더의 app/migrate 빌드 종료0, non-root10001과 revision을 확인했고 서버 JAR의 프론트8개 파일이 최종 로컬 검증본과 일치했다. 기존 앱만 잠시 멈춰 새 V13 전열 해시·덤프를 만든 뒤 앱을 재개했다. 독립 DB의 정확 복원→V14→39개 기존 자료/권한/제약 보존·4개 신규 테이블/기초/신청 연결 검증을 통과한 후 최종 백업과 실제 DB 이행을 수행했다. 최종43개 테이블의 스키마·보안은 리허설과 같고 실패 Flyway0이다. bootstrap/sample-data는 실행하지 않았다.
+
+실제 앱은 `worklog-demo-app:d8a8b03`, 이미지 `sha256:b7d0bd4317ed349479ac8b87106b52ae35f938be67a0c713f5701bb904b20392`이며 health UP이다. 공개 HTTP72항목과 프록시·포트4항목을 통과했다. 신규4테이블의 일반 앱 역할 RLS 읽기5항목도 통과했다. 기존10개 컨테이너의 ID/시작/이미지·실행/재시작/종료 상태, Caddy 해시와 기존4개 공개 HTTP를 보존했다. 서버 증거/덤프는 `/srv/worklog/.local/sheet-v14.d8a8b03`에 접근 제한으로 보관하며 비밀값/행 원문은 커밋하지 않는다.
+
+공개 사원 화면의 클릭 단일 편집·Esc 원값 복원·Tab 이동·필수3개 오류와 focus/aria 연결·전체 취소를 확인했다. 공통코드 신규 편집/취소, 근태코드 선택 표시와 취소 시 유급 구분/자동 적용일 동시 복원도 확인했다. 이후390px에서 긴 근태코드의 wrapper가 셀 경계를15.875px 넘는 표시 문제를 발견했다. 기하 검사 RED를 보존했고 공통 CSS의 wrapper 최소 폭 보완을 별도 수정 단위로 진행한다. 이 시점에 모바일 표시 검증 전체가 완료됐다고 표현하지 않는다.

@@ -14,7 +14,7 @@
 
 ## 인터페이스와 데이터 흐름
 
-`sheetEditorColumn<T>(column: ColDef<T>, field: (row: T, index: number) => SheetEditorField)`를 추가한다. `SheetEditorField`는 `value`, `label`, `onChange`, 선택 옵션과 기존 필수/길이/최솟값/step/읽기전용/비활성/변경/오류 속성을 제공한다. 선택 옵션은 원시값·표시명 쌍으로 유지한다.
+`sheetEditorColumn<T>(column: ColDef<T>, field: (row: T, index: number) => SheetEditorField)`를 추가한다. `SheetEditorField`는 `value`, `label`, `onChange`, 연관 필드의 시작 상태를 복원하는 `onCancel`, 선택 옵션과 기존 필수/길이/최솟값/step/읽기전용/비활성/변경/오류 속성을 제공한다. 선택 옵션은 원시값·표시명 쌍으로 유지한다.
 
 페이지가 계속 초안과 commandId를 소유한다. 입력마다 페이지의 기존 `update(clientRowId, field, value)`를 호출하며 Grid는 원본 row를 직접 변경하지 않는다. 편집 중 저장·다른 페이지 이동에서도 최신 초안과 미저장 보호가 적용되어야 한다. `leftOn=null`, 숫자 빈값 `''`, 조직장 방식의 지정 사원 초기화와 근태정책 적용일 보정은 유지한다.
 

@@ -1,5 +1,7 @@
 # 공통 업무 그리드 적용·검증
 
+> 상시 입력 박스를 없애는 후속 변경과 실제 최신 검증·공개 배포 준비는 [셀 직접 편집 보고서](sheet-cell-editing.md)를 따른다. 아래207개·618개·62개는 최초 공통 시트 단위의 검증 이력이다.
+
 기준일: 2026-10-29, `Asia/Seoul`. 사용자가 [설계](../superpowers/specs/2026-10-29-common-sheet-design.md)를 승인하고 적용 가능한 표의 순차 전환·작은 단위 커밋·일반 Push를 위임했다. [실행 계획](../superpowers/plans/2026-10-29-common-sheet.md)과 [ADR-0005](../adr/0005-common-worklog-sheet.md)를 따른다. 공개 배포와 로컬 구현 결과는 구분한다.
 
 ## 적용과 보존
