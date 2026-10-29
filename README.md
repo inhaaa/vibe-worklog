@@ -6,7 +6,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 - **Project Status:** Phase 6 · Local Quality Validation
 - 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드 적용과 원본246개 검증은 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다.
-- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `d8a8b03`·V14와 공통 시트를 반영했습니다. 공개72항목·프록시/포트4항목, 독립 복원·39개 업무 자료/권한 보존을 확인했습니다 ([통합·검증 기록](docs/quality/public-sheet-release-20261029.md)). 모바일의 긴 셀 표시 후속 보완은 별도 단위로 진행합니다.
+- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `12f0f78`·V14와 클릭 편집 시트를 반영했습니다. 공개72항목·프록시/포트4항목·PC/390px6회·독립 복원·39개 업무 테이블399행/권한 보존을 확인했고 모바일 긴 셀 겹침도 보완했습니다 ([실제 배포 결과](docs/quality/public-sheet-deploy-20261029.md)).
 - 이후 검증된 메뉴 단위도 [후속 배포 절차](docs/development/worklog-public-updates.md)에 따라 공개 보안을 통합하고 기존 PriceSys·demo·portfolio를 보존합니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project

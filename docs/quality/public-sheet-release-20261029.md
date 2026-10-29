@@ -1,10 +1,10 @@
 # 공개 공통 시트·V14 통합 후보
 
-기준일: 2026-10-29, Asia/Seoul. 이 문서는 공개 배포 전의 별도 통합 후보와 로컬 검증을 기록한다. 서버 배포·마이그레이션 완료 보고가 아니다. 실제 후속 배포는 [공개 갱신 절차](../development/worklog-public-updates.md)를 따른다.
+기준일: 2026-10-29, Asia/Seoul. 이 문서는 공개 통합 후보의 로컬 검증과 1차 서버 이행 이력을 보존한다. 이후 표시 보완까지 완료한 최종 소스 `12f0f78`·V14의 실제 결과는 [최종 배포 보고서](public-sheet-deploy-20261029.md)를 따른다. 실제 후속 배포는 [공개 갱신 절차](../development/worklog-public-updates.md)를 따른다.
 
 ## 소스와 보안 보존
 
-- 기존 공개 브랜치 `2ac6ea5`에 검증된 개발 `origin/main`의 `8004848`을 통합했다. 공개 런타임의 마지막 완료 기록 `efd13ea`·V13과 개발본 V14·공통 시트를 구분한다. [이전 공개 배포 결과](public-menu-deploy-20261028.md)의 수치를 이번 후보 검증으로 재사용하지 않는다.
+- 기존 공개 브랜치 `2ac6ea5`에 검증된 개발 `origin/main`의 `8004848`을 통합했다. 공개 런타임의 마지막 완료 기록 `efd13ea`·V13과 개발본 V14·공통 시트를 구분한다. [이전 공개 배포 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/worklog-public-demo/docs/quality/public-menu-deploy-20261028.md)의 수치를 이번 후보 검증으로 재사용하지 않는다.
 - 후보는 별도 `codex/public-sheet-release` 브랜치다. 기존 공개 worktree·서버 소스와 다른 개발 worktree의 작성 중인 변경은 수정하거나 포함하지 않았다. 최초 통합 `3894948` 뒤 확정 UI `bbd525c`를 충돌 없이 merge한 커밋은 `951e98f`다.
 - `public-demo` 단독 활성화·운영자 시작 거부·Secure 쿠키·CSRF와 현재 세션/권한·tenant/RLS를 유지했다. 공유 데모 사원의 단건 변경·역할·초대와 일괄 변경 보호도 보존했다.
 - 코드·근태코드 관리 경로의 관리자 접근 조건과 `OrgBulkService.employees`의 UUID 기반 공유 사원 검사를 함께 확인했다. 기존 공개 보안 파일을 개발본으로 대체하지 않았다.
@@ -59,7 +59,7 @@ node node_modules/vitest/vitest.mjs run --maxWorkers=1 --testTimeout=30000 --rep
 
 ## 서버 반영 전 남은 조건
 
-현재 정상 SSH 자격과 연결된 Hostinger Webconsole이 없어 서버 명령을 실행하지 않았다. 신규 관리 자격·socket 연결·방화벽 변경으로 우회하지 않았다. 기존 공개 버전과 PriceSys·demo·portfolio는 변경하지 않았다.
+당시 정상 SSH 자격과 연결된 Hostinger Webconsole이 없어 서버 명령을 실행하지 않았다. 이후 사용자가 콘솔 연결을 완료해 아래 실제 서버 단위와 최종 배포 보고서로 이어갔다. 신규 관리 자격·socket 연결·방화벽 변경으로 우회하지 않았다. 기존 공개 버전과 PriceSys·demo·portfolio는 변경하지 않았다.
 
 V14는 신규4테이블과 `approval_request.attendance_type_version_id`의 NOT NULL/FK를 포함한다. 공개 서버의 현재 SHA·스키마를 먼저 읽고 WorkLog 전용 백업→독립 복원→V14 시험과 기존 열/행·ACL/RLS 대조→WorkLog 앱만 중지·최종 백업→별도 migration 역할→후보 앱의 순서로 진행해야 한다. V14 후 과거 앱은 정책 버전 없는 신청 INSERT와 호환되지 않으므로 구 앱만 무조건 되돌리지 않는다. bootstrap·sample-data는 재실행하지 않는다.
 
@@ -73,3 +73,6 @@ V14는 신규4테이블과 `approval_request.attendance_type_version_id`의 NOT 
 실제 앱은 `worklog-demo-app:d8a8b03`, 이미지 `sha256:b7d0bd4317ed349479ac8b87106b52ae35f938be67a0c713f5701bb904b20392`이며 health UP이다. 공개 HTTP72항목과 프록시·포트4항목을 통과했다. 신규4테이블의 일반 앱 역할 RLS 읽기5항목도 통과했다. 기존10개 컨테이너의 ID/시작/이미지·실행/재시작/종료 상태, Caddy 해시와 기존4개 공개 HTTP를 보존했다. 서버 증거/덤프는 `/srv/worklog/.local/sheet-v14.d8a8b03`에 접근 제한으로 보관하며 비밀값/행 원문은 커밋하지 않는다.
 
 공개 사원 화면의 클릭 단일 편집·Esc 원값 복원·Tab 이동·필수3개 오류와 focus/aria 연결·전체 취소를 확인했다. 공통코드 신규 편집/취소, 근태코드 선택 표시와 취소 시 유급 구분/자동 적용일 동시 복원도 확인했다. 이후390px에서 긴 근태코드의 wrapper가 셀 경계를15.875px 넘는 표시 문제를 발견했다. 기하 검사 RED를 보존했고 공통 CSS의 wrapper 최소 폭 보완을 별도 수정 단위로 진행한다. 이 시점에 모바일 표시 검증 전체가 완료됐다고 표현하지 않는다.
+
+
+최종 후속 `12f0f78`에서는 CSS1줄과 문서만 바뀌었고429파일 소스·서버 프론트8자산을 대조해 앱만 교체했다. Flyway 전체 이력·스키마/권한·기존10개 서비스는 동일하다. 390px 셀 경계 RED→GREEN과 최종PC/모바일6회·72+4항목을 확인했으며 [최종 배포 결과](public-sheet-deploy-20261029.md)에 기록했다.
