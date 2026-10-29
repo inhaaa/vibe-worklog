@@ -54,6 +54,12 @@ def month():
             "summary": {"result": {"confirmedWorkMillis": 31 * 28800000}}}})
 
 
+def inbox(requests=None, page_number=0, has_next=False):
+    return page("request/list", {"title": "결재 대기함", "completed": False,
+        "page": page_number, "hasNext": has_next, "requests": requests if requests is not None else [
+            {"currentApproverId": APPROVER, "status": "PENDING"}]})
+
+
 def workbook(employee=EMPLOYEE, start="2026-08-01", end="2026-08-31", suffix=""):
     namespace = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
     root = ET.Element(namespace + "worksheet")
@@ -223,6 +229,55 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(["synthetic-company"], body["companyCode"])
         self.assertEqual(["synthetic@example.test"], body["email"])
         self.assertEqual(["synthetic password"], body["password"])
+
+    def test_current_pending_inbox_accepts_empty_and_requested_pages(self):
+        for payload, path in [(inbox(), "/approvals"), (inbox([]), "/approvals"),
+                              (inbox(page_number=2), "/approvals?page=2"),
+                              (inbox([{"currentApproverId": APPROVER, "status": "PENDING"}] * 50,
+                                     has_next=True), "/approvals")]:
+            client, rows, _ = client_with(Response(payload), kind="approver", employee=APPROVER)
+            client.http("approvalInbox", path)
+            self.assertTrue(rows[0]["ok"])
+
+    def test_pending_inbox_rejects_completed_and_obsolete_views(self):
+        for field, value in [("title", "내가 처리한 결재"), ("title", "지정 승인함"),
+                             ("completed", True), ("completed", 0), ("completed", None)]:
+            payload = inbox()
+            payload["data"][field] = value
+            client, rows, _ = client_with(Response(payload), kind="approver", employee=APPROVER)
+            with self.subTest(field=field, value=value), self.assertRaises(AssertionError):
+                client.http("approvalInbox", "/approvals")
+            self.assertFalse(rows[0]["ok"])
+
+    def test_pending_inbox_rejects_other_approvers_and_nonpending_entries(self):
+        for field, value in [("currentApproverId", EMPLOYEE), ("status", "APPROVED"),
+                             ("status", "REJECTED"), ("status", None)]:
+            payload = inbox()
+            payload["data"]["requests"][0][field] = value
+            client, rows, _ = client_with(Response(payload), kind="approver", employee=APPROVER)
+            with self.subTest(field=field, value=value), self.assertRaises(AssertionError):
+                client.http("approvalInbox", "/approvals")
+            self.assertFalse(rows[0]["ok"])
+
+    def test_pending_inbox_rejects_invalid_or_wrong_pagination(self):
+        for field, value in [("page", -1), ("page", 100001), ("page", 1), ("page", "0"),
+                             ("page", False), ("hasNext", 0), ("hasNext", "false"),
+                             ("hasNext", True), ("requests", {}),
+                             ("requests", [{"currentApproverId": APPROVER, "status": "PENDING"}] * 51)]:
+            payload = inbox()
+            payload["data"][field] = value
+            client, rows, _ = client_with(Response(payload), kind="approver", employee=APPROVER)
+            with self.subTest(field=field, value=value), self.assertRaises(AssertionError):
+                client.http("approvalInbox", "/approvals")
+            self.assertFalse(rows[0]["ok"])
+
+    def test_pending_inbox_still_requires_the_approver_role(self):
+        payload = inbox()
+        payload["data"]["workspacePrincipal"]["roles"] = ["EMPLOYEE"]
+        client, rows, _ = client_with(Response(payload), employee=APPROVER)
+        with self.assertRaises(AssertionError):
+            client.http("approvalInbox", "/approvals")
+        self.assertFalse(rows[0]["ok"])
 
     def test_month_result_and_approval_semantics_are_not_only_200_checks(self):
         client, rows, _ = client_with(Response(month()))
