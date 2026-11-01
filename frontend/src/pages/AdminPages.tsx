@@ -393,7 +393,6 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
             rows={m.assignments}
             getRowId={(assignment) => assignment.id}
             scope="all"
-            rowHeight={80}
             columns={[
               { field: 'organizationName', headerName: '조직', minWidth: 170, pinned: 'left' },
               sheetColumn<EmployeeModel['assignments'][number]>(
@@ -401,7 +400,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
                 (assignment) => <time dateTime={assignment.validFrom}>{fmtDate(assignment.validFrom)}</time>,
               ),
               { colId: 'validTo', headerName: '종료일 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '종료일 없음', minWidth: 160 },
-              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+              { field: 'reason', headerName: '사유', minWidth: 240 },
             ]}
           />
         )}
@@ -806,13 +805,12 @@ function AccessPage({ model: m }: { model: AccessModel }) {
             rows={m.assignments}
             getRowId={(assignment) => assignment.id}
             scope="all"
-            rowHeight={80}
             columns={[
               { field: 'approverName', headerName: '승인자', minWidth: 160, pinned: 'left' },
               { colId: 'validFrom', headerName: '시작일', valueGetter: ({ data }) => data && fmtDate(data.validFrom), minWidth: 150 },
               { colId: 'validTo', headerName: '종료일 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '미지정', minWidth: 160 },
               { colId: 'status', headerName: '상태', valueGetter: ({ data }) => data && (data.supersededAt ? '당일 교체·해제' : data.validTo ? '종료' : data.eligible ? '현재 유효' : '재지정 필요'), minWidth: 170 },
-              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+              { field: 'reason', headerName: '사유', minWidth: 240 },
             ]}
           />
         )}
@@ -993,7 +991,7 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
                 { colId: 'workday', headerName: '구분', valueGetter: ({ data }) => data?.workday ? '근로일' : '비근로일', minWidth: 130 },
                 { colId: 'startTime', headerName: '시작', valueGetter: ({ data }) => data?.workday ? fmtTime(data.startTime) : '해당 없음', minWidth: 130 },
                 { colId: 'endTime', headerName: '종료', valueGetter: ({ data }) => data?.workday ? fmtTime(data.endTime) : '해당 없음', minWidth: 130 },
-                { colId: 'breaks', headerName: '예정 휴게', valueGetter: ({ data }) => data?.breaks.map((pause) => `${fmtTime(pause.startTime)}–${fmtTime(pause.endTime)}`).join(' '), minWidth: 220, wrapText: true, autoHeight: true },
+                { colId: 'breaks', headerName: '예정 휴게', valueGetter: ({ data }) => data?.breaks.map((pause) => `${fmtTime(pause.startTime)}–${fmtTime(pause.endTime)}`).join(' '), minWidth: 220 },
               ]}
             />
           </article>
@@ -1030,13 +1028,12 @@ function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }
             rows={m.assignments}
             getRowId={(assignment) => assignment.id}
             scope="all"
-            rowHeight={80}
             columns={[
               { field: 'templateName', headerName: '템플릿', minWidth: 170, pinned: 'left' },
               { field: 'revision', headerName: '버전', minWidth: 100, cellClass: 'w-sheet-number' },
               { colId: 'validFrom', headerName: '시작 (포함)', valueGetter: ({ data }) => data && fmtDate(data.validFrom), minWidth: 150 },
               { colId: 'validTo', headerName: '종료 (제외)', valueGetter: ({ data }) => data?.validTo ? fmtDate(data.validTo) : '종료 없음', minWidth: 150 },
-              { field: 'reason', headerName: '사유', minWidth: 240, wrapText: true, autoHeight: true },
+              { field: 'reason', headerName: '사유', minWidth: 240 },
             ]}
           />
         )}

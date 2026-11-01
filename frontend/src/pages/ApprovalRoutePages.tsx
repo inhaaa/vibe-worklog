@@ -276,7 +276,7 @@ function RouteSheet({ model: m, error }: {
         </div>}
         <WorklogSheet ref={sheet} label="결재선 편집 시트" rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected} selectionLabel={(_row, index) => `${index + 1}행 선택`}
-          changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} rowHeight={errors.length ? 64 : 40} />
+          changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} />
         {!rows.length && <p className="notice">등록된 결재선이 없습니다. 입력 버튼으로 추가하세요.</p>}
         {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교">
           <h2>최신값을 확인하세요</h2>
@@ -335,7 +335,7 @@ function VersionTable({ versions }: {
     sheetColumn<Version>({ field: 'createdAt', headerName: '등록 시각 (서울)', minWidth: 185 }, version => fmtDateTime(version.createdAt)),
     sheetColumn<Version>({ field: 'reason', headerName: '변경 사유', minWidth: 220, flex: 1 }, version => version.reason),
   ];
-  return versions.length ? <WorklogSheet label="결재선 버전 이력" rows={versions} columns={columns} getRowId={version => version.id} rowHeight={64} /> : <p className="notice">등록된 버전이 없습니다.</p>;
+  return versions.length ? <WorklogSheet label="결재선 버전 이력" rows={versions} columns={columns} getRowId={version => version.id} /> : <p className="notice">등록된 버전이 없습니다.</p>;
 }
 function RouteAssignments({ model: m, error }: {
   model: Assignments;
@@ -488,7 +488,7 @@ function RouteAssignments({ model: m, error }: {
       </section>
       <section className="t-card">
         <h2>적용 배정 이력</h2>
-        {m.history.length ? <WorklogSheet label="결재선 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} rowHeight={64} scope="all" /> : <p className="notice">등록된 배정이 없습니다.</p>}
+        {m.history.length ? <WorklogSheet label="결재선 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} scope="all" /> : <p className="notice">등록된 배정이 없습니다.</p>}
       </section>
     </> : <section className="t-card">
       <p className="notice">대상 사원 또는 조직을 선택해 조회하세요.</p>

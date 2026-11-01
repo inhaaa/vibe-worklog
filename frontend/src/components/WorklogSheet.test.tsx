@@ -2,7 +2,7 @@
 import React, { createRef, useState } from 'react';
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { WorklogSheet, sheetColumn } from './WorklogSheet';
+import { WorklogSheet, sheetColumn, sheetEditorColumn } from './WorklogSheet';
 import type { WorklogSheetHandle } from './WorklogSheet';
 
 interface Row { id: string; name: string; locked?: boolean }
@@ -16,6 +16,69 @@ function resizeViewport(width: number) {
 afterEach(() => { cleanup(); resizeViewport(initialViewportWidth); });
 
 describe('WorklogSheet 공통 업무 그리드', () => {
+  it('숫자·숫자 편집값은 우측, 짧은 식별값은 중앙, 네 어절·문장·표시 라벨은 좌측 정렬한다', async () => {
+    const data = [{ id: 'a', count: 0, code: '001', short: '인사 운영 팀', long: '연차 신청 담당자 검토', sentence: '확인이 필요합니다.', state: 'PENDING' }];
+    const view = render(<WorklogSheet label="정렬 기준" rows={data} getRowId={row => row.id} columns={[
+      { field: 'count', headerName: '수량' },
+      { field: 'code', headerName: '식별 코드' },
+      { field: 'short', headerName: '짧은 값' },
+      { field: 'long', headerName: '긴 값' },
+      { field: 'sentence', headerName: '문장' },
+      { field: 'state', headerName: '상태', valueFormatter: () => '연차 신청 담당자 검토' },
+      sheetEditorColumn<typeof data[number]>({ colId: 'quantity', headerName: '입력 수량' }, () => ({ label: '수량 입력', value: '12.5', type: 'number', onChange: () => {} })),
+    ]} />);
+    await view.findByRole('grid', { name: '정렬 기준' });
+    await waitFor(() => {
+      for (const id of ['count', 'quantity']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-number`)).toBeTruthy();
+      for (const id of ['code', 'short']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-center`)).toBeTruthy();
+      for (const id of ['long', 'sentence', 'state']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-left`)).toBeTruthy();
+    });
+  });
+
+  it('값이 바뀌면 이전 정렬을 제거하고 새 표시값으로 다시 정렬한다', async () => {
+    const props = { label: '정렬 갱신', getRowId: (row: Row) => row.id, columns: [{ field: 'name' as const, headerName: '이름' }] };
+    const view = render(<WorklogSheet {...props} rows={[{ id: 'a', name: '연차 신청 담당자 검토' }]} />);
+    const cell = () => view.container.querySelector('[row-id="a"] [col-id="name"]');
+    await waitFor(() => expect(cell()?.classList.contains('w-sheet-left')).toBe(true));
+    view.rerender(<WorklogSheet {...props} rows={[{ id: 'a', name: '완료' }]} />);
+    await waitFor(() => {
+      expect(cell()?.classList.contains('w-sheet-center')).toBe(true);
+      expect(cell()?.classList.contains('w-sheet-left')).toBe(false);
+    });
+  });
+
+  it('복합 셀은 실제 표시 문구로 정렬하고 말줄임 확인용 원문과 상세 링크를 보존한다', async () => {
+    const view = render(<WorklogSheet label="복합 셀" rows={rows} getRowId={row => row.id} columns={[
+      sheetColumn<Row>({ colId: 'note', headerName: '사유', valueGetter: () => '대기' }, () => <div className="reason-cell"><p>휴가 일정 변경 사유</p><a href="/requests/fixture">상세 보기</a></div>),
+    ]} />);
+    const link = (await view.findAllByRole('link', { name: '상세 보기' }))[0];
+    expect(link.getAttribute('href')).toBe('/requests/fixture');
+    const content = link.closest('.w-sheet-content');
+    expect(content?.classList.contains('w-sheet-left')).toBe(true);
+    expect(content?.getAttribute('title')).toBe('휴가 일정 변경 사유 상세 보기');
+  });
+
+  it('호출부의 줄바꿈·자동 높이 요청보다 공통 한 줄 표시를 우선하고 원문은 보존한다', async () => {
+    const note = '첫 번째 내용\n다음 줄 원문';
+    const view = render(<WorklogSheet label="한 줄" rows={[{ id: 'a', name: note }]} getRowId={row => row.id}
+      columns={[{ field: 'name', headerName: '내용', wrapText: true, autoHeight: true }]} />);
+    await view.findByRole('grid', { name: '한 줄' });
+    const cell = view.container.querySelector('[row-id="a"] [col-id="name"]');
+    expect(cell?.classList.contains('ag-cell-wrap-text')).toBe(false);
+    expect(cell?.textContent).toBe(note);
+    expect((cell?.closest('.ag-row') as HTMLElement).style.height).toBe('40px');
+  });
+
+  it('별도 컴포넌트가 출력한 경고 문구도 정렬과 전체 내용 확인에 포함한다', async () => {
+    function Warning({ reason }: { reason: string }) { return <p>{reason}</p>; }
+    const view = render(<WorklogSheet label="컴포넌트 셀" rows={rows} getRowId={row => row.id} columns={[
+      sheetColumn<Row>({ colId: 'warning', headerName: '주의', valueGetter: () => '대기' }, () => <><Warning reason="후속 승인 담당자 지정 필요" /><a href="/requests/fixture">상세</a></>),
+    ]} />);
+    const content = (await view.findAllByRole('link', { name: '상세' }))[0].closest('.w-sheet-content');
+    expect(content?.classList.contains('w-sheet-left')).toBe(true);
+    expect(content?.getAttribute('title')).toBe('후속 승인 담당자 지정 필요 상세');
+  });
+
   it('작은 화면은 선택 열만 고정하고 데스크톱으로 돌아오면 식별 열 고정을 복원한다', async () => {
     resizeViewport(390);
     const view = render(<WorklogSheet label="모바일 시트" rows={rows} getRowId={row => row.id}
