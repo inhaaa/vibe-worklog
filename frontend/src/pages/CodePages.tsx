@@ -237,7 +237,7 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
         {errors.filter(item => !fields.some(field => field.key === item.field)).map((item, index) => <p key={index}>{item.message}</p>)}
       </div>}
       <WorklogSheet ref={sheet} label={`${title} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
-        rowHeight={attendance ? 112 : 64} selectedIds={selected} onSelectionChange={setSelected}
+        selectedIds={selected} onSelectionChange={setSelected}
         selectionLabel={(_row, index) => `${title} ${index + 1}행 선택`}
         isRowSelectable={row => !lockedGroup && !(row.id && latest.get(row.id)?.systemOwned)}
         changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
@@ -321,7 +321,7 @@ function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string
     </section>
     <section className="t-card t-code-versions"><h2>근태코드 버전 이력</h2><p className="t-subtle">조회된 코드의 불변 정책입니다. 대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
       <WorklogSheet label="근태코드 버전 이력" rows={versions} columns={versionColumns} getRowId={version => version.id}
-        rowHeight={112} emptyMessage="등록된 버전이 없습니다." />
+        emptyMessage="등록된 버전이 없습니다." />
     </section>
   </section>;
 }

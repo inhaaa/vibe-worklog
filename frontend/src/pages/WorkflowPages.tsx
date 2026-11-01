@@ -550,7 +550,7 @@ function Month({ model: m }: { model: MonthModel }) {
     sheetColumn<DayView>({ colId: 'confirmedBreakMillis', field: 'result.confirmedBreakMillis', headerName: '휴게 ms', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.confirmedBreakMillis)),
     sheetColumn<DayView>({ colId: 'over8hMillis', field: 'result.over8hMillis', headerName: '일8시간 초과 ms', minWidth: 175, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.over8hMillis)),
     sheetColumn<DayView>({ colId: 'leaveDays', field: 'result.leaveDays', headerName: '휴가 DAY', minWidth: 130, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => day.result.leaveDays),
-    sheetColumn<DayView>({ colId: 'evidence', headerName: '근거·예외·버전', minWidth: 310, flex: 1, autoHeight: true, wrapText: true, valueGetter: ({ data }) => data ? `${data.result.reasons.join(' · ')} · ${data.ruleVersion} · 결과 v${data.resultRevision} · ${data.id ?? ''} · 사실 ${data.result.inputRevision} / 검토 ${data.result.reviewRevision}` : '' }, day => <div className="reason-cell">
+    sheetColumn<DayView>({ colId: 'evidence', headerName: '근거·예외·버전', minWidth: 310, flex: 1, valueGetter: ({ data }) => data ? `${data.result.reasons.join(' · ')} · ${data.ruleVersion} · 결과 v${data.resultRevision} · ${data.id ?? ''} · 사실 ${data.result.inputRevision} / 검토 ${data.result.reviewRevision}` : '' }, day => <div className="reason-cell">
       <p><Reasons reasons={day.result.reasons} /></p>
       <p>{day.ruleVersion} · 결과 v{day.resultRevision} · {day.id}</p>
       {day.id && <p><a href={`/worktime/results/${day.id}`}>계산 근거 상세</a></p>}
@@ -600,7 +600,7 @@ function Month({ model: m }: { model: MonthModel }) {
       </section>
       <section className="panel">
         <h2>일 결과</h2>
-        <WorklogSheet label="일별 계산 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} rowHeight={112} scope="all" />
+        <WorklogSheet label="일별 계산 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
       <section className="panel">
         <h2>월 경계를 포함한 주간 참고량</h2>

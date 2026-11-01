@@ -1,9 +1,9 @@
-import { useCallback, useContext, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import type { ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
+import type { CellClassParams, ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
 import { SheetCellEditor, SheetEditorFields, validateSheetField } from './SheetCellEditor';
 import type { SheetEditorField } from './SheetCellEditor';
 export type { SheetEditorField } from './SheetCellEditor';
@@ -11,12 +11,40 @@ export type { SheetEditorField } from './SheetCellEditor';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface SheetContext<T> { index: Map<string, number>; getRowId: (row: T) => string; errors: SheetFieldError[] }
+function textAlignment(text: string) {
+  const value = text.trim();
+  return /[\r\n]/.test(text) || /[.!?。！？]$/.test(value) || value.split(/\s+/).length >= 4 ? 'w-sheet-left' : 'w-sheet-center';
+}
+function renderedText(element: HTMLElement) {
+  const parts: string[] = [];
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) parts.push(node.textContent ?? '');
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+function numericCell<T>(params: CellClassParams<T>) {
+  const cellClass = typeof params.colDef.cellClass === 'function' ? params.colDef.cellClass(params) : params.colDef.cellClass;
+  const classes = Array.isArray(cellClass) ? cellClass : cellClass?.split(/\s+/) ?? [];
+  const types = Array.isArray(params.colDef.type) ? params.colDef.type : [params.colDef.type];
+  return typeof params.value === 'number' || fieldFor(params.colDef, params.data, params.context)?.type === 'number'
+    || classes.includes('w-sheet-number') || types.includes('numericColumn');
+}
+function cellText<T>(params: CellClassParams<T>) {
+  return String(params.api.getCellValue({ rowNode: params.node, colKey: params.column, useFormatter: true }) ?? '');
+}
 function RenderCell<T>({ data, context, render }: ICellRendererParams<T> & {
   render: (row: T, index: number) => ReactNode;
 }) {
+  const element = useRef<HTMLSpanElement>(null);
+  const [text, setText] = useState('');
+  useLayoutEffect(() => {
+    const next = element.current ? renderedText(element.current) : '';
+    if (next !== text) setText(next);
+  });
   if (!data) return null;
   const sheet = context as SheetContext<T>;
-  return render(data, sheet.index.get(sheet.getRowId(data)) ?? 0);
+  const content = render(data, sheet.index.get(sheet.getRowId(data)) ?? 0);
+  return <span ref={element} className={`w-sheet-content ${textAlignment(text)}`} title={text || undefined}>{content}</span>;
 }
 
 /** Keep the renderer component stable while page-owned controlled inputs receive fresh props. */
@@ -100,6 +128,8 @@ interface Props<T> {
 }
 const defaults = {
   flex: 1, minWidth: 130, sortable: true, filter: 'agTextColumnFilter', resizable: true,
+  wrapText: false, autoHeight: false,
+  tooltipValueGetter: params => params.valueFormatted ?? String(params.value ?? ''),
   suppressKeyboardEvent: ({ event, editing }) => {
     if (event.isComposing || event.keyCode === 229) return true;
     if (editing) return !['Tab', 'Enter', 'Escape'].includes(event.key);
@@ -133,7 +163,9 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, []);
-  const viewportColumns = narrowViewport ? columns.map(column => ({ ...column, pinned: null })) : columns;
+  const viewportColumns = columns.map(column => ({ ...column, wrapText: false, autoHeight: false,
+    ...(narrowViewport ? { pinned: null } : {}),
+  }));
   const [visible, setVisible] = useState(() => new Set(rows.map(getRowId)));
   const allErrors = [...errors, ...validationErrors];
   const context = useMemo<SheetContext<T>>(() => ({ index: new Map(rows.map((row, index) => [getRowId(row), index])), getRowId, errors: allErrors }), [rows, getRowId, errors, validationErrors]);
@@ -274,6 +306,9 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
       <SheetEditorFields.Provider value={editorFields}>
       <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...viewportColumns]}
         defaultColDef={{ ...defaults, cellClassRules: {
+          'w-sheet-number': params => numericCell(params),
+          'w-sheet-left': params => !numericCell(params) && textAlignment(cellText(params)) === 'w-sheet-left',
+          'w-sheet-center': params => !numericCell(params) && textAlignment(cellText(params)) === 'w-sheet-center',
           'w-sheet-cell-error': params => Boolean(params.data && (params.context as SheetContext<T>).errors.some(error => error.clientRowId === getRowId(params.data!) && error.field === params.column.getColId())),
         } }} context={context} getRowId={stableRowId} rowHeight={rowHeight} headerHeight={40}
         rowSelection={selectedIds ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: false,
@@ -284,7 +319,7 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
         }}
         quickFilterText={query} localeText={{ ...localeText, noRowsToShow: rows.length ? '필터와 일치하는 항목이 없습니다.' : emptyMessage }}
         suppressColumnVirtualisation suppressRowVirtualisation suppressAnimationFrame animateRows={false}
-        suppressMultiSort enableCellTextSelection ensureDomOrder singleClickEdit readOnlyEdit
+        suppressMultiSort enableCellTextSelection enableBrowserTooltips ensureDomOrder singleClickEdit readOnlyEdit
         stopEditingWhenCellsLoseFocus enterNavigatesVerticallyAfterEdit
         onCellEditRequest={event => {
           const field = fieldFor(event.colDef, event.data, event.context);

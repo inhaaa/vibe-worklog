@@ -48,14 +48,27 @@
 }
 
 .w-sheet-grid .ag-header-cell { font-weight: 600; }
-.w-sheet-grid .ag-cell { display: flex; align-items: center; line-height: 1.45; }
+.w-sheet-grid .ag-header-cell-label { justify-content: center; flex-direction: row; }
+.w-sheet-grid .ag-header-cell-text { text-align: center; white-space: nowrap; }
+.w-sheet-grid .ag-cell { display: flex; align-items: center; line-height: 1.45; white-space: nowrap; }
 .w-sheet-grid .ag-cell-wrapper { min-width: 0; width: 100%; }
-.w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.w-sheet-grid .ag-cell-wrap-text .ag-cell-value { white-space: normal; overflow-wrap: anywhere; }
-#tna-app .w-sheet-grid .reason-cell p { margin: 2px 0; }
+.w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-sheet-grid .ag-cell a { text-underline-offset: 3px; }
+.w-sheet-grid .w-sheet-left { justify-content: flex-start; text-align: left; }
 .w-sheet-grid .w-sheet-number { justify-content: flex-end; text-align: right; }
 .w-sheet-grid .w-sheet-center { justify-content: center; text-align: center; }
+.w-sheet-content { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-sheet-grid .w-sheet-number .w-sheet-content { text-align: right; }
+#tna-app .w-sheet-grid .w-sheet-content :is(div, p, small, strong, .t-code-help, .t-head-status) {
+  display: inline;
+  white-space: nowrap;
+  margin-block: 0;
+}
+#tna-app .w-sheet-grid .w-sheet-content :is(small:not(:first-child), p + p) { margin-inline-start: 6px; }
+#tna-app .w-sheet-grid .w-sheet-content .t-tag { white-space: nowrap; }
+#tna-app .w-sheet-grid .w-sheet-content .t-sheet-links { display: inline-flex; max-width: 100%; flex-wrap: nowrap; gap: 6px; vertical-align: middle; }
+#tna-app .w-sheet-grid .t-sheet-links > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#tna-app .w-sheet-grid .t-sheet-links > a { flex-shrink: 0; white-space: nowrap; }
 .w-sheet-grid .w-sheet-readonly { background: #f8fafc; color: #607089; }
 .w-sheet-grid .w-sheet-row-new .ag-cell { background: #f1fbf5; }
 .w-sheet-grid .w-sheet-row-changed .ag-cell { background: #fffbed; }
@@ -124,6 +137,7 @@
   box-shadow: none;
   outline: 0;
   background: #fff;
+  text-align: inherit;
 }
 
 /* The existing app button selector is highly specific; isolate its reset to grid controls. */
