@@ -6,7 +6,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 
 - **Project Status:** Phase 6 · Local Quality Validation
 - 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드 적용과 원본246개 검증은 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다.
-- 시트 정렬·한 줄 표시: 헤더 중앙, 수량 우측·짧은 값 중앙·문장/4어절 이상 좌측과40px 한 줄 행을 적용했습니다. 일반 프론트251개·타입/빌드·PC/390px 검증을 통과했고 공개 배포는 콘솔 재연결 대기입니다 ([실제 적용·검증](docs/quality/sheet-alignment.md)).
+- 시트 정렬·한 줄 표시: 헤더 중앙, 수량 우측·짧은 값 중앙·문장/4어절 이상 좌측과40px 한 줄 행을 적용했습니다. 일반251개·공개252개/타입·빌드 검증 후 2026-11-02 공개 `3529a25`에 배포했습니다. 공개72+4항목·정적8자산·PC/390px·기존 서비스/DB43표407행 보존을 확인했습니다 ([구현 검증](docs/quality/sheet-alignment.md)·[실제 배포 결과](docs/quality/public-sheet-alignment-deploy-20261102.md)).
 - 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `12f0f78`·V14와 클릭 편집 시트를 반영했습니다. 공개72항목·프록시/포트4항목·PC/390px6회·독립 복원·39개 업무 테이블399행/권한 보존을 확인했고 모바일 긴 셀 겹침도 보완했습니다 ([실제 배포 결과](docs/quality/public-sheet-deploy-20261029.md)).
 - 시트/V14 후속 검증: 새33분15,465요청·오류0·p95 323.998ms, 별도 시트135항목과 공개 통합 Java656·React247·Python74개를 통과했습니다. 전체9역할 스캔과 공급자 판정을 마쳤으며 추가 적용 패치 후보0·미수정 위험은 남습니다. 기존 로컬/공개 서비스와 공개43표407행을 보존했고 제품 변경이 없어 `12f0f78`·V14를 유지했습니다 ([최종 부하·보존 결과](docs/quality/sheet-soak-security-20261029.md)·[취약점 상세](docs/quality/sheet-security-20261029.md)).
 - 이후 검증된 메뉴 단위도 [후속 배포 절차](docs/development/worklog-public-updates.md)에 따라 공개 보안을 통합하고 기존 PriceSys·demo·portfolio를 보존합니다.
