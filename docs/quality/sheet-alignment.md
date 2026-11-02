@@ -30,7 +30,7 @@
 
 공개 작업트리에는 같은 프론트8파일을 `47fb527`로 통합했다. 공개 AuthPages 보호·백엔드·V14·Dockerfile·패키지 lock 변경0을 확인했다. 공개 통합본16파일252개와 TypeScript/Vite build도 exit0으로 통과했고 두 통합 커밋을 일반 Push했다. 공개/일반 빌드의 sheet.css SHA256은 `d3ed27c65d7f3e3c9fb9abca250215e2abfd060a4ed6c67c2530a058c9b8bb0e`로 같다. 공개 검증 원시는 공개 worktree의 `target/sheet-alignment-20261101/public-*`에 보존했다. 일반 Git Push/소스 준비와 실제 공개 앱 배포를 구분한다.
 
-2026-11-02 접속 준비에서 기존 안전 옵션의 SSH22 접속이 실패했고 기존 Hostinger 웹콘솔 URL도 `Session expired`였다. 사용자에게 hPanel에서 root 콘솔 재연결을 요청했다. **이번 변경의 공개 서버 배포/신규72+4항목/공개 화면·DB/기존 서비스 보존 검증은 아직 수행하지 않았다.** 로컬 성공을 공개 반영 완료로 확대하지 않는다. 서버에는 변경 작업을 하지 않았다. 연결 확보 뒤 [WorkLog 전용 후속 절차](../development/worklog-public-updates.md)의 앱 교체 경로로 진행하며 기존 설정/DB·다른 서비스는 변경하지 않는다.
+최초 접속 준비에서는 SSH22 실패·웹콘솔 세션 만료로 반영을 보류했다. 이후 사용자가 연결한 정상 웹콘솔에서 2026-11-02 09:37 KST 공개 `3529a25` 앱만 교체했다. 공개72+4항목·정적8자산·PC/390px4회·편집/Esc/F2/Tab과 DB43표407행/권한 exact 보존·기존 서비스/Caddy 보존을 확인했다. DB 변경·Flyway·bootstrap·sample-data는 실행하지 않았다. 실제 이미지·시각·검증 범위와 증거는 [공개 배포 결과](public-sheet-alignment-deploy-20261102.md)를 따른다.
 
 ## 증거
 
