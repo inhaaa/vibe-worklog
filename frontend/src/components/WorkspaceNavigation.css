@@ -16,5 +16,9 @@
 @container (max-width: 600px) {
   #tna-app .t-navigation-group { margin-bottom: 8px; }
   #tna-app .t-workspace-navigation .t-nav-item { min-height: 44px; }
-  #tna-app .t-location-breadcrumbs { font-size: 11px; }
+  #tna-app .t-breadcrumb { flex: 1; min-width: 0; }
+  #tna-app .t-profile, #tna-app .t-profile form { flex-shrink: 0; }
+  #tna-app .t-profile-copy { max-width: 72px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #tna-app .t-logout { white-space: nowrap; flex-shrink: 0; }
+  #tna-app .t-location-breadcrumbs { flex: 1; min-width: 0; font-size: 11px; }
 }
