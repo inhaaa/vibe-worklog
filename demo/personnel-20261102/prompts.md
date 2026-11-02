@@ -93,4 +93,3 @@ Avoid: Text, logos, badges, watermark, collage, multiple people, props, decorati
 - demo-001: `C:/Users/ihpark/.codex/generated_images/01a19b74-f205-76c1-af0b-6b0bfb175bf4/exec-2ecbcb94-be4b-48f7-87ba-9cc6f373a9c1.png`
 - demo-002: `C:/Users/ihpark/.codex/generated_images/01a19b74-f205-76c1-af0b-6b0bfb175bf4/exec-0911bca6-a51e-408c-bd44-6fb21df9d4af.png`
 - demo-003: `C:/Users/ihpark/.codex/generated_images/01a19b74-f205-76c1-af0b-6b0bfb175bf4/exec-3b05a695-9230-49ad-ab55-b0586441c4e1.png`
-
