@@ -14,7 +14,7 @@
 
 EmployeeHeader는 이름·사진 또는 이니셜·회사·소속·사번·생년월일·직급·직책·직무·입사일·인사 상태를 표시한다. 미등록 값과 미확인 상태를 추정해 채우지 않는다. 본인 `/me/**`와 관리자 `/admin/employees/{id}/**`에는 각각 권한을 확인한 대상의 employeeHeader를 제공한다. 상단 로그인 사용자와 선택 사원을 구분한다.
 
-헤더 아래 본인 탭은 내 정보·출퇴근 기록·근무 일정·휴가/신청·근로시간이다. 관리자 사원 탭은 인사정보·기본정보/소속·근무 배정·계정/권한이다. 전체 회사 목록이나 결재자의 일반 조회에 생년월일·사진 헤더를 공통 노출하지 않는다.
+2026-11-02 후속 요청으로 헤더 아래 별도 탭을 없앴다. 사진·신원·상태·전체 인사 필드를 하나의 카드에서 항상 표시하고, 본인 업무는 왼쪽 업무 메뉴로 이동한다. 관리자 대상 사원의 인사·소속·근무·계정은 사원 시트의 기존 링크를 사용한다. 전체 회사 목록이나 결재자의 일반 조회에 생년월일·사진 헤더를 공통 노출하지 않는다.
 
 EmployeeHeader의 입력은 employeeId/employeeNo/employeeName/companyName/organizationName/joinedOn/leftOn/birthDate/gradeName/positionName/jobName/employmentStatus/photoUrl/asOf다. asOf는 Instant이고 날짜 표시는 서울 기준이다. 표시 컴포넌트는 자체 조회·저장·권한 판단을 하지 않는다.
 
