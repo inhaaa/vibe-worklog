@@ -1,5 +1,7 @@
 # 업무 메뉴·인사정보·신청 화면 검증
 
+> 후속 공개 반영: 최신 공개 시트·보안을 독립 통합해 `70a4e81`·V16을 실제 배포했고 백업/독립 복원·기존43표407행/권한·공개98+4항목·PC/390px·기존 서비스/Caddy를 확인했다. [최종 공개 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-personnel-deploy-20261102.md)를 따른다. 공개 화면에서 발견한 버튼 대비·긴 이름의 모바일 상단 표시 보완은 개발 `1fe6929`·`59685bb`에도 반영했다. 최종 관련42개·타입/빌드가 통과했으며, 아래 최초237개 전체 회귀를 이번 보완 뒤 다시 실행했다고 표현하지 않는다. 아래 공개 미실시·접속 대기는 최초 로컬 완료 당시의 경계다.
+
 기준일: 2026-11-02, Asia/Seoul. [승인 설계](../superpowers/specs/2026-11-01-workspace-navigation-employee-header-design.md)와 [구현 계약](../design/personnel-workspace.md)의 로컬 구현 결과다. 개발 브랜치는 `codex/annual-requests`이며 이전 미커밋 연간 신청/V15를 보존해 이 UI의 선행 기능으로 함께 검증했다. 별도 공통 그리드 검토안은 이번 변경에 포함하지 않는다.
 
 ## 구현
