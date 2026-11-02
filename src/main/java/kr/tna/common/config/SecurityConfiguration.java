@@ -45,7 +45,7 @@ public class SecurityConfiguration {
                     if (localDemo.publicDemo()) {
                         String identity = "/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID;
                         authorize.requestMatchers(new RegexRequestMatcher(identity
-                                + "/(changes|roles|invitations)(?:\\?.*)?", "POST", true)).denyAll();
+                                + "/(changes|roles|invitations|personnel)(?:\\?.*)?", "POST", true)).denyAll();
                     }
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();

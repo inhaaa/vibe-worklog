@@ -2,7 +2,7 @@ import { build } from 'vite';
 import { describe, expect, it } from 'vitest';
 import configuration from '../vite.config';
 
-async function buildStyles(input: string) {
+async function buildStyles(input?: string) {
   const config = configuration({ command: 'build', mode: 'test' });
   const result = await build({
     ...config,
@@ -11,7 +11,7 @@ async function buildStyles(input: string) {
     build: {
       ...config.build,
       write: false,
-      rollupOptions: { ...config.build?.rollupOptions, input },
+      rollupOptions: { ...config.build?.rollupOptions, ...(input ? { input } : {}) },
     },
   });
   if (Array.isArray(result) || !('output' in result)) throw new Error('단일 빌드 출력이 필요합니다.');
@@ -19,6 +19,21 @@ async function buildStyles(input: string) {
 }
 
 describe('시트 스타일의 CSP 자산 계약', () => {
+  it('업무 화면과 최신 공통 그리드 CSS를 독립 자산으로 함께 생성한다', async () => {
+    const output = await buildStyles();
+    const app = output.find((asset) => asset.fileName === 'app.css');
+    const sheet = output.find((asset) => asset.fileName === 'sheet.css');
+    expect(app?.type, '신규 메뉴·사원·신청 UI 스타일').toBe('asset');
+    expect(sheet?.type, '공개 AG Grid 스타일').toBe('asset');
+    if (app?.type !== 'asset' || sheet?.type !== 'asset') throw new Error('앱과 시트 CSS가 모두 필요합니다.');
+    expect(String(app.source)).toContain('.t-workspace-navigation');
+    expect(String(app.source)).toContain('.t-employee-header');
+    expect(String(app.source)).toContain('.t-request-dialog');
+    expect(String(sheet.source)).toContain('.ag-theme-quartz');
+    expect(String(sheet.source)).toContain('--ag-row-height:40px');
+    expect(String(app.source) + String(sheet.source)).not.toMatch(/url\(["']?data:/);
+  });
+
   it('Quartz 글꼴을 같은 출처 파일로 제공하고 sheet.css 이름을 고정한다', async () => {
     const output = await buildStyles('node_modules/ag-grid-community/styles/ag-theme-quartz.css');
     const css = output.find((asset) => asset.fileName === 'sheet.css');

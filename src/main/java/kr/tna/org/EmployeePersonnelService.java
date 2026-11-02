@@ -17,13 +17,15 @@ public final class EmployeePersonnelService {
     private final OrgCommands commands;
     private final BusinessCommands business;
     private final Clock clock;
+    private final PublicDemoIdentityGuard identityGuard;
 
     public EmployeePersonnelService(EmployeePersonnelMapper mapper, OrgCommands commands,
-            BusinessCommands business, Clock clock) {
+            BusinessCommands business, Clock clock, PublicDemoIdentityGuard identityGuard) {
         this.mapper = mapper;
         this.commands = commands;
         this.business = business;
         this.clock = clock;
+        this.identityGuard = identityGuard;
     }
 
     public LocalDate today() { return commands.today(); }
@@ -74,6 +76,7 @@ public final class EmployeePersonnelService {
     }
 
     public UUID update(TnaPrincipal actor, UUID employeeId, Form form) {
+        identityGuard.requireMutable(actor, employeeId);
         String grade = optionalName(form.gradeName(), "직급"), position = optionalName(form.positionName(), "직책"),
                 job = optionalName(form.jobName(), "직무");
         if (form.birthDate() != null && (form.birthDate().isAfter(today()) || !validDate(form.birthDate()))) {
