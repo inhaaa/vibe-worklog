@@ -114,9 +114,9 @@ class CompanyAccessWebIT {
         mvc.perform(roles(administrator, target, 0, "EMPLOYEE", "APPROVER", "COMPANY_REPRESENTATIVE"))
                 .andExpect(status().isSeeOther())
                 .andExpect(redirectedUrl("/admin/employees/" + target.employee() + "/access"));
-        mvc.perform(get("/me/today").session(old)).andExpect(redirectedUrl("/login"));
+        mvc.perform(get("/me/profile").session(old)).andExpect(redirectedUrl("/login"));
         var representative = login(target);
-        mvc.perform(get("/me/today").session(representative)).andExpect(status().isOk())
+        mvc.perform(get("/me/profile").session(representative)).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.roles("EMPLOYEE", "APPROVER", "COMPANY_REPRESENTATIVE"));
         mvc.perform(get("/admin/access").session(representative)).andExpect(status().isForbidden());
         mvc.perform(get("/admin/employees/{id}/access", target.employee()).session(representative))
@@ -126,9 +126,9 @@ class CompanyAccessWebIT {
         mvc.perform(get("/approvals").session(representative)).andExpect(status().isOk());
         mvc.perform(roles(administrator, target, 1, "EMPLOYEE", "APPROVER"))
                 .andExpect(status().isSeeOther());
-        mvc.perform(get("/me/today").session(representative)).andExpect(redirectedUrl("/login"));
+        mvc.perform(get("/me/profile").session(representative)).andExpect(redirectedUrl("/login"));
         var fresh = login(target);
-        mvc.perform(get("/me/today").session(fresh)).andExpect(status().isOk())
+        mvc.perform(get("/me/profile").session(fresh)).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.roles("EMPLOYEE", "APPROVER"));
         assertEquals(3, database.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND id=?",
                 Long.class, tenant, target.account()));
@@ -164,7 +164,7 @@ class CompanyAccessWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).with(request -> {
                     request.setRemoteAddr(address); return request;
                 }).param("companyCode", company).param("email", member.email()).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
     }
 
     private Member member(String number, String name, Set<String> roles) {

@@ -112,7 +112,7 @@ class LocalDemoWebIT {
                         .param("companyCode", DatabaseFixture.COMPANY_B)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
-                .andExpect(redirectedUrl("/me/today"))
+                .andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
         assertNotEquals(oldId, session.getId());
         var context = context(session);
@@ -122,7 +122,7 @@ class LocalDemoWebIT {
         assertEquals(LocalDemoLogin.EMPLOYEE_ID, principal.employeeId());
         assertEquals(Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"), principal.roles());
         assertNull(context.getAuthentication().getCredentials());
-        mvc.perform(get("/me/today").session(session).param("tenant_id", DatabaseFixture.TENANT_B.toString()))
+        mvc.perform(get("/me/profile").session(session).param("tenant_id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("로컬 데모 담당자")));
         mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/approvals").session(session)).andExpect(status().isForbidden());
@@ -220,7 +220,7 @@ class LocalDemoWebIT {
 
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mvc.perform(credentials("admin", "admin").with(csrf()))
-                .andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
     }
 
     private SecurityContext context(MockHttpSession session) {

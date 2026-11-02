@@ -68,7 +68,7 @@ class FixedScheduleWebIT {
     }
     private MockHttpSession login(boolean manager) throws Exception {
         return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",manager?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B)
-            .param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);
+            .param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
     }
     private MockHttpServletRequestBuilder form(MockHttpSession s,String path) {
         var request=post(path).session(s).with(csrf()).param("code",UUID.randomUUID().toString()).param("name","합성 고정근무")

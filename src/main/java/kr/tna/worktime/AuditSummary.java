@@ -16,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 final class AuditSummary {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final SeoulTimeDisplay TIME = new SeoulTimeDisplay();
-    private static final Set<String> NUMBERS = names("version employeeVersion organizationVersion authVersion revision resultRevision inputRevision reviewRevision approverAssignmentVersion quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays dayCount returnedCount confirmedInputRevision baseInputRevision weekday sequence resultCount assignmentVersion organizationAssignmentVersion organizationHeadAssignmentVersion");
+    private static final Set<String> NUMBERS = names("version employeeVersion organizationVersion authVersion revision resultRevision inputRevision reviewRevision approverAssignmentVersion quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays dayCount returnedCount confirmedInputRevision baseInputRevision weekday sequence resultCount assignmentVersion organizationAssignmentVersion organizationHeadAssignmentVersion entitlementYear");
     private static final Set<String> FLAGS = names("active credentialSet eligible exceptional workday mondayWeekReviewed generalRuleReviewed presenceAsWork breaksMatch breaksConfirmed recalculationRequired current enabled systemOwned");
     private static final Set<String> IDS = names("id assignmentId employeeId accountId organizationId parentId approverEmployeeId scheduleVersionId scheduleAssignmentId calendarVersionId templateId versionId requestId originalRequestId predecessorRequestId approverAssignmentId currentApproverId authorAccountId targetEmployeeId leaveBucketId bucketId runId resultId requestEffectId reversesEntryId requestedBy createdBy updatedBy commandId requestTraceId previousApproverId newApproverId batchId clientRowId headEmployeeId routeId routeVersionId routeSnapshotId organizationAssignmentId organizationHeadAssignmentId resolvedApproverEmployeeId attendanceTypeId attendanceTypeVersionId groupId");
     private static final Set<String> DATES = names("validFrom validTo from to fromDate toDate workDate leaveDate baseDate effectiveOn joinedOn leftOn usableFrom usableTo expandedFrom expandedTo createdAt updatedAt occurredAt receivedAt submittedAt confirmedAt calculatedAt startedAt finishedAt supersededAt resolvedAt effectiveFrom");
@@ -41,7 +41,8 @@ final class AuditSummary {
             Map.entry("unit", names("DAY HOUR NONE")),
             Map.entry("payKind", names("PAID UNPAID UNSPECIFIED")),
             Map.entry("deductionRule", names("LEAVE_DAY NONE")),
-            Map.entry("recognitionRule", names("NOT_SUPPORTED")));
+            Map.entry("recognitionRule", names("NOT_SUPPORTED")),
+            Map.entry("classificationStatus", names("CONFIRMED UNCLASSIFIED")));
 
     private AuditSummary() { }
 

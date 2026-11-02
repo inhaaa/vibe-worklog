@@ -101,7 +101,7 @@ class Session:
                 urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()), helpers.NoRedirect())
 
     def request(self, path, data=None, headers=None):
-        require(path in ("/login", "/me/today"))
+        require(path in ("/login", "/me/profile"))
         try:
             reply = self.opener.open(urllib.request.Request(self.base + path, data=data, headers=headers or {}), timeout=15)
         except urllib.error.HTTPError as failure:
@@ -130,7 +130,7 @@ def run_probe(data, with_file=False, session_factory=Session):
         if marker is not None:
             try:
                 require("text/html" in headers.get("Content-Type", ""))
-                identity = page_bootstrap(body, "today")["data"].get("workspaceEmployee")
+                identity = page_bootstrap(body, "workspace/profile")["data"].get("workspaceEmployee")
                 require(isinstance(identity, dict) and all(isinstance(identity.get(key), str)
                         and identity[key].startswith(marker) for key in ("employeeName", "companyName")))
             except ValueError:
@@ -147,19 +147,19 @@ def run_probe(data, with_file=False, session_factory=Session):
     positive, token = session_with_token()
     encoded = urllib.parse.urlencode({**credentials, "_csrf": token}).encode("utf-8")
     record("urlencoded_login", positive.request("/login", encoded,
-            {"Content-Type": "application/x-www-form-urlencoded"}), 302, location="/me/today")
-    record("urlencoded_authenticated_page", positive.request("/me/today"), 200, marker=user["marker"])
+            {"Content-Type": "application/x-www-form-urlencoded"}), 302, location="/me/profile")
+    record("urlencoded_authenticated_page", positive.request("/me/profile"), 200, marker=user["marker"])
 
     missing, _ = session_with_token()
     content_type, body = multipart(credentials, with_file)
     record("multipart_missing_csrf", missing.request("/login", body, {"Content-Type": content_type}), 403)
-    record("multipart_missing_csrf_unauthenticated", missing.request("/me/today"), 302, location="/login")
+    record("multipart_missing_csrf_unauthenticated", missing.request("/me/profile"), 302, location="/login")
 
     header, token = session_with_token()
     content_type, body = multipart(credentials, with_file)
     record("multipart_valid_header_rejected", header.request("/login", body,
             {"Content-Type": content_type, "X-CSRF-TOKEN": token}), 302, location="/login?error")
-    record("multipart_valid_header_unauthenticated", header.request("/me/today"), 302, location="/login")
+    record("multipart_valid_header_unauthenticated", header.request("/me/profile"), 302, location="/login")
     return {"schemaVersion": 1, "atUtc": datetime.now(timezone.utc).isoformat(),
             "scope": "owned-synthetic-loopback-http", "passed": all(check["passed"] for check in checks),
             "withFilePart": with_file, "tempfileInspectionPerformed": False, "checks": checks}

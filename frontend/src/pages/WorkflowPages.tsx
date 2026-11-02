@@ -496,6 +496,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
   return (
     <>
       <h1>연차 원장</h1>
+      <p><a href={`/admin/leave-balances/buckets/${m.bucketId}/attributions`}>귀속연도 관리</a> · 분류는 원장 금액을 변경하지 않습니다.</p>
       <section className="panel">
         <p>추가한 이력은 덮어쓰지 않습니다. 사용·복원은 원효력을 참조합니다.</p>
         <WorklogSheet label="연차 원장" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
@@ -1212,6 +1213,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
   let content: React.ReactNode;
   switch (page) {
     case 'request/mine':
+      if (data.annual) return null;
       content = <Mine model={data as unknown as MineModel} />;
       break;
     case 'request/list': {
@@ -1264,8 +1266,15 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/history':
       content = (
         <>
-          <h1>내 근태 기록</h1>
-          <Form action="/me/attendance" method="get">
+          <header className="t-pagehead"><div><p className="t-eyebrow">ATTENDANCE</p><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
+          {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
+            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
+            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
+              {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
+              <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
+            </Form>)}</div>
+          </section>}
+          <Form action="/me/attendance" method="get" className="t-attendance-filter search-form">
             <Field
               label="기준일"
               name="date"
@@ -1273,11 +1282,9 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
               value={(data as unknown as ClockModel).day.workDate}
               required
             />
-            <button>조회</button>
+            <button className="t-btn">조회</button>
+            <a className="t-btn" href="/me/attendance">오늘</a>
           </Form>
-          <p>
-            <a href="/me/today">오늘 출퇴근</a>
-          </p>
           <AttendanceRecord data={data} />
         </>
       );

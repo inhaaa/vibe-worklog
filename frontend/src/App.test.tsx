@@ -140,8 +140,43 @@ afterEach(() => {
 });
 
 describe('React 앱 탐색과 제출', () => {
+  it('업무 메뉴를 3단계로 제공하고 홈 링크를 제거한다', () => {
+    render(<App initial={today} />);
+    expect(screen.queryByRole('link', { name: '홈', hidden: true })).toBeNull();
+    const group = screen.getByRole('button', { name: /내 업무/ });
+    if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group);
+    expect(screen.getByRole('button', { name: /근태관리/ })).toBeTruthy();
+  });
+
+  it('공통 사원 헤더는 서버가 허용한 업무 대상의 정보로 표시한다', () => {
+    const view = render(<App initial={{ ...today, data: { ...today.data, employeeHeader: {
+      employeeId: 'e-2', employeeNo: 'E002', employeeName: '선택사원', companyName: '합성회사', organizationName: '개발팀',
+      joinedOn: '2024-01-02', birthDate: '1991-03-04', gradeName: '선임', positionName: '팀원', jobName: '개발',
+      employmentStatus: 'WORKING', photoUrl: null, asOf: '2026-11-02T01:00:00Z',
+    } } }} />);
+    expect(view.getByRole('region', { name: '사원 인사정보' }).textContent).toContain('선택사원');
+    expect(view.getByRole('navigation', { name: '내 업무 바로가기' })).toBeTruthy();
+  });
+  it('공유 신청 상세에 뒤로 돌아오면 진입했던 업무 메뉴를 복원한다', async () => {
+    window.history.replaceState({ worklogPosition: 0 }, '', '/requests/r-1');
+    const detail: PageEnvelope = { page: 'request/detail', csrf, data: {
+      workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER', 'ATTENDANCE_ADMIN'] },
+      workspaceEmployee: today.data.workspaceEmployee, navigationFrom: '/company/requests',
+      request: { id: 'r-1', targetEmployeeName: '대상', kind: 'LEAVE_DAY', fromDate: '2026-11-02', toDate: '2026-11-02', status: 'APPROVED', effectStatus: 'EFFECTIVE', quantityDays: 1, approverName: '담당', reason: '합성', version: 0 },
+      detail: { days: [], history: [], correction: null }, candidates: [], pageCommand: 'cmd', admin: true, canDecide: false, canWithdraw: false, canCancel: false,
+    } };
+    const returned = { ...detail, data: { ...detail.data, navigationFrom: undefined } };
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(response(problem('다른 화면'), '/me/profile')).mockResolvedValueOnce(response(returned, '/requests/r-1')));
+    render(<App initial={detail} />);
+    fireEvent.click(screen.getByRole('link', { name: '민감직원 합성회사' }));
+    await screen.findByText('다른 화면');
+    act(() => window.history.back());
+    await screen.findByRole('heading', { name: '신청 상세' });
+    expect(screen.getByRole('navigation', { name: '현재 위치' }).textContent).toContain('회사 신청 현황');
+  });
   it('공통 메뉴와 상단 이름에서 본인 내 정보로 이동할 수 있다', () => {
     render(<App initial={today} />);
+    fireEvent.click(screen.getByRole('button', { name: '인사정보' }));
     expect(screen.getByRole('link', { name: '내 정보' }).getAttribute('href')).toBe('/me/profile');
     expect(screen.getByRole('link', { name: '민감직원 합성회사' }).getAttribute('href')).toBe('/me/profile');
   });
@@ -151,10 +186,12 @@ describe('React 앱 탐색과 제출', () => {
       ...today,
       data: { ...today.data, workspacePrincipal: { roles: ['EMPLOYEE', 'COMPANY_REPRESENTATIVE'] } },
     }} />);
+    fireEvent.click(screen.getByRole('button', { name: '근태 운영' }));
+    fireEvent.click(screen.getByRole('button', { name: '회사 현황' }));
     expect(screen.getByRole('link', { name: '회사 근무현황' }).getAttribute('href')).toBe('/company/attendance');
     expect(screen.getByRole('link', { name: '회사 신청 현황' }).getAttribute('href')).toBe('/company/requests');
-    expect(screen.queryByRole('link', { name: '권한 관리' })).toBeNull();
-    expect(screen.queryByRole('link', { name: '신청 승인' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '권한 관리', hidden: true })).toBeNull();
+    expect(screen.queryByRole('link', { name: '결재 대기', hidden: true })).toBeNull();
     expect(view.container.querySelector('.t-workspace-name small')?.textContent).toBe('공통 · 대표');
   });
 
@@ -164,9 +201,9 @@ describe('React 앱 탐색과 제출', () => {
       data: { ...today.data, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER', 'ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'] } },
     }} />);
     expect(view.container.querySelector('.t-workspace-name small')?.textContent).toBe('공통 · 관리자 · 대표 · 결재 담당 가능');
-    expect(screen.getByRole('link', { name: '권한 관리' }).getAttribute('href')).toBe('/admin/access');
-    expect(screen.getAllByRole('link', { name: '회사 근무현황' })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: '신청 승인' }).getAttribute('href')).toBe('/approvals');
+    expect(screen.getByRole('link', { name: '권한 관리', hidden: true }).getAttribute('href')).toBe('/admin/access');
+    expect(screen.getAllByRole('link', { name: '회사 근무현황', hidden: true })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '결재 대기', hidden: true }).getAttribute('href')).toBe('/approvals');
   });
 
   it('로그인 제출에 원래 입력·CSRF를 보존하고 응답 대기 중 이중 제출을 막는다', async () => {

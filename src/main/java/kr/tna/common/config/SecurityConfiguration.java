@@ -67,14 +67,14 @@ public class SecurityConfiguration {
                             .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")
                         .requestMatchers("/approvals", "/approvals/completed").hasRole("APPROVER")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/me/schedule", "/me/profile").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll();
                 })
                 .formLogin(form -> form.loginPage("/login").usernameParameter("email")
                         .authenticationDetailsSource(CompanyAuthenticationDetails::new)
-                        .defaultSuccessUrl("/me/today", true)
+                        .defaultSuccessUrl("/me/profile", true)
                         .failureHandler((request, response, exception) -> {
                             response.setHeader("Cache-Control", "no-store");
                             if (exception instanceof CompanyAuthenticationProvider.LoginRateLimitedException) {

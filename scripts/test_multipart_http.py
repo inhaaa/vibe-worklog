@@ -34,7 +34,7 @@ def bootstrap(page="login", data=None, csrf=None):
 
 
 FORM = bootstrap()
-TODAY = bootstrap("today", {"workspaceEmployee": {
+PROFILE = bootstrap("workspace/profile", {"workspaceEmployee": {
     "employeeName": "SOAK_T1_0001", "companyName": "SOAK_T1_COMPANY"}})
 
 
@@ -55,14 +55,14 @@ class FakeSession:
 
 
 def sessions(multipart_enabled=False, header_status=None, positive_type="text/html;charset=UTF-8",
-             login_body=FORM, positive_body=TODAY):
-    positive = FakeSession([response(200, body=login_body), response(302, "/me/today"),
+             login_body=FORM, positive_body=PROFILE):
+    positive = FakeSession([response(200, body=login_body), response(302, "/me/profile"),
                             response(200, body=positive_body, content_type=positive_type)])
     missing = FakeSession([response(200, body=login_body), response(403), response(302, "/login")])
     enabled = multipart_enabled
     valid = FakeSession([response(200, body=login_body),
-                         response(header_status or 302, "/me/today" if enabled else "/login?error"),
-                         response(200, body=TODAY) if enabled else response(302, "/login")])
+                         response(header_status or 302, "/me/profile" if enabled else "/login?error"),
+                         response(200, body=PROFILE) if enabled else response(302, "/login")])
     pending = [positive, missing, valid]
     return pending, lambda base: pending.pop(0)
 

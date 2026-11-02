@@ -73,11 +73,11 @@ class WorkspaceWebIT {
     }
 
     @Test
-    void homeUsesWorkspaceShellAndKeepsExistingAttendanceForms() throws Exception {
-        mvc.perform(get("/me/today").session(login()))
-                .andExpect(status().isOk()).andExpect(view().name("today"))
-                .andExpect(model().attributeExists("employee", "day", "eventTimes", "confirmationForm",
-                        "inCommand", "outCommand", "workspaceHome"))
+    void attendanceUsesWorkspaceShellAndKeepsExistingAttendanceForms() throws Exception {
+        mvc.perform(get("/me/attendance").session(login()))
+                .andExpect(status().isOk()).andExpect(view().name("clock/history"))
+                .andExpect(model().attributeExists("day", "eventTimes", "confirmationForm",
+                        "inCommand", "outCommand", "today", "isToday"))
                 .andExpect(ReactPageAssertions.page())
                 .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
                 .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
@@ -88,8 +88,8 @@ class WorkspaceWebIT {
     }
 
     @Test
-    void homeDoesNotReplaceUnregisteredFactsWithMockupNumbers() throws Exception {
-        mvc.perform(get("/me/today").session(login()))
+    void attendanceDoesNotReplaceUnregisteredFactsWithMockupNumbers() throws Exception {
+        mvc.perform(get("/me/attendance").session(login()))
                 .andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.page())
                 .andExpect(content().string(not(containsString("32시간"))))
@@ -97,29 +97,23 @@ class WorkspaceWebIT {
     }
 
     @Test
-    void homeFlowKeepsUnknownFactsAndLinksEveryActualWeekDate() throws Exception {
-        var result = mvc.perform(get("/me/today").session(login()))
+    void attendanceKeepsUnknownFactsAndSelectedWorkDate() throws Exception {
+        var result = mvc.perform(get("/me/attendance").session(login()))
                 .andExpect(status().isOk()).andReturn();
         var boot = ReactPageAssertions.envelope(result);
-        var home = boot.at("/data/workspaceHome");
+        var day = boot.at("/data/day");
         LocalDate today = (LocalDate) result.getModelAndView().getModel().get("today");
-        assertEquals(today.toString(), home.at("/today/snapshot/workDate").asString());
-        assertTrue(home.get("availableLeaveDays").isNull());
-        assertTrue(home.at("/today/snapshot/schedule").isNull());
-        assertTrue(home.at("/today/snapshot/confirmation").isNull());
-        assertEquals("실제 근로 미확인", home.at("/today/confirmationText").asString());
-        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
-        assertEquals(7, home.get("week").size());
-        for (int offset = 0; offset < 7; offset++) {
-            assertEquals(monday.plusDays(offset).toString(), home.get("week").get(offset).at("/snapshot/workDate").asString());
-        }
-        assertTrue(home.at("/today/snapshot/events").isEmpty());
+        assertEquals(today.toString(), day.get("workDate").asString());
+        assertTrue(day.get("schedule").isNull());
+        assertTrue(day.get("confirmation").isNull());
+        assertTrue(day.get("events").isEmpty());
+        assertTrue(boot.at("/data/isToday").asBoolean());
     }
 
     @Test
-    void homeFlowShowsActualRecordedTimesAndComparisonWithoutConfirmingWork() throws Exception {
+    void attendanceShowsActualRecordedTimesWithoutConfirmingWork() throws Exception {
         var session = login();
-        var initial = mvc.perform(get("/me/today").session(session))
+        var initial = mvc.perform(get("/me/attendance").session(session))
                 .andExpect(status().isOk()).andReturn();
         LocalDate today = (LocalDate) initial.getModelAndView().getModel().get("today");
         var db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
@@ -137,26 +131,24 @@ class WorkspaceWebIT {
                     VALUES (?,?,?,?,?,?,?,'IP','127.0.0.1'::inet,?,?)
                     """, tenantId, UUID.randomUUID(), employeeId, entry[0], at, at, UUID.randomUUID(), network, today);
             if (entry[0].equals("OUT")) {
-                var partial = mvc.perform(get("/me/today").session(session))
+                var partial = mvc.perform(get("/me/attendance").session(session))
                         .andExpect(status().isOk()).andReturn();
                 var snapshot = ReactPageAssertions.envelope(partial).at("/data/day");
                 assertEquals(1, snapshot.get("effectiveEvents").size());
                 assertTrue(snapshot.get("confirmation").isNull());
             }
         }
-        var result = mvc.perform(get("/me/today").session(session))
+        var result = mvc.perform(get("/me/attendance").session(session))
                 .andExpect(status().isOk()).andReturn();
-        var home = ReactPageAssertions.envelope(result).at("/data/workspaceHome/today");
-        var timeline = home.get("timeline");
-        assertEquals(2, timeline.size());
-        assertEquals(java.time.LocalTime.of(9, 17), java.time.LocalTime.parse(timeline.get(0).get("time").asString()));
-        assertEquals(java.time.LocalTime.of(18, 41), java.time.LocalTime.parse(timeline.get(1).get("time").asString()));
-        assertEquals("현재 반영 출근", timeline.get(0).get("title").asString());
-        assertEquals("실제 근로 미확인", home.get("confirmationText").asString());
-        assertTrue(home.at("/snapshot/confirmation").isNull());
-        assertEquals(2, home.at("/snapshot/events").size());
-        assertEquals(2, home.at("/snapshot/effectiveEvents").size());
+        var data = ReactPageAssertions.envelope(result).get("data");
+        assertTrue(data.at("/day/confirmation").isNull());
+        assertEquals(2, data.at("/day/events").size());
+        assertEquals(2, data.at("/day/effectiveEvents").size());
         var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
+        for (var event : day.events()) {
+            String expected = event.kind().equals("IN") ? "09:17:00.000" : "18:41:00.000";
+            assertTrue(data.at("/eventTimes/" + event.id()).asString().contains(expected));
+        }
         assertEquals(day.events(), day.effectiveEvents());
         assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",
                 Integer.class, tenantId, employeeId));
@@ -209,7 +201,7 @@ class WorkspaceWebIT {
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", companyCode)
                         .param("email", "workspace@example.test").param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/today"))
+                .andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
     }
 }

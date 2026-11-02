@@ -561,3 +561,37 @@ body.workspace-body { background: #f5f7fb; }
     #tna-app .t-sheet-table .t-input, #tna-app .t-sheet-table .t-select { font-size: 16px; }
     #tna-app .t-sheet-conflict dl { grid-template-columns: minmax(0,1fr); }
 }
+
+#tna-app .t-annual-page > .t-card, #tna-app .t-annual-page > .notice { margin-top: 20px; }
+#tna-app .t-annual-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#tna-app .t-annual-filters .t-input { width: 110px; }
+#tna-app .t-annual-filters .t-select { flex: 1; min-width: 140px; }
+#tna-app .t-annual-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin: 20px 0; }
+#tna-app .t-annual-metrics .t-card { padding: 20px; min-width: 0; }
+#tna-app .t-annual-metrics h2 { font-size: 13px; color: var(--t-muted); margin: 0 0 12px; }
+#tna-app .t-annual-metrics strong { display: block; font-size: 24px; color: var(--t-blue); }
+#tna-app .t-annual-metrics p { color: var(--t-muted); font-size: 12px; margin: 12px 0 0; }
+#tna-app .t-annual-page td small { display: block; color: var(--t-muted); margin-top: 6px; overflow-wrap: anywhere; }
+#tna-app .t-request-dialog { box-sizing: border-box; width: min(760px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; border: 1px solid var(--t-line); border-radius: 18px; padding: 26px; background: #fff; color: var(--t-ink); box-shadow: 0 24px 90px #111c4433; }
+#tna-app .t-request-dialog::backdrop { background: #111c4477; }
+#tna-app .t-modal-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+#tna-app .t-modal-head h2 { margin: 0; }
+#tna-app .t-modal-head p { font-size: 13px; color: var(--t-muted); margin: 8px 0 0; }
+#tna-app .t-annual-context { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap: 10px; align-items: center; padding: 16px; background: var(--t-blue-soft); border-radius: 12px; }
+#tna-app .t-annual-context .t-btn { grid-column: 1 / -1; }
+#tna-app .t-annual-compose-form fieldset { border: 0; padding: 0; margin: 14px 0; min-width: 0; display: grid; gap: 10px; }
+#tna-app .t-annual-compose-form textarea { width: 100%; box-sizing: border-box; }
+#tna-app .t-annual-correction { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,2fr); align-items: center; gap: 10px; }
+#tna-app .t-request-preview { background: var(--t-blue-soft); padding: 18px; border-radius: 12px; overflow-wrap: anywhere; }
+#tna-app .t-request-compose-page { margin-top: 20px; }
+@container (max-width:750px) {
+    #tna-app .t-annual-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    #tna-app .t-annual-filters label { flex-basis: 100%; }
+    #tna-app .t-annual-filters .t-input, #tna-app .t-annual-filters .t-select, #tna-app .t-annual-filters .t-btn { width: 100%; }
+}
+@media (max-width:600px) {
+    #tna-app .t-request-dialog { padding: 18px; width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+    #tna-app .t-annual-context, #tna-app .t-annual-correction { grid-template-columns: minmax(0,1fr); }
+    #tna-app .t-annual-compose-form input, #tna-app .t-annual-compose-form textarea, #tna-app .t-annual-compose-form select { max-width: 100%; font-size: 16px; }
+    #tna-app .t-annual-metrics strong { font-size: 20px; }
+}

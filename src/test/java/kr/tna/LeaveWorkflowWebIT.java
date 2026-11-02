@@ -67,9 +67,11 @@ class LeaveWorkflowWebIT {
         db.update("UPDATE tna.approval_request SET from_date=?,to_date=? WHERE tenant_id=? AND id=?",past,past,f.manager().tenantId(),f.requestId());
         db.update("UPDATE tna.leave_request_day SET leave_date=? WHERE tenant_id=? AND request_id=?",past,f.manager().tenantId(),f.requestId());
         mvc.perform(get(path).session(login(f.company(),f.worker().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", false));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancel", false))
+                .andExpect(ReactPageAssertions.data("/ownRequest", true));
         mvc.perform(get(path).session(login(f.company(),f.manager().accountId()+"@example.test")))
-                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancelException", true));
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/canCancelException", true))
+                .andExpect(ReactPageAssertions.data("/ownRequest", false));
     }
     @Test void zeroDayRangePrefixDoesNotHideCancellationBeforeTheFirstChargedDay() throws Exception {
         var f=approvedLeave();String path="/requests/"+f.requestId();
@@ -94,5 +96,5 @@ class LeaveWorkflowWebIT {
     }
     private record ApprovedLeave(String company,TnaPrincipal manager,TnaPrincipal worker,UUID requestId) { }
     private TnaPrincipal member(UUID tenant,Set<String> roles){UUID e=UUID.randomUUID(),a=UUID.randomUUID();db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'합성 웹 사원',DATE '2020-01-01')",tenant,e,e.toString());db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,?)",tenant,a,e,a+"@example.test",PasswordPolicy.passwordEncoder().encode(PASSWORD));for(String role:roles)db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)",tenant,a,role);return new TnaPrincipal(tenant,a,e,1,roles,Instant.now());}
-    private MockHttpSession login(String company,String email) throws Exception{return(MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession login(String company,String email) throws Exception{return(MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
 }

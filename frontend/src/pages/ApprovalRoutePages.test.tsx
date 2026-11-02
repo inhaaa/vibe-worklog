@@ -148,6 +148,8 @@ describe('결재선 React 관리', () => {
     expect((view.getByRole('button', { name: '입력' }) as HTMLButtonElement).disabled).toBe(true);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher);
+    fireEvent.click(view.getByRole('button', { name: '내 업무' }));
+    fireEvent.click(view.getByRole('button', { name: '인사정보' }));
     fireEvent.click(view.getByRole('link', { name: '내 정보' }));
     expect(confirm).toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();

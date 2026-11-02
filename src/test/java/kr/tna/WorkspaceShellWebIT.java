@@ -58,7 +58,7 @@ class WorkspaceShellWebIT {
 
     @Test
     void employeeNavigationReceivesOnlyActualEmployeeRole() throws Exception {
-        mvc.perform(get("/me/today").session(login()))
+        mvc.perform(get("/me/profile").session(login()))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
                 .andExpect(ReactPageAssertions.roles("EMPLOYEE"))
                 .andExpect(model().attributeExists("workspaceEmployee", "workspacePrincipal", "workspaceDemo"));
@@ -68,7 +68,7 @@ class WorkspaceShellWebIT {
     void adminPagesShareMinimalIdentityCsrfAndSelfHostedAssets() throws Exception {
         grant("ATTENDANCE_ADMIN");
         var session = login();
-        for (String path : new String[]{"/me/today", "/admin/organizations", "/admin/networks"}) {
+        for (String path : new String[]{"/me/profile", "/admin/organizations", "/admin/networks"}) {
             mvc.perform(get(path).session(session)).andExpect(status().isOk())
                     .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.roles("EMPLOYEE", "ATTENDANCE_ADMIN"))
                     .andExpect(ReactPageAssertions.data("/workspaceEmployee/employeeName", "직원 A"))
@@ -81,7 +81,7 @@ class WorkspaceShellWebIT {
     @Test
     void approverNavigationReceivesTheActualApproverRole() throws Exception {
         grant("APPROVER");
-        mvc.perform(get("/me/today").session(login())).andExpect(status().isOk())
+        mvc.perform(get("/me/profile").session(login())).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.roles("EMPLOYEE", "APPROVER"));
     }
 
@@ -113,7 +113,7 @@ class WorkspaceShellWebIT {
         jdbc.update("UPDATE tna.employee SET display_name=? WHERE tenant_id=? AND id=?",
                 "<script>workspace-name</script>", DatabaseFixture.TENANT_A, DatabaseFixture.EMPLOYEE_A);
         var session = login();
-        mvc.perform(get("/me/today").session(session)
+        mvc.perform(get("/me/profile").session(session)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\\u003cscript\\u003eworkspace-name\\u003c/script\\u003e")))
@@ -141,7 +141,7 @@ class WorkspaceShellWebIT {
                         .with(request -> { request.setRemoteAddr("198.19.1." + ADDRESS.getAndIncrement()); return request; })
                         .param("companyCode", DatabaseFixture.COMPANY_A)
                         .param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/today"))
+                .andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
     }
 }

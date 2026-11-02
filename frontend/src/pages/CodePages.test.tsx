@@ -325,7 +325,7 @@ describe('공통코드·근태코드 React 관리', () => {
   it('50행을 넘는 편집은 저장을 막고 검색·페이지 이동 전에 손실을 확인한다', async () => {
     const rows = Array.from({ length: 51 }, (_, i) => ({ ...row(type), clientRowId: `new-${i}`, id: null, expectedVersion: null, operation: 'CREATE', code: `C${i}` }));
     const view = render(<App initial={attendance({ sheet: { commandId: 'many', reason: '', rows, latestRows: [], errors: [] } })} />);
-    expect((view.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((view.getByText('저장', { selector: 'button' }) as HTMLButtonElement).disabled).toBe(true);
     const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     fireEvent.submit(view.getByRole('search', { name: '근태코드 검색' }));

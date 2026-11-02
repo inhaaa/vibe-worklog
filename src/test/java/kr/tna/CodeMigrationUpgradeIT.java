@@ -38,7 +38,7 @@ class CodeMigrationUpgradeIT {
             assertEquals(8,db.queryForObject("SELECT count(*) FROM tna.approval_request",Integer.class));
             assertEquals(2,db.queryForObject("SELECT count(*) FROM tna.approval_route_snapshot",Integer.class));
             Map<String,List<String>> columns=columns(db);var rows=rows(db,columns);var access=access(db);
-            var after=Flyway.configure().dataSource(migrationSource).locations("classpath:db/migration").load().migrate();
+            var after=Flyway.configure().dataSource(migrationSource).locations("classpath:db/migration").target("14").load().migrate();
             assertTrue(after.success);assertEquals(1,after.migrationsExecuted);
             assertEquals(rows,rows(db,columns));assertEquals(access,access(db));
             assertEquals(8,db.queryForObject("""
@@ -62,6 +62,19 @@ class CodeMigrationUpgradeIT {
                 try(var result=statement.executeQuery("SELECT count(*) FROM tna.approval_request")){assertTrue(result.next());assertEquals(0,result.getInt(1));}
                 connection.rollback();
             }
+            var v14Columns=columns(db);var v14Rows=rows(db,v14Columns);var v14Access=access(db);
+            var v15=Flyway.configure().dataSource(migrationSource).locations("classpath:db/migration").target("15").load().migrate();
+            assertTrue(v15.success);assertEquals(1,v15.migrationsExecuted);
+            assertEquals(v14Rows,rows(db,v14Columns));
+            assertEquals(v14Access,access(db).stream().filter(row->!"leave_bucket_attribution".equals(row.get("relname"))).toList());
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.leave_bucket_attribution",Integer.class));
+            var v15Columns=columns(db);var v15Rows=rows(db,v15Columns);var v15Access=access(db);
+            var v16=Flyway.configure().dataSource(migrationSource).locations("classpath:db/migration").target("16").load().migrate();
+            assertTrue(v16.success);assertEquals(1,v16.migrationsExecuted);
+            assertEquals(v15Rows,rows(db,v15Columns));
+            assertEquals(v15Access,access(db).stream().filter(row->!List.of("employee_personnel","employee_employment_status").contains(row.get("relname"))).toList());
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personnel",Integer.class));
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_employment_status",Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static Map<String,List<String>> columns(JdbcTemplate db) {

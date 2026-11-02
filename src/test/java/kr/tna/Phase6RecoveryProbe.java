@@ -80,8 +80,8 @@ public final class Phase6RecoveryProbe {
         check(before.equals(manifest(source)), "Source changed during the dump/restore probe");
         @SuppressWarnings("unchecked")
         List<Map<String,Object>> security = (List<Map<String,Object>>) after.get("rowSecurity");
-        check(security.size() == 43 && security.stream().allMatch(row -> Boolean.TRUE.equals(row.get("relrowsecurity"))
-                && Boolean.TRUE.equals(row.get("relforcerowsecurity"))), "Expected 43 FORCE RLS business tables");
+        check(security.size() == 46 && security.stream().allMatch(row -> Boolean.TRUE.equals(row.get("relrowsecurity"))
+                && Boolean.TRUE.equals(row.get("relforcerowsecurity"))), "Expected 46 FORCE RLS business tables");
         verifyRuntimeRoles(restored);
         verifyIsolation(restoredUrl);
         verifyAuthenticationPurposes(restoredUrl);
@@ -116,6 +116,10 @@ public final class Phase6RecoveryProbe {
         LocalDate date = LocalDate.of(2026, 10, 23);
         UUID network = UUID.randomUUID(), in = UUID.randomUUID(), out = UUID.randomUUID();
         UUID run = UUID.randomUUID(), result = UUID.randomUUID(), snapshot = UUID.randomUUID();
+        var photoOutput = new java.io.ByteArrayOutputStream();
+        check(javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", photoOutput), "Synthetic photo encoding failed");
+        db.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,grade_name,photo_content_type,photo_bytes,version,updated_by) VALUES (?,?,DATE '1990-01-01','합성 복원 직급','image/png',?,1,?)", tenant, employee, photoOutput.toByteArray(), account);
+        db.update("INSERT INTO tna.employee_employment_status(tenant_id,id,employee_id,employment_status,effective_from,revision,reason,created_by) VALUES (?,?,?,'WORKING',?,1,'합성 인사 복원 근거',?)", tenant, UUID.randomUUID(), employee, date, account);
         for (String purpose : List.of("INVITE", "RESET")) {
             db.update("INSERT INTO tna.account_token(tenant_id,id,account_id,purpose,token_hash,email,issued_auth_version,expires_at,created_by) VALUES (?,?,?,?,?,?,1,?,?)",
                     tenant, UUID.randomUUID(), account, purpose, sha((tenant + ":" + purpose).getBytes(StandardCharsets.UTF_8)),
@@ -164,7 +168,14 @@ public final class Phase6RecoveryProbe {
             try { hashes.put("workbook/" + row.getObject("id"), sha(row.getBytes("workbook"))); }
             catch (Exception error) { throw new IllegalStateException(error); }
         });
-        return Map.of("tableCounts", counts, "immutableSha256", hashes,
+        var personnelHashes = new LinkedHashMap<String,String>();
+        for (String table : List.of("employee_personnel", "employee_employment_status")) {
+            String identifier = table.equals("employee_personnel") ? "employee_id" : "id";
+            for (var row : db.queryForList("SELECT tenant_id," + identifier + " AS id,to_jsonb(t)::text AS body FROM tna." + table + " t ORDER BY tenant_id," + identifier)) {
+                personnelHashes.put(table + "/" + row.get("tenant_id") + "/" + row.get("id"), sha(row.get("body").toString().getBytes(StandardCharsets.UTF_8)));
+            }
+        }
+        return Map.of("tableCounts", counts, "immutableSha256", hashes, "personnelSha256", personnelHashes,
                 "rowSecurity", db.queryForList("SELECT n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity,pg_get_userbyid(c.relowner) AS owner FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('tna','platform') AND c.relkind IN ('r','p') ORDER BY n.nspname,c.relname"),
                 "policies", db.queryForList("SELECT schemaname,tablename,policyname,permissive,roles::text,cmd,qual,with_check FROM pg_policies WHERE schemaname IN ('tna','platform') ORDER BY schemaname,tablename,policyname"),
                 "definerOwners", db.queryForList("SELECT n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) AS args,pg_get_userbyid(p.proowner) AS owner FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ('tna','platform') AND p.prosecdef ORDER BY n.nspname,p.proname,args"));

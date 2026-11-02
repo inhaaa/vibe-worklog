@@ -177,7 +177,7 @@ class AccountAccessWebIT {
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/login?invited"))
                 .andExpect(result -> assertNull(result.getRequest().getSession(false)));
         var accepted = login(DatabaseFixture.COMPANY_A, email);
-        mvc.perform(get("/me/today").session(accepted)).andExpect(status().isOk());
+        mvc.perform(get("/me/profile").session(accepted)).andExpect(status().isOk());
         assertEquals(1, admin.queryForObject("""
                 SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=? AND active AND credential_set
                 """, Integer.class, DatabaseFixture.TENANT_A, employee));
@@ -242,10 +242,10 @@ class AccountAccessWebIT {
         var old = login(DatabaseFixture.COMPANY_A, member.email());
         mvc.perform(roles(manager, member.employee(), 0, "EMPLOYEE", "APPROVER"))
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl(access(member.employee())));
-        mvc.perform(get("/me/today").session(old)).andExpect(status().is3xxRedirection())
+        mvc.perform(get("/me/profile").session(old)).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login"));
         var fresh = login(DatabaseFixture.COMPANY_A, member.email());
-        mvc.perform(get("/me/today").session(fresh)).andExpect(status().isOk());
+        mvc.perform(get("/me/profile").session(fresh)).andExpect(status().isOk());
         assertTrue(admin.queryForObject("""
                 SELECT active FROM tna.role_grant WHERE tenant_id=? AND account_id=? AND role='APPROVER'
                 """, Boolean.class, DatabaseFixture.TENANT_A, member.account()));
@@ -310,7 +310,7 @@ class AccountAccessWebIT {
 
     private MockHttpSession login(String company, String email) throws Exception {
         return (MockHttpSession) mvc.perform(loginPost(company, email)).andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
     }
 
     private MockHttpServletRequestBuilder loginPost(String company, String email) {
