@@ -13,7 +13,7 @@ import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
 import { PersonnelPage } from './pages/PersonnelPage';
-import { EmployeeHeader, EmployeeWorkTabs } from './components/EmployeeHeader';
+import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
 import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
 import { getNavigationContext } from './navigation';
@@ -118,7 +118,6 @@ function Workspace({
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
-  const adminEmployee = employeeHeader && ['org/employee', 'org/personnel', 'org/access', 'schedule/assignment'].includes(page);
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -187,7 +186,7 @@ function Workspace({
         </div>
       </header>
       <main className="t-main">
-        {employeeHeader && <EmployeeHeader employee={employeeHeader}><EmployeeWorkTabs page={page} employeeId={adminEmployee ? employeeHeader.employeeId : undefined} /></EmployeeHeader>}
+        {employeeHeader && <EmployeeHeader employee={employeeHeader} />}
         {children}
       </main>
     </div>

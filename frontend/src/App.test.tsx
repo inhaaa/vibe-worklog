@@ -148,14 +148,18 @@ describe('React 앱 탐색과 제출', () => {
     expect(screen.getByRole('button', { name: /근태관리/ })).toBeTruthy();
   });
 
-  it('공통 사원 헤더는 서버가 허용한 업무 대상의 정보로 표시한다', () => {
+  it('공통 사원 헤더는 탭 없이 허용된 대상의 모든 인사정보를 한눈에 표시한다', () => {
     const view = render(<App initial={{ ...today, data: { ...today.data, employeeHeader: {
       employeeId: 'e-2', employeeNo: 'E002', employeeName: '선택사원', companyName: '합성회사', organizationName: '개발팀',
       joinedOn: '2024-01-02', birthDate: '1991-03-04', gradeName: '선임', positionName: '팀원', jobName: '개발',
       employmentStatus: 'WORKING', photoUrl: null, asOf: '2026-11-02T01:00:00Z',
     } } }} />);
-    expect(view.getByRole('region', { name: '사원 인사정보' }).textContent).toContain('선택사원');
-    expect(view.getByRole('navigation', { name: '내 업무 바로가기' })).toBeTruthy();
+    const header = view.getByRole('region', { name: '사원 인사정보' });
+    for (const value of ['선택사원', 'E002', '개발팀', '1991-03-04', '선임', '팀원', '개발', '2024-01-02', '재직'])
+      expect(header.textContent).toContain(value);
+    expect(header.querySelector('nav')).toBeNull();
+    expect(view.queryByRole('navigation', { name: '내 업무 바로가기' })).toBeNull();
+    expect(view.queryByRole('navigation', { name: '선택 사원 업무' })).toBeNull();
   });
   it('공유 신청 상세에 뒤로 돌아오면 진입했던 업무 메뉴를 복원한다', async () => {
     window.history.replaceState({ worklogPosition: 0 }, '', '/requests/r-1');

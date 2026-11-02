@@ -14,6 +14,37 @@ describe('업무 트리', () => {
     expect(screen.queryByRole('tree')).toBeNull();
   });
 
+  it('현재 업무의 조상 강조는 접힘과 무관하게 유지되고 화면 이동을 따른다', () => {
+    const roles = ['EMPLOYEE', 'ATTENDANCE_ADMIN'];
+    const view = render(<WorkspaceNavigation roles={roles} page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
+    const people = screen.getByRole('button', { name: '인사·조직' });
+    expect(people.getAttribute('data-active')).toBe('true');
+    expect(screen.getByRole('button', { name: '조직·사원' }).getAttribute('data-active')).toBe('true');
+    expect(screen.getByRole('button', { name: '근태 운영' }).getAttribute('data-active')).toBe('false');
+    fireEvent.click(people);
+    expect(people.getAttribute('aria-expanded')).toBe('false');
+    expect(people.getAttribute('data-active')).toBe('true');
+
+    view.rerender(<WorkspaceNavigation roles={roles} page="worktime/month" pathname="/admin/attendance" data={{ admin: true }} />);
+    expect(people.getAttribute('data-active')).toBe('false');
+    expect(screen.getByRole('button', { name: '근태 운영' }).getAttribute('data-active')).toBe('true');
+    expect(screen.getByRole('button', { name: '회사 현황' }).getAttribute('data-active')).toBe('true');
+    expect(screen.getByRole('link', { name: '근태 집계·Excel' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('업무 묶음 버튼은 제어하는 목록과 연결되고 접은 목록은 접근성 탐색에서 제외한다', () => {
+    render(<WorkspaceNavigation roles={['EMPLOYEE']} page="clock/history" pathname="/me/attendance" />);
+    const section = screen.getByRole('button', { name: '근태관리' });
+    const panel = document.getElementById(section.getAttribute('aria-controls')!);
+    expect(panel?.contains(screen.getByRole('link', { name: '출퇴근 기록' }))).toBe(true);
+    fireEvent.click(section);
+    expect(section.getAttribute('aria-expanded')).toBe('false');
+    expect(panel?.hidden).toBe(true);
+    expect(screen.queryByRole('link', { name: '출퇴근 기록' })).toBeNull();
+    fireEvent.click(section);
+    expect(screen.getByRole('link', { name: '출퇴근 기록' }).getAttribute('aria-current')).toBe('page');
+  });
+
   it('묶음을 접고 펼칠 수 있고 화면 이동 시 현재 조상을 다시 연다', () => {
     const view = render(<WorkspaceNavigation roles={['EMPLOYEE']} page="workspace/profile" pathname="/me/profile" />);
     fireEvent.click(screen.getByRole('button', { name: '내 업무' }));

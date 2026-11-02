@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
-import { EmployeeHeader, EmployeeWorkTabs, type EmployeeHeaderData } from './EmployeeHeader';
+import { EmployeeHeader, type EmployeeHeaderData } from './EmployeeHeader';
 
 const employee: EmployeeHeaderData = {
   employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', companyName: '합성회사', organizationName: '개발팀',
@@ -36,15 +36,4 @@ it('같은 사원의 사진 개정이 바뀌면 이전 사진 오류와 무관�
   fireEvent.error(screen.getByRole('img'));
   view.rerender(<EmployeeHeader employee={{ ...employee, photoUrl: '/me/profile/photo?v=2' }} />);
   expect(screen.getByRole('img', { name: '김직원 사원사진' }).getAttribute('src')).toBe('/me/profile/photo?v=2');
-});
-
-it('본인 업무 탭과 관리자 대상 사원의 업무 탭을 구분한다', () => {
-  const view = render(<EmployeeWorkTabs page="request/mine" />);
-  expect(screen.getByRole('link', { name: '휴가·신청' }).getAttribute('aria-current')).toBe('page');
-  expect(screen.getByRole('link', { name: '출퇴근 기록' }).getAttribute('href')).toBe('/me/attendance');
-  view.rerender(<EmployeeWorkTabs page="org/personnel" employeeId="e-2" />);
-  expect(screen.getByRole('link', { name: '인사정보' }).getAttribute('href')).toBe('/admin/employees/e-2/personnel');
-  expect(screen.getByRole('link', { name: '인사정보' }).getAttribute('aria-current')).toBe('page');
-  expect(screen.getByRole('link', { name: '계정·권한' }).getAttribute('href')).toBe('/admin/employees/e-2/access');
-  expect(screen.queryByRole('link', { name: '휴가·신청' })).toBeNull();
 });
