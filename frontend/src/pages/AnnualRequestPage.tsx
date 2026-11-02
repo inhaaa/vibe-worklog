@@ -120,7 +120,7 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
       <div className="t-request-context-date"><label htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label><input id="annual-date" className="t-input" type="date" disabled={locked} name="date" value={date} onChange={event => {setDate(event.target.value);lookupDates.current[kind]=event.target.value;}} max={kind === 'ATTENDANCE_CORRECTION' ? model.annual.today : undefined} required />
         <button type={step==='TYPE'&&!needsContext?'button':'submit'} className={`t-btn ${step==='TYPE'?'primary':''}`} disabled={locked} onClick={event=>{if(step==='TYPE'&&!needsContext){event.preventDefault();if(event.currentTarget.form?.reportValidity())setStep('CONTENT');}}}>{step==='TYPE'?'내용 작성으로':'유형·일자 조회'}</button>
       </div>
-      {step==='CONTENT'&&<p className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></p>}
+      {step==='CONTENT'&&<p className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></p>}
     </Form>
     {kind === compose.kind ? <Form action={isLeave ? '/me/requests/leave' : '/me/requests/correction'} className="t-annual-compose-form" onSubmit={submit} hidden={step==='TYPE'}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}{hidden('kind', compose.kind)}{hidden('commandId', current.commandId)}
