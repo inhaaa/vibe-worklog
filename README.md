@@ -5,6 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
+- 업무 메뉴·인사정보 개편: 업무별3단계 메뉴·홈 제거/출퇴근 이전·공통 사원 헤더·실제 인사정보/사진/상태 이력 등록·단계형 신청 화면을 구현했습니다. Java671개·React237개·Python62개·타입/빌드·실제 HTTP54요청50검증·합성 복원을 통과했습니다. 최신 공개 시트와의 보안 통합·V16 공개 반영은 별도이며 이번 로컬 결과에 포함하지 않습니다 ([구현 계약](docs/design/personnel-workspace.md)·[검증 결과](docs/quality/personnel-workspace.md)).
 - 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 이후 검증된 메뉴 단위는 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 개발본과 공개본의 버전은 다르며 기존 PriceSys·demo 보존과 배포 전후 검증을 포함합니다.
 - **Started:** 2026-10-23
 - **Development:** Personal Project

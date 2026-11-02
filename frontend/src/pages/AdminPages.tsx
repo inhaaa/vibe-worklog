@@ -382,6 +382,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
       <a href="/admin/employees">사원 목록으로</a>
       <p className="eyebrow">사원 상세</p>
       <h1>{m.employee.displayName}</h1>
+      <p><a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a></p>
       <p>
         <a href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
       </p>

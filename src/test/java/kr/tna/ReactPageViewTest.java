@@ -24,6 +24,20 @@ class ReactPageViewTest {
     private final ReactPageViewResolver resolver = new ReactPageViewResolver(json);
 
     @Test
+    void annualAndAttributionPagesKeepTheirExplicitModelsWithoutPrivateSources() throws Exception {
+        for (var entry : Map.of("request/mine", "annual", "request/attributions", "leaveAttributions").entrySet()) {
+            var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);
+            assertNotNull(view, entry.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(entry.getValue(), Map.of("year", 2026), "privateSource", "NEVER_EXPOSE"), request(true), response);
+            assertEquals(2026, json.readTree(response.getContentAsString()).at("/data/" + entry.getValue() + "/year").asInt());
+            assertFalse(response.getContentAsString().contains("NEVER_EXPOSE"));
+        }
+        var response = render("request/mine", Map.of("compose", Map.of("kind", "LEAVE_DAY", "mode", "MODAL")), request(true));
+        assertEquals("MODAL", json.readTree(response.getContentAsString()).at("/data/compose/mode").asString());
+    }
+
+    @Test
     void codeManagementPagesExposeOnlyTheirNamedModels() throws Exception {
         for (var entry : Map.of("org/common-codes", "commonCodes", "org/attendance-types", "attendanceTypes").entrySet()) {
             var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);

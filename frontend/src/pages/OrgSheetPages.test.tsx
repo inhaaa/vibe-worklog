@@ -25,7 +25,12 @@ function page(kind: 'organizations' | 'employees' = 'organizations', overrides: 
     }, ...overrides,
   } };
 }
-function show(initial = page()) { return render(<App initial={initial} />); }
+function show(initial = page()) {
+  const view = render(<App initial={initial} />);
+  fireEvent.click(view.getByRole('button', { name: '내 업무' }));
+  fireEvent.click(view.getByRole('button', { name: '인사정보' }));
+  return view;
+}
 function bulkForm(view: ReturnType<typeof render>, kind = 'organizations') {
   return view.container.querySelector(`form[action="/admin/${kind}/bulk"]`) as HTMLFormElement;
 }
@@ -258,7 +263,7 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = show();
-    fireEvent.click(view.getByRole('link', { name: '직원 목록' }));
+    fireEvent.click(view.getByRole('link', { name: '사원 관리' }));
     await waitFor(() => expect(view.getByLabelText('이름 1')).toBeTruthy());
     fireEvent.change(view.getByLabelText('이름 1'), { target: { value: '직원 편집' } });
     act(() => history.back());

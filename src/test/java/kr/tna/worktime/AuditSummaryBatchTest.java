@@ -6,6 +6,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuditSummaryBatchTest {
     @Test
+    void attributionSummaryExposesClassificationAndYearWithoutFreeText() {
+        var summary = AuditSummary.project("""
+                {"classificationStatus":"CONFIRMED","entitlementYear":2026,"revision":2,
+                 "basis":"PRIVATE_BASIS","reason":"PRIVATE_REASON"}
+                """);
+        assertEquals("CONFIRMED", summary.get("classificationStatus"));
+        assertEquals("2026", summary.get("entitlementYear"));
+        assertEquals("2", summary.get("revision"));
+        assertFalse(summary.toString().contains("PRIVATE_"));
+        assertTrue(AuditSummary.project("{\"classificationStatus\":\"UNTRUSTED\"}").isEmpty());
+    }
+    @Test
     void codePolicySummaryIncludesOnlyTypedPolicyMetadata() {
         UUID type = UUID.randomUUID(), version = UUID.randomUUID(), group = UUID.randomUUID();
         var summary = AuditSummary.project("""

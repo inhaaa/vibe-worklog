@@ -25,7 +25,16 @@ class AttendanceWebIT {
         mvc.perform(post("/me/attendance/events").session(s).param("eventKind","IN")).andExpect(status().isForbidden());
         mvc.perform(post("/admin/networks/changes").session(s).with(csrf())).andExpect(status().isForbidden());
     }
-    @Test void todayShowsUnconfirmedStateAndHistory() throws Exception {var s=login(false);mvc.perform(get("/me/today").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());mvc.perform(get("/me/attendance").session(s)).andExpect(status().isOk());}
+    @Test void todayBookmarkRedirectsToAttendanceAndCurrentDayProvidesCommands() throws Exception {
+        var s=login(false);
+        mvc.perform(get("/me/today").session(s)).andExpect(redirectedUrl("/me/attendance"));
+        mvc.perform(get("/me/attendance").session(s)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.data("/isToday",true))
+                .andExpect(ReactPageAssertions.dataPresent("/inCommand")).andExpect(ReactPageAssertions.dataPresent("/outCommand"));
+        mvc.perform(get("/me/attendance").session(s).param("date","2026-01-01"))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/isToday",false))
+                .andExpect(model().attributeDoesNotExist("inCommand","outCommand"));
+    }
     @Test void forwardedHeaderCannotBypassNetworkPolicy() throws Exception {
         var s=login(false);mvc.perform(post("/me/attendance/events").session(s).with(csrf()).header("X-Forwarded-For","127.0.0.1")
             .with(r->{r.setRemoteAddr("198.51.100.7");return r;}).param("eventKind","IN").param("commandId",UUID.randomUUID().toString()))
@@ -37,9 +46,9 @@ class AttendanceWebIT {
             .param("reason","합성 등록").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther());
         mvc.perform(post("/me/attendance/events").session(manager).with(csrf()).with(r->{r.setRemoteAddr("127.0.0.1");return r;})
             .param("eventKind","IN").param("commandId",UUID.randomUUID().toString()).param("employeeId",DatabaseFixture.EMPLOYEE_B.toString()).param("tenantId",DatabaseFixture.TENANT_B.toString()))
-            .andExpect(status().isSeeOther());
+            .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/me/attendance"));
         var jdbc=new JdbcTemplate(DatabaseFixture.start().adminDataSource());
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",Integer.class,DatabaseFixture.TENANT_A,DatabaseFixture.EMPLOYEE_A));
     }
-    private MockHttpSession login(boolean admin) throws Exception {return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession login(boolean admin) throws Exception {return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
 }

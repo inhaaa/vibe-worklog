@@ -70,7 +70,7 @@ class OrganizationWebIT {
                 .andExpect(status().isOk()).andExpect(view().name("org/employees"))
                 .andExpect(inputAttribute("active", "checked", null))
                 .andExpect(ReactPageAssertions.page());
-        mvc.perform(get("/me/today").session(session))
+        mvc.perform(get("/me/profile").session(session))
                 .andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.page());
     }
@@ -192,7 +192,7 @@ class OrganizationWebIT {
                 .andExpect(status().isForbidden());
         mvc.perform(employeePost(session, uniqueCode(), "권한 없는 사원", UUID.randomUUID()))
                 .andExpect(status().isForbidden());
-        mvc.perform(get("/me/today").session(session))
+        mvc.perform(get("/me/profile").session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("href=\"/admin/organizations\""))))
                 .andExpect(content().string(not(containsString("href=\"/admin/employees\""))));
@@ -380,7 +380,7 @@ class OrganizationWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf())
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", company).param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/today"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
     }
 

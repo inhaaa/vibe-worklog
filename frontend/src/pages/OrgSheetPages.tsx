@@ -131,6 +131,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
       <a href={`/admin/employees/${row.id}`} aria-label={`${name} 소속·상세`}>소속·상세</a>
       <a href={`/admin/employees/${row.id}/schedule`} aria-label={`${name} 근무 배정`}>근무 배정</a>
       <a href={`/admin/employees/${row.id}/access`}>계정·권한</a>
+      <a href={`/admin/employees/${row.id}/personnel`}>인사정보</a>
     </div>;
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };

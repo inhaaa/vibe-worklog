@@ -39,7 +39,7 @@ export default defineConfig(({ command }) => ({
       output: {
         entryFileNames: 'app.js',
         chunkFileNames: 'chunks/[name]-[hash].js',
-        assetFileNames: '[name]-[hash][extname]',
+        assetFileNames: (asset) => asset.names.some(name => name.endsWith('.css')) ? 'app.css' : '[name]-[hash][extname]',
       },
     },
   },

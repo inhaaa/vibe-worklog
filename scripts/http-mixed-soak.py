@@ -22,7 +22,7 @@ import zipfile
 
 PAGE_TYPE = "application/vnd.worklog.page+json"
 PAGE_OPERATIONS = {
-    "login.form": "login", "login.verify": "today", "today": "today", "clock.form": "today",
+    "login.form": "login", "login.verify": "workspace/profile", "today": "clock/history", "clock.form": "clock/history",
     "historicalDay": "clock/history", "month": "worktime/month", "adminMonthForm": "worktime/month",
     "resultDetail": "worktime/result", "myRequests": "request/mine", "leave.form": "request/mine",
     "auditPage": "worktime/audit", "employeeList": "org/employees", "approvalInbox": "request/list",
@@ -69,7 +69,7 @@ def command_id(value):
 
 def form_fields(page, action):
     fields, data, name = csrf_fields(page), page["data"], page["page"]
-    if (name, action) in [("login", "/login"), ("today", "/logout")]:
+    if (name, action) in [("login", "/login"), ("clock/history", "/logout"), ("workspace/profile", "/logout")]:
         return fields
     if name == "request/mine" and action == "/me/requests/leave":
         form = data["form"]
@@ -242,11 +242,15 @@ class Client:
             assert "ATTENDANCE_ADMIN" in roles, "Admin authorization missing"
         if operation in ["approvalInbox", "approve.form"]:
             assert "APPROVER" in roles, "Approver authorization missing"
-        if name in ["today", "clock/history"]:
+        if name == "workspace/profile":
+            profile = data.get("profile")
+            assert isinstance(profile, dict) and all(profile.get(key) == data["workspaceEmployee"][key]
+                for key in ("employeeName", "companyName")), "Wrong personal profile"
+        elif name == "clock/history":
             day = data["day"]
-            expected = self.run.data["today" if name == "today" else "historyDate"]
+            expected = self.run.data["historyDate" if operation == "historicalDay" else "today"]
             assert day["employeeId"] == self.data["employeeId"] and day["workDate"] == expected, "Wrong employee/day"
-            if name == "clock/history":
+            if operation == "historicalDay":
                 assert day.get("confirmation") and {event["kind"] for event in day["effectiveEvents"]} == {"IN", "OUT"}, "Historical confirmation missing"
         elif name == "worktime/month":
             target = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get("employeeId", [self.data["employeeId"]])[0]
@@ -371,8 +375,8 @@ class Client:
         form = form_fields(page, "/login")
         form.update(companyCode=self.data["companyCode"], email=self.data["email"], password=self.run.data["password"])
         headers, _ = self.http("login.submit", "/login", form, expected=302, paced=False)
-        assert local_location(self.run.base, headers["Location"]) == "/me/today", "No authenticated session"
-        self.http("login.verify", "/me/today", contains=self.data["marker"], paced=False)
+        assert local_location(self.run.base, headers["Location"]) == "/me/profile", "No authenticated session"
+        self.http("login.verify", "/me/profile", contains=self.data["marker"], paced=False)
 
     def work(self):
         try:
@@ -388,7 +392,7 @@ class Client:
     def operation(self):
         roll = self.random.randrange(100)
         if roll < 25:
-            self.http("today", "/me/today", contains=self.data["marker"])
+            self.http("today", "/me/attendance", contains=self.data["marker"])
         elif roll < 40:
             self.http("historicalDay", "/me/attendance?date=" + self.run.data["historyDate"])
         elif roll < 60:
@@ -398,7 +402,7 @@ class Client:
         elif roll < 80:
             self.http("myRequests", "/me/requests")
         elif roll < 86:
-            _, page = self.http("clock.form", "/me/today", contains=self.data["marker"])
+            _, page = self.http("clock.form", "/me/attendance", contains=self.data["marker"])
             csrf = form_fields(page, "/logout")["_csrf"]
             self.http("clock.replay", "/me/attendance/events", {"_csrf": csrf, "eventKind": "IN", "commandId": self.data["clockCommand"]}, expected=303)
         elif roll < 90:

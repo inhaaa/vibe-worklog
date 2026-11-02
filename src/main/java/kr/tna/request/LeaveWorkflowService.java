@@ -109,22 +109,62 @@ public final class LeaveWorkflowService {
             throw OrgException.notFound();});
     }
     public UUID submitLeave(TnaPrincipal actor,LeaveForm form) {
-        if(form==null||form.bucketId()==null||form.from()==null||form.to()==null||form.from().isAfter(form.to())
-                ||form.from().isBefore(today())||ChronoUnit.DAYS.between(form.from(),form.to())>=366)
-            throw OrgException.invalid("오늘 이후 같은 묶음 안의 366일 이내 기간을 입력해 주세요.");
-        String reason=requiredText(form.reason(),500,"신청 사유"),action="REQUEST_LEAVE_SUBMIT";
+        String reason=leaveReason(form),action="REQUEST_LEAVE_SUBMIT";
         return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,form.bucketId(),form.from(),form.to(),form.predecessorRequestId(),reason),reason,"EMPLOYEE",()->{
-            currentEmployee(actor.tenantId(),actor.employeeId(),false);var b=bucket(actor.tenantId(),form.bucketId());
-            if(!b.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
-            bucketPeriod(b,form.from(),form.to());predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
-            var days=days(actor.tenantId(),actor.employeeId(),form.from(),form.to());
-            if(days.stream().mapToInt(RequestDay::quantityDays).sum()==0)throw OrgException.invalid("소정근로일이 없는 기간입니다.");
-            for(var d:days)if(d.quantityDays()==1&&mapper.overlappingLeave(actor.tenantId(),actor.employeeId(),d.leaveDate(),null))throw OrgException.conflict("같은 날짜의 대기 또는 유효 연차가 있습니다.");
-            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,b.id(),false,form.commandId());
+            var days=validateLeaveInput(actor,form);
+            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,form.bucketId(),false,form.commandId());
             for(var d:days)changed(mapper.insertDay(actor.tenantId(),UUID.randomUUID(),r.id(),d));
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));
         });
+    }
+    public AnnualRequestData.Preview previewLeave(TnaPrincipal actor,LeaveForm form) {
+        leaveReason(form);
+        return commands.read(actor,()->{mapper.readLock(actor.tenantId());
+            var days=validateLeaveInput(actor,form);var policy=attendanceTypes.forSubmission(actor.tenantId(),"LEAVE_DAY",form.from(),form.to());
+            var approval=routes.resolve(actor,actor.employeeId(),today()).preview();var bucket=bucket(actor.tenantId(),form.bucketId());
+            int quantity=days.stream().mapToInt(RequestDay::quantityDays).sum();
+            return new AnnualRequestData.Preview(quantity,available(actor),bucket.availableDays(),policy,approval,approval.eligible(),
+                    !approval.eligible()?approval.message():quantity>bucket.availableDays()?"현재 사용 가능량을 초과합니다. 승인 시 잔여를 다시 확인합니다.":"일정·잔여·결재자는 제출과 승인 때 다시 검증합니다.");
+        });
+    }
+    public AnnualRequestData.Preview previewCorrection(TnaPrincipal actor,CorrectionForm form) {
+        if(form==null||form.workDate()==null||form.workDate().isAfter(today())||form.baseInputRevision()==null
+                ||form.sourceFingerprint()==null||!form.sourceFingerprint().matches("[0-9a-f]{64}"))throw OrgException.invalid("정정 근무일과 현재 사실 개정을 확인해 주세요.");
+        String inAction=action(form.inAction()),outAction=action(form.outAction());requiredText(form.reason(),500,"정정 사유");
+        Instant in=proposed(inAction,form.requestedInAt()),out=proposed(outAction,form.requestedOutAt());var breaks=parseBreaks(form.actualBreaks());
+        if(!form.breaksConfirmed()&&!breaks.isEmpty())throw OrgException.invalid("실제 휴게 근거의 확인 여부를 표시해 주세요.");
+        if(inAction.equals("KEEP")&&outAction.equals("KEEP")&&!form.breaksConfirmed())throw OrgException.invalid("변경할 시각 또는 실제 휴게를 입력해 주세요.");
+        return commands.read(actor,()->{mapper.readLock(actor.tenantId());
+            if(form.exceptional()||form.targetEmployeeId()!=null&&!form.targetEmployeeId().equals(actor.employeeId()))throw OrgException.forbidden();
+            var employee=currentEmployee(actor.tenantId(),actor.employeeId(),false);employmentDate(employee,form.workDate());
+            predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"ATTENDANCE_CORRECTION");
+            var before=clocks.snapshot(actor.tenantId(),actor.employeeId(),form.workDate());checkVersion(form.baseInputRevision(),before.inputRevision());
+            if(!before.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("원천·일정이 변경되었습니다. 최신 내용을 확인해 주세요.");
+            var previous=mapper.currentCorrection(actor.tenantId(),actor.employeeId(),form.workDate());
+            if(!Objects.equals(previous==null?null:previous.requestId(),form.replacesRequestId()))throw OrgException.conflict("현재 유효 정정을 참조해 다시 신청해 주세요.");
+            if(mapper.pendingCorrection(actor.tenantId(),actor.employeeId(),form.workDate()))throw OrgException.conflict("이미 대기 중인 정정이 있습니다.");
+            validateCorrection(before,inAction,outAction,in,out,form.breaksConfirmed(),breaks);
+            var policy=attendanceTypes.forSubmission(actor.tenantId(),"ATTENDANCE_CORRECTION",form.workDate(),form.workDate());
+            var approval=routes.resolve(actor,actor.employeeId(),today()).preview();
+            return new AnnualRequestData.Preview(null,available(actor),null,policy,approval,approval.eligible(),approval.eligible()?"정정 근거·정책·결재자는 제출과 승인 때 다시 검증합니다.":approval.message());
+        });
+    }
+    private long available(TnaPrincipal actor){return mapper.listBuckets(actor.tenantId(),actor.employeeId(),today()).stream().mapToLong(Bucket::availableDays).sum();}
+    private String leaveReason(LeaveForm form){
+        if(form==null||form.bucketId()==null||form.from()==null||form.to()==null||form.from().isAfter(form.to())
+                ||form.from().isBefore(today())||ChronoUnit.DAYS.between(form.from(),form.to())>=366)
+            throw OrgException.invalid("오늘 이후 같은 묶음 안의 366일 이내 기간을 입력해 주세요.");
+        return requiredText(form.reason(),500,"신청 사유");
+    }
+    private List<RequestDay> validateLeaveInput(TnaPrincipal actor,LeaveForm form){
+        currentEmployee(actor.tenantId(),actor.employeeId(),false);var bucket=bucket(actor.tenantId(),form.bucketId());
+        if(!bucket.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
+        bucketPeriod(bucket,form.from(),form.to());predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
+        var days=days(actor.tenantId(),actor.employeeId(),form.from(),form.to());
+        if(days.stream().mapToInt(RequestDay::quantityDays).sum()==0)throw OrgException.invalid("소정근로일이 없는 기간입니다.");
+        for(var day:days)if(day.quantityDays()==1&&mapper.overlappingLeave(actor.tenantId(),actor.employeeId(),day.leaveDate(),null))throw OrgException.conflict("같은 날짜의 대기 또는 유효 연차가 있습니다.");
+        return days;
     }
     public UUID submitCorrection(TnaPrincipal actor,CorrectionForm form) {
         if(form==null||form.workDate()==null||form.workDate().isAfter(today())||form.baseInputRevision()==null

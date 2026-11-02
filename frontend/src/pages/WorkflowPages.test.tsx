@@ -335,4 +335,13 @@ describe('WorkflowPages', () => {
     expect(html).toContain('name="sourceFingerprint" value="clock-fingerprint"');
     expect(html).toContain('09:00:00.123');
   });
+  it('서울 오늘 조회에서만 출퇴근 명령을 제공한다', () => {
+    const data = { day, today: day.workDate, isToday: true, inCommand: 'in-cmd', outCommand: 'out-cmd', eventTimes: {}, confirmationForm: { workDate: day.workDate, commandId: 'confirm' } };
+    const html = render('clock/history', data);
+    expect(html).toContain('action="/me/attendance/events"');
+    expect(html).toContain('name="commandId" value="in-cmd"');
+    expect(html).toContain('name="commandId" value="out-cmd"');
+    expect(render('clock/history', { ...data, isToday: false })).not.toContain('action="/me/attendance/events"');
+    expect(render('clock/history', { ...data, today: '2026-11-02' })).not.toContain('action="/me/attendance/events"');
+  });
 });

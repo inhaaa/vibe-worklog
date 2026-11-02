@@ -153,6 +153,10 @@ export interface ConfirmationForm {
   breaksMatch: boolean;
 }
 export interface ClockModel {
+  today?: string;
+  isToday?: boolean;
+  inCommand?: string;
+  outCommand?: string;
   day: DaySnapshot;
   eventTimes: Record<string, string>;
   confirmationForm: ConfirmationForm;

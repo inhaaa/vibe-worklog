@@ -61,7 +61,7 @@ class SecurityWebIT {
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(ReactPageAssertions.page())
                 .andExpect(header().string("Content-Security-Policy", containsString("script-src 'self'")));
-        mvc.perform(get("/me/today")).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/me/profile")).andExpect(status().is3xxRedirection());
         mvc.perform(get("/me/today/status").header("HX-Request", "true"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("HX-Redirect", "/login"));
@@ -74,7 +74,7 @@ class SecurityWebIT {
     void companyNamespaceAndAuthenticatedTenantControlTheResponse() throws Exception {
         MockHttpSession companyA = login(DatabaseFixture.COMPANY_A);
         MockHttpSession companyB = login(DatabaseFixture.COMPANY_B);
-        mvc.perform(get("/me/today").session(companyA)
+        mvc.perform(get("/me/profile").session(companyA)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isOk())
@@ -82,7 +82,7 @@ class SecurityWebIT {
                 .andExpect(content().string(not(containsString("직원 B"))))
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(ReactPageAssertions.page());
-        mvc.perform(get("/me/today").session(companyB))
+        mvc.perform(get("/me/profile").session(companyB))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("직원 B")));
         mvc.perform(get("/me/today/status").session(companyA).header("HX-Request", "true"))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.page());
@@ -99,7 +99,7 @@ class SecurityWebIT {
                         .param("companyCode", DatabaseFixture.COMPANY_A)
                         .with(request -> { request.setRequestedSessionId(oldId); request.setRequestedSessionIdValid(true); return request; })
                         .param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/today"));
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"));
         assertNotEquals(oldId, before.getId());
         for (String company : new String[]{DatabaseFixture.COMPANY_A, "unknown-company"}) {
             mvc.perform(post("/login").with(csrf()).with(request -> { request.setRemoteAddr(remoteAddress); return request; }).param("companyCode", company)
@@ -121,7 +121,7 @@ class SecurityWebIT {
         MockHttpSession rolesSession = login(DatabaseFixture.COMPANY_A);
         admin.update("delete from tna.role_grant where tenant_id = ? and account_id = ?",
                 DatabaseFixture.TENANT_A, DatabaseFixture.ACCOUNT_A);
-        mvc.perform(get("/me/today").session(rolesSession)).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/me/profile").session(rolesSession)).andExpect(status().is3xxRedirection());
         assertTrue(rolesSession.isInvalid());
     }
 
@@ -130,7 +130,7 @@ class SecurityWebIT {
         var admin = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
         MockHttpSession tenantSession = login(DatabaseFixture.COMPANY_A);
         admin.update("update platform.tenant_registry set active = false where id = ?", DatabaseFixture.TENANT_A);
-        mvc.perform(get("/me/today").session(tenantSession)).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/me/profile").session(tenantSession)).andExpect(status().is3xxRedirection());
         assertTrue(tenantSession.isInvalid());
 
         admin.update("update platform.tenant_registry set active = true where id = ?", DatabaseFixture.TENANT_A);
@@ -138,7 +138,7 @@ class SecurityWebIT {
         admin.update("update tna.employee set left_on = ? where tenant_id = ? and id = ?",
                 java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1),
                 DatabaseFixture.TENANT_A, DatabaseFixture.EMPLOYEE_A);
-        mvc.perform(get("/me/today").session(employeeSession)).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/me/profile").session(employeeSession)).andExpect(status().is3xxRedirection());
         assertTrue(employeeSession.isInvalid());
     }
 
@@ -149,10 +149,10 @@ class SecurityWebIT {
         admin.update("update tna.employee set left_on = ? where tenant_id = ? and id = ?",
                 today, DatabaseFixture.TENANT_A, DatabaseFixture.EMPLOYEE_A);
         MockHttpSession lastDay = login(DatabaseFixture.COMPANY_A);
-        mvc.perform(get("/me/today").session(lastDay)).andExpect(status().isOk());
+        mvc.perform(get("/me/profile").session(lastDay)).andExpect(status().isOk());
         admin.update("update tna.employee set left_on = ? where tenant_id = ? and id = ?",
                 today.minusDays(1), DatabaseFixture.TENANT_A, DatabaseFixture.EMPLOYEE_A);
-        mvc.perform(get("/me/today").session(lastDay)).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/me/profile").session(lastDay)).andExpect(status().is3xxRedirection());
         assertTrue(lastDay.isInvalid());
         mvc.perform(post("/login").with(csrf())
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
@@ -168,7 +168,7 @@ class SecurityWebIT {
                 "update tna.employee set left_on = ? where tenant_id = ? and id = ?",
                 java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")),
                 DatabaseFixture.TENANT_A, DatabaseFixture.EMPLOYEE_A);
-        mvc.perform(get("/me/today").session(session)).andExpect(status().isOk());
+        mvc.perform(get("/me/profile").session(session)).andExpect(status().isOk());
     }
 
     @Test
@@ -235,7 +235,7 @@ class SecurityWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", companyCode).param("email", DatabaseFixture.EMAIL)
                         .param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/today"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
     }
 

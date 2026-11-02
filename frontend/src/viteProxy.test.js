@@ -24,6 +24,10 @@ function bypass(path, method = 'GET', accept = nativeAccept) {
 }
 
 describe('Vite 업무 프록시', () => {
+  it('운영 HTML이 읽을 수 있도록 추출 CSS 이름을 고정한다', () => {
+    const build = configuration({ command: 'build', mode: 'production' }).build;
+    expect(build.rollupOptions.output.assetFileNames({ names: ['style.css'] })).toBe('app.css');
+  });
   it.each(['', '?filename=review.xlsx'])(
     '네이티브 다운로드 GET을 백엔드에 전달한다 (%s)',
     (query) => {
