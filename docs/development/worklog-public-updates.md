@@ -1,5 +1,7 @@
 # WorkLog 공개 데모 후속 배포
 
+> 최신 가상 인사 후속: 공개 `725373d`·V16에 가상4인 사진/직급·직책·직무/상태와 탭 없는 헤더·새 업무 메뉴를 실제 반영했다. 백업/독립 복원·407→420행의 정확13행 추가·재실행 무변경·공개98+4항목/사진4·PC/390px·기존22컨테이너/Caddy를 확인했다. [최종 실제 공개 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-demo-personnel-deploy-20261102.md)를 따른다.
+
 > 2026-11-02 업무 메뉴·인사정보 공개 `70a4e81`·V16을 실제 반영했다. 최신 공통 시트·공유 계정 보호를 독립 통합하고 전용 백업/독립 복원·기존43표407행/권한·공개98+4항목·PC/390px·기존 서비스/Caddy를 검증했다. 모바일 표시2건도 앱만 교체해 해결했다. [공개 브랜치의 최종 실제 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-personnel-deploy-20261102.md)를 따른다.
 
 기준일: 2026-10-28, Asia/Seoul. 사용자는 메뉴 개발 결과를 `https://worklog.inhaaa.com`에 계속 반영하고 기존 PriceSys와 데모에 영향을 주지 않도록 요청했다. **검증된 개발 단위의 공개 데모 통합·검증·배포를 이후 메뉴 개발의 완료 절차에 포함한다.** 같은 범위의 서버 접속·전용 설정·전용 DB 마이그레이션·배포는 세션에서 승인됐다. 실제 개인정보·실고객 운영과 다른 서비스 변경은 이 범위에 포함하지 않는다.
