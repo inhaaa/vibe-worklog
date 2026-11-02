@@ -34,6 +34,28 @@ Maven은 프로젝트 전용 JDK25.0.5와 이 작업트리의 target을 사용�
 
 Git 제외 근거는 이 작업트리 `target/public-personnel-{red,security-red,green,java-all,python}.log`, `target/public-personnel-frontend-complete.log`, `target/public-personnel-build-complete.log`, `target/public-personnel-assets-proof.json`과 Surefire/Failsafe XML이다. 앞선 실패/선택 실행을 최종 전수 통과 수에 합산하지 않았다.
 
+## 통합 후보 실제 화면
+
+2026-11-02 11:39~11:42(서울)에 전용 fixture-owned `127.0.0.1:18094` 앱과 합성 계정으로 확인했다. 이 앱은 공개 통합 소스의 `default` 프로필이며 실제 공개 프로필 보안은 위 PostgreSQL 통합 테스트와 구분한다.
+
+- 로그인 후 `/me/profile` 진입, 3단계 메뉴·본인 헤더·헤더 아래 업무 탭을 확인했다. 메뉴를 통해 사원 관리로 이동하고 인사정보 등록 링크를 열었다.
+- 인사 등록 화면에서 합성 직급을 `선임`→`책임`으로 저장했다. `?saved` 복귀, 헤더와 입력값의 즉시 변경, 같은 적용일의 기존 상태 이력 보존을 확인했다. 실서버나 기존 로컬 기본 앱의 자료는 수정하지 않았다.
+- PC 1440px와 모바일 390px에서 단계형 신청 창을 관측했다. 모바일 문서 폭375px·라디오18px이며 가로 넘침이 없었다. 첫 단계에서 닫기와 모바일 업무 메뉴 펼침·하위 메뉴 이동을 확인했다. 미저장 내용이 있는 확인창의 추가 수동 검증은 이 관측에 포함하지 않는다.
+- 기존 사원 시트의 실제 행 높이40px, PC 문서 폭1440px와 직접 편집 시트 표시를 확인했다. 이 브라우저 실행에서 셀 값 저장을 다시 수행하지 않았고 기존 편집 회귀는 위322개 자동 검증에 포함된다.
+- 등록 화면의 모바일 문서 폭375px/viewport390px, 사원 헤더의 저장된 직급 반영과 브라우저 error/warn 로그0건을 확인했다.
+
+캡처·폭 근거는 Git 제외 `target/personnel-ui/{profile-desktop,request-desktop,request-mobile,sheet-desktop,personnel-saved-desktop}.jpg`, `mobile-proof.json`에 있다. 임시 앱은 합성 전용 DB와 loopback 단일 포트를 사용하고25분 종료로 제한했다. QA 후 PID·생성 시각·실행 인자·포트 소유를 대조해 해당 앱만 종료했고18094 listen 부재를 확인했다(`cleanup-proof.json`).
+
+## 공개 반영 준비와 연결 상태
+
+배포 소스는 위 `fc422d7`로 고정했다. 전체481파일 아카이브 SHA256은 `7107660e57ad30d266c47d1201a2417b2d07cd14c89ab996fb005b34ef35c26e`이며, 기존 배포 소스 `3529a25`의 파일·모드를 검증해 재구성하는105파일 패치도 준비했다. 새 V15/V16을 포함하므로 앱만 교체하는 경로를 사용하지 않는다. 전용 제한 빌더의 runtime/migrate 이미지 확인 → WorkLog 앱만 정지 → 최종 백업 → 독립 제한 DB 복원 및 V14→V16 예행 → 원본 자료/권한 보존 검증 → 본 DB 마이그레이션 → 앱 교체 → 공개 HTTP·기존 서비스 대조 순서다. 배포 보조물은 Git 제외 `target/personnel-deploy-20261102/`에 보관하며 실제 서버 실행 결과와 구분한다.
+
+배포 준비 가드9개(패키지 경로/내용/모드·고정 DB/Compose 대상·신규 RLS/권한·기존 자료/이력 변조 거부·복원 접근 제한)의 로컬 테스트를 통과했다. 공개 기능 검증98개와 네트워크 경계4개 스크립트를 준비하고 PowerShell7/Windows PowerShell5.1 파서·정적 검사를 통과했다. 이102개는 배포 후 실행용이며 현재 공개 서버 통과 수로 계산하지 않는다. 신규 인사 POST의 공개 확인 입력은121자 직급과 음수 버전으로 이중 무쓰기 경계를 두고403과 인사/헤더 불변을 검사한다.
+
+사용자가 연결한 Hostinger 관리 화면에서 올바른 VPS의 Running 상태와 웹콘솔 탭을 확인했다. 새 웹콘솔도 열어 확인했지만 터미널은 검은 화면·커서만 표시했고 Enter와 읽기 전용 `hostname` 입력에 출력이 없었다. 실제 셸 프롬프트와 명령 결과를 확인하지 못해 서버 명령·소스 전송·DB·배포는 실행하지 않았다. 사용자에게 프롬프트가 보이는 연결 상태 확인을 요청했으며 추가 배포 승인이 필요한 상황으로 해석하지 않는다.
+
+11:45(서울)에 Windows의 정상 인증서 검증으로 WorkLog health200/UP·PriceSys401·demo health200·portfolio200을 다시 확인했다(`target/personnel-ui/public-connectivity-before.json`). 처음 Python3.13의 기본 검증은 로컬 인증서 체인 검사에서 실패했으며 인증서 검증을 끄거나 신뢰 설정을 바꾸지 않았다. 외부 HTTP4개 확인은 현재 서버 내부 SHA·스키마·자료/컨테이너 보존 검증을 대신하지 않는다.
+
 ## 이 보고서에 포함하지 않은 검증
 
 실제 공개 서버 접속·백업/독립 복원·V14→V16 서버 마이그레이션·이미지 교체·공개 HTTP/PC/390px·다른 서비스 보존은 이 로컬 후보 검증과 별도 수행한다. 새33분 부하·전체 취약점 전수 검사·실고객/법률/운영 수용도 이번 결과에 포함하지 않는다. 배포 시 bootstrap/sample-data를 다시 실행하지 않고 전용 DB 백업·복원·기존 자료/권한 보존을 먼저 확인해야 한다.

@@ -5,6 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
+- 공개 인사정보 통합 후보: `fc422d7`에 최신 공통 시트·공개 공유 계정 보호를 보존해 통합했고 Java711개·React322개·Python74개·타입/빌드·PC/390px 화면과 합성 인사정보 저장을 확인했습니다. 실제 공개 서버 반영은 웹콘솔 셸 연결 확인과 전용 백업/독립 복원·V16 적용 후 검증이 남아 있습니다 ([후보 검증](docs/quality/public-personnel-release-20261102.md)).
 - 업무 메뉴·인사정보 개편: 업무별3단계 메뉴·홈 제거/출퇴근 이전·공통 사원 헤더·실제 인사정보/사진/상태 이력 등록·단계형 신청 화면을 구현했습니다. Java671개·React237개·Python62개·타입/빌드·실제 HTTP54요청50검증·합성 복원을 통과했습니다. 최신 공개 시트와의 보안 통합·V16 공개 반영은 별도이며 이번 로컬 결과에 포함하지 않습니다 ([구현 계약](docs/design/personnel-workspace.md)·[검증 결과](docs/quality/personnel-workspace.md)).
 - 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드 적용과 원본246개 검증은 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다.
 - 시트 정렬·한 줄 표시: 헤더 중앙, 수량 우측·짧은 값 중앙·문장/4어절 이상 좌측과40px 한 줄 행을 적용했습니다. 일반251개·공개252개/타입·빌드 검증 후 2026-11-02 공개 `3529a25`에 배포했습니다. 공개72+4항목·정적8자산·PC/390px·기존 서비스/DB43표407행 보존을 확인했습니다 ([구현 검증](docs/quality/sheet-alignment.md)·[실제 배포 결과](docs/quality/public-sheet-alignment-deploy-20261102.md)).
