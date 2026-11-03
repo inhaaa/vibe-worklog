@@ -16,10 +16,11 @@ class PublicDemoIdentityGuardTest {
     private static final UUID APPROVER = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0201");
 
     @Test
-    void bothSharedPersonasAreImmutableInTheReservedPublicTenant() {
+    void allFiveSharedPersonasAreImmutableInTheReservedPublicTenant() {
         var guard = guard("public-demo");
         assertDoesNotThrow(() -> guard.requireMutable(actor(LocalDemoLogin.TENANT_ID), null));
-        for (UUID employee : Set.of(LocalDemoLogin.EMPLOYEE_ID, APPROVER)) {
+        assertEquals(5, LocalDemoLogin.SHARED_EMPLOYEE_IDS.size());
+        for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
             assertEquals(403, assertThrows(OrgException.class,
                     () -> guard.requireMutable(actor(LocalDemoLogin.TENANT_ID), employee)).status());
         }

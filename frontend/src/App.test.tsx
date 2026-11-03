@@ -140,6 +140,23 @@ afterEach(() => {
 });
 
 describe('React 앱 탐색과 제출', () => {
+  it('상단 보유 권한 선택은 로그인 사원을 유지하며 업무 메뉴만 전환한다', () => {
+    const fetcher = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={{ ...today, data: { ...today.data,
+      workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER', 'ATTENDANCE_ADMIN'] },
+    } }} />);
+    const select = screen.getByRole('combobox', { name: '업무 권한' });
+    fireEvent.change(select, { target: { value: 'ATTENDANCE_ADMIN' } });
+    expect(screen.getByRole('link', { name: '권한 관리', hidden: true })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '결재 대기', hidden: true })).toBeNull();
+    fireEvent.change(select, { target: { value: 'APPROVER' } });
+    expect(screen.getByRole('link', { name: '결재 대기', hidden: true })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: '권한 관리', hidden: true })).toBeNull();
+    expect(screen.getByRole('link', { name: '민감직원 합성회사' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: '대표' })).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it('업무 메뉴를 3단계로 제공하고 홈 링크를 제거한다', () => {
     render(<App initial={today} />);
     expect(screen.queryByRole('link', { name: '홈', hidden: true })).toBeNull();
@@ -180,10 +197,10 @@ describe('React 앱 탐색과 제출', () => {
   });
   it('데모 업무 화면에서 계정 선택으로 이동할 수 있고 일반 화면에는 제공하지 않는다', () => {
     const view = render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
-    expect(screen.getByRole('link', { name: '데모 계정 전환' }).getAttribute('href')).toBe('/demo');
+    expect(screen.getByRole('link', { name: '다른 테스트 사원 로그인' }).getAttribute('href')).toBe('/demo');
     view.unmount();
     render(<App initial={today} />);
-    expect(screen.queryByRole('link', { name: '데모 계정 전환' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '다른 테스트 사원 로그인' })).toBeNull();
   });
   it('공통 메뉴와 상단 이름에서 본인 내 정보로 이동할 수 있다', () => {
     render(<App initial={today} />);
@@ -197,6 +214,7 @@ describe('React 앱 탐색과 제출', () => {
       ...today,
       data: { ...today.data, workspacePrincipal: { roles: ['EMPLOYEE', 'COMPANY_REPRESENTATIVE'] } },
     }} />);
+    fireEvent.change(screen.getByRole('combobox', { name: '업무 권한' }), { target: { value: 'COMPANY_REPRESENTATIVE' } });
     fireEvent.click(screen.getByRole('button', { name: '근태 운영' }));
     fireEvent.click(screen.getByRole('button', { name: '회사 현황' }));
     expect(screen.getByRole('link', { name: '회사 근무현황' }).getAttribute('href')).toBe('/company/attendance');
@@ -206,15 +224,16 @@ describe('React 앱 탐색과 제출', () => {
     expect(view.container.querySelector('.t-workspace-name small')?.textContent).toBe('공통 · 대표');
   });
 
-  it('동시 보유한 관리자·대표·결재 기능을 모두 표시하고 역할별 메뉴를 합친다', () => {
+  it('동시 보유한 역할도 선택한 권한의 메뉴만 표시한다', () => {
     const view = render(<App initial={{
       ...today,
       data: { ...today.data, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER', 'ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'] } },
     }} />);
     expect(view.container.querySelector('.t-workspace-name small')?.textContent).toBe('공통 · 관리자 · 대표 · 결재 담당 가능');
+    fireEvent.change(screen.getByRole('combobox', { name: '업무 권한' }), { target: { value: 'ATTENDANCE_ADMIN' } });
     expect(screen.getByRole('link', { name: '권한 관리', hidden: true }).getAttribute('href')).toBe('/admin/access');
     expect(screen.getAllByRole('link', { name: '회사 근무현황', hidden: true })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: '결재 대기', hidden: true }).getAttribute('href')).toBe('/approvals');
+    expect(screen.queryByRole('link', { name: '결재 대기', hidden: true })).toBeNull();
   });
 
   it('로그인 제출에 원래 입력·CSRF를 보존하고 응답 대기 중 이중 제출을 막는다', async () => {
@@ -223,7 +242,7 @@ describe('React 앱 탐색과 제출', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = render(<App initial={login} />);
     fireEvent.change(screen.getByLabelText('회사 코드'), { target: { value: 'sample-company' } });
-    fireEvent.change(screen.getByLabelText('이메일'), {
+    fireEvent.change(screen.getByLabelText('사번'), {
       target: { value: 'employee+test@example.test' },
     });
     fireEvent.change(screen.getByLabelText('비밀번호'), {

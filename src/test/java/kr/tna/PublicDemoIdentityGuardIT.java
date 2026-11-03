@@ -32,6 +32,18 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("public-demo")
 class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     @Test
+    void everySharedEmployeeRejectsSingleAndMixedBulkIdentityMutationWithoutWrites() {
+        for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+            assertRefusedWithoutChanges(403, () -> employees.update(actor, employee, changedEmployee()));
+            assertRefusedWithoutChanges(403, () -> accounts.roles(actor, employee, changedRoles()));
+            assertRefusedWithoutChanges(403, () -> accounts.invite(actor, employee, invitation()));
+            assertRefusedWithoutChanges(403, () -> bulk.employees(actor, employeeBatch(List.of(
+                    employeeRow(null, "NEW-SYNTHETIC", BulkData.Operation.CREATE),
+                    employeeRow(employee, "99999", BulkData.Operation.DEACTIVATE)))));
+        }
+    }
+
+    @Test
     void theSharedApproverUsesTheSameSingleAndBulkServiceProtection() {
         UUID employee = LocalDemoLogin.APPROVER_EMPLOYEE_ID;
         assertRefusedWithoutChanges(403, () -> employees.update(actor, employee, changedEmployee()));
@@ -94,7 +106,7 @@ class LocalDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     @Test
     void localDemoStillAllowsTheSharedEmployeeThroughTheBulkEditor() {
         bulk.employees(actor, employeeBatch(List.of(
-                employeeRow(LocalDemoLogin.EMPLOYEE_ID, "LOCAL-DEMO", BulkData.Operation.UPDATE))));
+                employeeRow(LocalDemoLogin.EMPLOYEE_ID, "99999", BulkData.Operation.UPDATE))));
         assertEquals("수정한 합성 담당자", employees.get(actor, LocalDemoLogin.EMPLOYEE_ID).displayName());
     }
 }
@@ -136,7 +148,7 @@ abstract class DemoIdentityServiceFixture {
     }
 
     EmployeeForm changedEmployee() {
-        return new EmployeeForm("LOCAL-DEMO", "수정한 합성 담당자", LocalDate.of(2026, 1, 1),
+        return new EmployeeForm("99999", "수정한 합성 담당자", LocalDate.of(2026, 1, 1),
                 null, true, 0L, "합성 담당자 수정", UUID.randomUUID());
     }
 

@@ -77,7 +77,8 @@ public final class OrgBulkService {
         String reason = validate(form);
         List<EmployeeRow> rows = form.rows().stream().map(row -> {
             identityGuard.requireMutable(actor, row.id());
-            String number = text(row, "employeeNo", () -> requiredText(row.employeeNo(), 40, "사번"));
+            String number = row.operation() == Operation.CREATE && (row.employeeNo() == null || row.employeeNo().isBlank())
+                    ? null : text(row, "employeeNo", () -> requiredText(row.employeeNo(), 40, "사번"));
             String name = text(row, "displayName", () -> requiredText(row.displayName(), 120, "이름"));
             if (row.joinedOn() == null) throw issue(row, "joinedOn", 422, "입사일을 입력해 주세요.");
             if (row.leftOn() != null && row.leftOn().isBefore(row.joinedOn())) {
@@ -93,6 +94,9 @@ public final class OrgBulkService {
                             .collect(Collectors.toMap(Employee::id, value -> value));
                     Map<UUID, Employee> after = new HashMap<>(before);
                     Map<UUID, EmployeeRow> changed = new LinkedHashMap<>();
+                    var numbers = before.values().stream().map(Employee::employeeNo).collect(Collectors.toCollection(HashSet::new));
+                    rows.stream().filter(row -> row.operation() == Operation.CREATE && row.employeeNo() != null)
+                            .map(EmployeeRow::employeeNo).forEach(numbers::add);
                     for (var row : rows) {
                         Employee old = row.id() == null ? null : before.get(row.id());
                         if (row.id() != null && old == null) throw OrgException.notFound();
@@ -101,7 +105,10 @@ public final class OrgBulkService {
                             if (!old.employeeNo().equals(row.employeeNo())) throw issue(row, "employeeNo", 422, "사번은 등록 후 변경할 수 없습니다.");
                         }
                         UUID id = old == null ? UUID.randomUUID() : old.id();
-                        after.put(id, new Employee(id, row.employeeNo(), row.displayName(), row.joinedOn(), row.leftOn(), row.active(),
+                        String number = row.employeeNo() == null
+                                ? text(row, "employeeNo", () -> EmployeeNumbers.next(row.joinedOn(), numbers)) : row.employeeNo();
+                        numbers.add(number);
+                        after.put(id, new Employee(id, number, row.displayName(), row.joinedOn(), row.leftOn(), row.active(),
                                 old == null ? 0 : old.version() + 1));
                         changed.put(id, row);
                     }

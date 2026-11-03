@@ -37,6 +37,21 @@ async function show(page: string, data: Record<string, unknown>) {
 }
 afterEach(cleanup);
 
+it('인사정보 7개 탭과 미수집 주민번호를 읽기 전용으로 표시하고 키보드로 이동한다', async () => {
+  const view = await show('workspace/profile', { profile, personalDetails: { employeeId: 'e-1', version: 0, form: {}, entries: [], appointments: [] } });
+  const tabs = view.getAllByRole('tab');
+  expect(tabs.map(tab => tab.textContent)).toEqual(['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처']);
+  expect(view.getByRole('tabpanel').textContent).toContain('주민등록번호');
+  expect(view.getByRole('tabpanel').textContent).toContain('미수집');
+  expect(view.getByRole('tabpanel').textContent).toContain('인정경력');
+  fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
+  expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+  expect(view.getByRole('tabpanel').textContent).toContain('등록된 발령내역이 없습니다.');
+  fireEvent.click(tabs[2]);
+  expect(view.getByRole('tabpanel').textContent).toContain('등록된 가족사항이 없습니다.');
+  expect(view.container.querySelector('main form')).toBeNull();
+});
+
 describe('내 정보·권한 목록·회사 현황', () => {
   it('본인의 현재 조직장과 조직장·결재 자격을 구분해 표시한다', async () => {
     const view = await show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장', organizationHeadEligible: false, organizationHeadApproverEligible: false } });

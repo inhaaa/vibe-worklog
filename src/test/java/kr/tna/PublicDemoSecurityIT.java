@@ -32,13 +32,92 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicDemoSecurityIT extends LocalDemoWebIT {
     @Autowired MockMvc publicMvc;
     @Autowired EmployeePersonnelService personnel;
+    @Autowired kr.tna.org.EmployeePersonalDetailsService personal;
 
     @AfterEach
     void removeOwnedPersonnelFixture() {
         var db = demoDb();
-        for (String table : List.of("employee_employment_status", "employee_personnel")) {
+        for (String table : List.of("employee_personal_entry", "employee_personal_details", "employee_employment_status", "employee_personnel")) {
             db.update("DELETE FROM tna." + table + " WHERE tenant_id=?", LocalDemoLogin.TENANT_ID);
         }
+    }
+
+    @Test
+    void preparedFiveDemoNumbersUseTheirOwnStoredPrincipalAndActualRoles() throws Exception {
+        var db = demoDb();
+        var numbers = java.util.Map.of("admin", "99999", "approver", "26001", "employee", "26002",
+                "representative", "26003", "dual", "25001");
+        for (var persona : LocalDemoLogin.personas()) {
+            String number = numbers.get(persona.login());
+            if (db.queryForObject("SELECT count(*) FROM tna.employee WHERE tenant_id=? AND id=?", Integer.class,
+                    LocalDemoLogin.TENANT_ID, persona.employeeId()) == 0) {
+                db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,?,?)",
+                        LocalDemoLogin.TENANT_ID, persona.employeeId(), number, "합성 " + persona.login(),
+                        LocalDate.of(persona.login().equals("dual") ? 2025 : 2026, 1, 1));
+                db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,?)",
+                        LocalDemoLogin.TENANT_ID, persona.accountId(), persona.employeeId(), persona.email(),
+                        kr.tna.common.auth.PasswordPolicy.passwordEncoder().encode(persona.password()));
+                for (String role : persona.roles()) db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)",
+                        LocalDemoLogin.TENANT_ID, persona.accountId(), role);
+            }
+            var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
+                            .param("companyCode", "UNTRUSTED-COMPANY").param("email", number).param("password", persona.password())
+                            .with(request -> { request.setRemoteAddr("198.51.100.244"); return request; }))
+                    .andExpect(status().is3xxRedirection()).andReturn().getRequest().getSession(false);
+            assertNotNull(session);
+            var context = (SecurityContext) session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            var principal = (TnaPrincipal) context.getAuthentication().getPrincipal();
+            assertTrue(LocalDemoLogin.matches(persona, principal));
+            publicMvc.perform(get("/me/profile").session(session)).andExpect(status().isOk());
+            publicMvc.perform(get("/admin/access").session(session))
+                    .andExpect(status().is(persona.roles().contains("ATTENDANCE_ADMIN") ? 200 : 403));
+            publicMvc.perform(get("/approvals").session(session))
+                    .andExpect(status().is(persona.roles().contains("APPROVER") ? 200 : 403));
+        }
+        publicMvc.perform(get("/demo")).andExpect(ReactPageAssertions.data("/demoAccounts/4/employeeNo", "25001"));
+    }
+
+    @Test
+    void everySharedEmployeeRejectsTheNewPersonalDetailAndEntryHttpPaths() throws Exception {
+        var session = publicLogin("198.51.100.242");
+        var before = demoState();
+        List<Executable> checks = new ArrayList<>();
+        for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+            String id = employee.toString();
+            for (String pathId : List.of(id, id.toUpperCase(Locale.ROOT), "%20" + id + "%20")) {
+                for (String query : List.of("", "?demo=1")) {
+                    for (String suffix : List.of("/personal-details", "/personal-entries")) {
+                        var path = java.net.URI.create("/admin/employees/" + pathId + suffix + query);
+                        checks.add(() -> publicMvc.perform(post(path).session(session).with(csrf())
+                                        .param("englishName", "Synthetic Protected Person").param("kind", "FAMILY")
+                                        .param("title", "공유 이력 차단").param("effectiveFrom", "2026-01-01")
+                                        .param("expectedVersion", "0").param("reason", "공유 상세 변경 차단 검증")
+                                        .param("commandId", UUID.randomUUID().toString()))
+                                .andExpect(status().isForbidden()));
+                    }
+                }
+            }
+        }
+        checks.add(() -> assertEquals(before, demoState()));
+        assertAll(checks);
+    }
+
+    @Test
+    void directPersonalServicesRejectAllFiveSharedEmployeesBeforeAnyWrites() throws Exception {
+        var session = publicLogin("198.51.100.243");
+        var context = (SecurityContext) session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+        var actor = (TnaPrincipal) context.getAuthentication().getPrincipal();
+        var before = demoState();
+        for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+            var form = new kr.tna.org.EmployeePersonalDetailsData.Form("UNKNOWN", null, null, "Synthetic Protected Person",
+                    "UNKNOWN", null, "UNKNOWN", "UNKNOWN", "UNKNOWN", null, null, null, null, null, null,
+                    0L, "공유 상세 서비스 차단", UUID.randomUUID());
+            var entry = new kr.tna.org.EmployeePersonalDetailsData.EntryForm("FAMILY", "공유 이력 차단", null,
+                    LocalDate.of(2026, 1, 1), null, 0L, "공유 이력 서비스 차단", UUID.randomUUID());
+            assertEquals(403, assertThrows(OrgException.class, () -> personal.update(actor, employee, form)).status());
+            assertEquals(403, assertThrows(OrgException.class, () -> personal.append(actor, employee, entry)).status());
+        }
+        assertEquals(before, demoState());
     }
 
     @Test
@@ -190,7 +269,8 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
 
     private List<List<String>> demoState() {
         List<List<String>> state = new ArrayList<>();
-        for (String table : List.of("employee", "employee_personnel", "employee_employment_status", "org_audit_event")) {
+        for (String table : List.of("employee", "employee_personnel", "employee_employment_status", "employee_personal_details",
+                "employee_personal_entry", "tenant_account", "role_grant", "account_token", "org_audit_event")) {
             state.add(demoDb().queryForList("SELECT row_to_json(record)::text FROM tna." + table
                     + " record WHERE tenant_id=? ORDER BY row_to_json(record)::text", String.class, LocalDemoLogin.TENANT_ID));
         }

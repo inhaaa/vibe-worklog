@@ -16,7 +16,7 @@ import { PersonnelPage } from './pages/PersonnelPage';
 import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
 import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
-import { getNavigationContext } from './navigation';
+import { getNavigation, getNavigationContext, getWorkspaceMenuRoles, getWorkspaceRoles, selectWorkspaceRole } from './navigation';
 
 const publicPages = new Set([
   'login',
@@ -116,6 +116,12 @@ function Workspace({
   const employee = data.workspaceEmployee as
     { employeeName: string; companyName: string } | undefined;
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
+  const roleOptions = getWorkspaceRoles(roles);
+  const [selectedRole, setSelectedRole] = useState(() => {
+    const href = getNavigationContext(page, location.pathname, data)?.href;
+    return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value;
+  });
+  const activeRole = selectWorkspaceRole(roles, selectedRole);
   const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
   useEffect(() => {
@@ -145,7 +151,7 @@ function Workspace({
             </small>
           </span>
         </div>
-        <WorkspaceNavigation roles={roles} page={page} data={data} onNavigate={() => setOpen(false)} />
+        <WorkspaceNavigation roles={getWorkspaceMenuRoles(roles, activeRole)} page={page} data={data} onNavigate={() => setOpen(false)} />
         <div className="t-sidebar-bottom">
           {demo && (
             <>
@@ -172,7 +178,13 @@ function Workspace({
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
-          {demo && <a className="t-demo-pill t-demo-switch" href="/demo" aria-label="데모 계정 전환">계정 전환</a>}
+          {roleOptions.length > 0 && <label className="t-role-picker">
+            <span>업무 권한</span>
+            <select aria-label="업무 권한" value={activeRole} onChange={event => setSelectedRole(selectWorkspaceRole(roles, event.target.value))}>
+              {roleOptions.map(role => <option key={role.value} value={role.value}>{role.label}</option>)}
+            </select>
+          </label>}
+          {demo && <a className="t-demo-pill t-demo-switch" href="/demo" aria-label="다른 테스트 사원 로그인">사원 변경</a>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>

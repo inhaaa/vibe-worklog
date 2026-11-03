@@ -1,6 +1,7 @@
 package kr.tna.common.auth;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.core.env.Environment;
@@ -22,11 +23,20 @@ public final class LocalDemoLogin {
     public static final String APPROVER_PASSWORD = "approver";
     public static final UUID APPROVER_EMPLOYEE_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0201");
     public static final UUID APPROVER_ACCOUNT_ID = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0211");
-    public static final Set<UUID> SHARED_EMPLOYEE_IDS = Set.of(EMPLOYEE_ID, APPROVER_EMPLOYEE_ID);
     private static final Persona APPLICANT = new Persona(LOGIN, PASSWORD, EMAIL, EMPLOYEE_ID, ACCOUNT_ID,
             Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
     private static final Persona APPROVER = new Persona(APPROVER_LOGIN, APPROVER_PASSWORD, APPROVER_EMAIL,
             APPROVER_EMPLOYEE_ID, APPROVER_ACCOUNT_ID, Set.of("EMPLOYEE", "APPROVER"));
+    private static final List<Persona> PERSONAS = List.of(APPLICANT, APPROVER,
+            new Persona("employee", "employee", "employee@local.example.test",
+                    UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0202"), UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0212"), Set.of("EMPLOYEE")),
+            new Persona("representative", "representative", "representative@local.example.test",
+                    UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0203"), UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0213"),
+                    Set.of("EMPLOYEE", "COMPANY_REPRESENTATIVE", "APPROVER")),
+            new Persona("dual", "dualdemo", "dual@local.example.test",
+                    UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0204"), UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0214"),
+                    Set.of("EMPLOYEE", "ATTENDANCE_ADMIN", "APPROVER")));
+    public static final Set<UUID> SHARED_EMPLOYEE_IDS = PERSONAS.stream().map(Persona::employeeId).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private final boolean enabled;
     private final boolean publicDemo;
 
@@ -55,8 +65,14 @@ public final class LocalDemoLogin {
     }
 
     public static Optional<Persona> persona(String login) {
-        return LOGIN.equals(login) ? Optional.of(APPLICANT)
-                : APPROVER_LOGIN.equals(login) ? Optional.of(APPROVER) : Optional.empty();
+        return PERSONAS.stream().filter(persona -> persona.login().equals(login)).findFirst();
+    }
+
+    public static List<Persona> personas() { return PERSONAS; }
+
+    public static boolean matches(Persona persona, TnaPrincipal principal) {
+        return TENANT_ID.equals(principal.tenantId()) && persona.accountId().equals(principal.accountId())
+                && persona.employeeId().equals(principal.employeeId()) && persona.roles().equals(principal.roles());
     }
 
     public record Persona(String login, String password, String email, UUID employeeId, UUID accountId, Set<String> roles) {

@@ -69,6 +69,9 @@ class PublicDemoPersonnelFillIT {
                 """, String.class);
         admin.execute("TRUNCATE " + String.join(",", tables) + " CASCADE");
         LocalDemoBootstrap.bootstrapPublic(migration);
+        // The historical one-off command keeps its original four-person contract after new bootstraps use 99999.
+        admin.update("UPDATE tna.employee SET employee_no='LOCAL-DEMO',display_name='로컬 데모 담당자' WHERE tenant_id=? AND id=?",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.EMPLOYEE_ID);
         // V14 provisions tenant codes automatically; the historical empty-V10 sample script is not a V16 fixture.
         UUID operations = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0101");
         UUID development = UUID.fromString("dddddddd-dddd-4ddd-8ddd-dddddddd0102");
@@ -93,6 +96,13 @@ class PublicDemoPersonnelFillIT {
                 """, LocalDemoLogin.TENANT_ID, UUID.randomUUID(), UUID.randomUUID(), LocalDemoLogin.ACCOUNT_ID,
                 LocalDemoLogin.TENANT_ID, "a".repeat(64), UUID.randomUUID());
         assets(directory);
+    }
+
+    @Test
+    void historicalFillRefusesRenumberedIdentityWithoutRepairingAnything() throws Exception {
+        admin.update("UPDATE tna.employee SET employee_no='99999',display_name='담당자' WHERE tenant_id=? AND id=?",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.EMPLOYEE_ID);
+        refusedWithoutChanges();
     }
 
     @Test
