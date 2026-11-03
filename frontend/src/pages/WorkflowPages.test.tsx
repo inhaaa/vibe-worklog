@@ -129,6 +129,106 @@ describe('WorkflowPages', () => {
       }
     expect(view.getByRole('button', { name: '독립 승인' })).toBeTruthy();
   });
+  it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', async () => {
+    const view = await render('request/detail', {
+      request,
+      detail: { days: [{ leaveDate: '2026-11-01', quantityDays: 0, zeroReason: 'CONFIRMED_HOLIDAY' }], history: [], correction: null },
+    });
+    expect(view.container.querySelector('.t-request-detail-page')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '신청 상세', level: 1 })).toBeTruthy();
+    expect(view.getByRole('link', { name: '내 신청' }).getAttribute('href')).toBe('/me/requests');
+    expect(view.getByLabelText('현재 상태').textContent).toBe('결재 대기');
+    const text = view.container.textContent;
+    for (const label of ['종일 연차', '현재 효력', '효력 없음', '신청 기간', '신청 사유', '결재 담당', '2 DAY', '확정 휴일']) expect(text).toContain(label);
+    expect(text).toContain(request.reason);
+    expect(text).toContain(request.targetEmployeeName);
+    expect(view.container.querySelector('script,img')).toBeNull();
+    expect(text).not.toContain('LEAVE_DAY');
+    expect(text).not.toContain('CONFIRMED_HOLIDAY');
+  });
+  it('처리 이력은 저장된 시각·사유·상태 전이만 타임라인으로 표시한다', async () => {
+    const view = await render('request/detail', {
+      request: { ...request, status: 'APPROVED', effectStatus: 'EFFECTIVE' },
+      detail: {
+        days: [], correction: null,
+        history: [
+          { createdAt: '2026-11-01T00:00:00.123Z', eventKind: 'SUBMITTED', fromStatus: null, toStatus: 'PENDING', reason: '원래 사유' },
+          { createdAt: '2026-11-01T01:00:00.456Z', eventKind: 'APPROVED', fromStatus: 'PENDING', toStatus: 'APPROVED', reason: '검토 완료' },
+        ],
+      },
+    });
+    const timeline = view.container.querySelector('.t-request-detail-timeline');
+    expect(timeline).toBeTruthy();
+    expect(timeline!.querySelectorAll('li')).toHaveLength(2);
+    const times = view.container.querySelectorAll('time');
+    expect(times).toHaveLength(2);
+    expect(times[0].getAttribute('datetime')).toBe('2026-11-01T00:00:00.123Z');
+    expect(times[0].textContent).toBe('2026-11-01 09:00:00.123');
+    const text = view.container.textContent;
+    for (const label of ['신청 제출', '결재 대기 → 승인', '검토 완료', '유효']) expect(text).toContain(label);
+    for (const code of ['SUBMITTED', 'APPROVED', 'null']) expect(text).not.toContain(code);
+  });
+  it('저장 이력이 없으면 가상의 제출·완료 단계를 만들지 않는다', async () => {
+    const view = await render('request/detail', { request, detail: { days: [], history: [], correction: null } });
+    expect(view.container.textContent).toContain('저장된 처리 이력이 없습니다.');
+    expect(view.container.querySelector('time')).toBeNull();
+    expect(view.container.textContent).not.toContain('신청 제출');
+    expect(view.container.textContent).toContain('현재 가능한 결정·변경이 없습니다.');
+  });
+  it('정정은 DAY 수량 없이 유지·변경·제거와 원천 보존 안내를 표시한다', async () => {
+    const view = await render('request/detail', {
+      request: { ...request, kind: 'ATTENDANCE_CORRECTION', quantityDays: null, status: 'APPROVED', effectStatus: 'SUPERSEDED' },
+      detail: {
+        days: [], history: [],
+        correction: { inAction: 'KEEP', outAction: 'SET', requestedOutAt: '2026-11-01T09:00:00.123Z', breaksConfirmed: false, actualBreaks: null },
+      },
+    });
+    const text = view.container.textContent;
+    for (const label of ['출퇴근·휴게 정정', '후속 정정으로 대체', '출근 유지', '퇴근 변경', '2026-11-01 18:00:00.123', '원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.']) expect(text).toContain(label);
+    for (const code of [' DAY', 'KEEP', 'SET']) expect(text).not.toContain(code);
+  });
+  it('제출 당시 정책·결재선과 취소의 원신청 연결을 보존한다', async () => {
+    const view = await render('request/detail', {
+      request: { ...request, kind: 'CANCEL_LEAVE', originalRequestId: 'original-1', effectStatus: 'CANCELED' },
+      detail: {
+        days: [], history: [], correction: null,
+        attendancePolicy: { code: 'ANNUAL', name: '연차 정책', revision: 2, effectiveFrom: '2026-01-01', unit: 'DAY', payKind: 'PAID', deductionRule: 'LEAVE_DAY', basis: '정책 근거' },
+        routeSnapshot: { routeCode: 'TEAM', routeName: '조직장 결재', revision: 3, scopeKind: 'ORGANIZATION', approverKind: 'ORGANIZATION_HEAD', organizationName: '개발팀', resolvedApproverName: '최초 담당', resolvedAt: '2026-11-01T00:00:00Z' },
+      },
+    });
+    expect(view.getByRole('link', { name: '원신청 보기' }).getAttribute('href')).toBe('/requests/original-1');
+    expect(view.getByRole('heading', { name: '제출 당시 근태정책' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '제출 당시 결재선' })).toBeTruthy();
+    const text = view.container.textContent;
+    for (const label of ['연차 취소', '효력 취소', '취소 심사 중에는 원승인·차감이 유지됩니다.', 'ANNUAL · 연차 정책 · v2', '승인 시 연차 DAY 차감', '정책 근거', 'TEAM · 조직장 결재 · v3', '대상자의 현재 조직장', '최초 담당', '제출 당시 해석은 보존됩니다.']) expect(text).toContain(label);
+  });
+  it('알 수 없는 상세 코드는 원래 값을 보존하고 알려진 정정·이력만 번역한다', async () => {
+    const view = await render('request/detail', {
+      request: { ...request, kind: 'FUTURE_KIND', status: 'FUTURE_STATUS', effectStatus: 'FUTURE_EFFECT' },
+      detail: {
+        days: [],
+        history: [{ createdAt: '2026-11-01T00:00:00Z', eventKind: 'FUTURE_EVENT', fromStatus: 'FUTURE_STATUS', toStatus: 'PENDING', reason: '새 상태' }],
+        correction: { inAction: 'CLEAR', outAction: 'FUTURE_ACTION', breaksConfirmed: false, actualBreaks: null },
+      },
+    });
+    const text = view.container.textContent;
+    for (const code of ['FUTURE_KIND', 'FUTURE_STATUS', 'FUTURE_EFFECT', 'FUTURE_EVENT', 'FUTURE_ACTION']) expect(text).toContain(code);
+    expect(text).toContain('출근 제거');
+    expect(text).toContain('FUTURE_STATUS → 결재 대기');
+    expect(text).not.toContain(' DAY');
+  });
+  it('미지원 정책·결재선 코드도 기존 의미로 추정하지 않고 원래 값을 표시한다', async () => {
+    const view = await render('request/detail', {
+      request: { ...request, kind: 'constructor', status: 'toString', effectStatus: 'valueOf' },
+      detail: {
+        days: [], history: [], correction: null,
+        attendancePolicy: { code: 'CUSTOM', name: '새 정책', revision: 1, effectiveFrom: '2026-01-01', unit: 'FUTURE_UNIT', payKind: 'FUTURE_PAY', deductionRule: 'FUTURE_DEDUCTION', basis: '근거' },
+        routeSnapshot: { routeCode: 'CUSTOM', routeName: '새 결재선', revision: 1, scopeKind: 'FUTURE_SCOPE', approverKind: 'FUTURE_APPROVER', resolvedApproverName: '담당', resolvedAt: '2026-11-01T00:00:00Z' },
+      },
+    });
+    const text = view.container.textContent;
+    for (const code of ['constructor', 'toString', 'valueOf', 'FUTURE_UNIT', 'FUTURE_PAY', 'FUTURE_DEDUCTION', 'FUTURE_SCOPE', 'FUTURE_APPROVER']) expect(text).toContain(code);
+  });
   it('정정은 원천 결속·KEEP/SET/CLEAR·체크 해제 마커를 보존한다', async () => {
     const view = await render('request/correction', {
       day,
