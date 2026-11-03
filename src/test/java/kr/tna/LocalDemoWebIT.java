@@ -75,6 +75,21 @@ class LocalDemoWebIT {
             admin.update("INSERT INTO tna.role_grant (tenant_id, account_id, role) VALUES (?, ?, ?)",
                     LocalDemoLogin.TENANT_ID, LocalDemoLogin.ACCOUNT_ID, role);
         }
+        admin.update("""
+                INSERT INTO tna.employee (tenant_id, id, employee_no, display_name, joined_on, active)
+                VALUES (?, ?, 'DEMO-001', '가상 승인자', DATE '2026-01-01', true)
+                """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_EMPLOYEE_ID);
+        admin.update("""
+                INSERT INTO tna.tenant_account
+                    (tenant_id, id, employee_id, email, password_hash, active, auth_version)
+                VALUES (?, ?, ?, ?, ?, true, 1)
+                """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_ACCOUNT_ID,
+                LocalDemoLogin.APPROVER_EMPLOYEE_ID, LocalDemoLogin.APPROVER_EMAIL,
+                PasswordPolicy.passwordEncoder().encode(LocalDemoLogin.APPROVER_PASSWORD));
+        for (String role : Set.of("EMPLOYEE", "APPROVER")) {
+            admin.update("INSERT INTO tna.role_grant (tenant_id, account_id, role) VALUES (?, ?, ?)",
+                    LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_ACCOUNT_ID, role);
+        }
     }
 
     @AfterEach
@@ -96,6 +111,8 @@ class LocalDemoWebIT {
                 .andExpect(ReactPageAssertions.page())
                 .andExpect(ReactPageAssertions.data("/demoLogin", "admin"))
                 .andExpect(ReactPageAssertions.data("/demoPassword", "admin"))
+                .andExpect(ReactPageAssertions.data("/demoApproverLogin", "approver"))
+                .andExpect(ReactPageAssertions.data("/demoApproverPassword", "approver"))
                 .andExpect(content().string(not(containsString("type=\"password\""))))
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(content().string(not(anyOf(containsString("회사 코드와 이메일"),
@@ -112,7 +129,7 @@ class LocalDemoWebIT {
                         .param("companyCode", DatabaseFixture.COMPANY_B)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
-                .andExpect(redirectedUrl("/me/today"))
+                .andExpect(redirectedUrl("/me/profile"))
                 .andReturn().getRequest().getSession(false);
         assertNotEquals(oldId, session.getId());
         var context = context(session);
@@ -122,7 +139,7 @@ class LocalDemoWebIT {
         assertEquals(LocalDemoLogin.EMPLOYEE_ID, principal.employeeId());
         assertEquals(Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"), principal.roles());
         assertNull(context.getAuthentication().getCredentials());
-        mvc.perform(get("/me/today").session(session).param("tenant_id", DatabaseFixture.TENANT_B.toString()))
+        mvc.perform(get("/me/profile").session(session).param("tenant_id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("로컬 데모 담당자")));
         mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isForbidden());
         mvc.perform(get("/approvals").session(session)).andExpect(status().isForbidden());
@@ -135,6 +152,62 @@ class LocalDemoWebIT {
             mvc.perform(credentials(pair[0], pair[1]).with(csrf()))
                     .andExpect(redirectedUrl("/login?error"));
         }
+    }
+
+    @Test
+    void approverUsesNormalLoginAndCannotEnterAdministratorOrOtherTenantPages() throws Exception {
+        var session = (MockHttpSession) mvc.perform(credentials("approver", "approver").with(csrf())
+                        .param("companyCode", DatabaseFixture.COMPANY_B))
+                .andExpect(redirectedUrl("/approvals")).andReturn().getRequest().getSession(false);
+        var principal = (TnaPrincipal) context(session).getAuthentication().getPrincipal();
+        assertEquals(LocalDemoLogin.TENANT_ID, principal.tenantId());
+        assertEquals(LocalDemoLogin.APPROVER_ACCOUNT_ID, principal.accountId());
+        assertEquals(LocalDemoLogin.APPROVER_EMPLOYEE_ID, principal.employeeId());
+        assertEquals(Set.of("EMPLOYEE", "APPROVER"), principal.roles());
+        mvc.perform(get("/approvals").session(session).param("tenant_id", DatabaseFixture.TENANT_B.toString()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/completed", false));
+        mvc.perform(get("/approvals/completed").session(session)).andExpect(status().isOk());
+        mvc.perform(get("/admin/employees").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/company/requests").session(session)).andExpect(status().isForbidden());
+        mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void approverSwitchUsesCsrfLoginAndRotatesTheExistingApplicantSession() throws Exception {
+        var before = login();
+        String oldId = before.getId();
+        mvc.perform(get("/demo").session(before)).andExpect(status().isOk());
+        var switched = (MockHttpSession) mvc.perform(credentials("approver", "approver").session(before).with(csrf())
+                        .with(request -> { request.setRequestedSessionId(oldId); request.setRequestedSessionIdValid(true); return request; }))
+                .andExpect(redirectedUrl("/approvals")).andReturn().getRequest().getSession(false);
+        assertNotEquals(oldId, switched.getId());
+        var principal = (TnaPrincipal) context(switched).getAuthentication().getPrincipal();
+        assertEquals(LocalDemoLogin.APPROVER_ACCOUNT_ID, principal.accountId());
+        assertEquals(Set.of("EMPLOYEE", "APPROVER"), principal.roles());
+        mvc.perform(get("/approvals").session(switched)).andExpect(status().isOk());
+        mvc.perform(get("/admin/employees").session(switched)).andExpect(status().isForbidden());
+        var applicant = (MockHttpSession) mvc.perform(credentials("admin", "admin").session(switched).with(csrf()))
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+        assertEquals(LocalDemoLogin.ACCOUNT_ID, ((TnaPrincipal) context(applicant).getAuthentication().getPrincipal()).accountId());
+        mvc.perform(get("/approvals").session(applicant)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void approverCredentialsStillRequireCsrfStoredHashAndCurrentExactRoles() throws Exception {
+        mvc.perform(credentials("approver", "approver")).andExpect(status().isForbidden());
+        var session = (MockHttpSession) mvc.perform(credentials("approver", "approver").with(csrf()))
+                .andExpect(redirectedUrl("/approvals")).andReturn().getRequest().getSession(false);
+        admin.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='APPROVER'",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_ACCOUNT_ID);
+        mvc.perform(get("/approvals").session(session).header("HX-Request", "true"))
+                .andExpect(status().isUnauthorized());
+        assertTrue(session.isInvalid());
+        mvc.perform(credentials("approver", "approver").with(csrf())).andExpect(redirectedUrl("/login?error"));
+        admin.update("UPDATE tna.role_grant SET active=true WHERE tenant_id=? AND account_id=? AND role='APPROVER'",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_ACCOUNT_ID);
+        admin.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES(?,?,'ATTENDANCE_ADMIN')",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_ACCOUNT_ID);
+        mvc.perform(credentials("approver", "approver").with(csrf())).andExpect(redirectedUrl("/login?error"));
     }
 
     @Test
@@ -220,7 +293,7 @@ class LocalDemoWebIT {
 
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mvc.perform(credentials("admin", "admin").with(csrf()))
-                .andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
     }
 
     private SecurityContext context(MockHttpSession session) {

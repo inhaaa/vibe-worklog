@@ -1,4 +1,6 @@
 import React from 'react';
+import './RequestDetail.css';
+import { ApprovalWorkspace } from './ApprovalWorkspace';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import {
@@ -164,6 +166,16 @@ function Mine({ model: m }: { model: MineModel }) {
 function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const r = m.request,
     d = m.detail;
+  const label = (value: string, names: Record<string, string>) => Object.hasOwn(names, value) ? names[value] : value;
+  const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
+  const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
+  const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
+  const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
+  const correctionAction = (value: string) => label(value, { KEEP: '유지', SET: '변경', CLEAR: '제거' });
+  const zeroReason = (value: string) => label(value, { CONFIRMED_HOLIDAY: '확정 휴일', CONFIRMED_NON_WORKDAY: '확정 비근로일' });
+  const hasActions = m.canDecide || m.canWithdraw || m.canCancel || m.canCancelException || (m.admin && r.status === 'PENDING');
+  const completedApproval = m.ownRequest === false && m.workspacePrincipal?.roles.includes('APPROVER')
+    && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const versionFields = (
     <>
       {hidden('expectedVersion', r.version)}
@@ -171,150 +183,162 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     </>
   );
   return (
-    <>
-      <h1>신청 상세</h1>
-      <p>시각 기준: Asia/Seoul (서울)</p>
-      <section className="panel">
-        <h2>
-          {r.targetEmployeeName} · {r.kind}
-        </h2>
-        <p>
-          {fmtDate(r.fromDate)} ~ {fmtDate(r.toDate)} / {r.quantityDays} DAY
-        </p>
-        <p>
-          {r.status} · 현재 효력 {r.effectStatus} / v{r.version}
-        </p>
-        <p>{r.reason}</p>
-        <p>현재 결재 담당 {r.approverName}</p>
-        {d.attendancePolicy && <section className="t-request-route">
-          <h3>제출 당시 근태정책</h3>
-          <dl>
-            <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
-            <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
-            <dt>단위</dt><dd>{d.attendancePolicy.unit === 'DAY' ? '종일(DAY)' : d.attendancePolicy.unit === 'HOUR' ? '시간(HOUR)' : '해당 없음'}</dd>
-            <dt>유급 구분</dt><dd>{d.attendancePolicy.payKind === 'PAID' ? '유급' : d.attendancePolicy.payKind === 'UNPAID' ? '무급' : '미확인'} (정책 메타데이터)</dd>
-            <dt>차감 규칙</dt><dd>{d.attendancePolicy.deductionRule === 'LEAVE_DAY' ? '승인 시 연차 DAY 차감' : '차감 없음'}</dd>
-            <dt>정책 근거</dt><dd>{d.attendancePolicy.basis}</dd>
-          </dl>
-          <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
-        </section>}
-        {d.routeSnapshot ? <section className="t-request-route">
-          <h3>제출 당시 결재선</h3>
-          <dl>
-            <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
-            <dt>적용 범위</dt><dd>{d.routeSnapshot.scopeKind === 'EMPLOYEE' ? '사원별' : '조직별'}</dd>
-            <dt>결재 방식</dt><dd>{d.routeSnapshot.approverKind === 'ORGANIZATION_HEAD' ? '대상자의 현재 조직장' : '지정 사원'}</dd>
-            {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
-            <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
-            <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
-          </dl>
-          <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
-        </section> : <p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p>}
-        {r.kind === 'CANCEL_LEAVE' && <p>취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
-        {r.originalRequestId && (
-          <p>
-            <a href={`/requests/${r.originalRequestId}`}>원신청</a>
-          </p>
-        )}
-        <ul>
-          {d.days.map((day, i) => (
-            <li key={`${day.leaveDate}-${i}`}>
-              {fmtDate(day.leaveDate)} · {day.quantityDays} DAY · {day.zeroReason}
-            </li>
-          ))}
-        </ul>
-        {d.correction && (
-          <>
-            <h3>요청한 정정</h3>
-            <p>
-              출근 {d.correction.inAction}
-              {d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`} /
-              퇴근 {d.correction.outAction}
-              {d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}
-            </p>
-            <p>
-              실제 휴게{' '}
-              {d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}
-            </p>
-            <p>원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</p>
-          </>
-        )}
+    <div className="t-request-detail-page">
+      <header className="t-pagehead">
+        <div>
+          <p className="t-eyebrow">신청 내역</p>
+          <h1>신청 상세</h1>
+          <p className="t-muted">신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)</p>
+        </div>
+        <div className="t-request-detail-backlinks">
+          {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals"><span aria-hidden="true">←</span> 대기함으로</a>
+            : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed"><span aria-hidden="true">←</span> 내가 처리한 결재</a>}
+          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 <span aria-hidden="true">↗</span></a>
+        </div>
+      </header>
+      <section className="t-card t-request-detail-summary" aria-label="신청 요약">
+        <div className="t-request-detail-summary-head">
+          <div><p className="t-eyebrow">{kindName}</p><h2>{r.targetEmployeeName}</h2></div>
+          <span className="t-request-detail-status" data-status={r.status} aria-label="현재 상태">{statusName(r.status)}</span>
+        </div>
+        <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong><span>신청 버전 v{r.version}</span></p>
+        <div className="t-request-detail-overview">
+          <section className="t-request-detail-fact">
+            <h3>신청 기간</h3>
+            <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
+            {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays} DAY</p>}
+          </section>
+          <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
+          <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">제출 당시 담당은 아래 결재선에서 확인하세요.</p></section>
+        </div>
+        {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
+        {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 <span aria-hidden="true">↗</span></a>}
       </section>
-      <section className="panel">
-        <h2>결정·변경</h2>
-        {m.canDecide && (
-          <>
-            <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form">
-              {versionFields}
-              <Reason label="승인 검토 사유" />
-              <button>독립 승인</button>
-            </Form>
-            <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form">
-              {versionFields}
-              <Reason label="반려 사유" />
-              <button className="secondary">반려</button>
-            </Form>
-          </>
-        )}
-        {m.canWithdraw && (
-          <Form action={`/requests/${r.id}/withdraw`} method="post" className="admin-form">
-            {versionFields}
-            <Reason label="철회 사유" />
-            <button className="secondary">대기 신청 철회</button>
-          </Form>
-        )}
-        {m.canCancel && (
-          <Form action={`/requests/${r.id}/cancellations`} method="post" className="admin-form">
-            {versionFields}
-            <Reason label="취소 요청 사유" />
-            <p>
-              예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
-              필요합니다.
-            </p>
-            <button className="secondary">취소 심사 요청</button>
-          </Form>
-        )}
-        {m.admin && r.status === 'PENDING' && (
-          <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="admin-form">
-            <h3>대기 건 명시 재할당</h3>
-            {versionFields}
-            <SelectField label="새 승인자" name="approverEmployeeId" required>
-              {(m.candidates ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.displayName}
-                </option>
-              ))}
-            </SelectField>
-            <Reason label="재할당 사유" />
-            <button>재할당 저장</button>
-          </Form>
-        )}
-        {m.canCancelException && (
-          <Form
-            action={`/admin/requests/${r.id}/cancellation-exceptions`}
-            method="post"
-            className="admin-form"
-          >
-            <h3>과거·퇴사자 예외 취소</h3>
-            {versionFields}
-            <Reason label="검토 근거와 예외 취소 사유" />
-            <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
-            <button>예외 취소 심사 요청</button>
-          </Form>
-        )}
-      </section>
-      <section className="panel">
-        <h2>처리 이력</h2>
-        <ol>
-          {d.history.map((h, i) => (
-            <li key={i}>
-              {fmtDateTime(h.createdAt)} · {h.eventKind} · {h.fromStatus} → {h.toStatus} ·{' '}
-              {h.reason}
-            </li>
-          ))}
-        </ol>
-      </section>
-    </>
+      <div className="t-request-detail-columns">
+        <div className="t-request-detail-main">
+          {d.days.length > 0 && <section className="t-card">
+            <h2>날짜별 산정</h2>
+            <ul className="t-request-detail-days">
+              {d.days.map((day, i) => <li key={`${day.leaveDate}-${i}`}><span>{fmtDate(day.leaveDate)}</span>{r.kind === 'LEAVE_DAY' && <strong>{day.quantityDays} DAY</strong>}{day.zeroReason && <span className="t-muted">{zeroReason(day.zeroReason)}</span>}</li>)}
+            </ul>
+          </section>}
+          {d.correction && <section className="t-card">
+            <h2>요청한 정정</h2>
+            <dl className="t-request-detail-values">
+              <dt>출근</dt><dd>출근 {correctionAction(d.correction.inAction)}{d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`}</dd>
+              <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
+              <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
+            </dl>
+            <p className="t-request-detail-notice">원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</p>
+          </section>}
+          {d.attendancePolicy && <section className="t-card t-request-route">
+            <h2>제출 당시 근태정책</h2>
+            <dl className="t-request-detail-values">
+              <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
+              <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
+              <dt>단위</dt><dd>{label(d.attendancePolicy.unit, { DAY: '종일(DAY)', HOUR: '시간(HOUR)', NONE: '해당 없음' })}</dd>
+              <dt>유급 구분</dt><dd>{label(d.attendancePolicy.payKind, { PAID: '유급', UNPAID: '무급', UNSPECIFIED: '미확인' })} (정책 메타데이터)</dd>
+              <dt>차감 규칙</dt><dd>{label(d.attendancePolicy.deductionRule, { LEAVE_DAY: '승인 시 연차 DAY 차감', NONE: '차감 없음' })}</dd>
+              <dt>정책 근거</dt><dd>{d.attendancePolicy.basis}</dd>
+            </dl>
+            <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
+          </section>}
+          {d.routeSnapshot ? <section className="t-card t-request-route">
+            <h2>제출 당시 결재선</h2>
+            <dl className="t-request-detail-values">
+              <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
+              <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
+              <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
+              {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
+              <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
+              <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
+            </dl>
+            <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
+          </section> : <section className="t-card t-request-route"><h2>제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
+        </div>
+        <div className="t-request-detail-side">
+          <section className="t-card">
+            <div className="t-request-detail-section-head"><h2>처리 이력</h2><span className="t-muted">{d.history.length}건</span></div>
+            {d.history.length === 0 ? <p className="t-request-detail-empty">저장된 처리 이력이 없습니다.</p> : <ol className="t-request-detail-timeline">
+              {d.history.map((h, i) => <li key={i}>
+                <div className="t-request-detail-event"><strong>{eventName(h.eventKind)}</strong><time dateTime={h.createdAt}>{fmtDateTime(h.createdAt)}</time></div>
+                <p className="t-request-detail-transition">{h.fromStatus ? `${statusName(h.fromStatus)} → ` : ''}{statusName(h.toStatus)}</p>
+                <p className="t-request-detail-reason">{h.reason}</p>
+              </li>)}
+            </ol>}
+          </section>
+          <section className={`t-card t-request-detail-actions${m.canDecide ? ' t-request-decision-panel' : ''}`}>
+            <h2>{m.canDecide ? '결재 검토' : '결정·변경'}</h2>
+            {m.canDecide && <p className="t-request-decision-guide">신청 내용과 산정 근거를 확인해 주세요. 현재 권한·신청 상태는 처리할 때 다시 검증하며, 결정 사유는 처리 이력에 남습니다.</p>}
+            {!hasActions && <p className="t-request-detail-empty">현재 가능한 결정·변경이 없습니다.</p>}
+            {m.canDecide && (
+              <>
+                <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form t-request-detail-form t-request-decision-approve" aria-label="승인 검토">
+                  <h3>승인</h3>
+                  <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
+                  {versionFields}
+                  <Reason label="승인 검토 사유" />
+                  <button className="t-btn primary">승인하기</button>
+                </Form>
+                <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form t-request-detail-form t-request-decision-reject" aria-label="반려 검토">
+                  <h3>반려</h3>
+                  <p>보완이 필요한 내용을 사유로 남겨 주세요.</p>
+                  {versionFields}
+                  <Reason label="반려 사유" />
+                  <button className="t-btn secondary">반려하기</button>
+                </Form>
+              </>
+            )}
+            {m.canWithdraw && (
+              <Form action={`/requests/${r.id}/withdraw`} method="post" className="admin-form t-request-detail-form">
+                {versionFields}
+                <Reason label="철회 사유" />
+                <button className="t-btn secondary">대기 신청 철회</button>
+              </Form>
+            )}
+            {m.canCancel && (
+              <Form action={`/requests/${r.id}/cancellations`} method="post" className="admin-form t-request-detail-form">
+                {versionFields}
+                <Reason label="취소 요청 사유" />
+                <p>
+                  예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
+                  필요합니다.
+                </p>
+                <button className="t-btn secondary">취소 심사 요청</button>
+              </Form>
+            )}
+            {m.admin && r.status === 'PENDING' && (
+              <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="admin-form t-request-detail-form">
+                <h3>대기 건 명시 재할당</h3>
+                {versionFields}
+                <SelectField label="새 승인자" name="approverEmployeeId" required>
+                  {(m.candidates ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.displayName}
+                    </option>
+                  ))}
+                </SelectField>
+                <Reason label="재할당 사유" />
+                <button className="t-btn">재할당 저장</button>
+              </Form>
+            )}
+            {m.canCancelException && (
+              <Form
+                action={`/admin/requests/${r.id}/cancellation-exceptions`}
+                method="post"
+                className="admin-form t-request-detail-form"
+              >
+                <h3>과거·퇴사자 예외 취소</h3>
+                {versionFields}
+                <Reason label="검토 근거와 예외 취소 사유" />
+                <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
+                <button className="t-btn">예외 취소 심사 요청</button>
+              </Form>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }
 function Correction({ model: m }: { model: CorrectionModel }) {
@@ -496,6 +520,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
   return (
     <>
       <h1>연차 원장</h1>
+      <p><a href={`/admin/leave-balances/buckets/${m.bucketId}/attributions`}>귀속연도 관리</a> · 분류는 원장 금액을 변경하지 않습니다.</p>
       <section className="panel">
         <p>추가한 이력은 덮어쓰지 않습니다. 사용·복원은 원효력을 참조합니다.</p>
         <WorklogSheet label="연차 원장" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
@@ -1212,14 +1237,14 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
   let content: React.ReactNode;
   switch (page) {
     case 'request/mine':
+      if (data.annual) return null;
       content = <Mine model={data as unknown as MineModel} />;
       break;
     case 'request/list': {
       const m = data as unknown as ListModel;
-      content = (
+      content = m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
         <>
           <h1>{m.title}</h1>
-          {m.completed !== undefined && <><nav className="actions" aria-label="결재 목록"><a href="/approvals" aria-current={!m.completed ? 'page' : undefined}>결재 대기함</a><a href="/approvals/completed" aria-current={m.completed ? 'page' : undefined}>내가 처리한 결재</a></nav><p>{m.completed ? '본인이 승인하거나 반려한 신청입니다. 철회는 처리한 결재에 포함하지 않습니다.' : '현재 본인에게 지정된 대기 신청입니다.'}</p></>}
           <section className="panel">
             <RequestRows requests={m.requests} />
           </section>
@@ -1264,8 +1289,15 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/history':
       content = (
         <>
-          <h1>내 근태 기록</h1>
-          <Form action="/me/attendance" method="get">
+          <header className="t-pagehead"><div><p className="t-eyebrow">ATTENDANCE</p><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
+          {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
+            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
+            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
+              {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
+              <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
+            </Form>)}</div>
+          </section>}
+          <Form action="/me/attendance" method="get" className="t-attendance-filter search-form">
             <Field
               label="기준일"
               name="date"
@@ -1273,11 +1305,9 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
               value={(data as unknown as ClockModel).day.workDate}
               required
             />
-            <button>조회</button>
+            <button className="t-btn">조회</button>
+            <a className="t-btn" href="/me/attendance">오늘</a>
           </Form>
-          <p>
-            <a href="/me/today">오늘 출퇴근</a>
-          </p>
           <AttendanceRecord data={data} />
         </>
       );

@@ -5,9 +5,17 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
+- main 통합 후속: 기존 공통 시트·셀 편집과 인사정보·신청·결재 화면을 함께 통합했습니다. 화면346개/타입·빌드·Python67개, Java단위132개와 DB전체566개를 실행했고 동시성1건의 최초 실패 후 원래 조건의 최종2개 재검증을 통과했습니다. 첫 실패/진단/재발 가능성은 [main 통합 검증](docs/quality/main-approval-integration-20261103.md)에 구분했습니다.
+- 결재 화면·데모 승인 후속: 2026-11-03 공개 `3e6e99c`·V16에 대기/완료 카드·승인/반려 검토와 별도 승인자 계정 전환을 반영했습니다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74, 공개98+4/새 persona60항목과 실제 신청→독립 승인·12→12→11DAY·PC/390px를 확인했습니다 ([실제 공개 결과](docs/quality/public-approval-workspace-deploy-20261103.md)·[로컬 결과/한계](docs/quality/approval-workspace-20261103.md)).
+- 신청 화면 후속: 2026-11-03 공개 `8cc811c`·V16에 현재 헤더·메뉴와 같은 인디고 카드·단계별 작성/요약·접수/상세를 반영했습니다. 개발251개·공개336개/타입·빌드, 합성 환경의 실제 접수·무쓰기 미리보기, 공개98+4항목/사진4·자산·PC/390px와 기존46표420행/권한·다른 서비스 보존을 확인했습니다 ([최종 공개 결과](docs/quality/public-request-workspace-deploy-20261103.md)·[로컬 검증/한계](docs/quality/request-workspace-20261103.md)).
+- 가상 인사/사진·헤더 후속: 2026-11-02 공개 `725373d`에 가상4명 사진과 직급/직책/직무·재직/휴직/정직을 채웠습니다. 헤더 탭을 제거하고 전체 항목을 한 카드에 표시하며 3단계 메뉴 디자인을 보완했습니다. 공개 Java728·프론트323·Python74·98+4항목/사진4·PC/390px·백업/독립 복원·기존 자료/서비스 보존을 확인했고, 개발본 UI `edafb4c`도 관련62개·타입/빌드를 통과했습니다 ([개발/공개 결과](docs/quality/demo-personnel-header-20261102.md)).
+- 공개 업무 메뉴·인사정보 반영: 2026-11-02 공개 `70a4e81`·V16 배포를 마쳤습니다. 백업/독립 복원·기존43표407행/권한·공개98+4항목·PC/390px·기존 서비스/Caddy를 검증했고 모바일 표시2건도 수정했습니다 ([최종 공개 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-personnel-deploy-20261102.md)). 개발본에도 표시 보완을 반영하고 관련42개·타입/빌드를 확인했습니다.
+- 업무 메뉴·인사정보 개편: 업무별3단계 메뉴·홈 제거/출퇴근 이전·공통 사원 헤더·실제 인사정보/사진/상태 이력 등록·단계형 신청 화면을 구현했습니다. Java671개·React237개·Python62개·타입/빌드·실제 HTTP54요청50검증·합성 복원을 통과했습니다. 최신 공개 시트와의 보안 통합·V16 공개 반영은 별도이며 이번 로컬 결과에 포함하지 않습니다 ([구현 계약](docs/design/personnel-workspace.md)·[검증 결과](docs/quality/personnel-workspace.md)).
+- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 이후 검증된 메뉴 단위는 공개 보안을 통합해 WorkLog 전용 앱·DB에 반영합니다 ([후속 배포 절차](docs/development/worklog-public-updates.md)). 개발본과 공개본의 버전은 다르며 기존 PriceSys·demo 보존과 배포 전후 검증을 포함합니다.
+
 - 공통 업무 그리드: `WorklogSheet`의 상시 입력 박스를 없애고 클릭·F2 편집, Tab/Enter 이동, Esc 복원으로 개선했습니다. 조직·사원·결재선·공통/근태코드 적용과 원본246개 검증은 [셀 직접 편집 보고서](docs/quality/sheet-cell-editing.md)를 따릅니다.
 - 시트 정렬·한 줄 표시: 헤더 중앙, 수량 우측·짧은 값 중앙·문장/4어절 이상 좌측과40px 한 줄 행을 적용했습니다. 일반251개·공개252개/타입·빌드 검증 후 2026-11-02 공개 `3529a25`에 배포했습니다. 공개72+4항목·정적8자산·PC/390px·기존 서비스/DB43표407행 보존을 확인했습니다 ([구현 검증](docs/quality/sheet-alignment.md)·[실제 배포 결과](docs/quality/public-sheet-alignment-deploy-20261102.md)).
-- 공개 가상 데이터 데모: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `12f0f78`·V14와 클릭 편집 시트를 반영했습니다. 공개72항목·프록시/포트4항목·PC/390px6회·독립 복원·39개 업무 테이블399행/권한 보존을 확인했고 모바일 긴 셀 겹침도 보완했습니다 ([실제 배포 결과](docs/quality/public-sheet-deploy-20261029.md)).
+- 공개 데모 최초 시트 반영 이력: [worklog.inhaaa.com](https://worklog.inhaaa.com) · 2026-10-29 통합 소스 `12f0f78`·V14와 클릭 편집 시트를 반영했습니다. 공개72항목·프록시/포트4항목·PC/390px6회·독립 복원·39개 업무 테이블399행/권한 보존을 확인했고 모바일 긴 셀 겹침도 보완했습니다 ([실제 배포 결과](docs/quality/public-sheet-deploy-20261029.md)).
 - 시트/V14 후속 검증: 새33분15,465요청·오류0·p95 323.998ms, 별도 시트135항목과 공개 통합 Java656·React247·Python74개를 통과했습니다. 전체9역할 스캔과 공급자 판정을 마쳤으며 추가 적용 패치 후보0·미수정 위험은 남습니다. 기존 로컬/공개 서비스와 공개43표407행을 보존했고 제품 변경이 없어 `12f0f78`·V14를 유지했습니다 ([최종 부하·보존 결과](docs/quality/sheet-soak-security-20261029.md)·[취약점 상세](docs/quality/sheet-security-20261029.md)).
 - 이후 검증된 메뉴 단위도 [후속 배포 절차](docs/development/worklog-public-updates.md)에 따라 공개 보안을 통합하고 기존 PriceSys·demo·portfolio를 보존합니다.
 - **Started:** 2026-10-23

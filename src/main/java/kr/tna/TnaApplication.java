@@ -21,6 +21,10 @@ public class TnaApplication {
             kr.tna.console.LocalDemoBootstrap.main(java.util.Arrays.copyOfRange(args, 1, args.length));
             return;
         }
+        if (args.length > 0 && args[0].equals("demo-approval-setup")) {
+            kr.tna.console.LocalDemoApprovalSetup.main(java.util.Arrays.copyOfRange(args, 1, args.length));
+            return;
+        }
         SpringApplication.run(TnaApplication.class, args);
     }
 }

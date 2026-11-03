@@ -2,11 +2,14 @@ package kr.tna.common.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.UUID;
 import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.EmployeeMapper;
+import kr.tna.org.EmployeePersonnelService;
+import kr.tna.org.OrgException;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
@@ -26,13 +29,15 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
     private final EmployeeMapper employees;
     private final AuthStore auth;
     private final LocalDemoLogin demo;
+    private final EmployeePersonnelService personnel;
 
     public WorkspaceWebConfiguration(TenantTransactions tenants, EmployeeMapper employees,
-                                     AuthStore auth, LocalDemoLogin demo) {
+                                     AuthStore auth, LocalDemoLogin demo, EmployeePersonnelService personnel) {
         this.tenants = tenants;
         this.employees = employees;
         this.auth = auth;
         this.demo = demo;
+        this.personnel = personnel;
     }
 
     @Override
@@ -57,6 +62,15 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
             view.addObject("workspaceEmployee", employee);
             view.addObject("workspacePrincipal", principal);
             view.addObject("workspaceDemo", demo.enabled());
+            String path = request.getRequestURI();
+            if (path.startsWith("/me/")) {
+                view.addObject("employeeHeader", personnel.selfHeader(principal));
+            } else if (path.matches("/admin/employees/[0-9a-fA-F-]{36}(?:/.*)?")) {
+                UUID employeeId = UUID.fromString(path.split("/")[3]);
+                view.addObject("employeeHeader", personnel.header(principal, employeeId));
+            }
+        } catch (OrgException denied) {
+            throw new ResponseStatusException(HttpStatus.valueOf(denied.status()), denied.getMessage());
         } catch (DataAccessException | TransactionException unavailable) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
         }

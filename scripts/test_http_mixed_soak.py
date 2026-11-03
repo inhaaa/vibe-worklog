@@ -34,7 +34,8 @@ def page(name, data=None):
 
 
 def today(employee=EMPLOYEE):
-    return page("today", {"day": {"employeeId": employee, "workDate": "2026-10-27"}})
+    return page("clock/history", {"day": {"employeeId": employee, "workDate": "2026-10-27"},
+                                  "today": "2026-10-27", "isToday": True, "inCommand": COMMAND, "outCommand": REQUEST})
 
 
 def mine(requests=None):
@@ -156,7 +157,7 @@ class ProbeTest(unittest.TestCase):
     def test_redirect_must_stay_on_the_observed_local_origin(self):
         base = "http://127.0.0.1:18082"
         self.assertEqual("/requests/123", soak.local_location(base, "/requests/123"))
-        self.assertEqual("/me/today", soak.local_location(base, base + "/me/today"))
+        self.assertEqual("/me/attendance", soak.local_location(base, base + "/me/attendance"))
         for value in ["https://example.test/login", "//example.test/login", "http://127.0.0.1:1/login"]:
             with self.assertRaises(AssertionError):
                 soak.local_location(base, value)
@@ -175,13 +176,13 @@ class ProbeTest(unittest.TestCase):
 
         client.opener = SimpleNamespace(open=lambda *args, **kwargs: Response())
         with self.assertRaises(AssertionError):
-            client.http("today", "/me/today", contains="SOAK_T1_")
+            client.http("today", "/me/attendance", contains="SOAK_T1_")
         self.assertEqual(1, len(rows))
         self.assertFalse(rows[0]["ok"])
 
     def test_real_react_json_is_requested_and_validated_as_the_expected_page(self):
         client, rows, requests = client_with(Response(today()))
-        _, payload = client.http("today", "/me/today", contains="SOAK_T1_")
+        _, payload = client.http("today", "/me/attendance", contains="SOAK_T1_")
         self.assertEqual(today(), payload)
         self.assertEqual(PAGE_TYPE, requests[0].get_header("Accept"))
         self.assertTrue(rows[0]["ok"])
@@ -192,11 +193,11 @@ class ProbeTest(unittest.TestCase):
                         {"page": "today", "data": {}, "csrf": None}, b"{broken"]:
             client, rows, _ = client_with(Response(payload))
             with self.subTest(payload=payload), self.assertRaises(AssertionError):
-                client.http("today", "/me/today")
+                client.http("today", "/me/attendance")
             self.assertFalse(rows[0]["ok"])
         client, rows, _ = client_with(Response(b'<div id="root"></div>', content_type="text/html"))
         with self.assertRaises(AssertionError):
-            client.http("today", "/me/today")
+            client.http("today", "/me/attendance")
 
     def test_foreign_tenant_marker_or_same_tenant_wrong_employee_is_rejected(self):
         foreign = today()
@@ -204,7 +205,7 @@ class ProbeTest(unittest.TestCase):
         for payload in [foreign, today(APPROVER)]:
             client, rows, _ = client_with(Response(payload))
             with self.subTest(payload=payload), self.assertRaises(AssertionError):
-                client.http("today", "/me/today")
+                client.http("today", "/me/attendance")
             self.assertFalse(rows[0]["ok"])
 
     def test_expected_denials_require_exact_safe_problem_json_and_http_status(self):
@@ -221,9 +222,10 @@ class ProbeTest(unittest.TestCase):
 
     def test_login_uses_json_csrf_and_the_real_urlencoded_session_flow(self):
         client, _, requests = client_with(Response(page("login")),
-            Response(b"", 302, headers={"Location": "/me/today"}), Response(today()))
+            Response(b"", 302, headers={"Location": "/me/profile"}), Response(page("workspace/profile", {
+                "profile": {"employeeName": "SOAK_T1_0003", "companyName": "SOAK_T1_COMPANY"}})))
         client.login()
-        self.assertEqual(["/login", "/login", "/me/today"], [urllib.parse.urlsplit(r.full_url).path for r in requests])
+        self.assertEqual(["/login", "/login", "/me/profile"], [urllib.parse.urlsplit(r.full_url).path for r in requests])
         body = urllib.parse.parse_qs(requests[1].data.decode())
         self.assertEqual([CSRF["token"]], body["_csrf"])
         self.assertEqual(["synthetic-company"], body["companyCode"])
@@ -414,7 +416,7 @@ class ProbeTest(unittest.TestCase):
         run.pacer.wait = pace
         client.opener = SimpleNamespace(open=send)
         with patch.object(soak.time, "monotonic", side_effect=timer):
-            client.http("today", "/me/today", contains="SOAK_T1_")
+            client.http("today", "/me/attendance", contains="SOAK_T1_")
         self.assertEqual(["pacer", "timer", "send"], events[:3])
         self.assertTrue(rows[0]["ok"])
 

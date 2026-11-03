@@ -39,13 +39,13 @@ class OperatorWebIT {
         var operator=operatorLogin(null);
         mvc.perform(post("/operator/tenants").session(operator).header("Accept",media)).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.data.status").value(403));
-        mvc.perform(get("/me/today").session(operator).header("Accept",media)).andExpect(status().isUnauthorized())
+        mvc.perform(get("/me/profile").session(operator).header("Accept",media)).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.data.status").value(401));
     }
-    @Test void operatorLoginDoesNotCreateAnyCustomerSession()throws Exception{var session=operatorLogin(null);mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isOk());mvc.perform(get("/me/today").session(session)).andExpect(redirectedUrl("/login"));mvc.perform(get("/admin/employees").session(session)).andExpect(redirectedUrl("/login"));}
+    @Test void operatorLoginDoesNotCreateAnyCustomerSession()throws Exception{var session=operatorLogin(null);mvc.perform(get("/operator/tenants").session(session)).andExpect(status().isOk());mvc.perform(get("/me/profile").session(session)).andExpect(redirectedUrl("/login"));mvc.perform(get("/admin/employees").session(session)).andExpect(redirectedUrl("/login"));}
     @Test void customerSessionCannotEnterOperatorAndBothContextsStaySeparate()throws Exception{
         var customer=customerLogin();mvc.perform(get("/operator/tenants").session(customer)).andExpect(redirectedUrl("/operator/login"));
-        var both=operatorLogin(customer);mvc.perform(get("/operator/tenants").session(both)).andExpect(status().isOk());mvc.perform(get("/me/today").session(both)).andExpect(status().isOk());
+        var both=operatorLogin(customer);mvc.perform(get("/operator/tenants").session(both)).andExpect(status().isOk());mvc.perform(get("/me/profile").session(both)).andExpect(status().isOk());
     }
     @Test void loginOnboardingStateAndLogoutRequireCsrf()throws Exception{
         mvc.perform(post("/operator/login").param("loginId",login).param("password",PASSWORD)).andExpect(status().isForbidden());
@@ -73,6 +73,6 @@ class OperatorWebIT {
         assertEquals(1,db().queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=?",Integer.class,tenant));
     }
     private MockHttpSession operatorLogin(MockHttpSession existing)throws Exception{var request=post("/operator/login").with(csrf()).param("loginId",login).param("password",PASSWORD);if(existing!=null)request.session(existing);return (MockHttpSession)mvc.perform(request).andExpect(redirectedUrl("/operator/tenants")).andReturn().getRequest().getSession(false);}
-    private MockHttpSession customerLogin()throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",DatabaseFixture.COMPANY_A).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/today")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession customerLogin()throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",DatabaseFixture.COMPANY_A).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
     private JdbcTemplate db(){return new JdbcTemplate(DatabaseFixture.start().adminDataSource());}
 }

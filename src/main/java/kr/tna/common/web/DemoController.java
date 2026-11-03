@@ -20,7 +20,7 @@ public final class DemoController {
 
     @GetMapping("/")
     String index(RedirectAttributes redirectAttributes) {
-        return localDemo.enabled() ? "redirect:/demo" : "redirect:/me/today";
+        return localDemo.enabled() ? "redirect:/demo" : "redirect:/me/profile";
     }
 
     @GetMapping("/login")
@@ -40,6 +40,8 @@ public final class DemoController {
         if (!localDemo.enabled()) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         model.addAttribute("demoLogin", LocalDemoLogin.LOGIN);
         model.addAttribute("demoPassword", LocalDemoLogin.PASSWORD);
+        model.addAttribute("demoApproverLogin", LocalDemoLogin.APPROVER_LOGIN);
+        model.addAttribute("demoApproverPassword", LocalDemoLogin.APPROVER_PASSWORD);
         return "demo";
     }
 }

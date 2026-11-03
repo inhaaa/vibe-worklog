@@ -161,7 +161,7 @@ function OrganizationFilter({ organizations, organizationId }: {
     </SelectField>
   );
 }
-function ProfilePage({ profile: p }: { profile: Profile }) {
+function ProfilePage({ profile: p, hasHeader }: { profile: Profile; hasHeader: boolean }) {
   const entries = [
     ['이름', p.employeeName],
     ['사번', p.employeeNo],
@@ -193,10 +193,11 @@ function ProfilePage({ profile: p }: { profile: Profile }) {
           <p className="t-muted">현재 계정과 업무 배정 정보를 확인하세요.</p>
         </div>
       </header>
-      <section className="panel" aria-label="본인 정보">
+      <section className="panel t-profile-details" aria-label="본인 정보">
+        {hasHeader && <div className="t-section-heading"><span className="t-section-number">i</span><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>}
         <p className="hint">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
         <dl className="t-person-info">
-          {entries.map(([label, value]) => (
+          {entries.filter(([label]) => !hasHeader || !['이름', '사번', '회사', '입사일', '현재 소속'].includes(label)).map(([label, value]) => (
             <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
           ))}
         </dl>
@@ -394,7 +395,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
 export function IdentityPages({ page, data }: PageProps): React.ReactNode | null {
   switch (page) {
     case 'workspace/profile':
-      return <ProfilePage profile={data.profile as Profile} />;
+      return <ProfilePage profile={data.profile as Profile} hasHeader={Boolean(data.employeeHeader)} />;
     case 'org/access-list':
       return <AccessListPage model={data as unknown as AccessList} />;
     case 'company/attendance':

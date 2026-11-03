@@ -24,6 +24,32 @@ class ReactPageViewTest {
     private final ReactPageViewResolver resolver = new ReactPageViewResolver(json);
 
     @Test
+    void demoExposesOnlyTheTwoPublicSyntheticLoginPairs() throws Exception {
+        var response = render("demo", Map.of("demoLogin", "admin", "demoPassword", "admin",
+                "demoApproverLogin", "approver", "demoApproverPassword", "approver",
+                "privateSource", "NEVER_EXPOSE_REAL_ACCOUNT"), request(true));
+        var data = json.readTree(response.getContentAsString()).at("/data");
+        assertEquals("admin", data.at("/demoLogin").asString());
+        assertEquals("approver", data.at("/demoApproverLogin").asString());
+        assertEquals("approver", data.at("/demoApproverPassword").asString());
+        assertFalse(response.getContentAsString().contains("NEVER_EXPOSE_REAL_ACCOUNT"));
+    }
+
+    @Test
+    void annualAndAttributionPagesKeepTheirExplicitModelsWithoutPrivateSources() throws Exception {
+        for (var entry : Map.of("request/mine", "annual", "request/attributions", "leaveAttributions").entrySet()) {
+            var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);
+            assertNotNull(view, entry.getKey());
+            var response = new MockHttpServletResponse();
+            view.render(Map.of(entry.getValue(), Map.of("year", 2026), "privateSource", "NEVER_EXPOSE"), request(true), response);
+            assertEquals(2026, json.readTree(response.getContentAsString()).at("/data/" + entry.getValue() + "/year").asInt());
+            assertFalse(response.getContentAsString().contains("NEVER_EXPOSE"));
+        }
+        var response = render("request/mine", Map.of("compose", Map.of("kind", "LEAVE_DAY", "mode", "MODAL")), request(true));
+        assertEquals("MODAL", json.readTree(response.getContentAsString()).at("/data/compose/mode").asString());
+    }
+
+    @Test
     void codeManagementPagesExposeOnlyTheirNamedModels() throws Exception {
         for (var entry : Map.of("org/common-codes", "commonCodes", "org/attendance-types", "attendanceTypes").entrySet()) {
             var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);
@@ -72,7 +98,10 @@ class ReactPageViewTest {
         assertTrue(body.contains("<script id=\"worklog-page\" type=\"application/json\">"));
         assertTrue(body.contains("src=\"/react/app.js\""));
         assertTrue(body.contains("href=\"/app.css\""));
+        assertTrue(body.contains("href=\"/react/app.css\""));
         assertTrue(body.contains("href=\"/react/sheet.css\""));
+        assertTrue(body.indexOf("href=\"/app.css\"") < body.indexOf("href=\"/react/app.css\""));
+        assertTrue(body.indexOf("href=\"/react/app.css\"") < body.indexOf("href=\"/react/sheet.css\""));
         assertTrue(body.indexOf("href=\"/app.css\"") < body.indexOf("href=\"/react/sheet.css\""));
         assertFalse(body.contains("<img"));
         assertTrue(body.contains("\\u003c/script\\u003e"));

@@ -29,11 +29,17 @@ public class AttendanceController {
     @GetMapping("/admin/calendar") ModelAndView calendar(@AuthenticationPrincipal TnaPrincipal actor){return calendarPage(actor,null);}
     @PostMapping("/admin/calendar/versions") ModelAndView calendarVersion(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("form") CalendarForm form,BindingResult b){check(b);return submit(()->settings.calendar(actor,form),"/admin/calendar",()->calendarPage(actor,form));}
     @GetMapping("/me/attendance") ModelAndView history(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return dayPage(actor,date==null?commands.today():date,null);}
-    @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,HttpServletRequest request){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/today");}
+    @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,HttpServletRequest request){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/attendance");}
     @PostMapping("/me/work-confirmations") ModelAndView confirm(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("confirmationForm") ConfirmationForm form,BindingResult b){check(b);return submit(()->clocks.confirm(actor,form),"/me/attendance?date="+form.workDate(),()->dayPage(actor,form.workDate(),form));}
     private ModelAndView networkPage(TnaPrincipal actor,NetworkForm form){return new ModelAndView("clock/networks").addObject("pageCommand",UUID.randomUUID()).addObject("networks",settings.networks(actor)).addObject("form",form!=null?form:new NetworkForm("","",false,"",UUID.randomUUID()));}
     private ModelAndView calendarPage(TnaPrincipal actor,CalendarForm form){return new ModelAndView("clock/calendar").addObject("calendars",settings.calendars(actor)).addObject("form",form!=null?form:new CalendarForm(commands.today(),commands.today().plusDays(30),false,"","","",UUID.randomUUID()));}
-    private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){var d=clocks.day(actor,date);return new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d)).addObject("confirmationForm",form!=null?form:confirmation(d));}
+    private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
+        var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
+        var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
+                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
+        if(isToday)page.addObject("inCommand",UUID.randomUUID()).addObject("outCommand",UUID.randomUUID());
+        return page;
+    }
     public static ConfirmationForm confirmation(DaySnapshot d){return new ConfirmationForm(d.workDate(),d.inputRevision(),d.reviewRevision(),false,false,d.sourceFingerprint(),UUID.randomUUID());}
     public static Map<UUID,String> times(DaySnapshot d){Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));return values;}
     private ModelAndView submit(Supplier<UUID> fn,String target,Supplier<ModelAndView> page){try{fn.get();return redirect(target);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var v=page.get().addObject("error",e.getMessage());v.setStatus(HttpStatusCode.valueOf(e.status()));return v;}}

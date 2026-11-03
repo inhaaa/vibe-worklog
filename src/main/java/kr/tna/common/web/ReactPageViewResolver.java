@@ -26,9 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public final class ReactPageViewResolver implements ViewResolver, Ordered {
     public static final String MEDIA_TYPE = "application/vnd.worklog.page+json";
-    private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo");
+    private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo", "employeeHeader");
     private static final Map<String, Set<String>> PAGES = Map.ofEntries(
-            page("login", "localDemo"), page("demo", "demoLogin", "demoPassword"),
+            page("login", "localDemo"), page("demo", "demoLogin", "demoPassword", "demoApproverLogin", "demoApproverPassword"),
             page("invite", "companyCode"), page("password-reset"), page("operator/login"),
             page("operator/tenants", "tenants", "audit", "form"),
             page("today", "employee", "workspaceHome", "attendanceAdmin", "approver", "today", "day",
@@ -49,6 +49,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("org/attendance-types", "attendanceTypes"),
             page("company/organizations", "companyOrganizations"),
             page("org/employee", "employee", "assignments", "form", "assignmentForm", "options", "orgNames"),
+            page("org/personnel", "personnel", "today"),
             page("org/access", "employee", "account", "localDelivery", "eligibleEmployee", "invitationForm", "rolesForm",
                     "approverForm", "assignments", "currentAssignment", "candidates", "selectedApproverMissing"),
             page("schedule/list", "templates", "form", "today"),
@@ -56,9 +57,10 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("schedule/assignment", "employee", "assignments", "versions", "templateNames", "today", "form"),
             page("clock/networks", "pageCommand", "networks", "form"),
             page("clock/calendar", "calendars", "form"),
-            page("clock/history", "day", "eventTimes", "confirmationForm"),
-            page("request/mine", "requests", "buckets", "form"), page("request/list", "title", "requests", "page", "hasNext", "completed"),
-            page("request/detail", "pageCommand", "detail", "request", "admin", "canDecide", "canWithdraw", "canCancel", "canCancelException", "candidates"),
+            page("clock/history", "day", "eventTimes", "confirmationForm", "today", "isToday", "inCommand", "outCommand"),
+            page("request/mine", "requests", "buckets", "form", "annual", "compose"),
+            page("request/attributions", "leaveAttributions"), page("request/list", "title", "requests", "page", "hasNext", "completed"),
+            page("request/detail", "pageCommand", "detail", "request", "admin", "ownRequest", "canDecide", "canWithdraw", "canCancel", "canCancelException", "candidates"),
             page("request/balances", "employee", "employees", "buckets", "form"),
             page("request/ledger", "ledger", "bucketId", "adjustment"),
             page("request/correction", "actions", "day", "exceptional", "eventTimes", "form"),
@@ -108,7 +110,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             response.setContentType("text/html;charset=UTF-8");
             response.getWriter().write("<!DOCTYPE html><html lang=\"ko\"><head><meta charset=\"UTF-8\">"
                     + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta name=\"referrer\" content=\"no-referrer\"><title>WorkLog</title>"
-                    + "<link rel=\"stylesheet\" href=\"/app.css\"><link rel=\"stylesheet\" href=\"/react/sheet.css\"></head><body><div id=\"root\"></div>"
+                    + "<link rel=\"stylesheet\" href=\"/app.css\"><link rel=\"stylesheet\" href=\"/react/app.css\"><link rel=\"stylesheet\" href=\"/react/sheet.css\"></head><body><div id=\"root\"></div>"
                     + "<noscript>WorkLog 화면을 사용하려면 JavaScript를 켜 주세요.</noscript>"
                     + "<script id=\"worklog-page\" type=\"application/json\">" + escapeBoot(payload) + "</script>"
                     + "<script type=\"module\" src=\"/react/app.js\"></script></body></html>");

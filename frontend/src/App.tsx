@@ -11,6 +11,12 @@ import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { CodePages } from './pages/CodePages';
+import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
+import { PersonnelPage } from './pages/PersonnelPage';
+import { EmployeeHeader } from './components/EmployeeHeader';
+import type { EmployeeHeaderData } from './components/EmployeeHeader';
+import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
+import { getNavigationContext } from './navigation';
 
 const publicPages = new Set([
   'login',
@@ -23,7 +29,8 @@ const publicPages = new Set([
   'error',
 ]);
 const titles: Record<string, string> = {
-  today: '홈',
+  today: '출퇴근 기록',
+  'org/personnel': '인사정보 등록',
   'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
   'org/employees': '직원 목록',
@@ -48,7 +55,8 @@ const titles: Record<string, string> = {
   'clock/calendar': '근무일·휴일',
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
-  'request/mine': '휴가·신청',
+  'request/mine': '내 근태현황·신청',
+  'request/attributions': '기초 묶음 귀속연도',
   'request/detail': '신청 상세',
   'request/correction': '기록 정정 신청',
   'request/balances': '연차 관리',
@@ -66,51 +74,6 @@ const titles: Record<string, string> = {
   'operator/login': '운영자 로그인',
   'operator/tenants': '고객사 온보딩',
 };
-const navigation = [
-  {
-    group: '내 업무',
-    roles: ['EMPLOYEE'],
-    items: [
-      ['/me/today', '홈', 'home'],
-      ['/me/profile', '내 정보', 'people'],
-      ['/me/schedule', '내 근무 일정', 'calendar'],
-      ['/me/requests', '휴가·신청', 'request'],
-      ['/me/worktime', '근로시간', 'clock'],
-    ],
-  },
-  { group: '승인 업무', roles: ['APPROVER'], items: [['/approvals', '신청 승인', 'request'], ['/approvals/completed', '내가 처리한 결재', 'request']] },
-  {
-    group: '회사 현황',
-    roles: ['ATTENDANCE_ADMIN', 'COMPANY_REPRESENTATIVE'],
-    items: [
-      ['/company/attendance', '회사 근무현황', 'chart'],
-      ['/company/requests', '회사 신청 현황', 'request'],
-      ['/company/organizations', '조직도', 'building'],
-    ],
-  },
-  {
-    group: '관리 업무',
-    roles: ['ATTENDANCE_ADMIN'],
-    items: [
-      ['/admin/employees', '직원 목록', 'people'],
-      ['/admin/organizations', '조직 관리', 'building'],
-      ['/admin/organization-heads', '조직장 배정', 'people'],
-      ['/admin/access', '권한 관리', 'people'],
-      ['/admin/approval-routes', '결재선 관리', 'settings'],
-      ['/admin/approval-route-assignments', '결재선 배정', 'people'],
-      ['/admin/attendance-types', '근태코드 관리', 'settings'],
-      ['/admin/common-codes', '공통코드 관리', 'settings'],
-      ['/admin/schedules', '근무 설정', 'settings'],
-      ['/admin/calendar', '근무일·휴일', 'calendar'],
-      ['/admin/networks', '허용 네트워크', 'settings'],
-      ['/admin/leave-balances', '연차 관리', 'request'],
-      ['/admin/requests', '전체 신청', 'request'],
-      ['/admin/attendance', '근태 현황·Excel', 'chart'],
-      ['/admin/work-policies', '계산 정책', 'settings'],
-      ['/admin/audit', '변경 이력', 'chart'],
-    ],
-  },
-];
 function Icon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     home: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
@@ -140,10 +103,12 @@ function Icon({ name }: { name: string }) {
 }
 function Workspace({
   data,
+  page,
   title,
   children,
 }: {
   data: Record<string, unknown>;
+  page: string;
   title: string;
   children: ReactNode;
 }) {
@@ -152,6 +117,7 @@ function Workspace({
     { employeeName: string; companyName: string } | undefined;
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const demo = data.workspaceDemo === true;
+  const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -162,7 +128,7 @@ function Workspace({
   return (
     <div className="t-app-shell" data-menu-open={String(open)}>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
-        <a className="t-brand-button t-wordmark" href={demo ? '/demo' : '/me/today'}>
+        <a className="t-brand-button t-wordmark" href="/me/profile">
           <span className="t-logo" aria-hidden="true">
             W
           </span>
@@ -179,27 +145,7 @@ function Workspace({
             </small>
           </span>
         </div>
-        <nav aria-label="업무 메뉴">
-          {navigation
-            .filter((group) => group.roles.some((role) => roles.includes(role)))
-            .map((group) => (
-              <div key={group.group}>
-                <p className="t-nav-group">{group.group}</p>
-                {group.items.map(([href, label, icon]) => (
-                  <a
-                    key={href}
-                    href={href}
-                    className="t-nav-item"
-                    aria-current={location.pathname === href ? 'page' : undefined}
-                    onClick={() => setOpen(false)}
-                  >
-                    <Icon name={icon} />
-                    {label}
-                  </a>
-                ))}
-              </div>
-            ))}
-        </nav>
+        <WorkspaceNavigation roles={roles} page={page} data={data} onNavigate={() => setOpen(false)} />
         <div className="t-sidebar-bottom">
           {demo && (
             <>
@@ -223,12 +169,10 @@ function Workspace({
           >
             <Icon name="menu" />
           </button>
-          <span>워크스페이스</span>
-          <Icon name="chevron" />
-          <strong>{title}</strong>
+          <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
-          {demo && <span className="t-demo-pill">DEMO</span>}
+          {demo && <a className="t-demo-pill t-demo-switch" href="/demo" aria-label="데모 계정 전환">계정 전환</a>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>
@@ -241,7 +185,10 @@ function Workspace({
           </Form>
         </div>
       </header>
-      <main className="t-main">{children}</main>
+      <main className="t-main">
+        {employeeHeader && <EmployeeHeader employee={employeeHeader} />}
+        {children}
+      </main>
     </div>
   );
 }
@@ -254,6 +201,9 @@ function Content(props: PageProps) {
       <OrgSheetPages {...props} />
       <ApprovalRoutePages {...props} />
       <CodePages {...props} />
+      <AnnualRequestPage {...props} />
+      <LeaveAttributionPage {...props} />
+      <PersonnelPage {...props} />
       <AdminPages {...props} />
       <WorkflowPages {...props} />
     </>
@@ -261,7 +211,8 @@ function Content(props: PageProps) {
 }
 
 export function App({ initial }: { initial: PageEnvelope }) {
-  const [envelope, setEnvelope] = useState(initial);
+  const [envelope, setEnvelope] = useState(() => ['request/detail', 'worktime/result'].includes(initial.page) && typeof history.state?.worklogNavigationFrom === 'string'
+    ? { ...initial, data: { ...initial.data, navigationFrom: history.state.worklogNavigationFrom } } : initial);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -269,9 +220,11 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const posting = useRef(false);
   const pending = useRef<AbortController | null>(null);
   const currentUrl = useRef(location.href);
+  const navigationFrom = useRef<string | undefined>(undefined);
+  navigationFrom.current = getNavigationContext(envelope.page, new URL(currentUrl.current).pathname, envelope.data)?.href;
   const historyPosition = useRef<number>(Number.isInteger(history.state?.worklogPosition) ? history.state.worklogPosition : 0);
   const restoringHistory = useRef(false);
-  const historyState = (position: number) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position });
+  const historyState = (position: number, source?: string) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position, worklogNavigationFrom: source ?? null });
   const workspace = !publicPages.has(envelope.page);
   const navigate = useCallback(
     async (
@@ -299,6 +252,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       setBusy(true);
       setNotice('');
       try {
+        const sourceMenu = historyMode === 'none' ? history.state?.worklogNavigationFrom : navigationFrom.current;
         const result = await fetchPage(url, { ...options, signal: controller.signal });
         if (requestId !== serial.current) return;
         const formError = options.method?.toUpperCase() === 'POST' && result.status >= 400;
@@ -308,13 +262,15 @@ export function App({ initial }: { initial: PageEnvelope }) {
           destination.hash = requested.hash;
         if (destination.origin !== location.origin)
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
+        const sharedDetail = ['request/detail', 'worktime/result'].includes(result.envelope.page);
+        const detailSource = sharedDetail && typeof sourceMenu === 'string' ? sourceMenu : undefined;
         if (historyMode === 'push' && !formError) {
           historyPosition.current += 1;
-          history.pushState(historyState(historyPosition.current), '', destination.href);
-        } else if (historyMode === 'replace') history.replaceState(historyState(historyPosition.current), '', destination.href);
+          history.pushState(historyState(historyPosition.current, detailSource), '', destination.href);
+        } else if (historyMode === 'replace') history.replaceState(historyState(historyPosition.current, detailSource), '', destination.href);
         else if (historyMode === 'none' && Number.isInteger(history.state?.worklogPosition)) historyPosition.current = history.state.worklogPosition;
         currentUrl.current = destination.href;
-        setEnvelope(result.envelope);
+        setEnvelope(detailSource ? { ...result.envelope, data: { ...result.envelope.data, navigationFrom: detailSource } } : result.envelope);
         setRevision((value) => value + 1);
       } catch (error) {
         if (requestId !== serial.current || controller.signal.aborted) return;
@@ -353,7 +309,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
     [],
   );
   useEffect(() => {
-    history.replaceState(historyState(historyPosition.current), '', currentUrl.current);
+    history.replaceState(historyState(historyPosition.current, navigationFrom.current), '', currentUrl.current);
     const back = () => {
       if (restoringHistory.current) {
         restoringHistory.current = false;
@@ -489,6 +445,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   };
   const props: PageProps = {
     ...envelope,
+    busy,
     reload: () => {
       void navigate(currentUrl.current, {}, 'replace');
     },
@@ -513,8 +470,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
         )}
         {workspace ? (
           <Workspace
-            key={envelope.page}
             data={envelope.data}
+            page={envelope.page}
             title={titles[envelope.page] ?? '업무'}
           >
             {content}

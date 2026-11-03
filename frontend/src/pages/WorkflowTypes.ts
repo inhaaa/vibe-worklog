@@ -86,6 +86,8 @@ export interface RequestDetail {
 export interface RequestDetailModel {
   request: RequestView;
   detail: RequestDetail;
+  ownRequest?: boolean;
+  workspacePrincipal?: { roles: string[] };
   admin: boolean;
   canDecide: boolean;
   canWithdraw: boolean;
@@ -153,6 +155,10 @@ export interface ConfirmationForm {
   breaksMatch: boolean;
 }
 export interface ClockModel {
+  today?: string;
+  isToday?: boolean;
+  inCommand?: string;
+  outCommand?: string;
   day: DaySnapshot;
   eventTimes: Record<string, string>;
   confirmationForm: ConfirmationForm;

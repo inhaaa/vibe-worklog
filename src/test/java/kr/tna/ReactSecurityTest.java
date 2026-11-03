@@ -69,6 +69,15 @@ class ReactSecurityTest {
     }
 
     @Test
+    void ownPhotoOnlyAllowsAuthenticatedGetAndDoesNotBroadenProfileWrites() throws Exception {
+        mvc.perform(get("/me/profile/photo")).andExpect(redirectedUrl("/login"));
+        mvc.perform(get("/me/profile/photo").with(user("employee").roles("EMPLOYEE")))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/me/profile/photo").with(user("employee").roles("EMPLOYEE")).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void sessionValidationStorageFailureReturnsJson503AndInvalidatesTheSession() throws Exception {
         var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
                 Set.of("EMPLOYEE"), Instant.now());

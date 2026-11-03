@@ -29,6 +29,8 @@ async function show(initial = page()) {
   const view = render(<App initial={initial} />);
   await Promise.all(Array.from(view.container.querySelectorAll('.w-sheet[role="region"]')).map(sheet =>
     view.findByRole('grid', { name: sheet.getAttribute('aria-label')! })));
+  fireEvent.click(view.getByRole('button', { name: '내 업무' }));
+  fireEvent.click(view.getByRole('button', { name: '인사정보' }));
   return view;
 }
 function bulkForm(view: ReturnType<typeof render>, kind = 'organizations') {
@@ -352,7 +354,7 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = await show();
-    fireEvent.click(view.getByRole('link', { name: '직원 목록' }));
+    fireEvent.click(view.getByRole('link', { name: '사원 관리' }));
     await view.findByLabelText('이름 1', {}, { timeout: 5000 });
     await changeCell(view, '이름 1', '직원 편집');
     const backRestored = restoredAt('/admin/employees');

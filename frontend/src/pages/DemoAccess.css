@@ -1,0 +1,13 @@
+#tna-app .t-demo-personas { display:flex; flex-wrap:wrap; gap:14px; margin-top:28px; }
+#tna-app .t-demo-personas form { flex:1; min-width:168px; max-width:240px; }
+#tna-app .t-demo-persona-label { display:block; margin-bottom:9px; color:#78869b; font-size:11px; font-weight:550; }
+#tna-app .t-demo-personas .t-enter { width:100%; min-height:46px; margin:0; padding:12px 16px; border-radius:11px; }
+#tna-app .t-demo-personas .primary { background:#4f46e5; border-color:#4f46e5; }
+#tna-app .t-demo-flow-note { margin:15px 0 0; color:#6b7b95; font-size:12px; line-height:1.9; }
+#tna-app .t-profile .t-demo-switch { display:inline-flex; flex-shrink:0; align-items:center; justify-content:center; min-height:44px; padding:8px 10px; border:1px solid #e3e1ff; border-radius:9px; color:#4f46e5; background:#f4f2ff; font-size:10px; font-weight:600; text-decoration:none; letter-spacing:0; white-space:nowrap; }
+#tna-app .t-demo-switch:focus-visible, #tna-app .t-demo-personas button:focus-visible { outline:3px solid #818cf8; outline-offset:3px; }
+@media (max-width:600px) {
+  #tna-app .t-demo-personas { gap:12px; }
+  #tna-app .t-demo-personas form { min-width:140px; max-width:none; }
+  #tna-app .t-profile .t-demo-switch { padding:8px; font-size:9px; }
+}
