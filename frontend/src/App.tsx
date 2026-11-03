@@ -172,7 +172,7 @@ function Workspace({
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
-          {demo && <span className="t-demo-pill">DEMO</span>}
+          {demo && <a className="t-demo-pill t-demo-switch" href="/demo" aria-label="데모 계정 전환">계정 전환</a>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>

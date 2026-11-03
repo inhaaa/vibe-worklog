@@ -40,6 +40,8 @@ public final class DemoController {
         if (!localDemo.enabled()) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         model.addAttribute("demoLogin", LocalDemoLogin.LOGIN);
         model.addAttribute("demoPassword", LocalDemoLogin.PASSWORD);
+        model.addAttribute("demoApproverLogin", LocalDemoLogin.APPROVER_LOGIN);
+        model.addAttribute("demoApproverPassword", LocalDemoLogin.APPROVER_PASSWORD);
         model.addAttribute("publicDemo", localDemo.publicDemo());
         return "demo";
     }

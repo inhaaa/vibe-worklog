@@ -49,6 +49,43 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
     }
 
     @Test
+    void sharedApproverSingleEncodedAndBulkPathsCannotChangeItsIdentity() throws Exception {
+        var session = publicLogin("198.51.100.246");
+        var before = demoState();
+        String id = LocalDemoLogin.APPROVER_EMPLOYEE_ID.toString();
+        for (String pathId : List.of(id, id.toUpperCase(Locale.ROOT), "%20" + id + "%20")) {
+            for (String query : List.of("", "?demo=1")) {
+                var roles = java.net.URI.create("/admin/employees/" + pathId + "/roles" + query);
+                publicMvc.perform(post(roles).session(session).with(csrf())
+                                .param("roles", "EMPLOYEE").param("expectedVersion", "1")
+                                .param("reason", "공유 승인자 역할 차단 검증").param("commandId", UUID.randomUUID().toString()))
+                        .andExpect(status().isForbidden());
+                var personnelPath = java.net.URI.create("/admin/employees/" + pathId + "/personnel" + query);
+                publicMvc.perform(post(personnelPath).session(session).with(csrf())
+                                .param("birthDate", "1990-01-01").param("gradeName", "공유 변경 차단")
+                                .param("employmentStatus", "ON_LEAVE")
+                                .param("effectiveFrom", LocalDate.now(ZoneId.of("Asia/Seoul")).toString())
+                                .param("expectedVersion", "0").param("reason", "공유 승인자 인사 차단 검증")
+                                .param("commandId", UUID.randomUUID().toString()).param("photoAction", "KEEP"))
+                        .andExpect(status().isForbidden());
+            }
+        }
+        for (String suffix : List.of("/changes", "/invitations")) {
+            publicMvc.perform(post("/admin/employees/" + id + suffix).session(session).with(csrf()))
+                    .andExpect(status().isForbidden());
+        }
+        String rows = """
+                [{"clientRowId":"%s","id":"%s","expectedVersion":0,"operation":"DEACTIVATE",
+                  "employeeNo":"DEMO-001","displayName":"공유 승인자 변경 차단",
+                  "joinedOn":"2026-01-01","leftOn":null,"active":false}]
+                """.formatted(UUID.randomUUID(), id.toUpperCase(Locale.ROOT));
+        publicMvc.perform(post("/admin/employees/bulk").session(session).with(csrf())
+                        .param("commandId", UUID.randomUUID().toString()).param("reason", "공유 승인자 일괄 차단 검증")
+                        .param("rows", rows)).andExpect(status().isForbidden());
+        assertEquals(before, demoState());
+    }
+
+    @Test
     void encodedWhitespaceCannotChangeTheSharedAccountRoles() throws Exception {
         var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")

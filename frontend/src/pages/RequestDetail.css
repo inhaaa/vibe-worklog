@@ -13,6 +13,7 @@
 #tna-app .t-request-detail-page .t-btn:hover { border-color:#a5b4fc; background:#f6f8ff; }
 #tna-app .t-request-detail-page .t-btn:focus-visible, #tna-app .t-request-detail-page textarea:focus-visible, #tna-app .t-request-detail-page select:focus-visible { outline:3px solid #818cf8; outline-offset:3px; }
 #tna-app .t-request-detail-page .t-request-detail-back { flex:none; }
+#tna-app .t-request-detail-page .t-request-detail-backlinks { display:flex; flex-wrap:wrap; gap:8px; }
 #tna-app .t-request-detail-page .t-request-detail-summary { padding:27px; background:linear-gradient(115deg,#f7f9ff,#fff 48%); }
 #tna-app .t-request-detail-page .t-request-detail-summary-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px; }
 #tna-app .t-request-detail-page .t-request-detail-summary-head h2 { font-size:22px; overflow-wrap:anywhere; }
@@ -61,6 +62,13 @@
 #tna-app .t-request-detail-page .t-request-detail-form p { margin:0 0 14px; font-size:12px; color:#7a879b; }
 #tna-app .t-request-detail-page .t-request-detail-form .primary { border-color:#4f46e5; background:#4f46e5; color:#fff; }
 #tna-app .t-request-detail-page .t-request-detail-form .primary:hover { background:#4338ca; }
+#tna-app .t-request-detail-page .t-request-decision-panel { border-color:#dedffa; }
+#tna-app .t-request-detail-page .t-request-decision-guide { margin:12px 0 0; color:#77869e; font-size:12px; }
+#tna-app .t-request-detail-page .t-request-decision-panel .t-request-detail-form { padding:18px; border:1px solid #e5e8f3; border-radius:12px; background:#fafbfe; }
+#tna-app .t-request-detail-page .t-request-decision-panel .t-request-detail-form h3 { margin-bottom:8px; }
+#tna-app .t-request-detail-page .t-request-decision-panel .t-request-detail-form .t-btn { width:100%; }
+#tna-app .t-request-detail-page .t-request-decision-panel .t-request-decision-approve { border-color:#e1dfff; background:#f8f7ff; }
+#tna-app .t-request-detail-page .t-request-decision-panel .t-request-decision-reject .t-btn { border-color:#e8dede; color:#a36066; }
 @media (max-width:1100px) {
   #tna-app .t-request-detail-page .t-request-detail-columns { grid-template-columns:minmax(0,1fr); }
 }

@@ -32,6 +32,16 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("public-demo")
 class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     @Test
+    void theSharedApproverUsesTheSameSingleAndBulkServiceProtection() {
+        UUID employee = LocalDemoLogin.APPROVER_EMPLOYEE_ID;
+        assertRefusedWithoutChanges(403, () -> employees.update(actor, employee, changedEmployee()));
+        assertRefusedWithoutChanges(403, () -> accounts.roles(actor, employee, changedRoles()));
+        assertRefusedWithoutChanges(403, () -> accounts.invite(actor, employee, invitation()));
+        assertRefusedWithoutChanges(403, () -> bulk.employees(actor,
+                employeeBatch(List.of(employeeRow(employee, "DEMO-001", BulkData.Operation.DEACTIVATE)))));
+    }
+
+    @Test
     void employeeChangesAreRejectedByUuidWithoutChangingDataOrAudit() {
         assertRefusedWithoutChanges(403, () -> employees.update(actor, LocalDemoLogin.EMPLOYEE_ID, changedEmployee()));
     }

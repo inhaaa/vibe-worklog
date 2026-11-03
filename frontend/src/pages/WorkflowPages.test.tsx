@@ -61,7 +61,7 @@ const result = {
 
 describe('WorkflowPages', () => {
   it('업무 조회 신청 목록을 공통 그리드와 안정적 행 ID로 표시한다', async () => {
-    const view = domRender(<WorkflowPages page="request/list" data={{ title: '결재 대기', requests: [request], page: 0, hasNext: false, completed: false }} csrf={csrf} reload={() => {}} />);
+    const view = domRender(<WorkflowPages page="request/list" data={{ title: '고객사 신청 현황', requests: [request] }} csrf={csrf} reload={() => {}} />);
     expect(await view.findByRole('grid', { name: '근태 신청 목록' })).toBeTruthy();
     expect(view.container.querySelector('[row-id="request-1"]')).toBeTruthy();
     expect(view.getByRole('link', { name: 'LEAVE_DAY' }).getAttribute('href')).toBe('/requests/request-1');
@@ -70,6 +70,103 @@ describe('WorkflowPages', () => {
   });
   it('알 수 없는 페이지는 다른 화면에 위임한다', async () => {
     expect((await render('unknown/page', {})).container.innerHTML).toBe('');
+  });
+  it('결재 대기함은 조회한 페이지 건수와 신청자·기간·한글 상태를 카드로 표시한다', async () => {
+    const view = await render('request/list', { title: '결재 대기함', requests: [request], completed: false, page: 0, hasNext: true });
+    expect(view.getByRole('list', { name: '결재 신청 목록' })).toBeTruthy();
+    const text = view.container.textContent;
+    for (const value of ['이 페이지 1건', '종일 연차', '결재 대기', '효력 없음', '2 DAY', '2026-11-01', '2026-11-02', request.targetEmployeeName, request.reason]) expect(text).toContain(value);
+    expect(view.getByRole('link', { name: '신청 검토' }).getAttribute('href')).toBe('/requests/request-1');
+    expect(view.getByRole('link', { name: '다음' }).getAttribute('href')).toBe('/approvals?page=1');
+    expect(view.container.querySelector('script,img,form')).toBeNull();
+    expect(text).not.toContain('PENDING');
+    expect(text).not.toContain('전체 1건');
+  });
+  it('처리 완료함은 본인 결정 범위 안내와 실제 승인·반려 상태를 표시한다', async () => {
+    const view = await render('request/list', { title: '내가 처리한 결재', completed: true, page: 1, hasNext: false, requests: [
+      { ...request, status: 'APPROVED', effectStatus: 'EFFECTIVE' },
+      { ...request, id: 'request-2', status: 'REJECTED', effectStatus: 'NONE' },
+    ] });
+    const text = view.container.textContent;
+    for (const value of ['이 페이지 2건', '본인이 승인하거나 반려한 신청입니다.', '철회는 처리한 결재에 포함하지 않습니다.', '유효']) expect(text).toContain(value);
+    expect(view.getByRole('link', { name: '내가 처리한 결재' }).getAttribute('aria-current')).toBe('page');
+    expect(view.container.querySelector('[data-status="APPROVED"]')?.textContent).toBe('승인');
+    expect(view.container.querySelector('[data-status="REJECTED"]')?.textContent).toBe('반려');
+    expect(view.getAllByRole('link', { name: '상세 보기' })).toHaveLength(2);
+    expect(view.getByRole('link', { name: '이전' }).getAttribute('href')).toBe('/approvals/completed?page=0');
+    expect(view.queryByRole('link', { name: '다음' })).toBeNull();
+  });
+  it('결재 목록의 빈 상태는 대기와 처리 완료를 구분하고 가상 신청을 만들지 않는다', async () => {
+    const waiting = await render('request/list', { title: '결재 대기함', requests: [], completed: false, page: 0, hasNext: false });
+    expect(waiting.container.textContent).toContain('현재 결재할 신청이 없습니다.');
+    expect(waiting.container.textContent).toContain('이 페이지 0건');
+    expect(waiting.container.querySelector('a[href^="/requests/"]')).toBeNull();
+    expect(waiting.queryByRole('link', { name: '이전' })).toBeNull();
+    waiting.unmount();
+    const completed = await render('request/list', { title: '내가 처리한 결재', requests: [], completed: true, page: 0, hasNext: false });
+    expect(completed.container.textContent).toContain('아직 처리한 결재가 없습니다.');
+    expect(completed.container.querySelector('a[href^="/requests/"]')).toBeNull();
+  });
+  it('결재 카드의 정정·취소와 알 수 없는 값은 가상 DAY나 상태로 바꾸지 않는다', async () => {
+    const view = await render('request/list', { title: '결재 대기함', completed: false, requests: [
+      { ...request, id: 'correction', kind: 'ATTENDANCE_CORRECTION', quantityDays: null },
+      { ...request, id: 'cancel', kind: 'CANCEL_LEAVE', quantityDays: 2, effectStatus: 'CANCELED' },
+      { ...request, id: 'unknown', kind: 'FUTURE_KIND', status: 'FUTURE_STATUS', effectStatus: 'FUTURE_EFFECT', quantityDays: 10 },
+    ] });
+    const text = view.container.textContent;
+    for (const value of ['출퇴근·휴게 정정', '연차 취소', '효력 취소', 'FUTURE_KIND', 'FUTURE_STATUS', 'FUTURE_EFFECT']) expect(text).toContain(value);
+    expect(text).not.toContain(' DAY');
+    expect(text).not.toContain('null');
+  });
+  it('지정 결재자는 대기함 복귀와 구분된 승인·반려 검토 폼을 사용한다', async () => {
+    const view = await render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: true, pageCommand: 'decision-command' });
+    expect(view.getByRole('link', { name: '대기함으로' }).getAttribute('href')).toBe('/approvals');
+    expect(view.getByRole('heading', { name: '결재 검토', level: 2 })).toBeTruthy();
+    for (const name of ['승인', '반려']) expect(view.getByRole('heading', { name, level: 3 })).toBeTruthy();
+    for (const name of ['승인 검토', '반려 검토']) {
+      const form = view.getByRole('form', { name });
+      const reason = form.querySelector<HTMLTextAreaElement>('textarea[name="reason"]')!;
+      expect(reason.required).toBe(true);
+      expect(reason.maxLength).toBe(500);
+      const posted = new FormData(form as HTMLFormElement);
+      expect(posted.get('expectedVersion')).toBe('4');
+      expect(posted.get('commandId')).toBe('decision-command');
+    }
+    expect(view.getByRole('button', { name: '승인하기' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '반려하기' })).toBeTruthy();
+    expect(view.container.textContent).toContain('결정 사유는 처리 이력에 남습니다.');
+    view.unmount();
+    const own = await render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: false });
+    expect(own.queryByRole('link', { name: '대기함으로' })).toBeNull();
+    expect(own.queryByRole('button', { name: '승인하기' })).toBeNull();
+    expect(own.queryByRole('button', { name: '반려하기' })).toBeNull();
+  });
+  it('타인 신청의 처리 후 상세에서도 실제 승인자 역할은 본인 처리 완료함으로 돌아간다', async () => {
+    for (const status of ['APPROVED', 'REJECTED']) {
+      const view = await render('request/detail', {
+        request: { ...request, status }, detail: { days: [], history: [], correction: null },
+        canDecide: false, ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] },
+      });
+      expect(view.getByRole('link', { name: '내가 처리한 결재' }).getAttribute('href')).toBe('/approvals/completed');
+      expect(view.queryByRole('link', { name: '대기함으로' })).toBeNull();
+      expect(view.container.querySelector('form[action$="/approve"],form[action$="/reject"]')).toBeNull();
+      view.unmount();
+    }
+  });
+  it('본인 여부가 명시되지 않거나 자기 신청·관리자뿐인 경우 완료함 동선을 추정하지 않는다', async () => {
+    for (const data of [
+      { ownRequest: true, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } },
+      { workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } },
+      { ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] } },
+      { ownRequest: false },
+    ]) {
+      const view = await render('request/detail', { request: { ...request, status: 'APPROVED' }, detail: { days: [], history: [], correction: null }, canDecide: false, ...data });
+      expect(view.queryByRole('link', { name: '내가 처리한 결재' })).toBeNull();
+      expect(view.queryByRole('link', { name: '대기함으로' })).toBeNull();
+      view.unmount();
+    }
+    const pending = await render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: false, ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } });
+    expect(pending.queryByRole('link', { name: '내가 처리한 결재' })).toBeNull();
   });
   it('종일 연차의 묶음·기간·재시도 명령과 미예약 대기량을 보존한다', async () => {
     const view = await render('request/mine', {
@@ -127,7 +224,7 @@ describe('WorkflowPages', () => {
         expect(new FormData(form).get('expectedVersion')).toBe('4');
         expect(new FormData(form).get('commandId')).toBe('decision-command');
       }
-    expect(view.getByRole('button', { name: '독립 승인' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '승인하기' })).toBeTruthy();
   });
   it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', async () => {
     const view = await render('request/detail', {

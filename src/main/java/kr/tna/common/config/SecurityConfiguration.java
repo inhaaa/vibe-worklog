@@ -8,6 +8,7 @@ import kr.tna.common.auth.CompanyAuthenticationProvider;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.common.auth.SessionValidationFilter;
+import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.web.ReactPageResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,9 +44,11 @@ public class SecurityConfiguration {
         http.authenticationManager(new ProviderManager(provider))
                 .authorizeHttpRequests(authorize -> {
                     if (localDemo.publicDemo()) {
-                        String identity = "/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID;
-                        authorize.requestMatchers(new RegexRequestMatcher(identity
-                                + "/(changes|roles|invitations|personnel)(?:\\?.*)?", "POST", true)).denyAll();
+                        for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+                            String identity = "/admin/employees/" + employeeId;
+                            authorize.requestMatchers(new RegexRequestMatcher(identity
+                                    + "/(changes|roles|invitations|personnel)(?:\\?.*)?", "POST", true)).denyAll();
+                        }
                     }
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
@@ -74,7 +77,13 @@ public class SecurityConfiguration {
                 })
                 .formLogin(form -> form.loginPage("/login").usernameParameter("email")
                         .authenticationDetailsSource(CompanyAuthenticationDetails::new)
-                        .defaultSuccessUrl("/me/profile", true)
+                        .successHandler((request, response, authentication) -> {
+                            boolean approverPersona = localDemo.enabled()
+                                    && authentication.getPrincipal() instanceof TnaPrincipal principal
+                                    && LocalDemoLogin.TENANT_ID.equals(principal.tenantId())
+                                    && LocalDemoLogin.APPROVER_ACCOUNT_ID.equals(principal.accountId());
+                            response.sendRedirect(request.getContextPath() + (approverPersona ? "/approvals" : "/me/profile"));
+                        })
                         .failureHandler((request, response, exception) -> {
                             response.setHeader("Cache-Control", "no-store");
                             if (exception instanceof CompanyAuthenticationProvider.LoginRateLimitedException) {
