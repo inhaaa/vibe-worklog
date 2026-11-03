@@ -23,6 +23,61 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it('페이지 제목 옆에서 신청을 시작하고 조회 필터와 분리한다',()=>{
+  const view=render(<App initial={envelope()}/>);
+  const head=view.getByRole('heading',{name:'내 근태현황·신청'}).closest('header')!;
+  expect(within(head).getByRole('button',{name:'신청'}).getAttribute('href')).toContain('/me/requests/new?year=2026');
+  expect(within(view.getByRole('search',{name:'연도별 근태 조회'})).queryByRole('button',{name:'신청'})).toBeNull();
+ });
+ it('연차 내용 단계는 중복 날짜 조회를 숨기고 정정은 근거 날짜 조회를 유지한다',()=>{
+  const leaveView=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(leaveView.getByRole('button',{name:'내용 작성으로'}));
+  expect(leaveView.queryByRole('button',{name:'유형·일자 조회'})).toBeNull();
+  expect(leaveView.getByLabelText('시작일')).toBeTruthy();
+  leaveView.unmount();
+  const correctionView=render(<App initial={envelope({}, {...compose,kind:'ATTENDANCE_CORRECTION'})}/>);
+  fireEvent.click(correctionView.getByRole('button',{name:'내용 작성으로'}));
+  expect(correctionView.getByRole('button',{name:'유형·일자 조회'})).toBeTruthy();
+ });
+ it('작성 요약은 입력 기간과 현재 잔여를 보여주며 서버 확인 전 차감량을 만들지 않는다',()=>{
+  const view=render(<App initial={envelope({},compose)}/>);
+  const summary=within(view.getByRole('complementary',{name:'신청 요약'}));
+  expect(summary.getByText('종일 연차')).toBeTruthy();
+  expect(summary.getByText(/9 DAY/)).toBeTruthy();
+  expect(summary.queryByText(/예상 차감/)).toBeNull();
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  fireEvent.change(view.getByLabelText('종료일 (포함)'),{target:{value:'2026-11-04'}});
+  expect(summary.getByText(/2026-11-01 ~ 2026-11-04/)).toBeTruthy();
+  expect(summary.getByText('합성 조직장')).toBeTruthy();
+ });
+ it('새 유형의 근거를 조회하기 전에는 이전 결재 담당을 요약에 확정 표시하지 않는다',()=>{
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('radio',{name:/출퇴근·휴게 정정/}));
+  const summary=within(view.getByRole('complementary',{name:'신청 요약'}));
+  expect(summary.getByText('출퇴근·휴게 정정')).toBeTruthy();
+  expect(summary.getByText('유형·일자 조회 후 확인')).toBeTruthy();
+  expect(summary.queryByText('합성 조직장')).toBeNull();
+ });
+ it('미리보기 후 요약도 서버가 다시 확인한 현재 잔여로 갱신한다',async()=>{
+  const data=preview();
+  const c=data.data.compose as ComposeView;
+  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(response(preview({leaveForm:{...leave,reason:'새 잔여 확인'},preview:{...c.preview,availableDays:7,selectedBucketAvailableDays:7}}))));
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'새 잔여 확인'}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  await waitFor(()=>expect(within(view.getByRole('navigation',{name:'신청 작성 단계'})).getByText('제출 전 확인').getAttribute('aria-current')).toBe('step'));
+  const summary=within(view.getByRole('complementary',{name:'신청 요약'}));
+  expect(summary.getByText('7 DAY')).toBeTruthy();
+  expect(summary.queryByText('9 DAY')).toBeNull();
+ });
+ it('실제 생성 ID가 있을 때 접수 안내와 상세 링크를 상태 영역으로 제공한다',()=>{
+  const view=render(<App initial={envelope({createdId:'created-request'})}/>);
+  const status=within(view.getByRole('status',{name:'신청 접수 결과'}));
+  expect(status.getByText('신청을 접수했습니다.')).toBeTruthy();
+  expect(status.getByRole('link',{name:'생성한 신청 상세'}).getAttribute('href')).toBe('/requests/created-request');
+  expect(status.getByText(/승인 결과는 신청 상세/)).toBeTruthy();
+ });
  it('미래 연차에서 정정으로 바꾸면 오늘 날짜를 제안하고 한 번의 다음 동작으로 내용에 진입한다',async()=>{
   const future='2026-11-03';
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(response(envelope({}, {...compose,kind:'ATTENDANCE_CORRECTION',correctionForm:correction}))));

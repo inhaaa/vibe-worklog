@@ -12,6 +12,11 @@ const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_COR
 const statusName = (status: string) => ({ PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' }[status] ?? status);
 const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? '확인 필요');
 const hidden = (name: string, value: string | number | boolean | null | undefined) => <input type="hidden" name={name} value={value == null ? '' : String(value)} />;
+function RequestIcon({ kind }: { kind: string }) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === 'LEAVE_DAY' ? <><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 11h16m-9 4h2v3h-2z"/></> : <><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2M18 3l3 3M3 18l3 3"/></>}
+  </svg>;
+}
 function url(path: string, values: Record<string, string | number | null | undefined>) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) if (value != null && value !== '') query.set(key, String(value));
@@ -108,16 +113,17 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
     if (!ready || locked || compose.conflict) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const content = <>
-    <header className="t-modal-head"><div><p className="t-request-kicker">NEW REQUEST · {model.annual.year}</p><h2 id="annual-compose-title">근태 신청</h2><p id="annual-compose-description">유형을 고르고 내용을 작성한 뒤, 미리보기에서 제출 내용을 확인하세요.</p></div><button type="button" className="t-btn t-request-close" onClick={close} disabled={locked}>닫기</button></header>
+    <header className="t-modal-head"><div><p className="t-request-kicker">신청서 작성 · {model.annual.year}</p><h2 id="annual-compose-title">근태 신청</h2><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div><button type="button" className="t-btn t-request-close" onClick={close} disabled={locked}>닫기</button></header>
     <nav className="t-request-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="t-request-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
+    <div className="t-request-layout"><div className="t-request-main">
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
     <Form action="/me/requests/new" method="get" className="t-annual-context" hidden={step==='REVIEW'}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}
       {kind === compose.kind && current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
       <fieldset ref={typePicker} className="t-request-type-picker" hidden={step!=='TYPE'} disabled={locked}><legend>어떤 신청을 하시겠어요?</legend><div className="t-request-type-cards">
-        {(['LEAVE_DAY','ATTENDANCE_CORRECTION'] as const).map(value=><label className="t-request-type-card" key={value} data-selected={String(kind===value)}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setDate(lookupDates.current[value]);}} data-error-focus={step==='TYPE'&&kind===value&&!error?'true':undefined}/><span className="t-request-type-icon" aria-hidden="true">{value==='LEAVE_DAY'?'☀':'◷'}</span><strong>{kindName(value)}</strong><small>{value==='LEAVE_DAY'?'하루 단위의 연차를 신청합니다.':'출퇴근 시각과 실제 휴게를 바로잡습니다.'}</small></label>)}
+        {(['LEAVE_DAY','ATTENDANCE_CORRECTION'] as const).map(value=><label className="t-request-type-card" key={value} data-selected={String(kind===value)}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setDate(lookupDates.current[value]);}} data-error-focus={step==='TYPE'&&kind===value&&!error?'true':undefined}/><span className="t-request-type-icon"><RequestIcon kind={value}/></span><strong>{kindName(value)}</strong><small>{value==='LEAVE_DAY'?'하루 단위로 연차를 사용해요.':'출퇴근 시각과 실제 휴게를 바로잡아요.'}</small></label>)}
       </div><p className="t-muted">병가·반차·시간차 등 미지원 초안은 신청할 수 없습니다.</p></fieldset>
-      <div className="t-request-context-date"><label htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label><input id="annual-date" className="t-input" type="date" disabled={locked} name="date" value={date} onChange={event => {setDate(event.target.value);lookupDates.current[kind]=event.target.value;}} max={kind === 'ATTENDANCE_CORRECTION' ? model.annual.today : undefined} required />
+      <div className="t-request-context-date" hidden={step==='CONTENT'&&kind==='LEAVE_DAY'}><label htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label><input id="annual-date" className="t-input" type="date" disabled={locked} name="date" value={date} onChange={event => {setDate(event.target.value);lookupDates.current[kind]=event.target.value;}} max={kind === 'ATTENDANCE_CORRECTION' ? model.annual.today : undefined} required />
         <button type={step==='TYPE'&&!needsContext?'button':'submit'} className={`t-btn ${step==='TYPE'?'primary':''}`} disabled={locked} onClick={event=>{if(step==='TYPE'&&!needsContext){event.preventDefault();if(event.currentTarget.form?.reportValidity())setStep('CONTENT');}}}>{step==='TYPE'?'내용 작성으로':'유형·일자 조회'}</button>
       </div>
       {step==='CONTENT'&&<p className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></p>}
@@ -161,8 +167,8 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
             </>}
             <div><dt>신청 사유</dt><dd>{current.reason}</dd></div>
           </dl>
-          {compose.preview.quantityDays != null && <p className="t-request-review-quantity">예상 차감 {compose.preview.quantityDays} DAY · 선택 묶음 사용 가능 {compose.preview.selectedBucketAvailableDays} DAY</p>}
-          <p>조회 시점 오늘 사용 가능 {compose.preview.availableDays} DAY</p>
+          <div className="t-request-review-totals">{compose.preview.quantityDays != null && <p className="t-request-review-quantity">예상 차감 {compose.preview.quantityDays} DAY <small>선택 묶음 사용 가능 {compose.preview.selectedBucketAvailableDays} DAY</small></p>}
+          <p>조회 시점 오늘 사용 가능 {compose.preview.availableDays} DAY</p></div>
           <p>실제 결재 담당 {compose.preview.approval.approverName ?? '미지정'} · {compose.preview.approval.routeName ?? '기존 지정 승인자'}</p>
           {compose.preview.policy && <p>{compose.preview.policy.name} · 정책 v{compose.preview.policy.revision}</p>}
           <p>{compose.preview.message}</p><p className="t-muted">{ready ? '제출·승인 시 다시 검증합니다.' : '입력 또는 근거가 바뀌었습니다. 미리보기를 다시 확인하세요.'}</p>
@@ -171,6 +177,17 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
       </fieldset>
     </Form> : <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
     <a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>
+    </div><aside className="t-request-summary" aria-label="신청 요약">
+      <div className="t-request-summary-head"><span className="t-request-summary-icon"><RequestIcon kind={kind}/></span><span className="t-request-summary-stage">{step==='REVIEW'?'제출 전 확인':'작성 중'}</span></div>
+      <h3>신청 요약</h3><p className="t-request-summary-intro">입력한 내용을 한눈에 확인하세요.</p>
+      <dl className="t-request-summary-facts">
+        <div><dt>신청 유형</dt><dd>{kindName(kind)}</dd></div>
+        <div><dt>{step==='TYPE'||needsContext?'기준 날짜':'대상 기간'}</dt><dd>{step==='TYPE'||needsContext?fmtDate(date):isLeave?`${fmtDate(leave.from)} ~ ${fmtDate(leave.to)}`:fmtDate(correction.workDate)}</dd></div>
+        <div><dt>오늘 사용 가능</dt><dd>{step==='REVIEW'&&compose.preview?compose.preview.availableDays:model.annual.currentAvailableDays} DAY</dd></div>
+        <div><dt>{step==='REVIEW'?'실제 결재 담당':'예정 결재 담당'}</dt><dd>{needsContext?'유형·일자 조회 후 확인':(step==='REVIEW'?compose.preview?.approval:compose.approval)?.approverName??'미지정'}</dd></div>
+      </dl>
+      <p className="t-request-summary-note">현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</p>
+    </aside></div>
   </>;
   return modal ? <dialog ref={dialog} className="t-request-dialog" aria-modal="true" aria-labelledby="annual-compose-title" aria-describedby="annual-compose-description" onCancel={event => { event.preventDefault(); close(); }} data-unsaved-changes={String(dirty)}>{content}</dialog> : <section className="t-card t-request-compose-page" aria-labelledby="annual-compose-title" data-unsaved-changes={String(dirty)}>{content}</section>;
 }
@@ -189,13 +206,14 @@ function Annual({ model: m, submitting }: { model: AnnualModel; submitting: bool
     ['확인된 등록 기초·조정',a.registeredDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.registeredDays} DAY`,a.attributionPartial?'귀속 확인 자료의 부분합':'자동 발생량·연초 잔여가 아님'],
     ['귀속연도 원장 잔액',a.attributedBalanceDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.attributedBalanceDays} DAY`,'확인 묶음의 현재 잔액 · 연말 잔여 아님'],
   ];
-  return <section className="t-annual-page"><header className="t-pagehead"><div><p className="t-eyebrow">LEAVE & REQUESTS · {a.year}</p><h1>내 근태현황·신청</h1><p className="t-muted">대상 휴가일·근무일 기준 {a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.</p></div></header>
+  return <section className="t-annual-page"><header className="t-pagehead"><div><p className="t-eyebrow">내 업무 · {a.year}</p><h1>내 근태현황·신청</h1><p className="t-muted">대상 휴가일·근무일 기준 {a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.</p></div><a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a></header>
     <p className="t-muted">기준 시각 {fmtDateTime(a.asOf)} (서울) · 목록 필터와 무관한 연도 전체 등록 자료 기준입니다.</p>
     {missing&&<p className="notice">선택 연도의 등록 자료가 없습니다. 연간 전체 사용량이나 자동 발생량이 0이라고 확정할 수 없습니다.</p>}
-    {a.createdId&&<p className="notice">신청을 접수했습니다. <a href={`/requests/${a.createdId}`}>생성한 신청 상세</a>{a.outsideYear&&<> · 신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></>}</p>}
-    <div className="t-annual-metrics">{metrics.map(([label,value,hint])=><section className="t-card" key={label}><h2>{label}</h2><strong>{value}</strong><p>{hint}</p></section>)}</div>
+    {a.createdId&&<section className="t-request-success" role="status" aria-label="신청 접수 결과"><span className="t-request-success-icon" aria-hidden="true">✓</span><div><h2>신청을 접수했습니다.</h2><p>승인 결과는 신청 상세에서 확인할 수 있어요.</p>{a.outsideYear&&<p>신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></p>}</div><a className="t-btn" href={`/requests/${a.createdId}`}>생성한 신청 상세 <span aria-hidden="true">↗</span></a></section>}
+    <div className="t-annual-metrics">{[metrics[3],...metrics.slice(0,3)].map(([label,value,hint])=><section className={`t-card${label==='현재 사용 가능'?' t-request-available':''}`} key={label}><h2>{label}</h2><strong>{value}</strong><p>{hint}</p></section>)}</div>
+    <dl className="t-request-balance-basis">{metrics.slice(4).map(([label,value,hint])=><div key={label}><dt>{label}</dt><dd>{value}<small>{hint}</small></dd></div>)}</dl>
     {a.unknownBucketCount>0&&<p className="notice">귀속 미확인 묶음 {a.unknownBucketCount}개. 기준일의 연도를 귀속연도로 추정하지 않습니다. 담당자의 근거 확인이 필요합니다.</p>}
-    <Form action="/me/requests" method="get" className="t-card t-annual-filters" role="search" aria-label="연도별 근태 조회"><div className="t-request-filter-field"><label htmlFor="annual-year">조회 연도</label><input id="annual-year" className="t-input" name="year" type="number" min="1900" max="9998" defaultValue={a.year} required /></div><div className="t-request-filter-field"><label htmlFor="annual-type-filter">근태유형</label><select id="annual-type-filter" name="typeId" className="t-select" defaultValue={a.typeId??''}><option value="">전체 유형</option>{a.types.map(type=><option key={type.id} value={type.id}>{type.name}{!type.supported?' (신청 미지원)':''}</option>)}</select></div><div className="t-request-filter-field"><label htmlFor="annual-status">상태</label><select id="annual-status" name="status" className="t-select" defaultValue={a.status}><option value="">전체 상태</option>{['PENDING','APPROVED','REJECTED','WITHDRAWN'].map(status=><option key={status} value={status}>{statusName(status)}</option>)}</select></div><div className="t-request-filter-actions"><button className="t-btn">조회</button><a ref={trigger} role="button" className="t-btn primary" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋ </span>신청</a></div></Form>
+    <Form action="/me/requests" method="get" className="t-card t-annual-filters" role="search" aria-label="연도별 근태 조회"><div className="t-request-filter-field"><label htmlFor="annual-year">조회 연도</label><input id="annual-year" className="t-input" name="year" type="number" min="1900" max="9998" defaultValue={a.year} required /></div><div className="t-request-filter-field"><label htmlFor="annual-type-filter">근태유형</label><select id="annual-type-filter" name="typeId" className="t-select" defaultValue={a.typeId??''}><option value="">전체 유형</option>{a.types.map(type=><option key={type.id} value={type.id}>{type.name}{!type.supported?' (신청 미지원)':''}</option>)}</select></div><div className="t-request-filter-field"><label htmlFor="annual-status">상태</label><select id="annual-status" name="status" className="t-select" defaultValue={a.status}><option value="">전체 상태</option>{['PENDING','APPROVED','REJECTED','WITHDRAWN'].map(status=><option key={status} value={status}>{statusName(status)}</option>)}</select></div><div className="t-request-filter-actions"><button className="t-btn">조회</button></div></Form>
     <section className="t-card" aria-labelledby="annual-request-history"><header className="t-request-list-head"><div><h2 id="annual-request-history">내 대상 신청 이력</h2><p className="t-muted">본인 대상의 원신청 기간·일수입니다. 연간 수치는 해당 연도 날짜만 집계합니다.</p></div><label className="t-request-list-search">현재 페이지 신청 검색<input aria-label="현재 페이지 신청 검색" className="t-input" type="search" value={search} placeholder="유형, 사유, 날짜 검색" onChange={event=>setSearch(event.target.value)}/><span>불러온 최대 50건에서 검색</span></label></header><RequestTable rows={requests} year={a.year} canResubmit={a.canResubmitRequestIds ?? []}/><Pages annual={a}/></section>
     <section className="t-card"><h2>내가 대리 작성한 이력</h2><p className="t-muted">다른 사원 대상의 작성 이력이며 본인 수치에 포함하지 않습니다. 위 목록의 유형·상태 필터와 독립입니다.</p><RequestTable rows={a.authoredRequests}/><Pages annual={a} authored/></section>
     <section className="t-card"><h2>기초 묶음·귀속 정보</h2><p className="t-muted">귀속연도 잔액은 현재 원장 잔액입니다. 표시된 연간 사용을 다시 빼지 않습니다.</p><div className="table-scroll"><table><thead><tr><th>귀속</th><th>사용 가능 기간</th><th>현재 잔액</th><th>오늘 사용 가능</th><th>확인 상태·근거</th></tr></thead><tbody>{a.attributionBuckets.map(bucket=><tr key={bucket.bucketId}><td>{bucket.classificationStatus==='CONFIRMED'?`${bucket.entitlementYear}년`:'귀속 미확인'}</td><td>{fmtDate(bucket.usableFrom)} ~ {bucket.usableTo?fmtDate(bucket.usableTo):'종료 없음'}</td><td>{bucket.balanceDays} DAY</td><td>{bucket.availableDays} DAY</td><td>{bucket.availability==='CURRENT'?'현재 사용기간':bucket.availability==='EXPIRED'?'사용기간 만료':'사용기간 미개시'}<small>{bucket.basis??'분류 근거 미등록'}</small></td></tr>)}</tbody></table></div></section>
