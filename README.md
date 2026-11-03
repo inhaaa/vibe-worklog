@@ -5,7 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
-- 결재 화면·데모 승인 후속: 대기/완료 카드·승인/반려 검토와 신청자/승인자 계정 전환을 구현했습니다. 개발 Java698·프론트262, 공개 통합 Java763·프론트346/타입·빌드·Python74와 전용 합성 환경의 실제 신청→독립 승인·12→12→11DAY·PC/390px를 검증했습니다. 실제 공개 반영은 별도 결과로 기록합니다 ([로컬 결과/한계](docs/quality/approval-workspace-20261103.md)).
+- 결재 화면·데모 승인 후속: 2026-11-03 공개 `3e6e99c`·V16에 대기/완료 카드·승인/반려 검토와 별도 승인자 계정 전환을 반영했습니다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74, 공개98+4/새 persona60항목과 실제 신청→독립 승인·12→12→11DAY·PC/390px를 확인했습니다 ([실제 공개 결과](docs/quality/public-approval-workspace-deploy-20261103.md)·[로컬 결과/한계](docs/quality/approval-workspace-20261103.md)).
 - 신청 화면 후속: 2026-11-03 공개 `8cc811c`·V16에 현재 헤더·메뉴와 같은 인디고 카드·단계별 작성/요약·접수/상세를 반영했습니다. 개발251개·공개336개/타입·빌드, 합성 환경의 실제 접수·무쓰기 미리보기, 공개98+4항목/사진4·자산·PC/390px와 기존46표420행/권한·다른 서비스 보존을 확인했습니다 ([최종 공개 결과](docs/quality/public-request-workspace-deploy-20261103.md)·[로컬 검증/한계](docs/quality/request-workspace-20261103.md)).
 - 가상 인사/사진·헤더 후속: 2026-11-02 공개 `725373d`에 가상4명 사진과 직급/직책/직무·재직/휴직/정직을 채웠습니다. 헤더 탭을 제거하고 전체 항목을 한 카드에 표시하며 3단계 메뉴 디자인을 보완했습니다. 공개 Java728·프론트323·Python74·98+4항목/사진4·PC/390px·백업/독립 복원·기존 자료/서비스 보존을 확인했고, 개발본 UI `edafb4c`도 관련62개·타입/빌드를 통과했습니다 ([개발/공개 결과](docs/quality/demo-personnel-header-20261102.md)).
 - 공개 업무 메뉴·인사정보 반영: 2026-11-02 공개 `70a4e81`·V16 배포를 마쳤습니다. 백업/독립 복원·기존43표407행/권한·공개98+4항목·PC/390px·기존 서비스/Caddy를 검증했고 모바일 표시2건도 수정했습니다 ([최종 공개 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-personnel-deploy-20261102.md)). 개발본에도 표시 보완을 반영하고 관련42개·타입/빌드를 확인했습니다.
