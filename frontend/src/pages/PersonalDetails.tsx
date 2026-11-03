@@ -50,7 +50,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
   const entries = m.entries.filter(entry => entry.kind === kinds[tab - 2]);
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
     <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목">{tabs.map((label, index) =>
-      <button key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
+      <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
         aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
         onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>{label}</button>)}</div>
     <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${tab}`} tabIndex={0} className="t-personnel-tabpanel">

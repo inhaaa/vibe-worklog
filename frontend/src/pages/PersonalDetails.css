@@ -1,9 +1,9 @@
 .t-private-personnel { margin-bottom: 1.5rem; overflow: hidden; }
 .t-personnel-tabs { display: flex; gap: .25rem; overflow-x: auto; border-bottom: 1px solid var(--border, #e2e8f0); padding: .4rem; }
-.t-personnel-tabs [role="tab"] { flex: 0 0 auto; background: transparent; color: var(--muted, #64748b); border: 0; border-radius: .5rem; padding: .8rem 1rem; font-weight: 600; }
-.t-personnel-tabs [role="tab"][aria-selected="true"] { background: #eef2ff; color: #4338ca; }
-.t-personnel-tabs [role="tab"]:focus-visible { outline: 2px solid #6366f1; outline-offset: -2px; }
+#tna-app .t-personnel-tabs [role="tab"] { flex: 0 0 auto; background: transparent; color: var(--muted, #64748b); border: 0; border-radius: .5rem; padding: .8rem 1rem; font-weight: 600; }
+#tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] { background: #eef2ff; color: #4338ca; }
+#tna-app .t-personnel-tabs [role="tab"]:focus-visible { outline: 2px solid #6366f1; outline-offset: -2px; }
 .t-personnel-tabpanel { padding: 1.25rem; }
 .t-personnel-tabpanel h2 { margin: 0 0 1.25rem; font-size: 1.1rem; }
 .t-personnel-tabpanel dd { overflow-wrap: anywhere; }
-@media (max-width: 600px) { .t-personnel-tabpanel { padding: 1rem; } .t-personnel-tabs [role="tab"] { padding: .7rem .8rem; } }
+@media (max-width: 600px) { .t-personnel-tabpanel { padding: 1rem; } #tna-app .t-personnel-tabs [role="tab"] { padding: .7rem .8rem; } }
