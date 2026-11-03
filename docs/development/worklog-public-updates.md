@@ -1,5 +1,7 @@
 # WorkLog 공개 데모 후속 배포
 
+> 최신 신청 화면 후속: 2026-11-03 공개 `8cc811c`·V16에 인디고 카드·단계별 작성/요약·접수/상세를 앱만 교체해 반영했다. 개발251개·공개336개/타입·빌드, 실제 합성 신청·공개98+4항목/사진4·자산10개/차단1개·PC/390px와 기존46표420행/권한·다른27컨테이너/Caddy를 확인했다. 마이그레이션·seed·인사 CLI는 재실행하지 않았다. [최종 실제 결과](../quality/public-request-workspace-deploy-20261103.md)를 따른다.
+
 > 최신 가상 인사 후속: 공개 `725373d`·V16에 가상4인 사진/직급·직책·직무/상태와 탭 없는 헤더·새 업무 메뉴를 실제 반영했다. 백업/독립 복원·407→420행의 정확13행 추가·재실행 무변경·공개98+4항목/사진4·PC/390px·기존22컨테이너/Caddy를 확인했다. [최종 실제 공개 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-demo-personnel-deploy-20261102.md)를 따른다.
 
 > 2026-11-02 업무 메뉴·인사정보 공개 `70a4e81`·V16을 실제 반영했다. 최신 공통 시트·공유 계정 보호를 독립 통합하고 전용 백업/독립 복원·기존43표407행/권한·공개98+4항목·PC/390px·기존 서비스/Caddy를 검증했다. 모바일 표시2건도 앱만 교체해 해결했다. [공개 브랜치의 최종 실제 결과](https://github.com/inhaaa/vibe-worklog/blob/codex/personnel-public-release/docs/quality/public-personnel-deploy-20261102.md)를 따른다.
