@@ -34,6 +34,18 @@ class DemoPersonaAuthenticationTest {
     }
 
     @Test
+    void employeeNumberUsesTheStoredIdentityAndAllowlistRatherThanAnAlias() {
+        var principal = principal(LocalDemoLogin.TENANT_ID, APPROVER_ACCOUNT, APPROVER_EMPLOYEE, Set.of("EMPLOYEE", "APPROVER"));
+        when(store.forLogin(LocalDemoLogin.COMPANY_CODE, "26001"))
+                .thenReturn(Optional.of(new AuthStore.LoginIdentity(principal, APPROVER_HASH)));
+
+        var result = provider.authenticate(credentials("26001", "approver"));
+
+        assertSame(principal, result.getPrincipal());
+        verify(store).forLogin(LocalDemoLogin.COMPANY_CODE, "26001");
+    }
+
+    @Test
     void approverUsesItsOwnStoredHashAndPrincipalWithinTheFixedTenant() {
         var principal = principal(LocalDemoLogin.TENANT_ID, APPROVER_ACCOUNT, APPROVER_EMPLOYEE, Set.of("EMPLOYEE", "APPROVER"));
         stored(principal, APPROVER_HASH);

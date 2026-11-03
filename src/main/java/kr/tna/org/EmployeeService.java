@@ -73,13 +73,15 @@ public final class EmployeeService {
     }
 
     public UUID create(TnaPrincipal actor, EmployeeForm form) {
-        var values = normalize(form);
+        var values = normalize(form, true);
         String reason = requiredText(form.reason(), 500, "변경 사유");
         String action = "EMPLOYEE_CREATE";
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
                 fingerprint(action, values.employeeNo(), values.displayName(), values.joinedOn(),
                         values.leftOn(), values.active(), form.expectedVersion(), reason), reason, () -> {
-                    var employee = new Employee(UUID.randomUUID(), values.employeeNo(), values.displayName(),
+                    String number = values.employeeNo() == null
+                            ? EmployeeNumbers.next(values.joinedOn(), mapper.employeeNumbers(actor.tenantId())) : values.employeeNo();
+                    var employee = new Employee(UUID.randomUUID(), number, values.displayName(),
                             values.joinedOn(), values.leftOn(), values.active(), 0);
                     mapper.insert(actor.tenantId(), employee, actor.accountId());
                     return new Change(employee.id(), null, employee);
@@ -87,7 +89,7 @@ public final class EmployeeService {
     }
 
     public UUID update(TnaPrincipal actor, UUID id, EmployeeForm form) {
-        var values = normalize(form);
+        var values = normalize(form, false);
         String reason = requiredText(form.reason(), 500, "변경 사유");
         String action = "EMPLOYEE_UPDATE";
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
@@ -172,8 +174,9 @@ public final class EmployeeService {
         return employee;
     }
 
-    private EmployeeValues normalize(EmployeeForm form) {
-        String number = requiredText(form.employeeNo(), 40, "사번");
+    private EmployeeValues normalize(EmployeeForm form, boolean creating) {
+        String number = creating && (form.employeeNo() == null || form.employeeNo().isBlank())
+                ? null : requiredText(form.employeeNo(), 40, "사번");
         String name = requiredText(form.displayName(), 120, "이름");
         if (form.joinedOn() == null || form.leftOn() != null && form.leftOn().isBefore(form.joinedOn())) {
             throw OrgException.invalid("입사일을 입력하고 마지막 재직일은 입사일 이후로 지정해 주세요.");

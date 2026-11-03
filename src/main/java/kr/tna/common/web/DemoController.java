@@ -2,6 +2,7 @@ package kr.tna.common.web;
 
 import java.util.Map;
 import kr.tna.common.auth.LocalDemoLogin;
+import kr.tna.common.auth.AuthStore;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,9 +14,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 public final class DemoController {
     private final LocalDemoLogin localDemo;
+    private final AuthStore authStore;
 
-    public DemoController(LocalDemoLogin localDemo) {
+    public DemoController(LocalDemoLogin localDemo, AuthStore authStore) {
         this.localDemo = localDemo;
+        this.authStore = authStore;
     }
 
     @GetMapping("/")
@@ -42,6 +45,7 @@ public final class DemoController {
         model.addAttribute("demoPassword", LocalDemoLogin.PASSWORD);
         model.addAttribute("demoApproverLogin", LocalDemoLogin.APPROVER_LOGIN);
         model.addAttribute("demoApproverPassword", LocalDemoLogin.APPROVER_PASSWORD);
+        model.addAttribute("demoAccounts", authStore.demoAccounts());
         return "demo";
     }
 }

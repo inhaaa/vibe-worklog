@@ -2,6 +2,7 @@ import type React from 'react';
 import { useState } from 'react';
 import type { PageProps } from '../types';
 import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
+import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 interface Profile {
   employeeNo: string;
@@ -160,7 +161,7 @@ function OrganizationFilter({ organizations, organizationId }: {
     </SelectField>
   );
 }
-function ProfilePage({ profile: p, hasHeader }: { profile: Profile; hasHeader: boolean }) {
+function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: Profile; hasHeader: boolean; details?: PersonalDetailsModel; birthDate?: string | null }) {
   const entries = [
     ['이름', p.employeeName],
     ['사번', p.employeeNo],
@@ -192,6 +193,7 @@ function ProfilePage({ profile: p, hasHeader }: { profile: Profile; hasHeader: b
           <p className="t-muted">현재 계정과 업무 배정 정보를 확인하세요.</p>
         </div>
       </header>
+      {details && <PersonalDetailsTabs model={details} identity={{ employeeName: p.employeeName, joinedOn: p.joinedOn, birthDate }} />}
       <section className="panel t-profile-details" aria-label="본인 정보">
         {hasHeader && <div className="t-section-heading"><span className="t-section-number">i</span><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>}
         <p className="hint">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
@@ -411,7 +413,8 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
 export function IdentityPages({ page, data }: PageProps): React.ReactNode | null {
   switch (page) {
     case 'workspace/profile':
-      return <ProfilePage profile={data.profile as Profile} hasHeader={Boolean(data.employeeHeader)} />;
+      return <ProfilePage profile={data.profile as Profile} hasHeader={Boolean(data.employeeHeader)}
+        details={data.personalDetails as PersonalDetailsModel | undefined} birthDate={(data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate} />;
     case 'org/access-list':
       return <AccessListPage model={data as unknown as AccessList} />;
     case 'company/attendance':

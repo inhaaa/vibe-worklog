@@ -20,6 +20,7 @@ interface AuthModel {
   demoPassword?: string;
   demoApproverLogin?: string;
   demoApproverPassword?: string;
+  demoAccounts?: { employeeNo: string; employeeName: string; roles: string[]; password: string }[];
 }
 interface Tenant {
   id: string;
@@ -56,6 +57,9 @@ const hidden = (name: string, value: string | number | boolean | undefined) => (
 );
 
 function Demo({ model: m }: { model: AuthModel }) {
+  const accounts = m.demoAccounts ?? [];
+  const [employeeNo, setEmployeeNo] = useState(accounts[0]?.employeeNo ?? '');
+  const [password, setPassword] = useState(accounts[0]?.password ?? '');
   return (
     <section className="t-intro" aria-labelledby="demo-title">
       <header className="t-intro-nav">
@@ -97,24 +101,28 @@ function Demo({ model: m }: { model: AuthModel }) {
               로그아웃했습니다.
             </p>
           )}
-          <div className="t-demo-personas" aria-label="데모 계정 선택">
+          <div className="t-demo-personas" aria-label="데모 사번 로그인">
             <Form id="demo-login-form" action="/login" method="post">
-              {hidden('email', m.demoLogin)}
-              {hidden('password', m.demoPassword)}
-              <span className="t-demo-persona-label">신청자 · 담당자</span>
+              {accounts.length > 0 && <label className="t-demo-account-picker" htmlFor="demo-account">테스트 사원 선택
+                <select id="demo-account" value={accounts.some(account => account.employeeNo === employeeNo) ? employeeNo : ''} onChange={event => {
+                  const account = accounts.find(item => item.employeeNo === event.target.value);
+                  if (account) { setEmployeeNo(account.employeeNo); setPassword(account.password); }
+                }}>
+                  <option value="" disabled>사원 선택</option>
+                  {accounts.map(account => <option key={account.employeeNo} value={account.employeeNo}>{account.employeeNo} · {account.employeeName}</option>)}
+                </select>
+              </label>}
+              <label htmlFor="demo-employee-no">사번</label>
+              <input id="demo-employee-no" className="t-input" name="email" autoComplete="username" maxLength={40} required value={employeeNo} onChange={event => setEmployeeNo(event.target.value)} />
+              <label htmlFor="demo-password">비밀번호</label>
+              <input id="demo-password" className="t-input" name="password" type="password" autoComplete="current-password" minLength={5} maxLength={256} required value={password} onChange={event => setPassword(event.target.value)} />
               <button className="t-btn primary t-enter" type="submit">
-                데모로 입장 <span aria-hidden="true">→</span>
+                사번으로 로그인 <span aria-hidden="true">→</span>
               </button>
             </Form>
-            {m.demoApproverLogin && m.demoApproverPassword && <Form action="/login" method="post">
-              {hidden('email', m.demoApproverLogin)}
-              {hidden('password', m.demoApproverPassword)}
-              <span className="t-demo-persona-label">별도 결재 담당</span>
-              <button className="t-btn secondary t-enter" type="submit">승인자로 입장 <span aria-hidden="true">→</span></button>
-            </Form>}
           </div>
-          {m.demoApproverLogin && m.demoApproverPassword && <p className="t-demo-flow-note">신청 후 상단의 ‘데모 계정 전환’에서 승인자로 입장해 결재를 이어가세요.</p>}
-          <p className="t-enter-note">로그인 입력 없이 로컬 데모 계정으로 입장해요.</p>
+          <p className="t-demo-flow-note">같은 사원의 보유 권한은 로그인 후 상단에서 선택하세요. 다른 사원으로 로그인하면 로그인 주체가 바뀌며, 본인 신청은 직접 승인할 수 없습니다.</p>
+          <p className="t-enter-note">테스트 사원을 선택하면 공개 합성 계정의 사번과 비밀번호가 입력됩니다.</p>
           <div className="t-feature-labels">
             <span>출퇴근 기록</span>
             <span>근무 일정</span>
@@ -214,8 +222,8 @@ function Login({ model: m }: { model: AuthModel }) {
         <h1 id="login-title">로그인</h1>
         <p>
           {m.localDemo
-            ? '아이디와 비밀번호로 로그인해 주세요.'
-            : '소속 회사 코드와 계정으로 로그인해 주세요.'}
+            ? '사번과 비밀번호로 로그인해 주세요.'
+            : '소속 회사 코드와 사번, 비밀번호로 로그인해 주세요.'}
         </p>
         {m.flags?.error && (
           <p className="notice error" role="alert">
@@ -229,7 +237,7 @@ function Login({ model: m }: { model: AuthModel }) {
         )}
         {!m.localDemo && m.flags?.invited && (
           <p className="notice" role="status">
-            초대를 수락했습니다. 회사 코드와 이메일로 로그인해 주세요.
+            초대를 수락했습니다. 회사 코드와 사번으로 로그인해 주세요.
           </p>
         )}
         {m.flags?.reset && (
@@ -251,9 +259,9 @@ function Login({ model: m }: { model: AuthModel }) {
           )}
           <Field
             id="email"
-            label={m.localDemo ? '아이디' : '이메일'}
+            label="사번"
             name="email"
-            type={m.localDemo ? 'text' : 'email'}
+            type="text"
             autoComplete="username"
             maxLength={254}
             required
@@ -271,8 +279,8 @@ function Login({ model: m }: { model: AuthModel }) {
           />
           <p id="password-help" className="hint">
             {m.localDemo
-              ? '로컬 데모 계정은 admin / admin입니다.'
-              : '공백을 포함한 12~128자의 비밀번호를 사용합니다.'}
+              ? '담당자 사번은 99999입니다. 테스트 사원은 소개 화면에서 선택할 수 있습니다.'
+              : '공백을 포함한 12~128자의 비밀번호를 사용합니다. 기존 이메일 계정도 계속 로그인할 수 있습니다.'}
           </p>
           <button type="submit">로그인</button>
         </Form>

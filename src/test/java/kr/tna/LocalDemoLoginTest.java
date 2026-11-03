@@ -9,6 +9,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class LocalDemoLoginTest {
     @Test
+    void allSyntheticTestAccountsHaveDistinctFixedIdsAndUsableDemoPasswords() {
+        var personas = LocalDemoLogin.personas();
+        assertEquals(5, personas.size());
+        assertEquals(5, personas.stream().map(LocalDemoLogin.Persona::employeeId).distinct().count());
+        assertEquals(5, personas.stream().map(LocalDemoLogin.Persona::accountId).distinct().count());
+        assertTrue(personas.stream().allMatch(persona -> persona.password().length() >= 5));
+        assertEquals(personas.stream().map(LocalDemoLogin.Persona::employeeId).collect(java.util.stream.Collectors.toSet()),
+                LocalDemoLogin.SHARED_EMPLOYEE_IDS);
+    }
+
+    @Test
     void ordinaryAndLocalProfilesKeepStrongPasswordPolicy() {
         assertFalse(mode().enabled());
         assertFalse(mode("local").enabled());

@@ -28,13 +28,13 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
     public static final String MEDIA_TYPE = "application/vnd.worklog.page+json";
     private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo", "employeeHeader");
     private static final Map<String, Set<String>> PAGES = Map.ofEntries(
-            page("login", "localDemo"), page("demo", "demoLogin", "demoPassword", "demoApproverLogin", "demoApproverPassword"),
+            page("login", "localDemo"), page("demo", "demoLogin", "demoPassword", "demoApproverLogin", "demoApproverPassword", "demoAccounts"),
             page("invite", "companyCode"), page("password-reset"), page("operator/login"),
             page("operator/tenants", "tenants", "audit", "form"),
             page("today", "employee", "workspaceHome", "attendanceAdmin", "approver", "today", "day",
                     "eventTimes", "confirmationForm", "inCommand", "outCommand"),
             page("fragments/status"), page("workspace/schedule", "workspaceCalendar", "selectedDay"),
-            page("workspace/profile", "profile"),
+            page("workspace/profile", "profile", "personalDetails"),
             page("company/attendance", "companyAttendance"), page("company/requests", "companyRequests"),
             page("org/access-list", "accessRows", "q", "page", "hasNext"),
             page("org/problem", "status", "message", "traceId"),
@@ -49,7 +49,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("org/attendance-types", "attendanceTypes"),
             page("company/organizations", "companyOrganizations"),
             page("org/employee", "employee", "assignments", "form", "assignmentForm", "options", "orgNames"),
-            page("org/personnel", "personnel", "today"),
+            page("org/personnel", "personnel", "today", "personalDetails"),
             page("org/access", "employee", "account", "localDelivery", "eligibleEmployee", "invitationForm", "rolesForm",
                     "approverForm", "assignments", "currentAssignment", "candidates", "selectedApproverMissing"),
             page("schedule/list", "templates", "form", "today"),

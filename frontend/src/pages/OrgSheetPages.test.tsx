@@ -72,6 +72,20 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toEqual([]);
   });
 
+  it('신규 사번은 선택 입력으로 자동 발급을 안내하고 기존 사번은 읽기 전용이다', () => {
+    const view = show(page('employees'));
+    expect((view.getByLabelText('사번 1') as HTMLInputElement).readOnly).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    const number = view.getByLabelText('사번 2') as HTMLInputElement;
+    expect(number.required).toBe(false);
+    expect(number.readOnly).toBe(false);
+    expect(number.placeholder).toBe('비우면 입사연도별 자동 발급');
+    expect(view.getByText(/사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급/)).toBeTruthy();
+    fireEvent.change(view.getByLabelText('이름 2'), { target: { value: '자동 사원' } });
+    fireEvent.change(view.getByLabelText('입사일 2'), { target: { value: '2026-11-03' } });
+    expect(postedRows(view, 'employees')[0]).toMatchObject({ employeeNo: '', joinedOn: '2026-11-03', operation: 'CREATE' });
+  });
+
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', () => {
     const view = show();
     fireEvent.click(view.getByLabelText('1행 선택'));

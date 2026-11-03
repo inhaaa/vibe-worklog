@@ -97,7 +97,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
     setRows(current => current.map(row => row.id && latest.has(row.id) ? { ...row, expectedVersion: latest.get(row.id)!.version } : row));
     setErrors([]); renew();
   }
-  function input(row: Row, index: number, field: string, caption: string, options: { type?: string; fixed?: boolean; maxLength?: number; required?: boolean } = {}) {
+  function input(row: Row, index: number, field: string, caption: string, options: { type?: string; fixed?: boolean; maxLength?: number; required?: boolean; placeholder?: string } = {}) {
     const previous = row.id ? latest.get(row.id) : undefined;
     const error = errors.find(item => item.clientRowId === row.clientRowId && item.field === field);
     const id = `sheet-${row.clientRowId}-${field}`;
@@ -105,7 +105,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
       <label className="t-sr-only" htmlFor={id}>{caption} {index + 1}</label>
       <input id={id} className="t-input" type={options.type ?? 'text'} value={String(businessValue(row, field))}
         readOnly={Boolean(options.fixed && row.id)} disabled={row.operation === 'DEACTIVATE'}
-        maxLength={options.maxLength} required={options.required} aria-invalid={Boolean(error)}
+        maxLength={options.maxLength} required={options.required} placeholder={options.placeholder} aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined} data-error-focus={error ? 'true' : undefined}
         data-changed={String(!previous || businessValue(row, field) !== businessValue(previous, field))}
         onChange={event => update(row.clientRowId, field, event.target.value || (field === 'leftOn' ? null : ''))} />
@@ -155,6 +155,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
           <span className="t-tag blue" role="status">변경 {dirty.length}행</span>
         </div>
         <p className="t-subtle" id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
+        {!organization && <p className="t-subtle">신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
         {(m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
         <div className="t-tablewrap t-sheet-scroll" role="region" aria-label={`${label} 편집 시트`} tabIndex={0}>
           <table className="t-table t-sheet-table" ref={table}><caption className="t-sr-only">{label} 행 선택과 기본정보 편집</caption><thead><tr><th scope="col">선택</th><th scope="col">{organization ? '조직 코드' : '사번'}</th><th scope="col">{organization ? '조직 이름' : '이름'}</th>{organization ? <><th scope="col">상위 조직</th><th scope="col">조직장</th></> : <><th scope="col">입사일</th><th scope="col">마지막 재직일</th><th scope="col">현재 소속·배정</th></>}<th scope="col">활성</th><th scope="col">변경 상태</th></tr></thead><tbody>
@@ -162,7 +163,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
               const previous = row.id ? latest.get(row.id) : undefined;
               return <tr key={row.clientRowId} data-client-row-id={row.clientRowId} data-operation={row.operation}>
                 <td><input className="t-sheet-check" type="checkbox" aria-label={`${index + 1}행 선택`} checked={selected.has(row.clientRowId)} onChange={event => setSelected(current => { const next = new Set(current); if (event.target.checked) next.add(row.clientRowId); else next.delete(row.clientRowId); return next; })} /></td>
-                <td>{input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: true })}</td>
+                <td>{input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: organization, placeholder: organization || row.id ? undefined : '비우면 입사연도별 자동 발급' })}</td>
                 <td>{input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })}</td>
                 {organization && isOrganization(row) ? <><td><label className="t-sr-only" htmlFor={`sheet-${row.clientRowId}-parentId`}>상위 조직 {index + 1}</label><select className="t-select" id={`sheet-${row.clientRowId}-parentId`} value={row.parentId ?? ''} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!previous || businessValue(row, 'parentId') !== businessValue(previous, 'parentId'))} onChange={event => update(row.clientRowId, 'parentId', event.target.value || null)}><option value="">없음</option>{m.options.filter(option => option.id !== row.id && (option.active || option.id === row.parentId)).map(option => <option value={option.id} key={option.id}>{option.name}{option.active ? '' : ' (비활성)'}</option>)}</select></td><td>{headCell(row)}</td></> : <><td>{input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })}</td><td>{input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })}</td><td>{employeeCell(row, previous)}</td></>}
                 <td><input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!previous || row.active !== previous.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} /></td>

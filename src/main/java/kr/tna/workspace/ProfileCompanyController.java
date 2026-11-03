@@ -13,12 +13,16 @@ import org.springframework.web.servlet.ModelAndView;
 @Controller
 public final class ProfileCompanyController {
     private final ProfileCompanyQueries queries;
+    private final kr.tna.org.EmployeePersonalDetailsService details;
 
-    public ProfileCompanyController(ProfileCompanyQueries queries) { this.queries = queries; }
+    public ProfileCompanyController(ProfileCompanyQueries queries, kr.tna.org.EmployeePersonalDetailsService details) {
+        this.queries = queries; this.details = details;
+    }
 
     @GetMapping("/me/profile")
     ModelAndView profile(@AuthenticationPrincipal TnaPrincipal actor) {
-        return new ModelAndView("workspace/profile").addObject("profile", queries.profile(actor));
+        return new ModelAndView("workspace/profile").addObject("profile", queries.profile(actor))
+                .addObject("personalDetails", details.self(actor));
     }
 
     @GetMapping("/company/attendance")

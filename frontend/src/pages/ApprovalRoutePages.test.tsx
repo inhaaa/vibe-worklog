@@ -29,12 +29,15 @@ beforeEach(() => { history.replaceState(null, '', '/admin/approval-routes'); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('결재선 React 관리', () => {
-  it('관리자에게 결재선 메뉴와 담당자에게 완료 결재 메뉴를 제공한다', () => {
+  it('담당자 모드의 결재선과 승인자 모드의 완료 결재 메뉴를 구분한다', () => {
     const view = render(<App initial={page()} />);
     const menu = view.getByLabelText('주 메뉴');
     expect(menu.querySelector('a[href="/admin/approval-routes"]')).toBeTruthy();
     expect(menu.querySelector('a[href="/admin/approval-route-assignments"]')).toBeTruthy();
+    expect(menu.querySelector('a[href="/approvals/completed"]')).toBeNull();
+    fireEvent.change(view.getByRole('combobox', { name: '업무 권한' }), { target: { value: 'APPROVER' } });
     expect(menu.querySelector('a[href="/approvals/completed"]')).toBeTruthy();
+    expect(menu.querySelector('a[href="/admin/approval-routes"]')).toBeNull();
   });
 
   it('시트 도구·고정 코드·미변경 제외와 버전 재배정 안내를 제공한다', () => {
@@ -87,7 +90,7 @@ describe('결재선 React 관리', () => {
     await waitFor(() => expect(view.getByText('이름을 확인하세요.')).toBeTruthy());
     expect((view.getByLabelText('결재선 이름 1') as HTMLInputElement).value).toBe('중복 이름');
     expect(new FormData(form(view)).get('commandId')).toBe('posted-command');
-    expect(document.activeElement).toBe(view.getByLabelText('결재선 이름 1'));
+    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('결재선 이름 1')));
   });
 
   it('409 최신 버전을 확인할 때만 새 명령과 예상 버전을 사용한다', () => {

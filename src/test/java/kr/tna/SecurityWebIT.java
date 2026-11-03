@@ -54,6 +54,29 @@ class SecurityWebIT {
     }
 
     @Test
+    void sameEmployeeNumberResolvesOnlyInsideTheVerifiedCompany() throws Exception {
+        var admin = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        admin.update("UPDATE tna.employee SET employee_no='26001' WHERE id IN (?,?)",
+                DatabaseFixture.EMPLOYEE_A, DatabaseFixture.EMPLOYEE_B);
+        try {
+            for (String company : new String[]{DatabaseFixture.COMPANY_A, DatabaseFixture.COMPANY_B}) {
+                var session = (MockHttpSession) mvc.perform(post("/login").with(csrf())
+                                .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
+                                .param("companyCode", company).param("email", "26001").param("password", PASSWORD))
+                        .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                assertEquals(company.equals(DatabaseFixture.COMPANY_A) ? DatabaseFixture.TENANT_A : DatabaseFixture.TENANT_B,
+                        principal(session).tenantId());
+            }
+            mvc.perform(post("/login").with(csrf()).param("companyCode", "UNKNOWN")
+                            .param("email", "26001").param("password", PASSWORD))
+                    .andExpect(redirectedUrl("/login?error"));
+        } finally {
+            admin.update("UPDATE tna.employee SET employee_no='E001' WHERE id IN (?,?)",
+                    DatabaseFixture.EMPLOYEE_A, DatabaseFixture.EMPLOYEE_B);
+        }
+    }
+
+    @Test
     void loginHasCsrfAndLocalAssetsAndProtectedPagesRequireAuthentication() throws Exception {
         mvc.perform(get("/login"))
                 .andExpect(status().isOk())

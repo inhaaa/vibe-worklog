@@ -40,6 +40,7 @@ class EmployeePersonnelIT {
     private static final String PAGE_JSON = "application/vnd.worklog.page+json";
     @Autowired EmployeePersonnelService personnel;
     @Autowired EmployeePersonnelMapper mapper;
+    @Autowired kr.tna.org.EmployeePersonalDetailsService details;
     @Autowired TenantTransactions transactions;
     @Autowired MockMvc mvc;
     private JdbcTemplate db;
@@ -277,6 +278,146 @@ class EmployeePersonnelIT {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(ReactPageAssertions.data("/personnel/form/gradeName", "보존 직급"))
                 .andExpect(ReactPageAssertions.data("/personnel/form/commandId", command.toString()));
+    }
+
+    @Test
+    void privateDetailsAndEntriesAreVersionedIdempotentAndOnlyVisibleToSelfAndCurrentAdmin() throws Exception {
+        String path = "/admin/employees/" + employee.employeeId();
+        UUID command = UUID.randomUUID();
+        mvc.perform(post(path + "/personal-details").with(as(admin)).with(csrf())
+                        .param("admissionType", "NEW").param("recognizedMonths", "12")
+                        .param("englishName", "Synthetic Person").param("maritalStatus", "NO")
+                        .param("veteranStatus", "UNKNOWN").param("disabilityStatus", "NO")
+                        .param("militaryStatus", "EXEMPT").param("mobilePhone", "010-0000-1234")
+                        .param("address", "합성 주소").param("expectedVersion", "0")
+                        .param("reason", "합성 인사 상세").param("commandId", command.toString()))
+                .andExpect(status().isSeeOther());
+        mvc.perform(get("/me/profile").with(as(employee)).accept(PAGE_JSON)
+                        .param("employeeId", admin.employeeId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/personalDetails/form/englishName", "Synthetic Person"))
+                .andExpect(ReactPageAssertions.data("/personalDetails/form/recognizedMonths", 12))
+                .andExpect(ReactPageAssertions.data("/personalDetails/version", 1))
+                .andExpect(result -> assertTrue(ReactPageAssertions.envelope(result).at("/data/employeeHeader/englishName").isMissingNode()));
+        UUID entryCommand = UUID.randomUUID();
+        for (int retry = 0; retry < 2; retry++) {
+            mvc.perform(post(path + "/personal-entries").with(as(admin)).with(csrf())
+                            .param("kind", "EDUCATION").param("title", "합성대학교")
+                            .param("detail", "컴퓨터공학·졸업").param("effectiveFrom", today.toString())
+                            .param("expectedVersion", "1").param("reason", "학력 등록")
+                            .param("commandId", entryCommand.toString()))
+                    .andExpect(status().isSeeOther());
+        }
+        mvc.perform(get("/me/profile").with(as(employee)).accept(PAGE_JSON))
+                .andExpect(ReactPageAssertions.data("/personalDetails/entries/0/title", "합성대학교"))
+                .andExpect(ReactPageAssertions.data("/personalDetails/version", 2));
+        String audit = db.queryForObject("SELECT string_agg(after_state::text,' ') FROM tna.org_audit_event WHERE tenant_id=?", String.class, tenant);
+        assertFalse(audit.contains("Synthetic Person"));
+        assertFalse(audit.contains("010-0000-1234"));
+        assertFalse(audit.contains("합성대학교"));
+        mvc.perform(post(path + "/personal-details").with(as(employee)).with(csrf()).param("expectedVersion", "2"))
+                .andExpect(status().isForbidden());
+        db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='EMPLOYEE'", tenant, employee.accountId());
+        mvc.perform(get("/me/profile").with(as(employee)).accept(PAGE_JSON)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void privateDetailsValidateReplayConflictsCrossTenantAndRevokedAdmin() {
+        var valid = detailForm(0L, "Synthetic", 0);
+        details.update(admin, employee.employeeId(), valid);
+        details.update(admin, employee.employeeId(), valid);
+        assertEquals(1, details.self(employee).version());
+        assertEquals(0, details.self(employee).form().recognizedMonths());
+        assertStatus(409, () -> details.update(admin, employee.employeeId(), detailForm(0L, "Stale", null)));
+        assertStatus(422, () -> details.update(admin, employee.employeeId(), detailForm(1L, "Negative", -1)));
+        assertStatus(422, () -> details.update(admin, employee.employeeId(), detailForm(1L, "Too long", 1201)));
+        assertStatus(422, () -> details.update(admin, employee.employeeId(), detailForm(1L, "😀".repeat(121), null)));
+        assertStatus(404, () -> details.get(admin, DatabaseFixture.EMPLOYEE_B));
+        assertStatus(404, () -> details.update(admin, DatabaseFixture.EMPLOYEE_B, detailForm(0L, "Cross tenant", null)));
+        assertStatus(403, () -> details.get(employee, admin.employeeId()));
+        assertStatus(403, () -> details.update(employee, employee.employeeId(), detailForm(1L, "Self write", null)));
+        db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='ATTENDANCE_ADMIN'", tenant, admin.accountId());
+        assertStatus(403, () -> details.get(admin, employee.employeeId()));
+        assertStatus(403, () -> details.update(admin, employee.employeeId(), valid));
+    }
+
+    @Test
+    void privateEntriesHaveCompositeKeysForcedRlsNarrowPrivilegesAndNoContextLeak() {
+        details.append(admin, employee.employeeId(), new kr.tna.org.EmployeePersonalDetailsData.EntryForm(
+                "FAMILY", "배우자", "1명", today, null, 0L, "합성 이력", UUID.randomUUID()));
+        var source = DatabaseFixture.start().appDataSource();
+        var isolated = new TenantTransactions(source);
+        var jdbc = new JdbcTemplate(source);
+        isolated.execute(tenant, () -> {
+            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_details", Integer.class));
+            assertEquals(1, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_entry", Integer.class));
+            return null;
+        });
+        isolated.execute(UUID.randomUUID(), () -> {
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_details", Integer.class));
+            assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_entry", Integer.class));
+            assertEquals(0, jdbc.update("UPDATE tna.employee_personal_details SET english_name='차단' WHERE tenant_id=?", tenant));
+            return null;
+        });
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_details", Integer.class));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM tna.employee_personal_entry", Integer.class));
+        deniedSql(() -> isolated.execute(tenant, () -> jdbc.update("UPDATE tna.employee_personal_entry SET title='차단' WHERE tenant_id=?", tenant)));
+        deniedSql(() -> isolated.execute(tenant, () -> jdbc.update("DELETE FROM tna.employee_personal_details WHERE tenant_id=?", tenant)));
+        deniedSql(() -> isolated.execute(UUID.randomUUID(), () -> jdbc.update(
+                "INSERT INTO tna.employee_personal_details(tenant_id,employee_id,version,updated_by) VALUES (?,?,1,?)", tenant, employee.employeeId(), admin.accountId())));
+        assertThrows(DataAccessException.class, () -> isolated.execute(tenant, () -> jdbc.update(
+                "INSERT INTO tna.employee_personal_details(tenant_id,employee_id,version,updated_by) VALUES (?,?,1,?)", tenant, DatabaseFixture.EMPLOYEE_B, admin.accountId())));
+        assertEquals(2, db.queryForObject("SELECT count(*) FROM pg_class WHERE relnamespace='tna'::regnamespace AND relname IN ('employee_personal_details','employee_personal_entry') AND relrowsecurity AND relforcerowsecurity", Integer.class));
+        assertEquals(false, db.queryForObject("SELECT has_table_privilege('tna_auth','tna.employee_personal_details','SELECT')", Boolean.class));
+        assertEquals(false, db.queryForObject("SELECT has_table_privilege('tna_operator','tna.employee_personal_details','SELECT')", Boolean.class));
+    }
+
+    @Test
+    void privateDetailsPreserveSubmittedInputAndRejectInvalidEntryDatesAndCsrf() throws Exception {
+        details.update(admin, employee.employeeId(), detailForm(0L, "Current name", 12));
+        String path = "/admin/employees/" + employee.employeeId();
+        mvc.perform(post(path + "/personal-details").with(as(admin)).with(csrf()).accept(PAGE_JSON)
+                        .param("englishName", "Submitted name").param("expectedVersion", "0")
+                        .param("reason", "입력 보존").param("commandId", UUID.randomUUID().toString()))
+                .andExpect(status().isConflict())
+                .andExpect(ReactPageAssertions.data("/personalDetails/form/englishName", "Submitted name"))
+                .andExpect(ReactPageAssertions.data("/personalDetails/currentForm/englishName", "Current name"))
+                .andExpect(ReactPageAssertions.data("/personalDetails/version", 1));
+        mvc.perform(post(path + "/personal-entries").with(as(admin)).with(csrf()).accept(PAGE_JSON)
+                        .param("kind", "LANGUAGE").param("title", "영어").param("effectiveFrom", today.toString())
+                        .param("effectiveTo", today.minusDays(1).toString()).param("expectedVersion", "1")
+                        .param("reason", "잘못된 일자").param("commandId", UUID.randomUUID().toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(ReactPageAssertions.data("/personalDetails/entryForm/title", "영어"));
+        mvc.perform(post(path + "/personal-details").with(as(admin))).andExpect(status().isForbidden());
+        mvc.perform(post(path + "/personal-entries").with(as(admin))).andExpect(status().isForbidden());
+        assertEquals(1, details.get(admin, employee.employeeId()).version());
+    }
+
+    @Test
+    void privateDetailsConcurrentUpdatesHaveOneWinnerAndActualAppointmentsOmitReasons() throws Exception {
+        UUID organization = UUID.randomUUID();
+        db.update("INSERT INTO tna.organization(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'SYNTHETIC','합성팀',?,?)", tenant, organization, admin.accountId(), admin.accountId());
+        db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'발령 사유 비공개',?,?)", tenant, UUID.randomUUID(), employee.employeeId(), organization, today, admin.accountId(), admin.accountId());
+        assertEquals("합성팀", details.self(employee).appointments().getFirst().organizationName());
+        var start = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var futures = java.util.List.of("First", "Second").stream().map(name -> workers.submit(() -> {
+                start.await();
+                try { details.update(admin, employee.employeeId(), detailForm(0L, name, null)); return 0; }
+                catch (OrgException failure) { return failure.status(); }
+            })).toList();
+            start.countDown();
+            var outcomes = java.util.List.of(futures.get(0).get(15, TimeUnit.SECONDS), futures.get(1).get(15, TimeUnit.SECONDS));
+            assertEquals(1, outcomes.stream().filter(status -> status == 0).count());
+            assertEquals(1, outcomes.stream().filter(status -> status == 409).count());
+        }
+        assertEquals(1, details.self(employee).version());
+    }
+
+    private kr.tna.org.EmployeePersonalDetailsData.Form detailForm(Long version, String name, Integer months) {
+        return new kr.tna.org.EmployeePersonalDetailsData.Form("NEW", months, null, name, "UNKNOWN", null,
+                "UNKNOWN", "UNKNOWN", "UNKNOWN", null, null, null, null, null, null, version, "합성 기본정보", UUID.randomUUID());
     }
 
     private Form form(LocalDate birthDate, String grade, String status, LocalDate effective, Long version, String action, String data) {
