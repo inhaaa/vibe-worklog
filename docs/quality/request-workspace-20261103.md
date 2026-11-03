@@ -1,6 +1,6 @@
 # 신청 작업공간 디자인·실제 신청 흐름 검증
 
-2026-11-03, Asia/Seoul. [설계](../superpowers/specs/2026-11-03-request-workspace-design.md)와 [계획](../superpowers/plans/2026-11-03-request-workspace.md)의 구현·로컬 검증 결과다. 실제 공개 배포 결과는 별도로 기록한다.
+2026-11-03, Asia/Seoul. [설계](../superpowers/specs/2026-11-03-request-workspace-design.md)와 [계획](../superpowers/plans/2026-11-03-request-workspace.md)의 구현·로컬 검증 결과다. 후속 공개 반영 `8cc811c`·V16과 자료/서비스 보존은 [최종 공개 결과](public-request-workspace-deploy-20261103.md)에 기록했다.
 
 ## 변경
 
