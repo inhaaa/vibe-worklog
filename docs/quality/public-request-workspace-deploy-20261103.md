@@ -1,5 +1,7 @@
 # 신청 화면 공개 반영 결과
 
+> 후속 결재 화면·별도 승인자 배정과 실제 공개 신청→승인은 [공개 결재 결과](public-approval-workspace-deploy-20261103.md)를 따른다. 아래 미지정 차단/공개 무제출은 `8cc811c` 당시의 검증 이력이다.
+
 2026-11-03, Asia/Seoul. [설계](../superpowers/specs/2026-11-03-request-workspace-design.md)·[로컬 검증](request-workspace-20261103.md)에 이어 `https://worklog.inhaaa.com`에 실제 반영한 결과다. 최종 서버 확인은 10:05 KST에 완료했다.
 
 ## 반영한 화면과 버전

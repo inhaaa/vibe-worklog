@@ -1,5 +1,7 @@
 # 로컬 개발 환경
 
+> 2026-11-03 결재 화면·데모 승인 후속: 대기/완료 카드·승인/반려 검토와 두 계정 정상 로그인/전환을 구현했다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74와 실제 신청→독립 승인·12→12→11DAY·PC/390px를 검증하고 공개 `3e6e99c`·V16에 반영했다. [로컬 결과](../quality/approval-workspace-20261103.md)·[실제 공개 결과/체험 순서](../quality/public-approval-workspace-deploy-20261103.md)를 따른다. 아래 수치는 당시 이력이다.
+
 > 2026-10-29 공통 업무 그리드: [설계](../superpowers/specs/2026-10-29-common-sheet-design.md)·[ADR](../adr/0005-common-worklog-sheet.md)·[검증 결과](../quality/common-sheet.md)를 따른다. AG Grid Community36.2.0, React207개·Java618개·Python62개·타입/build와 PC/390px를 검증했다. 프론트는 `npm --prefix frontend ci --no-fund`, `npm --prefix frontend test`, `npm --prefix frontend run build`를 사용한다. style-src self를 유지하도록 `/react/sheet.css`와 같은 출처 글꼴/SVG를 함께 공급한다. 공개 데모 반영과 새 장시간 부하/이미지 검사는 이번 로컬 결과와 구분한다.
 
 > 2026-10-28 업무 확장 3단계의 React 결재선 관리·사원/조직 배정·조직장 결재·신청별 스냅샷·본인 처리 결재 조회는 [상세 계약](../design/approval-routes.md)·[실행 계획](../superpowers/plans/2026-10-28-react-approval-routes.md)과 아래 [3단계 안내](#react-결재선-관리조직장-결재-2026-10-28)를 따른다. 최종 테스트·로컬 V13 적용·기존 자료 보존은 [실제 결과](../quality/approval-routes.md)로 구분한다. 아래 수치는 실행 당시 이력이다.
