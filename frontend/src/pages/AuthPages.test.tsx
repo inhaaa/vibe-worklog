@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { render, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthPages } from './AuthPages';
+import { CsrfContext } from '../ui';
 
 const csrf = { token: 'csrf-value', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
 const page = (name: string, data: Record<string, unknown>) => (
@@ -14,6 +15,28 @@ const html = (name: string, data: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('AuthPages', () => {
+  it('데모 신청자와 승인자는 별도 정상 로그인 폼으로 선택하고 CSRF를 보존한다', () => {
+    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', {
+      demoLogin: 'admin', demoPassword: 'admin',
+      demoApproverLogin: 'approver', demoApproverPassword: 'approver',
+    })}</CsrfContext.Provider>);
+    const applicant = view.getByRole('button', { name: /데모로 입장/ }).closest('form')!;
+    const approver = view.getByRole('button', { name: /승인자로 입장/ }).closest('form')!;
+    expect(applicant).not.toBe(approver);
+    for (const [form, login] of [[applicant, 'admin'], [approver, 'approver']] as const) {
+      expect(form.getAttribute('action')).toBe('/login');
+      expect(form.getAttribute('method')).toBe('post');
+      expect(form.querySelector<HTMLInputElement>('[name="email"]')!.value).toBe(login);
+      expect(form.querySelector<HTMLInputElement>('[name="password"]')!.value).toBe(login);
+      expect(form.querySelector<HTMLInputElement>('[name="_csrf"]')!.value).toBe('csrf-value');
+    }
+    expect(view.getByText(/신청 후.*데모 계정 전환/)).toBeTruthy();
+  });
+  it('서버가 승인자 진입을 제공하지 않으면 빈 자격의 로그인 폼을 만들지 않는다', () => {
+    const view = render(page('demo', { demoLogin: 'admin', demoPassword: 'admin' }));
+    expect(view.queryByRole('button', { name: /승인자로 입장/ })).toBeNull();
+    expect(view.container.querySelectorAll('form[action="/login"]')).toHaveLength(1);
+  });
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
   });

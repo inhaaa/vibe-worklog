@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PageProps } from '../types';
 import { Form, Field, TextAreaField, ErrorNotice, fmtDateTime } from '../ui';
+import './DemoAccess.css';
 
 interface Flags {
   error?: boolean;
@@ -17,6 +18,8 @@ interface AuthModel {
   companyCode?: string;
   demoLogin?: string;
   demoPassword?: string;
+  demoApproverLogin?: string;
+  demoApproverPassword?: string;
 }
 interface Tenant {
   id: string;
@@ -94,13 +97,23 @@ function Demo({ model: m }: { model: AuthModel }) {
               로그아웃했습니다.
             </p>
           )}
-          <Form id="demo-login-form" action="/login" method="post">
-            {hidden('email', m.demoLogin)}
-            {hidden('password', m.demoPassword)}
-            <button className="t-btn primary t-enter" type="submit">
-              데모로 입장 <span aria-hidden="true">→</span>
-            </button>
-          </Form>
+          <div className="t-demo-personas" aria-label="데모 계정 선택">
+            <Form id="demo-login-form" action="/login" method="post">
+              {hidden('email', m.demoLogin)}
+              {hidden('password', m.demoPassword)}
+              <span className="t-demo-persona-label">신청자 · 담당자</span>
+              <button className="t-btn primary t-enter" type="submit">
+                데모로 입장 <span aria-hidden="true">→</span>
+              </button>
+            </Form>
+            {m.demoApproverLogin && m.demoApproverPassword && <Form action="/login" method="post">
+              {hidden('email', m.demoApproverLogin)}
+              {hidden('password', m.demoApproverPassword)}
+              <span className="t-demo-persona-label">별도 결재 담당</span>
+              <button className="t-btn secondary t-enter" type="submit">승인자로 입장 <span aria-hidden="true">→</span></button>
+            </Form>}
+          </div>
+          {m.demoApproverLogin && m.demoApproverPassword && <p className="t-demo-flow-note">신청 후 상단의 ‘데모 계정 전환’에서 승인자로 입장해 결재를 이어가세요.</p>}
           <p className="t-enter-note">로그인 입력 없이 로컬 데모 계정으로 입장해요.</p>
           <div className="t-feature-labels">
             <span>출퇴근 기록</span>

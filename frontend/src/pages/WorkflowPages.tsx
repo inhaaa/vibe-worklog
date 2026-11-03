@@ -1,5 +1,6 @@
 import React from 'react';
 import './RequestDetail.css';
+import { ApprovalWorkspace } from './ApprovalWorkspace';
 import type { PageProps } from '../types';
 import {
   Form,
@@ -194,6 +195,8 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const correctionAction = (value: string) => label(value, { KEEP: '유지', SET: '변경', CLEAR: '제거' });
   const zeroReason = (value: string) => label(value, { CONFIRMED_HOLIDAY: '확정 휴일', CONFIRMED_NON_WORKDAY: '확정 비근로일' });
   const hasActions = m.canDecide || m.canWithdraw || m.canCancel || m.canCancelException || (m.admin && r.status === 'PENDING');
+  const completedApproval = m.ownRequest === false && m.workspacePrincipal?.roles.includes('APPROVER')
+    && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const versionFields = (
     <>
       {hidden('expectedVersion', r.version)}
@@ -208,7 +211,11 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <h1>신청 상세</h1>
           <p className="t-muted">신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)</p>
         </div>
-        <a className="t-btn t-request-detail-back" href="/me/requests"><span aria-hidden="true">←</span> 내 신청</a>
+        <div className="t-request-detail-backlinks">
+          {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals"><span aria-hidden="true">←</span> 대기함으로</a>
+            : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed"><span aria-hidden="true">←</span> 내가 처리한 결재</a>}
+          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 <span aria-hidden="true">↗</span></a>
+        </div>
       </header>
       <section className="t-card t-request-detail-summary" aria-label="신청 요약">
         <div className="t-request-detail-summary-head">
@@ -281,20 +288,25 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               </li>)}
             </ol>}
           </section>
-          <section className="t-card t-request-detail-actions">
-            <h2>결정·변경</h2>
+          <section className={`t-card t-request-detail-actions${m.canDecide ? ' t-request-decision-panel' : ''}`}>
+            <h2>{m.canDecide ? '결재 검토' : '결정·변경'}</h2>
+            {m.canDecide && <p className="t-request-decision-guide">신청 내용과 산정 근거를 확인해 주세요. 현재 권한·신청 상태는 처리할 때 다시 검증하며, 결정 사유는 처리 이력에 남습니다.</p>}
             {!hasActions && <p className="t-request-detail-empty">현재 가능한 결정·변경이 없습니다.</p>}
             {m.canDecide && (
               <>
-                <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form t-request-detail-form">
+                <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form t-request-detail-form t-request-decision-approve" aria-label="승인 검토">
+                  <h3>승인</h3>
+                  <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
                   {versionFields}
                   <Reason label="승인 검토 사유" />
-                  <button className="t-btn primary">독립 승인</button>
+                  <button className="t-btn primary">승인하기</button>
                 </Form>
-                <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form t-request-detail-form">
+                <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form t-request-detail-form t-request-decision-reject" aria-label="반려 검토">
+                  <h3>반려</h3>
+                  <p>보완이 필요한 내용을 사유로 남겨 주세요.</p>
                   {versionFields}
                   <Reason label="반려 사유" />
-                  <button className="t-btn secondary">반려</button>
+                  <button className="t-btn secondary">반려하기</button>
                 </Form>
               </>
             )}
@@ -1348,10 +1360,9 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       break;
     case 'request/list': {
       const m = data as unknown as ListModel;
-      content = (
+      content = m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
         <>
           <h1>{m.title}</h1>
-          {m.completed !== undefined && <><nav className="actions" aria-label="결재 목록"><a href="/approvals" aria-current={!m.completed ? 'page' : undefined}>결재 대기함</a><a href="/approvals/completed" aria-current={m.completed ? 'page' : undefined}>내가 처리한 결재</a></nav><p>{m.completed ? '본인이 승인하거나 반려한 신청입니다. 철회는 처리한 결재에 포함하지 않습니다.' : '현재 본인에게 지정된 대기 신청입니다.'}</p></>}
           <section className="panel">
             <RequestRows requests={m.requests} />
           </section>

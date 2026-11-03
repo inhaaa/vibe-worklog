@@ -55,6 +55,119 @@ describe('WorkflowPages', () => {
   it('알 수 없는 페이지는 다른 화면에 위임한다', () => {
     expect(render('unknown/page', {})).toBe('');
   });
+  it('결재 대기함은 조회한 페이지 건수와 신청자·기간·한글 상태를 카드로 표시한다', () => {
+    const html = render('request/list', { title: '결재 대기함', requests: [request], completed: false, page: 0, hasNext: true });
+    expect(html).toContain('class="t-approval-workspace"');
+    expect(html).toContain('aria-label="결재 신청 목록"');
+    expect(html).toContain('이 페이지 1건');
+    expect(html).toContain('종일 연차');
+    expect(html).toContain('결재 대기');
+    expect(html).toContain('효력 없음');
+    expect(html).toContain('2 DAY');
+    expect(html).toContain('2026-11-01');
+    expect(html).toContain('2026-11-02');
+    expect(html).toContain('href="/requests/request-1"');
+    expect(html).toContain('신청 검토');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(html.replace(/<[^>]*>/g, '')).not.toContain('PENDING');
+    expect(html).not.toContain('전체 1건');
+    expect(html).not.toContain('<form');
+  });
+  it('처리 완료함은 본인 결정 범위 안내와 실제 승인·반려 상태를 표시한다', () => {
+    const html = render('request/list', { title: '내가 처리한 결재', completed: true, page: 1, hasNext: false, requests: [
+      { ...request, status: 'APPROVED', effectStatus: 'EFFECTIVE' },
+      { ...request, id: 'request-2', status: 'REJECTED', effectStatus: 'NONE' },
+    ] });
+    expect(html).toContain('이 페이지 2건');
+    expect(html).toContain('본인이 승인하거나 반려한 신청입니다.');
+    expect(html).toContain('철회는 처리한 결재에 포함하지 않습니다.');
+    expect(html).toContain('href="/approvals/completed" aria-current="page"');
+    expect(html).toContain('data-status="APPROVED">승인');
+    expect(html).toContain('data-status="REJECTED">반려');
+    expect(html).toContain('유효');
+    expect(html).toContain('상세 보기');
+    expect(html).toContain('href="/approvals/completed?page=0"');
+    expect(html).not.toContain('href="/approvals/completed?page=2"');
+  });
+  it('결재 목록의 빈 상태는 대기와 처리 완료를 구분하고 가상 신청을 만들지 않는다', () => {
+    const waiting = render('request/list', { title: '결재 대기함', requests: [], completed: false, page: 0, hasNext: false });
+    const completed = render('request/list', { title: '내가 처리한 결재', requests: [], completed: true, page: 0, hasNext: false });
+    expect(waiting).toContain('현재 결재할 신청이 없습니다.');
+    expect(completed).toContain('아직 처리한 결재가 없습니다.');
+    expect(waiting).toContain('이 페이지 0건');
+    expect(waiting).not.toContain('href="/requests/');
+    expect(completed).not.toContain('href="/requests/');
+    expect(waiting).not.toContain('page=-1');
+  });
+  it('결재 카드의 정정·취소와 알 수 없는 값은 가상 DAY나 상태로 바꾸지 않는다', () => {
+    const html = render('request/list', { title: '결재 대기함', completed: false, requests: [
+      { ...request, id: 'correction', kind: 'ATTENDANCE_CORRECTION', quantityDays: null },
+      { ...request, id: 'cancel', kind: 'CANCEL_LEAVE', quantityDays: 2, effectStatus: 'CANCELED' },
+      { ...request, id: 'unknown', kind: 'FUTURE_KIND', status: 'FUTURE_STATUS', effectStatus: 'FUTURE_EFFECT', quantityDays: 10 },
+    ] });
+    expect(html).toContain('출퇴근·휴게 정정');
+    expect(html).toContain('연차 취소');
+    expect(html).toContain('효력 취소');
+    expect(html).toContain('FUTURE_KIND');
+    expect(html).toContain('FUTURE_STATUS');
+    expect(html).toContain('FUTURE_EFFECT');
+    expect(html).not.toContain(' DAY');
+    expect(html).not.toContain('null');
+  });
+  it('결재 정보가 없는 관리 목록과 fragment의 기존 표 계약은 유지한다', () => {
+    for (const page of ['request/list', 'request/rows']) {
+      const html = render(page, { title: '고객사 신청 현황', requests: [request] });
+      expect(html).toContain('<table>');
+      expect(html).not.toContain('t-approval-workspace');
+      expect(html).not.toContain('aria-label="결재 목록"');
+    }
+  });
+  it('지정 결재자는 대기함 복귀와 구분된 승인·반려 검토 폼을 사용한다', () => {
+    const html = render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: true, pageCommand: 'decision-command' });
+    expect(html).toContain('href="/approvals"');
+    expect(html).toContain('대기함으로');
+    expect(html).toContain('<h2>결재 검토</h2>');
+    expect(html).toContain('<h3>승인</h3>');
+    expect(html).toContain('<h3>반려</h3>');
+    expect(html).toContain('aria-label="승인 검토"');
+    expect(html).toContain('aria-label="반려 검토"');
+    expect(html).toContain('승인하기');
+    expect(html).toContain('반려하기');
+    expect(html).toContain('결정 사유는 처리 이력에 남습니다.');
+    expect(html.match(/name="reason"[^>]*maxLength="500"[^>]*required/g)).toHaveLength(2);
+    const own = render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: false });
+    expect(own).not.toContain('대기함으로');
+    expect(own).not.toContain('승인하기');
+    expect(own).not.toContain('반려하기');
+  });
+  it('타인 신청의 처리 후 상세에서도 실제 승인자 역할은 본인 처리 완료함으로 돌아간다', () => {
+    for (const status of ['APPROVED', 'REJECTED']) {
+      const html = render('request/detail', {
+        request: { ...request, status }, detail: { days: [], history: [], correction: null },
+        canDecide: false, ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] },
+      });
+      expect(html).toContain('href="/approvals/completed"');
+      expect(html).toContain('내가 처리한 결재');
+      expect(html).not.toContain('대기함으로');
+      expect(html).not.toContain('/approve"');
+      expect(html).not.toContain('/reject"');
+    }
+  });
+  it('본인 여부가 명시되지 않거나 자기 신청·관리자뿐인 경우 완료함 동선을 추정하지 않는다', () => {
+    for (const data of [
+      { ownRequest: true, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } },
+      { workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } },
+      { ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] } },
+      { ownRequest: false },
+    ]) {
+      const html = render('request/detail', { request: { ...request, status: 'APPROVED' }, detail: { days: [], history: [], correction: null }, canDecide: false, ...data });
+      expect(html).not.toContain('href="/approvals/completed"');
+      expect(html).not.toContain('대기함으로');
+    }
+    const pending = render('request/detail', { request, detail: { days: [], history: [], correction: null }, canDecide: false, ownRequest: false, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] } });
+    expect(pending).not.toContain('href="/approvals/completed"');
+  });
   it('종일 연차의 묶음·기간·재시도 명령과 미예약 대기량을 보존한다', () => {
     const html = render('request/mine', {
       buckets: [bucket],
@@ -111,7 +224,7 @@ describe('WorkflowPages', () => {
     expect(html).toContain('name="commandId" value="decision-command"');
     expect(html.match(/name="expectedVersion" value="4"/g)).toHaveLength(5);
     expect(html.match(/name="commandId" value="decision-command"/g)).toHaveLength(5);
-    expect(html).toContain('독립 승인');
+    expect(html).toContain('승인하기');
   });
   it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', () => {
     const html = render('request/detail', {

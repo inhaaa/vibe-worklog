@@ -2,7 +2,6 @@ package kr.tna.common.auth;
 
 import java.time.Clock;
 import java.util.Locale;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -39,16 +38,17 @@ public class CompanyAuthenticationProvider implements AuthenticationProvider {
             throw rejected();
         }
         boolean demo = localDemo.enabled();
+        var persona = demo ? LocalDemoLogin.persona(authentication.getName()).orElse(null) : null;
         String company = demo ? LocalDemoLogin.COMPANY_CODE : details.companyCode().toUpperCase(Locale.ROOT);
-        String email = demo ? LocalDemoLogin.EMAIL : authentication.getName().length() <= 254
+        String email = demo ? (persona == null ? LocalDemoLogin.EMAIL : persona.email()) : authentication.getName().length() <= 254
                 ? authentication.getName().trim().toLowerCase(Locale.ROOT) : "";
-        if (!limiter.tryAcquire(details.getRemoteAddress(), company, email)) {
+        if (!limiter.tryAcquire(details.getRemoteAddress(), company, demo ? LocalDemoLogin.EMAIL : email)) {
             LOG.warn("event=login outcome=rate_limited");
             throw new LoginRateLimitedException();
         }
         String password = authentication.getCredentials() instanceof String value ? value : null;
         boolean validCredentials = demo
-                ? LocalDemoLogin.LOGIN.equals(authentication.getName()) && LocalDemoLogin.PASSWORD.equals(password)
+                ? persona != null && persona.password().equals(password)
                 : !company.isBlank() && !email.isBlank() && PasswordPolicy.isValid(password);
         if (!validCredentials) {
             throw rejected();
@@ -61,9 +61,9 @@ public class CompanyAuthenticationProvider implements AuthenticationProvider {
             }
             TnaPrincipal principal = identity.orElseThrow().principal();
             if (demo && (!LocalDemoLogin.TENANT_ID.equals(principal.tenantId())
-                    || !LocalDemoLogin.ACCOUNT_ID.equals(principal.accountId())
-                    || !LocalDemoLogin.EMPLOYEE_ID.equals(principal.employeeId())
-                    || !principal.roles().equals(Set.of("EMPLOYEE", "ATTENDANCE_ADMIN")))) {
+                    || !persona.accountId().equals(principal.accountId())
+                    || !persona.employeeId().equals(principal.employeeId())
+                    || !principal.roles().equals(persona.roles()))) {
                 throw rejected();
             }
             var authorities = principal.roles().stream()

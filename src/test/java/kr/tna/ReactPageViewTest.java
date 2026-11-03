@@ -24,6 +24,18 @@ class ReactPageViewTest {
     private final ReactPageViewResolver resolver = new ReactPageViewResolver(json);
 
     @Test
+    void demoExposesOnlyTheTwoPublicSyntheticLoginPairs() throws Exception {
+        var response = render("demo", Map.of("demoLogin", "admin", "demoPassword", "admin",
+                "demoApproverLogin", "approver", "demoApproverPassword", "approver",
+                "privateSource", "NEVER_EXPOSE_REAL_ACCOUNT"), request(true));
+        var data = json.readTree(response.getContentAsString()).at("/data");
+        assertEquals("admin", data.at("/demoLogin").asString());
+        assertEquals("approver", data.at("/demoApproverLogin").asString());
+        assertEquals("approver", data.at("/demoApproverPassword").asString());
+        assertFalse(response.getContentAsString().contains("NEVER_EXPOSE_REAL_ACCOUNT"));
+    }
+
+    @Test
     void annualAndAttributionPagesKeepTheirExplicitModelsWithoutPrivateSources() throws Exception {
         for (var entry : Map.of("request/mine", "annual", "request/attributions", "leaveAttributions").entrySet()) {
             var view = resolver.resolveViewName(entry.getKey(), Locale.KOREA);
