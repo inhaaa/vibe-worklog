@@ -195,9 +195,12 @@ describe('React 앱 탐색과 제출', () => {
     await screen.findByRole('heading', { name: '신청 상세' });
     expect(screen.getByRole('navigation', { name: '현재 위치' }).textContent).toContain('회사 신청 현황');
   });
-  it('데모 업무 화면에서 계정 선택으로 이동할 수 있고 일반 화면에는 제공하지 않는다', () => {
+  it('데모 계정 선택 아이콘은 로그아웃 바로 앞에서 접근할 수 있다', () => {
     const view = render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
-    expect(screen.getByRole('link', { name: '다른 테스트 사원 로그인' }).getAttribute('href')).toBe('/demo');
+    const switchAccount = screen.getByRole('link', { name: '다른 테스트 사원 로그인' });
+    expect(switchAccount.getAttribute('href')).toBe('/demo');
+    expect(switchAccount.textContent).toBe('');
+    expect(switchAccount.nextElementSibling).toBe(screen.getByRole('button', { name: '로그아웃' }).closest('form'));
     view.unmount();
     render(<App initial={today} />);
     expect(screen.queryByRole('link', { name: '다른 테스트 사원 로그인' })).toBeNull();
