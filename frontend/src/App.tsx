@@ -85,6 +85,7 @@ function Icon({ name }: { name: string }) {
     settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
     chart: 'M4 4v16h16M8 15v-4M13 15V7M18 15v-6',
     menu: 'M4 6h16M4 12h16M4 18h16',
+    switchAccount: 'M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6M5 15a7 5 0 0 1 14 0M4 19h16m-3-3 3 3-3 3',
     chevron: 'm9 5 7 7-7 7',
   };
   return (
@@ -184,7 +185,6 @@ function Workspace({
               {roleOptions.map(role => <option key={role.value} value={role.value}>{role.label}</option>)}
             </select>
           </label>}
-          {demo && <a className="t-demo-pill t-demo-switch" href="/demo" aria-label="다른 테스트 사원 로그인">사원 변경</a>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
             <small>{employee?.companyName ?? '워크스페이스'}</small>
@@ -192,6 +192,11 @@ function Workspace({
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
           </span>
+          {demo && (
+            <a className="t-demo-switch" href="/demo" aria-label="다른 테스트 사원 로그인">
+              <Icon name="switchAccount" />
+            </a>
+          )}
           <Form action="/logout">
             <button className="t-btn t-logout">로그아웃</button>
           </Form>
