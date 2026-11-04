@@ -14,7 +14,7 @@ const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', 
 const hidden = (name: string, value: string | number | boolean | null | undefined) => <input type="hidden" name={name} value={value == null ? '' : String(value)} />;
 function RequestIcon({ kind }: { kind: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {kind === 'LEAVE_DAY' ? <><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 11h16m-9 4h2v3h-2z"/></> : <><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2M18 3l3 3M3 18l3 3"/></>}
+    {kind === 'CLOSE' ? <path d="m6 6 12 12M18 6 6 18"/> : kind === 'CHECK' ? <path d="m5 12 4 4L19 6"/> : kind === 'ADD' ? <path d="M12 5v14M5 12h14"/> : kind === 'LEAVE_DAY' ? <><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4m8-4v4M4 11h16m-9 4h2v3h-2z"/></> : <><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2M18 3l3 3M3 18l3 3"/></>}
   </svg>;
 }
 function url(path: string, values: Record<string, string | number | null | undefined>) {
@@ -45,9 +45,9 @@ function useUnload(dirty: boolean) {
     return () => window.removeEventListener('beforeunload', listener);
   }, [dirty]);
 }
-function RequestComposer({ initial, model, onClose, submitting }: { initial: ComposeView; model: AnnualModel; onClose: () => void; submitting: boolean }) {
+function RequestComposer({ initial, model, onClose, submitting, embedded = false }: { initial: ComposeView; model: AnnualModel; onClose: () => void; submitting: boolean; embedded?: boolean }) {
   type Step = 'TYPE' | 'CONTENT' | 'REVIEW';
-  const modal = initial.mode === 'MODAL' && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function';
+  const modal = embedded || (initial.mode === 'MODAL' && typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal === 'function');
   const initialDate = (initial.kind === 'LEAVE_DAY' ? initial.leaveForm.from : initial.correctionForm.workDate) ?? model.annual.today;
   const contextQuery = new URLSearchParams(location.search);
   const loadedContext = location.pathname === '/me/requests/new' && contextQuery.get('kind') === initial.kind && contextQuery.get('date') === initialDate;
@@ -85,7 +85,9 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
     setReady(false); setDirty(true); setError(''); setStep('CONTENT');
   }
   function close() {
-    if (locked || (dirty && !window.confirm('입력한 신청 내용이 사라집니다. 닫을까요?'))) return;
+    if (locked) return;
+    if (embedded) { onClose(); return; }
+    if (dirty && !window.confirm('입력한 신청 내용이 사라집니다. 닫을까요?')) return;
     dialog.current?.close(); setDirty(false); onClose();
   }
   async function preview() {
@@ -113,7 +115,7 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
     if (!ready || locked || compose.conflict) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const content = <>
-    <header className="t-modal-head"><div><p className="t-request-kicker">신청서 작성 · {model.annual.year}</p><h2 id="annual-compose-title">근태 신청</h2><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div><button type="button" className="t-btn t-request-close" onClick={close} disabled={locked}>닫기</button></header>
+    <header className="t-modal-head"><div><p className="t-request-kicker">신청서 작성 · {model.annual.year}</p><h2 id="annual-compose-title" hidden={embedded}>근태 신청</h2><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div>{!embedded&&<button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button>}</header>
     <nav className="t-request-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="t-request-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
     <div className="t-request-layout"><div className="t-request-main">
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
@@ -153,7 +155,7 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
         <div className="t-request-field"><label htmlFor="annual-reason">신청 사유 <span aria-hidden="true">{(current.reason??'').length}/500</span></label><textarea id="annual-reason" aria-label="신청 사유" name="reason" maxLength={500} rows={3} value={current.reason ?? ''} onChange={event => change('reason', event.target.value)} required /></div>
         <p className="t-muted">민감정보를 적지 마세요. 대기 신청은 잔여를 예약하거나 차감하지 않습니다.</p>
         {compose.conflict && <div className="notice"><p>다른 변경이 반영됐습니다. 제안값은 보존했습니다. 최신 근거를 확인한 뒤 다시 미리보기 하세요.</p><button type="button" className="t-btn" onClick={confirmLatest}>최신 근거 확인 후 편집 유지</button></div>}
-        <aside className="t-request-approval"><span aria-hidden="true">✓</span><div><strong>예정 결재 담당 {compose.approval.approverName ?? '미지정'}</strong><p>{compose.approval.routeName??'기존 지정 승인자'} · {compose.approval.message}</p></div></aside>
+        <aside className="t-request-approval"><span aria-hidden="true"><RequestIcon kind="CHECK"/></span><div><strong>예정 결재 담당 {compose.approval.approverName ?? '미지정'}</strong><p>{compose.approval.routeName??'기존 지정 승인자'} · {compose.approval.message}</p></div></aside>
         </div>
         {compose.preview && <section className="t-request-preview" aria-label="신청 미리보기" hidden={step!=='REVIEW'}>
           <h3 ref={previewHeading} tabIndex={-1} data-error-focus={step==='REVIEW'&&!error?'true':undefined}>신청 미리보기</h3>
@@ -176,7 +178,7 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
         <div className="t-request-footer">{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>
       </fieldset>
     </Form> : <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
-    <a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>
+    {!embedded&&<a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>}
     </div><aside className="t-request-summary" aria-label="신청 요약">
       <div className="t-request-summary-head"><span className="t-request-summary-icon"><RequestIcon kind={kind}/></span><span className="t-request-summary-stage">{step==='REVIEW'?'제출 전 확인':'작성 중'}</span></div>
       <h3>신청 요약</h3><p className="t-request-summary-intro">입력한 내용을 한눈에 확인하세요.</p>
@@ -188,8 +190,9 @@ function RequestComposer({ initial, model, onClose, submitting }: { initial: Com
       </dl>
       <p className="t-request-summary-note">현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</p>
     </aside></div>
+    {!embedded&&<footer className="t-request-dismiss"><span>제출 전까지 신청 내용은 저장되지 않습니다.</span><button type="button" className="t-btn" onClick={close} disabled={locked}>닫기</button></footer>}
   </>;
-  return modal ? <dialog ref={dialog} className="t-request-dialog" aria-modal="true" aria-labelledby="annual-compose-title" aria-describedby="annual-compose-description" onCancel={event => { event.preventDefault(); close(); }} data-unsaved-changes={String(dirty)}>{content}</dialog> : <section className="t-card t-request-compose-page" aria-labelledby="annual-compose-title" data-unsaved-changes={String(dirty)}>{content}</section>;
+  return modal&&!embedded ? <dialog ref={dialog} className="t-request-dialog" aria-modal="true" aria-labelledby="annual-compose-title" aria-describedby="annual-compose-description" onCancel={event => { event.preventDefault(); close(); }} data-unsaved-changes={String(dirty)}>{content}</dialog> : <section className={`t-request-compose-page${embedded?' t-request-embedded':' t-card'}`} aria-labelledby="annual-compose-title" data-unsaved-changes={String(dirty)} data-modal-busy={String(locked)}>{content}</section>;
 }
 function Annual({ model: m, submitting }: { model: AnnualModel; submitting: boolean }) {
   const a=m.annual, [open,setOpen]=useState(Boolean(m.compose)), trigger=useRef<HTMLAnchorElement>(null);
@@ -221,7 +224,8 @@ function Annual({ model: m, submitting }: { model: AnnualModel; submitting: bool
     {open&&m.compose&&<RequestComposer initial={m.compose} model={m} submitting={submitting} onClose={()=>setOpen(false)}/>}
   </section>;
 }
-export function AnnualRequestPage({ page,data,busy }:PageProps) {
+export function AnnualRequestPage({ page,data,busy,onClose }:PageProps) {
+  if(page==='request/mine'&&data.annual&&data.compose&&onClose) return <RequestComposer initial={data.compose as ComposeView} model={data as unknown as AnnualModel} submitting={Boolean(busy)} onClose={onClose} embedded/>;
   return page==='request/mine'&&data.annual?<Annual model={data as unknown as AnnualModel} submitting={Boolean(busy)}/>:null;
 }
 

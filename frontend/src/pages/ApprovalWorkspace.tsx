@@ -46,7 +46,7 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
       </section> : <ul className="t-approval-list" aria-label="결재 신청 목록">
         {m.requests.map((r) => <li key={r.id} className="t-approval-card">
           <div className="t-approval-card-top"><span className="t-approval-kind">{kindName(r.kind)}</span><span className="t-approval-status" data-status={r.status}>{statusName(r.status)}</span></div>
-          <h2>{r.targetEmployeeName}</h2>
+          <div className="t-approval-person"><span className="t-approval-avatar" aria-hidden="true">{r.targetEmployeeName.slice(0,1)}</span><div><h2>{r.targetEmployeeName}</h2><p>신청 대상</p></div></div>
           <dl className="t-approval-facts">
             <div><dt>대상 기간</dt><dd>{fmtDate(r.fromDate)} <span aria-hidden="true">~</span> {fmtDate(r.toDate)}</dd></div>
             {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays} DAY</dd></div>}

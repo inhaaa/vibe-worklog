@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { PageEnvelope } from '../types';
 import type { ComposeView } from './AnnualRequestTypes';
+import { AnnualRequestPage } from './AnnualRequestPage';
 
 const csrf={token:'csrf',parameterName:'_csrf',headerName:'X-CSRF-TOKEN'};
 const principal={workspacePrincipal:{roles:['EMPLOYEE']},workspaceEmployee:{employeeName:'합성 직원',companyName:'합성 회사'}};
@@ -23,6 +24,31 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it('신청 창의 X로 닫고 입력이 있으면 기존 손실 확인을 지킨다',()=>{
+  const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'보존할 입력'}});
+  fireEvent.click(view.getByRole('button',{name:'신청 창 닫기'}));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(view.getByRole('dialog')).toBeTruthy();
+  confirm.mockReturnValue(true);
+  fireEvent.click(view.getByRole('button',{name:'신청 창 닫기'}));
+  expect(view.queryByRole('dialog')).toBeNull();
+ });
+ it('공통 모달 안에서는 작성 폼만 표시하고 닫기와 입력 보호를 공통 모달에 위임한다',()=>{
+  const onClose=vi.fn();
+  const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={onClose}/>);
+  expect(view.queryByRole('dialog')).toBeNull();
+  expect(view.queryByRole('heading',{name:'내 근태현황·신청'})).toBeNull();
+  expect(view.queryByRole('heading',{name:'근태 신청'})).toBeNull();
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'작성 중'}});
+  expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
+  expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('mode')).toBe('MODAL');
+  expect(view.queryByRole('button',{name:'닫기'})).toBeNull();
+  expect(view.container.querySelector('[data-modal-busy="false"]')).toBeTruthy();
+ });
  it('페이지 제목 옆에서 신청을 시작하고 조회 필터와 분리한다',()=>{
   const view=render(<App initial={envelope()}/>);
   const head=view.getByRole('heading',{name:'내 근태현황·신청'}).closest('header')!;

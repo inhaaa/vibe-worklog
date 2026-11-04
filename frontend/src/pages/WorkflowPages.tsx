@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './RequestDetail.css';
+import './RequestWorkspace.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
+import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import {
@@ -343,29 +345,35 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
 }
 function Correction({ model: m }: { model: CorrectionModel }) {
   const f = m.form;
+  const [breaks, setBreaks] = useState(f.actualBreaks ?? '');
+  const [dirty, setDirty] = useState(Boolean(f.reason));
+  const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
-    <>
-      <h1>출퇴근·실제 휴게 정정 신청</h1>
-      <p>시각 기준: Asia/Seoul (서울)</p>
+    <div className="t-correction-workspace">
+      <header className="t-pagehead"><div><p className="t-eyebrow">기록 정정</p><h1>출퇴근·실제 휴게 정정 신청</h1><p className="t-muted">확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다.</p></div></header>
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
         </p>
       )}
-      <section className="panel">
-        <h2>{fmtDate(m.day.workDate)} · 현재 원천</h2>
-        <ul>
+      <section className="t-card t-correction-source" aria-label="현재 원천 기록">
+        <div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">01</span><div><h2>현재 원천 기록</h2><p>{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p></div></div>
+        <ul className="t-correction-events">
           {m.day.events.map((e) => (
             <li key={e.id}>
-              {e.kind} · {m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}
+              <span>{e.kind === 'IN' ? '출근' : e.kind === 'OUT' ? '퇴근' : e.kind}</span><strong>{m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}</strong>
             </li>
           ))}
+          {!m.day.events.length && <li>조회된 원천 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</li>}
         </ul>
-        <p>원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
+        <p className="t-muted">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
+      </section>
         <Form
           action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
           method="post"
-          className="admin-form"
+          className="t-correction-form"
+          onChange={() => setDirty(true)}
+          data-unsaved-changes={String(dirty)}
         >
           {hidden('targetEmployeeId', f.targetEmployeeId)}
           {hidden('workDate', f.workDate)}
@@ -374,38 +382,38 @@ function Correction({ model: m }: { model: CorrectionModel }) {
           {hidden('commandId', f.commandId)}
           {hidden('exceptional', m.exceptional)}
           {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
+          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">02</span><div><h2>출퇴근 변경</h2><p>유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p></div></div>
+          <div className="t-correction-fields"><div className="t-request-field">
           <SelectField label="출근 변경" name="inAction" value={f.inAction}>
             {m.actions.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {actionName(a)}
               </option>
             ))}
           </SelectField>
-          <Field
-            label="SET 출근 시각 (서울)"
+          </div><div className="t-request-field"><Field
+            label="제안 출근 시각 (서울)"
             name="requestedInAt"
             type="datetime-local"
             step="0.001"
             value={f.requestedInAt}
           />
-          <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
+          </div><div className="t-request-field"><SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
             {m.actions.map((a) => (
               <option key={a} value={a}>
-                {a}
+                {actionName(a)}
               </option>
             ))}
           </SelectField>
-          <Field
-            label="SET 퇴근 시각 (서울)"
+          </div><div className="t-request-field"><Field
+            label="제안 퇴근 시각 (서울)"
             name="requestedOutAt"
             type="datetime-local"
             step="0.001"
             value={f.requestedOutAt}
           />
-          <p className="hint">
-            KEEP은 현재 값을 유지하고 SET은 제안 시각, CLEAR는 누락 상태로 정정합니다. SET이 아니면
-            시각을 비우세요.
-          </p>
+          </div></div><p className="t-muted">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p></section>
+          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">03</span><div><h2>실제 근로·휴게와 사유</h2><p>실제 확인한 근거를 기준으로 작성해 주세요.</p></div></div>
           <Check
             name="presenceAsWork"
             label="제안 구간의 실제 근로를 확인했습니다"
@@ -416,24 +424,15 @@ function Correction({ model: m }: { model: CorrectionModel }) {
             label="실제 휴게를 확인했습니다 (없으면 아래 비움)"
             checked={f.breaksConfirmed}
           />
-          <TextAreaField
-            label="실제 휴게 구간 (시작/종료, 쉼표 구분)"
-            name="actualBreaks"
-            value={f.actualBreaks}
-          />
-          <Field
-            label="변경할 현재 승인 정정 ID (있으면)"
-            name="replacesRequestId"
-            value={f.replacesRequestId ?? ''}
-          />
-          <Reason label="정정 사유와 사실 근거" value={f.reason} />
+          <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
+          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><div className="t-request-field"><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></div></details>
+          <div className="t-request-field"><Reason label="정정 사유와 사실 근거" value={f.reason} /></div>
           <p className="hint">
             민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
           </p>
-          <button>정정 심사 요청</button>
+          </section><div className="t-correction-submit"><span>작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
         </Form>
-      </section>
-    </>
+    </div>
   );
 }
 function Balances({ model: m }: { model: BalancesModel }) {

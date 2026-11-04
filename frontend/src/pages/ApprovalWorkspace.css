@@ -4,42 +4,46 @@
 #tna-app .t-approval-pagehead { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:26px; }
 #tna-app .t-approval-heading { display:flex; align-items:center; gap:14px; min-width:0; }
 #tna-app .t-approval-heading h1 { margin-top:5px; font-size:25px; letter-spacing:-.8px; }
-#tna-app .t-approval-eyebrow { color:#8590a5; font-size:11px; font-weight:500; }
+#tna-app .t-approval-eyebrow { color:#607087; font-size:12px; font-weight:500; }
 #tna-app .t-approval-icon { display:inline-flex; flex:none; align-items:center; justify-content:center; width:48px; height:48px; border:1px solid #e5e7fa; border-radius:14px; color:#6658de; background:#f1efff; }
 #tna-app .t-approval-icon svg { width:25px; height:25px; }
-#tna-app .t-approval-workspace .t-approval-btn { display:inline-flex; align-items:center; justify-content:center; gap:12px; min-height:44px; max-width:100%; padding:10px 16px; border:1px solid #dfe5ef; border-radius:10px; background:#fff; color:#536480; font:inherit; font-size:12px; font-weight:600; text-decoration:none; line-height:1.5; }
+#tna-app .t-approval-workspace .t-approval-btn { display:inline-flex; align-items:center; justify-content:center; gap:12px; min-height:44px; max-width:100%; padding:10px 16px; border:1px solid #dfe5ef; border-radius:10px; background:#fff; color:#536480; font:inherit; font-size:13px; font-weight:600; text-decoration:none; line-height:1.5; }
 #tna-app .t-approval-workspace .t-approval-btn:hover { border-color:#b7bef6; background:#f7f8ff; }
 #tna-app .t-approval-workspace .t-approval-btn.primary { border-color:#4f46e5; background:#4f46e5; color:#fff; box-shadow:0 3px 8px #4f46e515; }
 #tna-app .t-approval-workspace .t-approval-btn.primary:hover { background:#4338ca; }
 #tna-app .t-approval-workspace a:focus-visible { outline:3px solid #818cf8; outline-offset:3px; }
 #tna-app .t-approval-nav { display:flex; flex-wrap:wrap; gap:4px; width:fit-content; max-width:100%; padding:5px; margin-bottom:23px; border:1px solid #e7eaf3; border-radius:13px; background:#edf0f7; }
-#tna-app .t-approval-nav a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 18px; border:1px solid transparent; border-radius:9px; color:#7b879d; font-size:12px; font-weight:600; line-height:1.5; text-decoration:none; }
+#tna-app .t-approval-nav a { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 18px; border:1px solid transparent; border-radius:9px; color:#607087; font-size:13px; font-weight:600; line-height:1.5; text-decoration:none; }
 #tna-app .t-approval-nav a[aria-current=page] { border-color:#e6e8f3; background:#fff; color:#4f46e5; box-shadow:0 2px 5px #23385908; }
 #tna-app .t-approval-intro { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; padding:22px 24px; border:1px solid #e4e8f3; border-radius:16px; background:linear-gradient(115deg,#f6f5ff,#fff 78%); }
 #tna-app .t-approval-intro h2 { font-size:15px; font-weight:600; }
-#tna-app .t-approval-intro p { margin-top:7px; color:#7b879d; font-size:12px; line-height:1.8; }
-#tna-app .t-approval-count { flex:none; padding:8px 12px; border:1px solid #e4e1ff; border-radius:10px; background:#fff; color:#6658cd; font-size:12px; font-weight:600; }
+#tna-app .t-approval-intro p { margin-top:7px; color:#607087; font-size:13px; line-height:1.8; }
+#tna-app .t-approval-count { flex:none; padding:8px 12px; border:1px solid #e4e1ff; border-radius:10px; background:#fff; color:#6658cd; font-size:13px; font-weight:600; }
 #tna-app .t-approval-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; padding:0; margin:0; list-style:none; }
 #tna-app .t-approval-card { display:flex; flex-direction:column; min-width:0; margin:0; padding:24px; border:1px solid #e3e8f2; border-radius:18px; background:#fff; box-shadow:0 4px 18px #24375104; }
 #tna-app .t-approval-card-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
-#tna-app .t-approval-kind { color:#73829a; font-size:11px; font-weight:600; overflow-wrap:anywhere; }
-#tna-app .t-approval-status { max-width:100%; padding:6px 10px; border:1px solid #e5e9f1; border-radius:20px; background:#f2f4f8; color:#728099; font-size:11px; font-weight:600; overflow-wrap:anywhere; }
+#tna-app .t-approval-kind { color:#73829a; font-size:12px; font-weight:600; overflow-wrap:anywhere; }
+#tna-app .t-approval-status { max-width:100%; padding:6px 10px; border:1px solid #e5e9f1; border-radius:20px; background:#f2f4f8; color:#728099; font-size:12px; font-weight:600; overflow-wrap:anywhere; }
 #tna-app .t-approval-status[data-status=PENDING] { border-color:#e4e3ff; background:#f1efff; color:#6154d4; }
 #tna-app .t-approval-status[data-status=APPROVED] { border-color:#dcefe3; background:#edf8f1; color:#357957; }
 #tna-app .t-approval-status[data-status=REJECTED] { border-color:#f2dede; background:#fff2f2; color:#b36060; }
-#tna-app .t-approval-card h2 { margin:19px 0; font-size:20px; letter-spacing:-.6px; overflow-wrap:anywhere; }
-#tna-app .t-approval-facts { display:flex; flex-wrap:wrap; justify-content:space-between; gap:15px; padding:18px 0; margin:0; border-top:1px solid #edf0f6; border-bottom:1px solid #edf0f6; }
-#tna-app .t-approval-facts dt { color:#8a95a8; font-size:10px; }
+#tna-app .t-approval-person { display:flex; align-items:center; gap:12px; margin:22px 0; min-width:0; }
+#tna-app .t-approval-person > div { min-width:0; }
+#tna-app .t-approval-person h2 { margin:0; font-size:20px; letter-spacing:-.6px; overflow-wrap:anywhere; }
+#tna-app .t-approval-person p { margin:5px 0 0; color:#607087; font-size:12px; }
+#tna-app .t-approval-avatar { display:grid; place-items:center; width:44px; height:44px; flex:0 0 44px; border-radius:14px; background:#eef1ff; color:#5146b5; font-size:17px; font-weight:600; }
+#tna-app .t-approval-facts { display:flex; flex-wrap:wrap; justify-content:space-between; gap:15px; padding:16px; margin:0; border:1px solid #e8ecf4; border-radius:12px; background:#f7f9fc; }
+#tna-app .t-approval-facts dt { color:#607087; font-size:12px; }
 #tna-app .t-approval-facts dd { margin:7px 0 0; font-size:13px; font-weight:500; line-height:1.7; overflow-wrap:anywhere; }
 #tna-app .t-approval-facts .t-approval-quantity { color:#4f46e5; font-weight:650; }
-#tna-app .t-approval-card .t-approval-reason { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; min-height:44px; margin:18px 0; color:#65758e; font-size:12px; line-height:1.9; white-space:pre-wrap; overflow:hidden; overflow-wrap:anywhere; }
-#tna-app .t-approval-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; margin:auto 0 19px; color:#8a95a8; font-size:10px; line-height:1.8; overflow-wrap:anywhere; }
+#tna-app .t-approval-card .t-approval-reason { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; min-height:44px; margin:18px 0; color:#65758e; font-size:13px; line-height:1.9; white-space:pre-wrap; overflow:hidden; overflow-wrap:anywhere; }
+#tna-app .t-approval-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; margin:auto 0 19px; color:#607087; font-size:12px; line-height:1.8; overflow-wrap:anywhere; }
 #tna-app .t-approval-meta strong { margin-left:5px; color:#6a7a91; font-weight:500; }
 #tna-app .t-approval-card>.t-approval-btn { width:100%; }
 #tna-app .t-approval-empty { display:flex; flex-direction:column; align-items:center; gap:15px; padding:64px 24px; border:1px solid #e3e8f2; border-radius:18px; background:#fff; text-align:center; }
 #tna-app .t-approval-empty h2 { margin-top:6px; font-size:16px; }
-#tna-app .t-approval-empty p { color:#8590a5; font-size:12px; line-height:1.8; }
-#tna-app .t-approval-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:22px; color:#8190a7; font-size:12px; }
+#tna-app .t-approval-empty p { color:#607087; font-size:13px; line-height:1.8; }
+#tna-app .t-approval-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:22px; color:#607087; font-size:13px; }
 #tna-app .t-approval-pagination>div { display:flex; gap:8px; }
 @media (max-width:1050px) {
   #tna-app .t-approval-list { grid-template-columns:minmax(0,1fr); }
