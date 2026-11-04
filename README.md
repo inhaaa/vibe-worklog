@@ -5,6 +5,7 @@
 AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대상 멀티테넌트 근태관리 SaaS 프로젝트입니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
+- 상단 권한·사원 전환을 공개 `b074d42`·V17에 반영했습니다. 펼친 권한 목록의 테마와 로그아웃 왼쪽 아이콘, HTTP 15개 및 기존 자료 보존을 확인했습니다. [공개 반영 결과](docs/quality/public-toolbar-deploy-20261104.md)
 - 사번·권한·내정보 후속: 2026-11-03 공개 `aab37e6`·V17을 반영했습니다. 담당자 `99999`/이름 `담당자`, 입사연도별5자리 사번과 테스트5계정, 사번 로그인·보유 권한 메뉴·내정보7탭을 연결했습니다. 공개 Java793·프론트369/타입·빌드, HTTP98/60/220·사진4·자산·PC/390px와 백업/독립 복원·434→446행의 정확12행 추가·기존 서비스 보존을 확인했습니다 ([실제 공개 결과](docs/quality/public-identity-personnel-deploy-20261103.md)·[개발 결과와 한계](docs/quality/identity-personnel-20261103.md)).
 - main 통합 후속: 기존 공통 시트·셀 편집과 인사정보·신청·결재 화면을 함께 통합했습니다. 화면346개/타입·빌드·Python67개, Java단위132개와 DB전체566개를 실행했고 동시성1건의 최초 실패 후 원래 조건의 최종2개 재검증을 통과했습니다. 첫 실패/진단/재발 가능성은 [main 통합 검증](docs/quality/main-approval-integration-20261103.md)에 구분했습니다.
 - 결재 화면·데모 승인 후속: 2026-11-03 공개 `3e6e99c`·V16에 대기/완료 카드·승인/반려 검토와 별도 승인자 계정 전환을 반영했습니다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74, 공개98+4/새 persona60항목과 실제 신청→독립 승인·12→12→11DAY·PC/390px를 확인했습니다 ([실제 공개 결과](docs/quality/public-approval-workspace-deploy-20261103.md)·[로컬 결과/한계](docs/quality/approval-workspace-20261103.md)).
