@@ -32,7 +32,16 @@ const choices: Record<string, string> = {
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
-  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl>;
+  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
+}
+function InfoGroup({ title, values, wide = false }: { title: string; values: [string, string | number | null | undefined][]; wide?: boolean }) {
+  return <section className={`t-personal-group${wide ? ' t-personal-group-wide' : ''}`} aria-label={title}><h3>{title}</h3><Info values={values} /></section>;
+}
+function EmptyDetails({ title }: { title: string }) {
+  return <div className="t-personal-empty">
+    <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4h6l2 3h3v13H4V7h3l2-3Z M9 4v4h6V4 M8 12h8 M8 16h5" /></svg></span>
+    <p>등록된 {title}이 없습니다.</p><small>등록된 정보가 생기면 이곳에 표시됩니다.</small>
+  </div>;
 }
 
 export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDetailsModel; identity: Identity }) {
@@ -48,27 +57,39 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
     event.preventDefault(); setTab(next); buttons.current[next]?.focus();
   }
   const entries = m.entries.filter(entry => entry.kind === kinds[tab - 2]);
+  const descriptions = ['개인 정보와 입사 정보를 한눈에 확인하세요.', '소속 변경 이력을 적용 기간별로 확인하세요.', '등록된 가족 관계와 상세 정보를 확인하세요.', '등록된 학력과 전공 정보를 확인하세요.', '보유 자격과 발급 정보를 확인하세요.', '등록된 언어와 평가 정보를 확인하세요.', '등록된 주소와 연락 수단을 확인하세요.'];
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
     <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목">{tabs.map((label, index) =>
       <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
         aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
         onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>{label}</button>)}</div>
     <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${tab}`} tabIndex={0} className="t-personnel-tabpanel">
-      <h2>{tabs[tab]}</h2>
-      {tab === 0 && <Info values={[
-        ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn],
-        ['그룹입사일', f.groupJoinedOn], ['한글성명', identity.employeeName], ['영문성명', f.englishName],
-        ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'],
-        ['결혼일자', f.marriedOn], ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)],
-        ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch], ['주민등록번호', '미수집 · 원문 입력·저장하지 않습니다.'],
-        ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
-      ]} />}
-      {tab === 1 && (m.appointments.length ? <div className="table-scroll"><table><thead><tr><th>발령일</th><th>종료일 (미포함)</th><th>소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td>{a.validFrom}</td><td>{a.validTo ?? '현재'}</td><td>{a.organizationName}</td></tr>)}</tbody></table></div> : <p className="t-empty-note">등록된 발령내역이 없습니다.</p>)}
-      {tab >= 2 && tab <= 5 && (entries.length ? <div className="table-scroll"><table><thead><tr><th>항목</th><th>상세</th><th>적용일</th><th>종료일</th><th>이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td>{e.title}</td><td>{display(e.detail)}</td><td>{e.effectiveFrom}</td><td>{display(e.effectiveTo)}</td><td>{e.revision}</td></tr>)}</tbody></table></div> : <p className="t-empty-note">등록된 {tabs[tab]}이 없습니다.</p>)}
-      {tab === 6 && <Info values={[
-        ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],
-        ['휴대전화', f.mobilePhone], ['연락 이메일', f.contactEmail],
-      ]} />}
+      <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2><p>{descriptions[tab]}</p></div>
+        {tab > 0 && tab < 6 && <span className="t-personal-count">총 {tab === 1 ? m.appointments.length : entries.length}건</span>}
+      </div>
+      {tab === 0 && <div className="t-personal-groups">
+        <InfoGroup title="신원 정보" values={[
+          ['한글성명', identity.employeeName], ['영문성명', f.englishName], ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
+        ]} />
+        <InfoGroup title="입사 정보" values={[
+          ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn], ['그룹입사일', f.groupJoinedOn],
+        ]} />
+        <InfoGroup title="추가 정보" wide values={[
+          ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'], ['결혼일자', f.marriedOn],
+          ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)], ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch],
+        ]} />
+        <p className="t-personal-privacy"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 8 3v5c0 5-4 8-8 10-4-2-8-5-8-10V6l8-3Z m-3 9 2 2 4-4" /></svg><span>주민등록번호 <strong>미수집</strong> · 원문 입력·저장하지 않습니다.</span></p>
+      </div>}
+      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab === 6 && <div className="t-personal-groups">
+        <InfoGroup title="주소 정보" values={[
+          ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],
+        ]} />
+        <InfoGroup title="연락 정보" values={[
+          ['휴대전화', f.mobilePhone], ['연락 이메일', f.contactEmail],
+        ]} />
+      </div>}
     </div>
   </section>;
 }

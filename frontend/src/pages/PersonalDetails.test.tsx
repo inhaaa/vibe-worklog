@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { PersonalDetailsEditor, PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
@@ -9,6 +9,32 @@ const model: PersonalDetailsModel = {
   appointments: [{ id: 'appointment', organizationName: '합성팀', validFrom: '2026-01-01', validTo: null }],
 };
 afterEach(cleanup);
+
+it('기본사항은 의미별 정보 표로 묶고 주소 탭에서는 주소와 연락 수단을 구분한다', () => {
+  const view = render(<PersonalDetailsTabs model={{ ...model, form: {
+    ...model.form, englishName: 'Synthetic Employee', address: '합성 주소', addressDetail: '테스트 동', contactEmail: 'synthetic@example.test',
+  } }} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01' }} />);
+  expect(within(view.getByRole('region', { name: '신원 정보' })).getByText('Synthetic Employee')).toBeTruthy();
+  expect(within(view.getByRole('region', { name: '입사 정보' })).getByText('0')).toBeTruthy();
+  expect(view.getByRole('region', { name: '추가 정보' }).textContent).toContain('해당 없음');
+  fireEvent.click(view.getByRole('tab', { name: '주소·연락처' }));
+  expect(view.getByRole('region', { name: '주소 정보' }).textContent).toContain('합성 주소');
+  expect(view.getByRole('region', { name: '연락 정보' }).textContent).toContain('synthetic@example.test');
+});
+
+it('이력 탭은 해당 구분의 기록과 건수를 보여주며 발령 종료일의 의미를 보존한다', () => {
+  const view = render(<PersonalDetailsTabs model={model} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01' }} />);
+  fireEvent.click(view.getByRole('tab', { name: '발령내역' }));
+  const appointments = view.getByRole('table', { name: '발령내역' });
+  expect(within(appointments).getByRole('columnheader', { name: '종료일 (미포함)' })).toBeTruthy();
+  expect(within(appointments).getByText('현재')).toBeTruthy();
+  expect(view.getByText('총 1건')).toBeTruthy();
+  fireEvent.click(view.getByRole('tab', { name: '자격사항' }));
+  expect(view.getByRole('table', { name: '자격사항' }).textContent).toContain('<script>합성 자격</script>');
+  fireEvent.click(view.getByRole('tab', { name: '가족사항' }));
+  expect(view.queryByRole('table')).toBeNull();
+  expect(view.getByText('등록된 가족사항이 없습니다.')).toBeTruthy();
+});
 
 it('0개월과 비해당·미등록을 구분하고 모든 탭을 키보드로 순환하며 원문은 이스케이프한다', () => {
   const view = render(<PersonalDetailsTabs model={model} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01', birthDate: '2000-01-01' }} />);
