@@ -111,6 +111,40 @@ class OrgBulkWebIT {
     }
 
     @Test
+    void automaticEmployeeNumbersReserveManualRowsAndReplayWithoutIssuingAgain() throws Exception {
+        var automatic = employeeRow(null, "", "자동 하나", "CREATE", null);
+        var whitespace = employeeRow(null, "  ", "자동 둘", "CREATE", null);
+        var manual = employeeRow(null, "26005", "수동 사원", "CREATE", null);
+        var previousYear = employeeRow(null, null, "전년도 사원", "CREATE", null);
+        for (var row : List.of(automatic, whitespace, manual)) row.put("joinedOn", "2026-01-01");
+        previousYear.put("joinedOn", "2025-01-01");
+        var rows = List.of(automatic, whitespace, manual, previousYear);
+        UUID command = UUID.randomUUID();
+        mvc.perform(bulk("employees", manager, command, rows)).andExpect(status().isSeeOther());
+        JsonNode original = result(command);
+        assertEquals(List.of("25001", "26005", "26006", "26007"), database.queryForList(
+                "SELECT employee_no FROM tna.employee WHERE tenant_id=? AND id<>? ORDER BY employee_no", String.class, tenant, manager.employeeId()));
+        mvc.perform(bulk("employees", manager, command, rows)).andExpect(status().isSeeOther());
+        assertEquals(original, result(command));
+        assertEquals(5, count("tna.employee"));
+        assertEquals(5, count("tna.org_audit_event"));
+    }
+
+    @Test
+    void exhaustedAutomaticNumberRollsBackWholeBulkAndIdentifiesTheField() throws Exception {
+        member("26999", Set.of("EMPLOYEE"));
+        var manual = employeeRow(null, "LEGACY", "되돌릴 수동 사원", "CREATE", null);
+        var automatic = employeeRow(null, null, "초과 사원", "CREATE", null);
+        automatic.put("joinedOn", "2026-01-01");
+        mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(manual, automatic)))
+                .andExpect(status().is(422))
+                .andExpect(ReactPageAssertions.data("/employeeSheet/errors/0/clientRowId", automatic.get("clientRowId")))
+                .andExpect(ReactPageAssertions.data("/employeeSheet/errors/0/field", "employeeNo"));
+        assertEquals(2, count("tna.employee"));
+        assertEquals(0, count("tna.org_audit_event"));
+    }
+
+    @Test
     void organizationValidationUsesTheFinalGraphInsteadOfSequentialSingleRowUpdates() throws Exception {
         UUID parent = organization("A", null), child = organization("B", parent);
         var parentRow = organizationRow(parent, "A", "새 자식", child, "UPDATE", 0L);

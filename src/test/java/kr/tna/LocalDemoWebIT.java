@@ -58,8 +58,8 @@ class LocalDemoWebIT {
                 """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.COMPANY_CODE);
         admin.update("""
                 INSERT INTO tna.employee (tenant_id, id, employee_no, display_name, joined_on, active)
-                VALUES (?, ?, 'LOCAL-DEMO', '로컬 데모 담당자', DATE '2026-01-01', true)
-                ON CONFLICT (tenant_id, id) DO UPDATE SET active = true, left_on = NULL
+                VALUES (?, ?, '99999', '로컬 데모 담당자', DATE '2026-01-01', true)
+                ON CONFLICT (tenant_id, id) DO UPDATE SET employee_no=excluded.employee_no, active = true, left_on = NULL
                 """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.EMPLOYEE_ID);
         admin.update("""
                 INSERT INTO tna.tenant_account
@@ -77,7 +77,7 @@ class LocalDemoWebIT {
         }
         admin.update("""
                 INSERT INTO tna.employee (tenant_id, id, employee_no, display_name, joined_on, active)
-                VALUES (?, ?, 'DEMO-001', '가상 승인자', DATE '2026-01-01', true)
+                VALUES (?, ?, '26001', '가상 승인자', DATE '2026-01-01', true)
                 """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_EMPLOYEE_ID);
         admin.update("""
                 INSERT INTO tna.tenant_account
@@ -113,11 +113,28 @@ class LocalDemoWebIT {
                 .andExpect(ReactPageAssertions.data("/demoPassword", "admin"))
                 .andExpect(ReactPageAssertions.data("/demoApproverLogin", "approver"))
                 .andExpect(ReactPageAssertions.data("/demoApproverPassword", "approver"))
+                .andExpect(ReactPageAssertions.data("/demoAccounts/0/employeeNo", "99999"))
+                .andExpect(ReactPageAssertions.data("/demoAccounts/1/employeeNo", "26001"))
                 .andExpect(content().string(not(containsString("type=\"password\""))))
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(content().string(not(anyOf(containsString("회사 코드와 이메일"),
                         containsString("href=\"/password-reset\""), containsString("초대 수락 후 로그인")))))
                 .andExpect(ReactPageAssertions.page());
+    }
+
+    @Test
+    void storedEmployeeNumbersAuthenticateWithoutChangingTheAccountAndMustMatchCurrentNumber() throws Exception {
+        var session = (MockHttpSession) mvc.perform(credentials("99999", "admin").with(csrf())
+                        .param("companyCode", DatabaseFixture.COMPANY_B))
+                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+        var principal = (TnaPrincipal) context(session).getAuthentication().getPrincipal();
+        assertEquals(LocalDemoLogin.ACCOUNT_ID, principal.accountId());
+        assertEquals(LocalDemoLogin.EMPLOYEE_ID, principal.employeeId());
+        mvc.perform(credentials("26001", "approver").with(csrf())).andExpect(redirectedUrl("/approvals"));
+        admin.update("UPDATE tna.employee SET employee_no='26009' WHERE tenant_id=? AND id=?",
+                LocalDemoLogin.TENANT_ID, LocalDemoLogin.APPROVER_EMPLOYEE_ID);
+        mvc.perform(credentials("26001", "approver").with(csrf())).andExpect(redirectedUrl("/login?error"));
+        mvc.perform(credentials("26009", "approver").with(csrf())).andExpect(redirectedUrl("/approvals"));
     }
 
     @Test

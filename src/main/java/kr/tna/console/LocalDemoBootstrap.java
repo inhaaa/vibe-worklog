@@ -78,7 +78,7 @@ public final class LocalDemoBootstrap {
                 LocalDemoLogin.TENANT_ID, LocalDemoLogin.COMPANY_CODE);
         update(connection, """
                 INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on,created_at,updated_at)
-                VALUES (?,?,'LOCAL-DEMO','로컬 데모 담당자',DATE '2026-01-01',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                VALUES (?,?,'99999','담당자',DATE '2026-01-01',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """, LocalDemoLogin.TENANT_ID, LocalDemoLogin.EMPLOYEE_ID);
         update(connection, """
                 INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash,active,auth_version)

@@ -72,6 +72,9 @@ public interface EmployeeAdminMapper {
             """)
     List<Employee> options(@Param("tenantId") UUID tenantId);
 
+    @Select("SELECT employee_no FROM tna.employee WHERE tenant_id=#{tenantId}")
+    List<String> employeeNumbers(@Param("tenantId") UUID tenantId);
+
     @Select("""
             SELECT id, employee_no, display_name, joined_on, left_on, active, version
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{id}

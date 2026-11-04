@@ -80,7 +80,6 @@ class EmployeeServiceIT {
 
     @Test
     void requiredFieldsUnicodeLengthsAndEmploymentDatesAreValidated() {
-        assertStatus(422, () -> employees.create(actor, form(" ", "직원", JOINED, null, true, null)));
         assertStatus(422, () -> employees.create(actor, form("E".repeat(41), "직원", JOINED, null, true, null)));
         assertStatus(422, () -> employees.create(actor, form("E1", "😀".repeat(121), JOINED, null, true, null)));
         assertStatus(422, () -> employees.create(actor, form("E1", "직원", null, null, true, null)));
@@ -89,6 +88,67 @@ class EmployeeServiceIT {
         assertEquals(TODAY, employees.get(actor, unicode).leftOn());
         UUID future = employees.create(actor, form("FUTURE", "입사 예정", TODAY.plusDays(10), null, true, null));
         assertTrue(employees.get(actor, future).active());
+    }
+
+    @Test
+    void missingOrWhitespaceNumberUsesTheJoiningYearAndNeverReusesInactiveNumbers() {
+        LocalDate joined = LocalDate.of(2026, 1, 1);
+        UUID first = employees.create(actor, form(null, "자동 사원", joined, null, true, null));
+        assertEquals("26001", employees.get(actor, first).employeeNo());
+        employees.update(actor, first, form("26001", "비활성 사원", joined, null, false, 0L));
+        UUID second = employees.create(actor, form(" \t ", "자동 사원", joined, null, true, null));
+        assertEquals("26002", employees.get(actor, second).employeeNo());
+        employees.create(actor, form("26010", "수동 사원", joined, null, false, null));
+        employees.create(actor, form("260999", "이전 형식", joined, null, true, null));
+        employees.create(actor, form("26ABC", "이전 형식", joined, null, true, null));
+        UUID third = employees.create(actor, form("", "자동 사원", joined, null, true, null));
+        assertEquals("26011", employees.get(actor, third).employeeNo());
+        UUID anotherYear = employees.create(actor, form(null, "전년도", LocalDate.of(2025, 1, 1), null, true, null));
+        assertEquals("25001", employees.get(actor, anotherYear).employeeNo());
+        assertStatus(422, () -> employees.update(actor, second, form("", "번호 누락", joined, null, true, 0L)));
+    }
+
+    @Test
+    void automaticNumberReplayDoesNotIssueAnotherNumberAndForeignNumbersAreIsolated() {
+        UUID other = UUID.randomUUID();
+        database.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 외부')", other, "NUMBER-" + other);
+        TnaPrincipal foreign = account(other, "FOREIGN-ADMIN", true);
+        LocalDate joined = LocalDate.of(2026, 1, 1);
+        employees.create(foreign, form("26999", "외부 사원", joined, null, true, null));
+        var request = form(null, "자동 사원", joined, null, true, null);
+        UUID first = employees.create(actor, request);
+        assertEquals(first, employees.create(actor, request));
+        assertEquals("26001", employees.get(actor, first).employeeNo());
+        assertEquals("26002", employees.get(actor, employees.create(actor, form(null, "다음 사원", joined, null, true, null))).employeeNo());
+        assertEquals(1, count("tna.org_audit_event", "command_id", request.commandId()));
+    }
+
+    @Test
+    void exhaustedYearAndReservedAdministratorNumberAreNeverGenerated() {
+        LocalDate joined = LocalDate.of(2026, 1, 1);
+        employees.create(actor, form("26999", "마지막 사번", joined, null, false, null));
+        assertStatus(422, () -> employees.create(actor, form(null, "초과 사원", joined, null, true, null)));
+        employees.create(actor, form("99999", "예약 담당자", joined, null, true, null));
+        UUID year99 = employees.create(actor, form(null, "99년 사원", LocalDate.of(2099, 1, 1), null, true, null));
+        assertEquals("99001", employees.get(actor, year99).employeeNo());
+        employees.create(actor, form("99998", "마지막 일반 사번", LocalDate.of(2099, 1, 1), null, false, null));
+        assertStatus(422, () -> employees.create(actor, form(null, "예약번호 충돌", LocalDate.of(2099, 1, 1), null, true, null)));
+    }
+
+    @Test
+    void concurrentAutomaticCreatesAreUniqueAndSequential() throws Exception {
+        var start = new CountDownLatch(1);
+        try (var workers = Executors.newFixedThreadPool(4)) {
+            var jobs = new java.util.ArrayList<java.util.concurrent.Future<UUID>>();
+            for (int index = 0; index < 4; index++) jobs.add(workers.submit(() -> {
+                start.await();
+                return employees.create(actor, form(null, "동시 사원", LocalDate.of(2026, 1, 1), null, true, null));
+            }));
+            start.countDown();
+            var numbers = new java.util.HashSet<String>();
+            for (var job : jobs) numbers.add(employees.get(actor, job.get(20, TimeUnit.SECONDS)).employeeNo());
+            assertEquals(Set.of("26001", "26002", "26003", "26004"), numbers);
+        }
     }
 
     @Test

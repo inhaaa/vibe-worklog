@@ -75,6 +75,13 @@ class CodeMigrationUpgradeIT {
             assertEquals(v15Access,access(db).stream().filter(row->!List.of("employee_personnel","employee_employment_status").contains(row.get("relname"))).toList());
             assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personnel",Integer.class));
             assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_employment_status",Integer.class));
+            var v16Columns=columns(db);var v16Rows=rows(db,v16Columns);var v16Access=access(db);
+            var v17=Flyway.configure().dataSource(migrationSource).locations("classpath:db/migration").target("17").load().migrate();
+            assertTrue(v17.success);assertEquals(1,v17.migrationsExecuted);
+            assertEquals(v16Rows,rows(db,v16Columns));
+            assertEquals(v16Access,access(db).stream().filter(row->!List.of("employee_personal_details","employee_personal_entry").contains(row.get("relname"))).toList());
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personal_details",Integer.class));
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personal_entry",Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static Map<String,List<String>> columns(JdbcTemplate db) {

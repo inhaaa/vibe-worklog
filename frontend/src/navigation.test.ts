@@ -5,6 +5,11 @@ const allRoles = ['EMPLOYEE', 'APPROVER', 'ATTENDANCE_ADMIN', 'COMPANY_REPRESENT
 const links = (roles: string[]) => getNavigation(roles).flatMap(group => group.children.flatMap(section => section.children));
 
 describe('업무 메뉴 계약', () => {
+  it('역할 선택은 실제 보유한 역할만 인정하며 다른 권한을 추가하지 않는다', () => {
+    expect(getNavigation(allRoles, 'APPROVER').map(group => group.label)).toEqual(['내 업무', '결재']);
+    expect(getNavigation(['EMPLOYEE'], 'ATTENDANCE_ADMIN').map(group => group.label)).toEqual(['내 업무']);
+    expect(getNavigation([], 'ATTENDANCE_ADMIN')).toEqual([]);
+  });
   it('5개 대표메뉴와 승인된 26개 실제 경로를 3단계로 제공한다', () => {
     expect(getNavigation(allRoles).map(group => group.label)).toEqual(['내 업무', '결재', '인사·조직', '근태 운영', '시스템 설정']);
     expect(links(allRoles).map(item => item.href)).toEqual([

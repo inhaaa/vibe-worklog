@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthPages } from './AuthPages';
 import { CsrfContext } from '../ui';
@@ -15,22 +15,30 @@ const html = (name: string, data: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('AuthPages', () => {
-  it('데모 신청자와 승인자는 별도 정상 로그인 폼으로 선택하고 CSRF를 보존한다', () => {
+  it('사번 로그인과 서버가 제공한 테스트 사원 선택을 같은 정상 폼으로 연결한다', () => {
+    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', { demoAccounts: [
+      { employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' },
+      { employeeNo: '26001', employeeName: '가상 승인자', roles: ['EMPLOYEE', 'APPROVER'], password: 'approver' },
+    ] })}</CsrfContext.Provider>);
+    const employeeNo = view.getByLabelText('사번') as HTMLInputElement;
+    expect(employeeNo.value).toBe('99999');
+    fireEvent.change(view.getByLabelText('테스트 사원 선택'), { target: { value: '26001' } });
+    expect(employeeNo.value).toBe('26001');
+    expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('approver');
+    const form = view.getByRole('button', { name: '사번으로 로그인' }).closest('form')!;
+    expect(form.getAttribute('action')).toBe('/login');
+    expect(employeeNo.name).toBe('email');
+    expect(form.querySelector<HTMLInputElement>('[name="_csrf"]')!.value).toBe('csrf-value');
+    expect(view.queryByRole('button', { name: /승인자로 입장/ })).toBeNull();
+    expect(view.getByText(/같은 사원의 보유 권한/)).toBeTruthy();
+  });
+  it('서버가 확인한 합성 사원만 선택 목록에 표시한다', () => {
     const view = render(<CsrfContext.Provider value={csrf}>{page('demo', {
-      demoLogin: 'admin', demoPassword: 'admin',
-      demoApproverLogin: 'approver', demoApproverPassword: 'approver',
+      demoAccounts: [{ employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' }],
     })}</CsrfContext.Provider>);
-    const applicant = view.getByRole('button', { name: /데모로 입장/ }).closest('form')!;
-    const approver = view.getByRole('button', { name: /승인자로 입장/ }).closest('form')!;
-    expect(applicant).not.toBe(approver);
-    for (const [form, login] of [[applicant, 'admin'], [approver, 'approver']] as const) {
-      expect(form.getAttribute('action')).toBe('/login');
-      expect(form.getAttribute('method')).toBe('post');
-      expect(form.querySelector<HTMLInputElement>('[name="email"]')!.value).toBe(login);
-      expect(form.querySelector<HTMLInputElement>('[name="password"]')!.value).toBe(login);
-      expect(form.querySelector<HTMLInputElement>('[name="_csrf"]')!.value).toBe('csrf-value');
-    }
-    expect(view.getByText(/신청 후.*데모 계정 전환/)).toBeTruthy();
+    expect(view.getAllByRole('option')).toHaveLength(2);
+    expect(view.getByRole('option', { name: '99999 · 담당자' })).toBeTruthy();
+    expect(view.queryByRole('option', { name: /26001/ })).toBeNull();
   });
   it('서버가 승인자 진입을 제공하지 않으면 빈 자격의 로그인 폼을 만들지 않는다', () => {
     const view = render(page('demo', { demoLogin: 'admin', demoPassword: 'admin' }));
@@ -40,7 +48,7 @@ describe('AuthPages', () => {
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
   });
-  it('일반 로그인은 회사코드·이메일·강한 비밀번호를 사용하며 데모 자격을 숨긴다', () => {
+  it('일반 로그인은 회사코드·사번·강한 비밀번호를 사용하며 이메일 이행을 안내한다', () => {
     const result = html('login', {
       localDemo: false,
       demoLogin: 'admin',
@@ -49,23 +57,25 @@ describe('AuthPages', () => {
     });
     expect(result).toContain('name="companyCode"');
     expect(result).toContain('name="email"');
-    expect(result).toContain('type="email"');
+    expect(result).toContain('type="text"');
+    expect(result).toContain('사번');
+    expect(result).toContain('기존 이메일 계정도 계속 로그인');
     expect(result).toContain('minLength="12"');
     expect(result).toContain('초대를 수락했습니다');
     expect(result).toContain('로그인 정보를 확인');
     expect(result).not.toContain('admin / admin');
     expect(result).not.toContain('value="admin"');
   });
-  it('데모 소개만 서버가 제공한 합성 자격으로 정상 POST 로그인한다', () => {
+  it('데모 소개만 서버가 제공한 사번과 합성 자격으로 정상 POST 로그인한다', () => {
     const result = html('demo', {
-      demoLogin: 'admin',
-      demoPassword: 'admin',
+      demoAccounts: [{ employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' }],
       flags: { logout: true },
     });
     expect(result).toContain('action="/login"');
-    expect(result).toContain('name="email" value="admin"');
-    expect(result).toContain('name="password" value="admin"');
-    expect(result).toContain('데모로 입장');
+    expect(result).toContain('name="email"');
+    expect(result).toContain('value="99999"');
+    expect(result).toContain('value="admin"');
+    expect(result).toContain('사번으로 로그인');
     expect(result).toContain('로그아웃했습니다');
     expect(result).not.toContain('name="companyCode"');
   });
@@ -73,7 +83,7 @@ describe('AuthPages', () => {
     const result = html('login', { localDemo: true });
     expect(result).not.toContain('name="companyCode"');
     expect(result).toContain('minLength="5"');
-    expect(result).toContain('admin / admin');
+    expect(result).toContain('99999');
     expect(result).not.toContain('/password-reset');
   });
   it('초대 수락은 코드 경로를 안전하게 인코딩하고 비밀번호·토큰을 재표시하지 않는다', () => {

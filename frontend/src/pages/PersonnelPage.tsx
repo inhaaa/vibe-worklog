@@ -2,6 +2,7 @@ import type { PageProps } from '../types';
 import { useEffect, useRef, useState } from 'react';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDateTime } from '../ui';
 import { employmentStatusName } from '../components/EmployeeHeader';
+import { PersonalDetailsEditor, PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 export interface PersonnelForm {
   birthDate: string | null; gradeName: string | null; positionName: string | null; jobName: string | null;
   employmentStatus: string; effectiveFrom: string; expectedVersion: number; reason: string;
@@ -14,25 +15,58 @@ export interface PersonnelModel {
 export function PersonnelPage({ page, data, busy = false }: PageProps) {
   if (page !== 'org/personnel') return null;
   const personnel = data.personnel as PersonnelModel;
-  return <PersonnelEditor model={{ ...personnel, today: data.today as string ?? personnel.today }} error={data.error as string | undefined} busy={busy} />;
+  const details = data.personalDetails as PersonalDetailsModel | undefined;
+  const header = data.employeeHeader as { employeeName: string; joinedOn: string; birthDate?: string | null } | undefined;
+  const today = data.today as string ?? personnel.today;
+  return <PersonnelDraftBoundary><PersonnelEditor model={{ ...personnel, today }} error={data.error as string | undefined} busy={busy} />
+    {details && <><PersonalDetailsEditor model={details} today={today} busy={busy} />
+      {header && <PersonalDetailsTabs model={details} identity={header} />}</>}
+  </PersonnelDraftBoundary>;
+}
+
+function PersonnelDraftBoundary({ children }: { children: React.ReactNode }) {
+  const root = useRef<HTMLDivElement>(null);
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      if (root.current?.querySelector('form[data-unsaved-changes="true"]')) {
+        event.preventDefault(); event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', unload);
+    return () => window.removeEventListener('beforeunload', unload);
+  }, []);
+  return <div ref={root} onChangeCapture={() => setMessage('')} onResetCapture={() => setMessage('')}
+    onSubmitCapture={event => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const other = Array.from(root.current?.querySelectorAll('form[data-unsaved-changes="true"]') ?? []).filter(node => node !== form);
+      if (other.length) {
+        event.preventDefault(); event.stopPropagation();
+        setMessage('다른 입력 영역에 저장하지 않은 변경이 있습니다. 해당 영역을 먼저 저장하거나 입력을 취소한 뒤 다시 저장해 주세요.');
+      }
+    }}>
+    <ErrorNotice message={message} />{children}
+  </div>;
 }
 
 function PersonnelEditor({ model: m, error, busy }: { model: PersonnelModel; error?: string; busy: boolean }) {
-  const f = m.form;
+  const [reset, setReset] = useState(0);
+  const f = reset ? m.currentForm ?? m.form : m.form;
   const [version, setVersion] = useState(f.expectedVersion), [command, setCommand] = useState(f.commandId);
-  const [dirty, setDirty] = useState(Boolean(error));
+  const [dirty, setDirty] = useState(Boolean(error && (!m.currentForm || JSON.stringify(m.form) !== JSON.stringify(m.currentForm))));
   const [photoAction, setPhotoAction] = useState(f.photoAction || 'KEEP'), [photoData, setPhotoData] = useState(f.photoData || '');
   const [photoError, setPhotoError] = useState(''), [photoName, setPhotoName] = useState(''), [reading, setReading] = useState(false);
   const file = useRef<HTMLInputElement>(null), reader = useRef<FileReader | null>(null);
   const conflict = version !== m.version;
   const path = `/admin/employees/${encodeURIComponent(m.employeeId)}`;
   function changed() { setDirty(true); setCommand(crypto.randomUUID()); }
-  useEffect(() => {
-    const unload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } };
-    window.addEventListener('beforeunload', unload);
-    return () => window.removeEventListener('beforeunload', unload);
-  }, [dirty]);
   useEffect(() => () => reader.current?.abort(), []);
+  function cancel() {
+    reader.current?.abort(); setReading(false); setPhotoError(''); setPhotoName('');
+    setPhotoAction('KEEP'); setPhotoData(''); setVersion(m.version); setCommand(crypto.randomUUID());
+    setDirty(false); setReset(value => value + 1);
+  }
   function choosePhoto(selected?: File) {
     reader.current?.abort();
     setPhotoError(''); setReading(false);
@@ -57,7 +91,8 @@ function PersonnelEditor({ model: m, error, busy }: { model: PersonnelModel; err
   return <div className="t-personnel-page">
     <header className="t-pagehead"><div><p className="t-eyebrow">PERSONNEL</p><h1>인사정보 등록</h1><p className="t-muted">사원의 기본 인사정보와 적용일별 재직 상태를 관리하세요.</p></div><a className="t-btn" href={path}>기본정보·소속</a></header>
     <ErrorNotice message={error} />
-    <Form action={`${path}/personnel`} className="t-personnel-form" data-unsaved-changes={dirty ? 'true' : undefined} onChange={changed}>
+    <Form key={reset} action={`${path}/personnel`} className="t-personnel-form" data-unsaved-changes={dirty ? 'true' : undefined} onChange={changed}
+      onReset={event => { event.preventDefault(); cancel(); }}>
       <input type="hidden" name="expectedVersion" value={version} /><input type="hidden" name="commandId" value={command} />
       <input type="hidden" name="photoAction" value={photoAction} /><input type="hidden" name="photoData" value={photoData} />
       <fieldset disabled={busy}>
@@ -83,7 +118,7 @@ function PersonnelEditor({ model: m, error, busy }: { model: PersonnelModel; err
         {m.currentForm && <dl>{([['생년월일', 'birthDate'], ['직급', 'gradeName'], ['직책', 'positionName'], ['직무', 'jobName'], ['상태 적용일', 'effectiveFrom']] as const).map(([label, key]) => <div key={key}><dt>{label}</dt><dd>{m.currentForm![key] || '미등록'}</dd></div>)}<div><dt>재직 상태</dt><dd>{employmentStatusName(m.currentForm.employmentStatus)}</dd></div></dl>}
         <button className="t-btn" type="button" disabled={busy} onClick={() => { setVersion(m.version); changed(); }}>최신 버전 확인 후 입력 유지</button>
       </section>}
-      <footer className="t-personnel-savebar"><span>{dirty ? '저장하지 않은 변경이 있습니다.' : '필수 항목과 변경 사유를 확인하세요.'}</span><div><a className="t-btn" href={`${path}/personnel`}>입력 취소</a><button className="t-btn primary" disabled={busy || reading || Boolean(photoError) || conflict}>인사정보 저장</button></div></footer>
+      <footer className="t-personnel-savebar"><span>{dirty ? '저장하지 않은 변경이 있습니다.' : '필수 항목과 변경 사유를 확인하세요.'}</span><div><button type="reset" className="t-btn" disabled={busy}>인사정보 입력 취소</button><button className="t-btn primary" disabled={busy || reading || Boolean(photoError) || conflict}>인사정보 저장</button></div></footer>
     </Form>
     <section className="t-card t-personnel-history"><h2>재직 상태 변경 이력</h2><p className="t-muted">같은 적용일의 후속 변경도 이력으로 보존됩니다.</p>{m.statusHistory.length ? <div className="table-scroll"><table><thead><tr><th>적용일</th><th>상태</th><th>변경 사유</th><th>등록 시각 (서울)</th></tr></thead><tbody>{m.statusHistory.map(entry => <tr key={entry.id}><td>{entry.effectiveFrom}</td><td>{employmentStatusName(entry.employmentStatus)}</td><td>{entry.reason}</td><td>{fmtDateTime(entry.createdAt)}</td></tr>)}</tbody></table></div> : <p className="t-empty-note">아직 등록된 상태 이력이 없습니다.</p>}</section>
   </div>;

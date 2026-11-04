@@ -136,7 +136,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
   const columns = [
     sheetEditorColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left' },
-      (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: true })),
+      (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: organization })),
     sheetEditorColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180 },
       (row, index) => input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })),
     ...(organization ? [
@@ -177,6 +177,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
           <span className="t-tag blue" role="status">변경 {dirty.length}행</span>
         </div>
         <p className="t-subtle" id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
+        {!organization && <p className="t-subtle">신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
         {(m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
         <WorklogSheet ref={sheet} label={`${label} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected}

@@ -112,7 +112,7 @@ public final class LocalDemoApprovalSetup {
                 JOIN tna.employee e ON e.tenant_id=a.tenant_id AND e.id=a.employee_id
                 WHERE r.id=? AND r.company_code=? AND r.active AND a.id=? AND a.employee_id=?
                     AND a.email=? AND a.active AND a.credential_set AND a.auth_version>=1
-                    AND e.employee_no='LOCAL-DEMO' AND e.active AND e.joined_on<=?
+                    AND e.employee_no IN ('LOCAL-DEMO','99999') AND e.active AND e.joined_on<=?
                     AND (e.left_on IS NULL OR e.left_on>=?) FOR UPDATE OF r,a,e
                 """, (row, i) -> new Identity(row.getString(1), row.getLong(2), row.getLong(3)),
                 TENANT, LocalDemoLogin.COMPANY_CODE, ADMIN, EMPLOYEE, LocalDemoLogin.EMAIL, DATE, DATE);

@@ -130,6 +130,20 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toEqual([]);
   });
 
+  it('신규 사번을 비워도 저장하며 기존 사번은 읽기 전용이다', async () => {
+    const view = await show(page('employees'));
+    expect(view.getByLabelText('사번 1').getAttribute('aria-readonly')).toBe('true');
+    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    const number = await openCell(view, '사번 2') as HTMLInputElement;
+    expect(number.required).toBe(false);
+    fireEvent.keyDown(number, { key: 'Enter' });
+    await waitFor(() => expect(number.isConnected).toBe(false));
+    await changeCell(view, '이름 2', '자동 사원');
+    await changeCell(view, '입사일 2', '2026-11-03');
+    expect(view.getByText(/사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급/)).toBeTruthy();
+    expect(postedRows(view, 'employees')[0]).toMatchObject({ employeeNo: '', joinedOn: '2026-11-03', operation: 'CREATE' });
+  });
+
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
     const view = await show();
     fireEvent.click(view.getByLabelText('1행 선택'));

@@ -40,30 +40,30 @@ public class CompanyAuthenticationProvider implements AuthenticationProvider {
         boolean demo = localDemo.enabled();
         var persona = demo ? LocalDemoLogin.persona(authentication.getName()).orElse(null) : null;
         String company = demo ? LocalDemoLogin.COMPANY_CODE : details.companyCode().toUpperCase(Locale.ROOT);
-        String email = demo ? (persona == null ? LocalDemoLogin.EMAIL : persona.email()) : authentication.getName().length() <= 254
-                ? authentication.getName().trim().toLowerCase(Locale.ROOT) : "";
-        if (!limiter.tryAcquire(details.getRemoteAddress(), company, demo ? LocalDemoLogin.EMAIL : email)) {
+        String login = demo ? (persona == null ? authentication.getName() : persona.email()) : authentication.getName().length() <= 254
+                ? authentication.getName().trim() : "";
+        if (!demo && login.contains("@")) login = login.toLowerCase(Locale.ROOT);
+        if (!limiter.tryAcquire(details.getRemoteAddress(), company, demo ? LocalDemoLogin.EMAIL : login)) {
             LOG.warn("event=login outcome=rate_limited");
             throw new LoginRateLimitedException();
         }
         String password = authentication.getCredentials() instanceof String value ? value : null;
         boolean validCredentials = demo
-                ? persona != null && persona.password().equals(password)
-                : !company.isBlank() && !email.isBlank() && PasswordPolicy.isValid(password);
+                ? (persona != null && persona.password().equals(password)) || (login.matches("[0-9]{5}") && password != null)
+                : !company.isBlank() && !login.isBlank() && PasswordPolicy.isValid(password);
         if (!validCredentials) {
             throw rejected();
         }
         try {
-            var identity = store.forLogin(company, email);
+            var identity = store.forLogin(company, login);
             String hash = identity.map(AuthStore.LoginIdentity::passwordHash).orElse(dummyHash);
             if (!encoder.matches(password, hash) || identity.isEmpty()) {
                 throw rejected();
             }
             TnaPrincipal principal = identity.orElseThrow().principal();
-            if (demo && (!LocalDemoLogin.TENANT_ID.equals(principal.tenantId())
-                    || !persona.accountId().equals(principal.accountId())
-                    || !persona.employeeId().equals(principal.employeeId())
-                    || !principal.roles().equals(persona.roles()))) {
+            if (demo && LocalDemoLogin.personas().stream().noneMatch(allowed ->
+                    LocalDemoLogin.matches(allowed, principal) && allowed.password().equals(password)
+                            && (persona == null || allowed.equals(persona)))) {
                 throw rejected();
             }
             var authorities = principal.roles().stream()

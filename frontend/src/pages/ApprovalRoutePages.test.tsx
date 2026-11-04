@@ -105,12 +105,15 @@ describe('결재선 React 관리', () => {
     expect(view.getByRole('region', { name: '결재선 배정 이력' }).querySelector('[row-id="a-1"]')).toBeTruthy();
   });
 
-  it('관리자에게 결재선 메뉴와 담당자에게 완료 결재 메뉴를 제공한다', async () => {
+  it('담당자 모드의 결재선과 승인자 모드의 완료 결재 메뉴를 구분한다', async () => {
     const view = await show(<App initial={page()} />);
     const menu = view.getByLabelText('주 메뉴');
     expect(menu.querySelector('a[href="/admin/approval-routes"]')).toBeTruthy();
     expect(menu.querySelector('a[href="/admin/approval-route-assignments"]')).toBeTruthy();
+    expect(menu.querySelector('a[href="/approvals/completed"]')).toBeNull();
+    fireEvent.change(view.getByRole('combobox', { name: '업무 권한' }), { target: { value: 'APPROVER' } });
     expect(menu.querySelector('a[href="/approvals/completed"]')).toBeTruthy();
+    expect(menu.querySelector('a[href="/admin/approval-routes"]')).toBeNull();
   });
 
   it('시트 도구·고정 코드·미변경 제외와 버전 재배정 안내를 제공한다', async () => {

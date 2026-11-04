@@ -76,9 +76,20 @@ const navigation: NavigationGroup[] = [
   ] },
 ];
 
-export function getNavigation(roles: readonly string[]): NavigationGroup[] {
+const workspaceRoles = [
+  { value: 'EMPLOYEE', label: '직원' }, { value: 'ATTENDANCE_ADMIN', label: '담당자' },
+  { value: 'APPROVER', label: '승인자' }, { value: 'COMPANY_REPRESENTATIVE', label: '대표' },
+];
+export const getWorkspaceRoles = (roles: readonly string[]) => workspaceRoles.filter(role => roles.includes(role.value));
+export const selectWorkspaceRole = (roles: readonly string[], selected?: string) =>
+  getWorkspaceRoles(roles).find(role => role.value === selected)?.value ?? getWorkspaceRoles(roles)[0]?.value;
+export const getWorkspaceMenuRoles = (roles: readonly string[], selected?: string) =>
+  roles.filter(role => role === 'EMPLOYEE' || role === selectWorkspaceRole(roles, selected));
+
+export function getNavigation(roles: readonly string[], selectedRole?: string): NavigationGroup[] {
+  const visibleRoles = selectedRole === undefined ? roles : getWorkspaceMenuRoles(roles, selectedRole);
   return navigation.map(group => ({ ...group, children: group.children
-    .map(section => ({ ...section, children: section.children.filter(child => child.roles.some(role => roles.includes(role))) }))
+    .map(section => ({ ...section, children: section.children.filter(child => child.roles.some(role => visibleRoles.includes(role))) }))
     .filter(section => section.children.length > 0) }))
     .filter(group => group.children.length > 0);
 }
