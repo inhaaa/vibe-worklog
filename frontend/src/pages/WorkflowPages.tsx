@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './RequestDetail.css';
 import './RequestWorkspace.css';
+import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
@@ -847,7 +848,7 @@ function Result({ model: m }: { model: ResultModel }) {
     '법정 최종 연장': '미확정',
   };
   return (
-    <>
+    <section className="t-record-detail" aria-label="계산 근거 상세">
       <nav className="actions" aria-label="상세에서 목록으로">
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && (
           <a className="t-btn secondary" href={`/me/worktime?month=${m.month}`}>
@@ -1032,7 +1033,7 @@ function Result({ model: m }: { model: ResultModel }) {
           ))}
         </ul>
       </section>
-    </>
+    </section>
   );
 }
 
@@ -1080,7 +1081,7 @@ function Audit({ model: m }: { model: AuditModel }) {
 }
 function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
   return (
-    <>
+    <section className="t-record-detail" aria-label="감사 상세">
       <h1>감사 상세</h1>
       <p>같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
       <section className="panel">
@@ -1126,7 +1127,7 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
       <p>
         <a href="/admin/audit">최신 감사 목록으로</a>
       </p>
-    </>
+    </section>
   );
 }
 
