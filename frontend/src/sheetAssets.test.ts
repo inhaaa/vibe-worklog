@@ -71,6 +71,11 @@ describe('시트 스타일의 CSP 자산 계약', () => {
     expect(source).toContain('.w-sheet-grid');
     expect(source).toContain('--ag-row-height:40px');
     expect(source.match(/url\(["']?(?:data:|https?:|\/\/)/)).toBeNull();
+    expect(source.includes('--ag-background-color:var(--t-paper)')).toBe(true);
+    expect(source.includes('--ag-header-background-color:var(--t-surface)')).toBe(true);
+    expect(source.includes('--ag-selected-row-background-color:var(--t-blue-soft)')).toBe(true);
+    expect(source.includes('--ag-range-selection-border-color:var(--t-focus)')).toBe(true);
+    expect(source.includes('--ag-font-family:var(--font-body)')).toBe(true);
     expect(output.filter((asset) => /\.(svg|woff2)$/.test(asset.fileName))).toHaveLength(5);
   });
 });
