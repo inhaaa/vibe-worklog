@@ -125,3 +125,35 @@
   #tna-app .t-modal :is(.t-input, .t-select, textarea) { width: 100%; max-width: 100%; min-width: 0; }
   #tna-app .t-app-shell :is(.t-input, .t-select, textarea), #tna-app .t-sheet-table :is(input, select) { font-size: 16px; }
 }
+
+/* One white working surface against a tinted canvas; inner sections stay flat. */
+#tna-app, #tna-app .t-app-shell { background: var(--t-canvas); }
+#tna-app .t-sidebar { background: var(--t-paper); }
+#tna-app .t-workspace-name { background: var(--t-section); border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); padding: var(--space-md); }
+#tna-app .t-topbar { background: var(--t-paper); border-bottom: 1px solid var(--t-line); }
+#tna-app :is(.t-card, .panel) { padding: var(--space-lg); border: 1px solid var(--t-line); border-radius: var(--t-radius); background: var(--t-paper); }
+#tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding: var(--space-md) 0; border: 0; border-radius: 0; background: transparent; }
+#tna-app .t-cardhead { padding-bottom: var(--space-md); border-bottom: 1px solid var(--t-line); }
+#tna-app :is(.t-tablewrap, .table-scroll) { border: 1px solid var(--t-line); border-radius: 6px; background: var(--t-paper); }
+#tna-app :is(th, .t-table th) { background: var(--t-section); color: var(--t-accent-ink); font-weight: 600; }
+#tna-app tbody tr { background: var(--t-paper); }
+#tna-app tbody tr:nth-child(even) { background: var(--t-surface); }
+#tna-app .t-toolbar { background: var(--t-surface); padding: var(--space-md); border-bottom: 1px solid var(--t-line); }
+#tna-app .notice { border: 1px solid var(--t-accent-border); }
+#tna-app .notice.error { border-left-color: var(--t-danger); }
+#tna-app .t-clock-actions { background: var(--t-blue-soft); padding: var(--space-lg); border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); }
+#tna-app .t-calendar-side .t-card { background: var(--t-paper); }
+@media (hover: hover) {
+  #tna-app tbody tr:hover { background: var(--t-blue-soft); }
+}
+@media (max-width: 680px) {
+  #tna-app :is(.t-card, .panel) { padding: var(--space-md); }
+  #tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding-inline: 0; }
+  #tna-app .t-record-table, #tna-app .t-record-table tbody { display: block; width: 100%; min-width: 0; }
+  #tna-app .t-record-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  #tna-app .t-record-table tbody tr { display: block; border-bottom: 1px solid var(--t-line); }
+  #tna-app .t-record-table tbody tr:last-child { border-bottom: 0; }
+  #tna-app .t-record-table td { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 var(--space-xs); padding: var(--space-sm); border: 0; white-space: normal; overflow-wrap: anywhere; }
+  #tna-app .t-record-table td::before { content: attr(data-label); grid-column: 1; grid-row: 1; color: var(--t-accent-ink); font-weight: 500; word-break: keep-all; }
+  #tna-app .t-record-table td > * { grid-column: 2; min-width: 0; }
+}

@@ -23,3 +23,15 @@
   .t-modal .t-modal-body { padding: 20px var(--space-md); }
   .t-modal .t-modal-footer { padding: var(--space-sm) var(--space-md) max(var(--space-sm), env(safe-area-inset-bottom)); }
 }
+
+.t-modal .t-modal-header { background: var(--t-section); border-bottom-color: var(--t-accent-border); }
+.t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { color: var(--t-accent-ink); }
+.t-modal .t-modal-body { background: var(--t-paper); }
+.t-modal .t-modal-footer { background: var(--t-surface); }
+#tna-app .t-modal :is(.panel, .t-card) { border: 0; border-radius: 0; padding: var(--space-lg) 0; background: transparent; }
+#tna-app .t-modal :is(.panel, .t-card) + :is(.panel, .t-card) { border-top: 1px solid var(--t-line); }
+#tna-app .t-modal .admin-form { padding: var(--space-lg); background: var(--t-surface); border-top: 2px solid var(--t-accent-border); }
+#tna-app .t-modal .admin-form .actions { margin-bottom: 0; padding-top: var(--space-md); border-top: 1px solid var(--t-line); }
+@media (max-width: 680px) {
+  #tna-app .t-modal .admin-form { padding: var(--space-md); }
+}
