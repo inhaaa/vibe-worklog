@@ -25,11 +25,11 @@ Windows sandbox의 Node 사용자 디렉터리 접근 EPERM은 동일 명령을 
 
 합성 UI 서버는 ignored `target/ui-polish-preview-20261104`에서 loopback만 사용하고 실제 DB를 사용하지 않는다. GET fixture와 신청 미리보기만 제공하며 다른 POST는 실제 저장하지 않는다. 이 브라우저 검증을 실제 서버 업무 HTTP 검증으로 확대하지 않는다. 모바일 입력 후 native confirm을 여는 과정은 IAB 제어 시간 초과로 전체 수동 흐름을 마치지 못했으며 미저장 확인은 자동 테스트로 검증했다.
 
-## 공개 반영 상태와 미실시 범위
+## 공개 통합 검증
 
-최신 공개 기준은 [상단 메뉴 배포](https://github.com/inhaaa/vibe-worklog/blob/61694f2/docs/quality/public-toolbar-deploy-20261104.md)의 `b074d42`·V17이다. 기존 보안·공유 계정 보호와 상단 메뉴 변경을 보존하기 위해 별도 `codex/ui-polish-public-20261104` 작업트리에서 개발 커밋 `c912f60`을 통합했다. 코드 충돌은 없었고 README에는 기존 공개 기록과 신규 UI 기록을 함께 보존했다.
+이번 통합의 이전 공개 기준은 [상단 메뉴 배포](https://github.com/inhaaa/vibe-worklog/blob/61694f2/docs/quality/public-toolbar-deploy-20261104.md)의 `b074d42`·V17이다. 기존 보안·공유 계정 보호와 상단 메뉴 변경을 보존하기 위해 별도 `codex/ui-polish-public-20261104` 작업트리에서 개발 커밋 `c912f60`을 통합했다. 코드 충돌은 없었고 README에는 기존 공개 기록과 신규 UI 기록을 함께 보존했다.
 
-공개 후보 로컬 검증은 다음과 같다. 이 결과는 실제 공개 배포 완료를 의미하지 않는다.
+공개 후보의 로컬 검증은 다음과 같다. 이후 실제 배포 결과는 아래 별도 절에 기록한다.
 
 | 검증 | 실제 결과 |
 | --- | --- |
@@ -41,8 +41,41 @@ Windows sandbox의 Node 사용자 디렉터리 접근 EPERM은 동일 명령을 
 
 변경 전 공개 기준선 전체 검사는 369개 중 368개 통과하고 CodePages의 신규 행 편집 테스트에서 분리된 DOM 참조로 클릭을 못 하는 타이밍 실패1개가 있었다. 같은 테스트 단독 실행은 통과했다. 통합 후 첫 전체 검사에서도 같은 실패를 관찰했고 단독 재실행1개와 최종 전체396개가 통과했다. 해당 CodePages 제품·테스트·기대값·시간 제한은 수정하지 않았다. 최초 통합에서 별도로 발견한 새 모달테스트의 동기 조회7개와 공개 전용 정정테스트의 구형 라벨1개는 실제 렌더와 새 UI에 맞추어 수정했다.
 
-전체/회귀/빌드 로그와 자산 SHA는 ignored `target/ui-polish-deploy-20261104`에 보관했다. 실제 서버 앱 교체, V17·비UI JAR 항목 보존, 기존 서비스 영향과 공개 업무 HTTP 검증은 배포 담당자의 후속 증거로 별도 기록한다.
+전체/회귀/빌드 로그와 자산 SHA는 공개 작업트리의 ignored `target/ui-polish-deploy-20261104`에 보관했다. 초기에는 SSH22 연결 시간 초과와 관리 콘솔 로그인 대기가 있었으나 사용자 로그인 후 승인된 WorkLog 전용 범위에서 아래 실제 반영을 마쳤다.
 
-초기 준비 시점에는 Hostinger 관리 화면 세션은 확인했지만 웹 콘솔은 서버 로그인 화면이고 SSH22는 실제 연결 시간 초과였다. 서버 로그인 완료 전에는 공개 앱·DB·설정을 변경하지 않았다. UI 구현 완료와 공개 배포 완료를 구분한다.
+## 실제 공개 반영 — 2026-11-05
 
-Java/DB 통합·실제 업무 HTTP·부하·취약점 재검사는 이 UI 변경에서 재실행하지 않았다. 기존 업무 계약과 알려진 운영 한계는 유지한다. 기존 untracked 공통 시트 설계 문서는 변경/커밋 대상에서 제외한다.
+공개 가상 데모 `https://worklog.inhaaa.com`에 앱만 교체했다. 최종 서버 확인은 **09:17:21 KST** (`2026-11-05T00:17:21.598414+00:00`)다. 개발본을 공개 소스로 덮어쓰지 않고 기존 공유 계정 보호·AG Grid·상단 권한 선택/사원 전환을 보존했다.
+
+| 항목 | 실제 결과 |
+| --- | --- |
+| 개발 구현 소스 | `c912f60` |
+| 이전 공개 소스 | `b074d42b4e01414ff819e015b1636f4e73f4c95e` |
+| 실제 공개 앱 소스 | `d320dfcbf5387d5c9c86865fb83c5d5fd74fb977` |
+| app 이미지 | `sha256:04d99ee576386bef2fac186c3ce2c6107e70edbfacc231168584346da0db806a` |
+| 서버 application.jar SHA256 | `8392ee8bcf40d11621a9327d5ac92456cc2a0b49fe0b98df8f132f11ba9d5bae` |
+| 소스 대조 | 530→539파일, 수정18·추가9, 삭제·링크·기존 mode 변경0 |
+| JAR 대조 | 비React536항목 동일, 검증된 app.js/app.css 2개만 변경 |
+| 실행 이미지 대조 | OS·JRE 기반12개 layer 동일, revision label 외 runtime config 동일 |
+| DB 보존 | V17·48표446행, 앱 중지 구간의 자료·스키마·권한 exact 비교 통과 |
+| 기존 서비스 | 사전42개 중 앱·전용 빌더를 제외한 기존40개 컨테이너의 전체 상태·ID·시작 시각 동일, Caddy 해시·PriceSys/demo/portfolio HTTP 보존; 추가 artifact 컨테이너는 중지 상태 |
+
+후속 문서 커밋의 HEAD가 바뀌어도 위 소스·이미지가 실제 배포본이다. 서버 `.env`는 `WORKLOG_IMAGE_TAG`만 변경하고 기존 비밀값과 mode를 보존했다. 앱은 loopback `127.0.0.1:18081`에만 게시하고 DB 게시 없이 유지했다. 전용 제한 빌더는 종료했으며 DB 이미지 교체·마이그레이션·seed·인사 CLI는 실행하지 않았다. 이번 UI 변경에서 새 DB 백업/복원 검증을 수행한 것으로 표시하지 않는다.
+
+### 실제 공개 검증
+
+| 범위 | 실제 결과 |
+| --- | --- |
+| 배포 보조 가드 | 순수 Python10개 통과, 기존 helper11개 SHA 고정/import 확인; 정확 소스·JAR 자산·앱 범위·삭제 없는 복귀 검증 |
+| 공개 HTTP | 26항목 통과: health, 익명/권한/운영자·진단 차단, CSRF 로그인·세션 회전/회수, 공개5계정, 본인 V17 정보, 신청/정정 GET, 관리자 권한/조직장 GET, 자산2개 SHA |
+| 실제 PC1440px | 내정보7탭·사원 헤더, 권한 모달의 검색값 보존/X/초점 복귀, 조직장 하단 닫기, 신청 dialog1개·Esc·초점 복귀 확인 |
+| 실제 모바일390px | 내정보·신청 모달 확인. dialog366px/document390px, profile375px로 viewport 안에 표시 |
+| 종료 | 공개 `demo?logout`의 로그아웃 안내 확인, viewport override 해제, 관리셸 exit 후 서버 login 화면 확인·콘솔 닫기 |
+
+HTTP 검사는 로그인 POST2회와 로그인/로그아웃 세션 처리만 실행했고 **실제 업무 저장·신청 POST는0회**다. 실제 신청 접수·권한 저장을 이번 서버에서 재실행했다고 해석하지 않는다. 저장 성공/검증 오류/미저장 닫기/처리 중 닫기 차단은 합성 자동 테스트 결과와 구분한다.
+
+개발 작업트리의 ignored `target/ui-polish-deploy-20261105/`에 `package-summary.json`, `server-summary.json`, `public-smoke.log`, `public-profile.jpg`, `public-access-modal.jpg`, `public-request-modal.jpg`, `public-mobile-profile.jpg`, `public-mobile-request.jpg`를 보관했다. 서버의 단계별 원시 증거는 접근 제한된 `/srv/worklog/.local/ui-polish-20261105`에 남겼으며 비밀값·자료 원문은 Git에 포함하지 않았다.
+
+## 미실시 범위
+
+Java/DB 통합·실제 업무 변경 POST·새 장시간 부하·취약점 재검사는 이번 UI 변경에서 재실행하지 않았다. 모바일 native confirm 이후 수동 흐름은 IAB 제어 한계로 마치지 못했고 해당 미저장 확인 동작은 자동 테스트로 검증했다. 기존 업무 계약과 알려진 운영 한계는 유지한다. 기존 untracked 공통 시트 설계 문서는 변경/커밋 대상에서 제외한다.
