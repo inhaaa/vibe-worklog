@@ -73,19 +73,15 @@ function Demo({ model: m }: { model: AuthModel }) {
           </span>
         </div>
         <button className="t-btn secondary" type="submit" form="demo-login-form">
-          데모 살펴보기 <span aria-hidden="true">↗</span>
+          데모 살펴보기
         </button>
       </header>
       <div className="t-hero">
         <div className="t-hero-copy">
-          <p className="t-intro-label">
-            <span aria-hidden="true" />
-            일하는 하루를 더 명확하게
-          </p>
           <h1 id="demo-title">
             근무는 한눈에.
             <br />
-            관리는 <em>간결하게.</em>
+            관리는 간결하게.
           </h1>
           <p className="t-hero-description">
             출퇴근과 휴가, 근무 일정과 직원 관리.
@@ -118,7 +114,7 @@ function Demo({ model: m }: { model: AuthModel }) {
               <label htmlFor="demo-password">비밀번호</label>
               <input id="demo-password" className="t-input" name="password" type="password" autoComplete="current-password" minLength={5} maxLength={256} required value={password} onChange={event => setPassword(event.target.value)} />
               <button className="t-btn primary t-enter" type="submit">
-                사번으로 로그인 <span aria-hidden="true">→</span>
+                사번으로 로그인
               </button>
             </Form>
           </div>
@@ -131,86 +127,47 @@ function Demo({ model: m }: { model: AuthModel }) {
             <span>휴가·직원 관리</span>
           </div>
         </div>
-        <div
-          className="t-hero-art"
-          role="img"
-          aria-label="기록, 일정, 신청을 모아 보여주는 화면 구성 예시"
-        >
-          <div className="t-mini-window" aria-hidden="true">
-            <div className="t-mini-head">
-              <span className="t-mini-logo">WorkLog</span>
-              <span>화면 구성 예시</span>
-              <span className="t-mini-avatar">W</span>
-            </div>
-            <div className="t-mini-body">
-              <p className="t-mini-kicker">MY WORKSPACE</p>
-              <h2>오늘의 흐름을 한눈에.</h2>
-              <div className="t-mini-summary">
-                <div>
-                  <span>하루의 시작과 끝</span>
-                  <strong>출퇴근</strong>
-                  <span className="t-mini-status">기록과 확인 상태를 구분</span>
-                </div>
-                <div>
-                  <span>나의 휴가와 신청</span>
-                  <strong>함께 확인</strong>
-                  <span>필요한 정보를 모아서</span>
-                </div>
-              </div>
-              <div className="t-mini-weekhead">
-                <strong>이번 주 일정</strong>
-                <span>월요일부터 금요일까지</span>
-              </div>
-              <div className="t-mini-week">
-                <div className="today">
-                  <span>월</span>
-                  <b>일정</b>
-                  <i />
-                </div>
-                <div>
-                  <span>화</span>
-                  <b>일정</b>
-                  <i />
-                </div>
-                <div className="leave">
-                  <span>수</span>
-                  <b>휴가</b>
-                  <small>상태 확인</small>
-                </div>
-                <div>
-                  <span>목</span>
-                  <b>일정</b>
-                  <i />
-                </div>
-                <div>
-                  <span>금</span>
-                  <b>일정</b>
-                  <i />
-                </div>
-              </div>
-              <div className="t-mini-footer">
-                <span className="t-mini-check">✓</span>
-                <div>
-                  <strong>신청과 기록을 한곳에서</strong>
-                  <span>내 업무에 필요한 정보를 확인하세요</span>
-                </div>
-                <span className="t-mini-arrow">↗</span>
-              </div>
-            </div>
-          </div>
-          <div className="t-floating-note">
-            <span className="t-note-icon" aria-hidden="true">
-              ✓
-            </span>
+        <section className="t-demo-guide" aria-labelledby="demo-guide-title">
+          <header>
+            <h2 id="demo-guide-title">오늘의 흐름을 한눈에.</h2>
+            <p>일하는 하루를 더 명확하게</p>
+          </header>
+          <dl className="t-demo-guide-list">
             <div>
-              <strong>일정과 기록을 한곳에서</strong>
-              <span>내 업무에 집중하는 작은 변화</span>
+              <dt>출퇴근</dt>
+              <dd><strong>하루의 시작과 끝</strong><span>기록과 확인 상태를 구분</span></dd>
             </div>
+            <div>
+              <dt>나의 휴가와 신청</dt>
+              <dd><strong>함께 확인</strong><span>필요한 정보를 모아서</span></dd>
+            </div>
+          </dl>
+          <section className="t-demo-schedule" aria-labelledby="demo-schedule-title">
+            <header>
+              <h3 id="demo-schedule-title">이번 주 일정</h3>
+              <span>월요일부터 금요일까지</span>
+            </header>
+            <p className="t-demo-example-label">화면 구성 예시</p>
+            <dl className="t-demo-week">
+              <div><dt>월</dt><dd>일정</dd></div>
+              <div><dt>화</dt><dd>일정</dd></div>
+              <div className="leave"><dt>수</dt><dd>휴가<small>상태 확인</small></dd></div>
+              <div><dt>목</dt><dd>일정</dd></div>
+              <div><dt>금</dt><dd>일정</dd></div>
+            </dl>
+          </section>
+          <div className="t-demo-guide-note">
+            <strong>신청과 기록을 한곳에서</strong>
+            <p>내 업무에 필요한 정보를 확인하세요</p>
           </div>
-        </div>
+          <div className="t-demo-guide-note">
+            <strong>일정과 기록을 한곳에서</strong>
+            <p>내 업무에 집중하는 작은 변화</p>
+          </div>
+        </section>
       </div>
       <footer className="t-intro-footer">
-        <span>WorkLog · 일하는 하루의 기준</span>
+        <span>WorkLog <span className="t-intro-footer-tagline">일하는 하루의 기준</span></span>
         <span>{m.publicDemo ? '가상 자료로 체험하는 공개 데모' : '합성 자료로 둘러보는 로컬 데모'}</span>
       </footer>
     </section>
@@ -220,8 +177,8 @@ function Login({ model: m }: { model: AuthModel }) {
   return (
     <main className="login-shell">
       <section className="panel" aria-labelledby="login-title">
-        <p className="eyebrow">WorkLog · 로컬 개발 환경</p>
         <h1 id="login-title">로그인</h1>
+        <p className="t-auth-context"><span>WorkLog</span><span>로컬 개발 환경</span></p>
         <p>
           {m.localDemo
             ? '사번과 비밀번호로 로그인해 주세요.'
@@ -304,8 +261,8 @@ function Invite({ model: m }: { model: AuthModel }) {
   return (
     <main className="login-shell">
       <section className="panel" aria-labelledby="invite-title">
-        <p className="eyebrow">WorkLog · 계정 초대</p>
         <h1 id="invite-title">초대 수락</h1>
+        <p className="t-auth-context"><span>WorkLog</span><span>계정 초대</span></p>
         <p>
           회사 코드: <span>{m.companyCode}</span>
         </p>
@@ -370,8 +327,8 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
   return (
     <main className="login-shell">
       <section className="panel" aria-labelledby="reset-title">
-        <p className="eyebrow">WorkLog · 계정 보안</p>
         <h1 id="reset-title">비밀번호 재설정</h1>
+        <p className="t-auth-context"><span>WorkLog</span><span>계정 보안</span></p>
         {m.flags?.requested && (
           <p className="notice" role="status">
             일치하는 계정이 있으면 재설정 코드를 전달합니다. 현재는 로컬 모의 전달만 사용합니다.

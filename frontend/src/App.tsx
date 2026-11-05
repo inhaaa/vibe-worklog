@@ -18,6 +18,7 @@ import type { EmployeeHeaderData } from './components/EmployeeHeader';
 import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
 import { getNavigation, getNavigationContext, getWorkspaceMenuRoles, getWorkspaceRoles, selectWorkspaceRole } from './navigation';
 import { Modal } from './components/Modal';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import './WorkspacePolish.css';
 
 function isTaskUrl(url: URL) {
@@ -149,6 +150,7 @@ function Workspace({
   }, []);
   return (
     <div className="t-app-shell" data-menu-open={String(open)}>
+      <a className="t-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>본문으로 건너뛰기</a>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
         <a className="t-brand-button t-wordmark" href="/me/profile">
           <span className="t-logo" aria-hidden="true">
@@ -173,7 +175,7 @@ function Workspace({
             <>
               <span className="t-demo-label">로컬 데모 워크스페이스</span>
               <p>합성 자료로 기능을 확인하세요.</p>
-              <a href="/demo">← 소개 화면으로</a>
+              <a href="/demo">소개 화면으로</a>
             </>
           )}
           <p>Asia/Seoul 기준</p>
@@ -194,6 +196,7 @@ function Workspace({
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
+          <ThemeSwitcher />
           {roleOptions.length > 0 && <label className="t-role-picker">
             <span>업무 권한</span>
             <select aria-label="업무 권한" value={activeRole} onChange={event => setSelectedRole(selectWorkspaceRole(roles, event.target.value))}>
@@ -217,7 +220,7 @@ function Workspace({
           </Form>
         </div>
       </header>
-      <main className="t-main">
+      <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
         {employeeHeader && <EmployeeHeader employee={employeeHeader} />}
         {children}
       </main>
@@ -632,7 +635,10 @@ export function App({ initial }: { initial: PageEnvelope }) {
             {content}
           </Workspace>
         ) : (
-          content
+          <>
+            <div className="t-public-tools"><ThemeSwitcher /></div>
+            {content}
+          </>
         )}
         {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}>
           {notice && <p className="notice" role="alert">{notice}</p>}

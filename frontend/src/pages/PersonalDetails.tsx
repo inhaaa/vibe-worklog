@@ -161,7 +161,7 @@ export function PersonalDetailsEditor({ model: m, today, busy }: { model: Person
         <div className="actions"><button type="reset" className="t-btn" disabled={busy}>이력 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || entryConflict}>이력 추가</button></div>
         {entryConflict && <section className="t-personnel-conflict" aria-label="최신 이력 비교"><h3>다른 이력이 반영되었습니다</h3>
           <p>입력은 유지했습니다. 현재 버전 {m.version}의 등록된 이력을 확인한 뒤 다시 저장하세요.</p>
-          {m.entries.length ? <ul>{m.entries.map(entry => <li key={entry.id}>{tabs[kinds.indexOf(entry.kind) + 2]} · {entry.title} · {display(entry.detail)} · {entry.effectiveFrom} · 버전 {entry.revision}</li>)}</ul> : <p>현재 등록된 이력이 없습니다.</p>}
+          {m.entries.length ? <ul>{m.entries.map(entry => <li key={entry.id}><strong>{tabs[kinds.indexOf(entry.kind) + 2]}: {entry.title}</strong><p>{display(entry.detail)}</p><p>{entry.effectiveFrom}, 버전 {entry.revision}</p></li>)}</ul> : <p>현재 등록된 이력이 없습니다.</p>}
           <button type="button" className="t-btn" disabled={busy} onClick={() => { setEntryVersion(m.version); entryChanged(); }}>이력 최신 버전 확인 후 입력 유지</button>
         </section>}
       </Form>

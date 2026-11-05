@@ -29,7 +29,7 @@ function RequestTable({ rows, year, canResubmit=[] }: { rows: RequestView[]; yea
       <td data-label="기간·일수"><span>{fmtDate(row.fromDate)}</span><small>~ {fmtDate(row.toDate)}{row.kind === 'LEAVE_DAY' && ` · 원신청 ${row.quantityDays} DAY`}</small></td>
       <td data-label="결재 진행"><span>{row.approverName || '담당 미지정'}</span><small>{row.status==='PENDING'?'담당자 검토 대기':'처리된 신청'}</small></td>
       <td data-label="현재 상태"><span className={`t-request-status t-request-status-${row.status.toLowerCase()}`}>{statusName(row.status)}</span><small>{row.effectStatus === 'EFFECTIVE' ? '현재 효력 유효' : row.effectStatus === 'CANCELED' ? '취소 완료' : row.effectStatus === 'SUPERSEDED' ? '후속 정정으로 대체' : '효력 없음'}</small></td>
-      <td data-label="상세"><a className="t-request-detail" href={`/requests/${row.id}`} aria-label={`${kindName(row.kind)} 상세`}>상세 보기 <span aria-hidden="true">↗</span></a>{year&&canResubmit.includes(row.id)&&['REJECTED','WITHDRAWN'].includes(row.status)&&['LEAVE_DAY','ATTENDANCE_CORRECTION'].includes(row.kind)&&<a className="t-request-resubmit" href={url('/me/requests/new',{year,kind:row.kind,date:row.fromDate,predecessorRequestId:row.id})}>재신청</a>}</td>
+      <td data-label="상세"><a className="t-request-detail" href={`/requests/${row.id}`} aria-label={`${kindName(row.kind)} 상세`}>상세 보기 </a>{year&&canResubmit.includes(row.id)&&['REJECTED','WITHDRAWN'].includes(row.status)&&['LEAVE_DAY','ATTENDANCE_CORRECTION'].includes(row.kind)&&<a className="t-request-resubmit" href={url('/me/requests/new',{year,kind:row.kind,date:row.fromDate,predecessorRequestId:row.id})}>재신청</a>}</td>
     </tr>)}
   </tbody></table>{!rows.length && <div className="t-request-empty"><span aria-hidden="true">▤</span><p>조회 조건에 맞는 신청이 없습니다.</p><small>연도·유형·상태 또는 현재 페이지 검색을 확인해 주세요.</small></div>}</div>;
 }
@@ -115,7 +115,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     if (!ready || locked || compose.conflict) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const content = <>
-    <header className="t-modal-head"><div><p className="t-request-kicker">신청서 작성 · {model.annual.year}</p><h2 id="annual-compose-title" hidden={embedded}>근태 신청</h2><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div>{!embedded&&<button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button>}</header>
+    <header className="t-modal-head"><div><h2 id="annual-compose-title" hidden={embedded}>근태 신청</h2><p className="t-request-year">{model.annual.year}년 신청</p><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div>{!embedded&&<button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button>}</header>
     <nav className="t-request-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="t-request-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
     <div className="t-request-layout"><div className="t-request-main">
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
@@ -209,18 +209,42 @@ function Annual({ model: m, submitting }: { model: AnnualModel; submitting: bool
     ['확인된 등록 기초·조정',a.registeredDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.registeredDays} DAY`,a.attributionPartial?'귀속 확인 자료의 부분합':'자동 발생량·연초 잔여가 아님'],
     ['귀속연도 원장 잔액',a.attributedBalanceDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.attributedBalanceDays} DAY`,'확인 묶음의 현재 잔액 · 연말 잔여 아님'],
   ];
-  return <section className="t-annual-page"><header className="t-pagehead"><div><p className="t-eyebrow">내 업무 · {a.year}</p><h1>내 근태현황·신청</h1><p className="t-muted">대상 휴가일·근무일 기준 {a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.</p></div><a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a></header>
+  return <section className="t-annual-page"><header className="t-pagehead"><div><h1>내 근태현황·신청</h1><p className="t-muted">대상 휴가일·근무일 기준 {a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.</p></div><a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a></header>
     <p className="t-muted">기준 시각 {fmtDateTime(a.asOf)} (서울) · 목록 필터와 무관한 연도 전체 등록 자료 기준입니다.</p>
     {missing&&<p className="notice">선택 연도의 등록 자료가 없습니다. 연간 전체 사용량이나 자동 발생량이 0이라고 확정할 수 없습니다.</p>}
-    {a.createdId&&<section className="t-request-success" role="status" aria-label="신청 접수 결과"><span className="t-request-success-icon" aria-hidden="true">✓</span><div><h2>신청을 접수했습니다.</h2><p>승인 결과는 신청 상세에서 확인할 수 있어요.</p>{a.outsideYear&&<p>신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></p>}</div><a className="t-btn" href={`/requests/${a.createdId}`}>생성한 신청 상세 <span aria-hidden="true">↗</span></a></section>}
+    {a.createdId&&<section className="t-request-success" role="status" aria-label="신청 접수 결과"><span className="t-request-success-icon" aria-hidden="true">✓</span><div><h2>신청을 접수했습니다.</h2><p>승인 결과는 신청 상세에서 확인할 수 있어요.</p>{a.outsideYear&&<p>신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></p>}</div><a className="t-btn" href={`/requests/${a.createdId}`}>생성한 신청 상세 </a></section>}
     <div className="t-annual-metrics">{[metrics[3],...metrics.slice(0,3)].map(([label,value,hint])=><section className={`t-card${label==='현재 사용 가능'?' t-request-available':''}`} key={label}><h2>{label}</h2><strong>{value}</strong><p>{hint}</p></section>)}</div>
     <dl className="t-request-balance-basis">{metrics.slice(4).map(([label,value,hint])=><div key={label}><dt>{label}</dt><dd>{value}<small>{hint}</small></dd></div>)}</dl>
     {a.unknownBucketCount>0&&<p className="notice">귀속 미확인 묶음 {a.unknownBucketCount}개. 기준일의 연도를 귀속연도로 추정하지 않습니다. 담당자의 근거 확인이 필요합니다.</p>}
     <Form action="/me/requests" method="get" className="t-card t-annual-filters" role="search" aria-label="연도별 근태 조회"><div className="t-request-filter-field"><label htmlFor="annual-year">조회 연도</label><input id="annual-year" className="t-input" name="year" type="number" min="1900" max="9998" defaultValue={a.year} required /></div><div className="t-request-filter-field"><label htmlFor="annual-type-filter">근태유형</label><select id="annual-type-filter" name="typeId" className="t-select" defaultValue={a.typeId??''}><option value="">전체 유형</option>{a.types.map(type=><option key={type.id} value={type.id}>{type.name}{!type.supported?' (신청 미지원)':''}</option>)}</select></div><div className="t-request-filter-field"><label htmlFor="annual-status">상태</label><select id="annual-status" name="status" className="t-select" defaultValue={a.status}><option value="">전체 상태</option>{['PENDING','APPROVED','REJECTED','WITHDRAWN'].map(status=><option key={status} value={status}>{statusName(status)}</option>)}</select></div><div className="t-request-filter-actions"><button className="t-btn">조회</button></div></Form>
     <section className="t-card" aria-labelledby="annual-request-history"><header className="t-request-list-head"><div><h2 id="annual-request-history">내 대상 신청 이력</h2><p className="t-muted">본인 대상의 원신청 기간·일수입니다. 연간 수치는 해당 연도 날짜만 집계합니다.</p></div><label className="t-request-list-search">현재 페이지 신청 검색<input aria-label="현재 페이지 신청 검색" className="t-input" type="search" value={search} placeholder="유형, 사유, 날짜 검색" onChange={event=>setSearch(event.target.value)}/><span>불러온 최대 50건에서 검색</span></label></header><RequestTable rows={requests} year={a.year} canResubmit={a.canResubmitRequestIds ?? []}/><Pages annual={a}/></section>
     <section className="t-card"><h2>내가 대리 작성한 이력</h2><p className="t-muted">다른 사원 대상의 작성 이력이며 본인 수치에 포함하지 않습니다. 위 목록의 유형·상태 필터와 독립입니다.</p><RequestTable rows={a.authoredRequests}/><Pages annual={a} authored/></section>
-    <section className="t-card"><h2>기초 묶음·귀속 정보</h2><p className="t-muted">귀속연도 잔액은 현재 원장 잔액입니다. 표시된 연간 사용을 다시 빼지 않습니다.</p><div className="table-scroll"><table><thead><tr><th>귀속</th><th>사용 가능 기간</th><th>현재 잔액</th><th>오늘 사용 가능</th><th>확인 상태·근거</th></tr></thead><tbody>{a.attributionBuckets.map(bucket=><tr key={bucket.bucketId}><td>{bucket.classificationStatus==='CONFIRMED'?`${bucket.entitlementYear}년`:'귀속 미확인'}</td><td>{fmtDate(bucket.usableFrom)} ~ {bucket.usableTo?fmtDate(bucket.usableTo):'종료 없음'}</td><td>{bucket.balanceDays} DAY</td><td>{bucket.availableDays} DAY</td><td>{bucket.availability==='CURRENT'?'현재 사용기간':bucket.availability==='EXPIRED'?'사용기간 만료':'사용기간 미개시'}<small>{bucket.basis??'분류 근거 미등록'}</small></td></tr>)}</tbody></table></div></section>
-    <section className="t-card"><h2>유형별 연간 신청</h2><p className="t-muted">신청 건수와 휴가 DAY는 서로 다른 단위입니다. 반려·철회 건수도 현재 상태 기준입니다.</p><div className="table-scroll"><table><thead><tr><th>근태유형</th><th>전체</th><th>대기</th><th>승인</th><th>반려</th><th>철회</th><th>휴가 DAY</th></tr></thead><tbody>{a.summaries.map(summary=><tr key={`${summary.typeId}-${summary.kind}`}><td>{summary.name}<small>{kindName(summary.kind)}</small></td><td>{summary.requestCount}건</td><td>{summary.pendingCount}건</td><td>{summary.approvedCount}건</td><td>{summary.rejectedCount}건</td><td>{summary.withdrawnCount}건</td><td>{summary.kind==='LEAVE_DAY'?`사용 ${summary.usedDays} / 예정 ${summary.plannedDays} / 대기 ${summary.pendingDays}`:'해당 없음'}</td></tr>)}</tbody></table></div></section>
+    <section className="t-card"><h2 id="annual-bucket-summary">기초 묶음·귀속 정보</h2><p className="t-muted">귀속연도 잔액은 현재 원장 잔액입니다. 표시된 연간 사용을 다시 빼지 않습니다.</p>
+      <div className="table-scroll t-annual-summary-scroll"><table className="t-annual-summary-table" role="table" aria-labelledby="annual-bucket-summary">
+        <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">귀속</th><th scope="col" role="columnheader">사용 가능 기간</th><th scope="col" role="columnheader">현재 잔액</th><th scope="col" role="columnheader">오늘 사용 가능</th><th scope="col" role="columnheader">확인 상태·근거</th></tr></thead>
+        <tbody role="rowgroup">{a.attributionBuckets.map(bucket=><tr key={bucket.bucketId} role="row">
+          <td role="cell" data-label="귀속"><div className="t-annual-summary-value">{bucket.classificationStatus==='CONFIRMED'?`${bucket.entitlementYear}년`:'귀속 미확인'}</div></td>
+          <td role="cell" data-label="사용 가능 기간"><div className="t-annual-summary-value">{fmtDate(bucket.usableFrom)} ~ {bucket.usableTo?fmtDate(bucket.usableTo):'종료 없음'}</div></td>
+          <td role="cell" data-label="현재 잔액"><div className="t-annual-summary-value">{bucket.balanceDays} DAY</div></td>
+          <td role="cell" data-label="오늘 사용 가능"><div className="t-annual-summary-value">{bucket.availableDays} DAY</div></td>
+          <td role="cell" data-label="확인 상태·근거"><div className="t-annual-summary-value">{bucket.availability==='CURRENT'?'현재 사용기간':bucket.availability==='EXPIRED'?'사용기간 만료':'사용기간 미개시'}<small>{bucket.basis??'분류 근거 미등록'}</small></div></td>
+        </tr>)}</tbody>
+      </table></div>
+    </section>
+    <section className="t-card"><h2 id="annual-type-summary">유형별 연간 신청</h2><p className="t-muted">신청 건수와 휴가 DAY는 서로 다른 단위입니다. 반려·철회 건수도 현재 상태 기준입니다.</p>
+      <div className="table-scroll t-annual-summary-scroll"><table className="t-annual-summary-table" role="table" aria-labelledby="annual-type-summary">
+        <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">근태유형</th><th scope="col" role="columnheader">전체</th><th scope="col" role="columnheader">대기</th><th scope="col" role="columnheader">승인</th><th scope="col" role="columnheader">반려</th><th scope="col" role="columnheader">철회</th><th scope="col" role="columnheader">휴가 DAY</th></tr></thead>
+        <tbody role="rowgroup">{a.summaries.map(summary=><tr key={`${summary.typeId}-${summary.kind}`} role="row">
+          <td role="cell" data-label="근태유형"><div className="t-annual-summary-value">{summary.name}<small>{kindName(summary.kind)}</small></div></td>
+          <td role="cell" data-label="전체"><div className="t-annual-summary-value">{summary.requestCount}건</div></td>
+          <td role="cell" data-label="대기"><div className="t-annual-summary-value">{summary.pendingCount}건</div></td>
+          <td role="cell" data-label="승인"><div className="t-annual-summary-value">{summary.approvedCount}건</div></td>
+          <td role="cell" data-label="반려"><div className="t-annual-summary-value">{summary.rejectedCount}건</div></td>
+          <td role="cell" data-label="철회"><div className="t-annual-summary-value">{summary.withdrawnCount}건</div></td>
+          <td role="cell" data-label="휴가 DAY"><div className="t-annual-summary-value">{summary.kind==='LEAVE_DAY'?`사용 ${summary.usedDays} / 예정 ${summary.plannedDays} / 대기 ${summary.pendingDays}`:'해당 없음'}</div></td>
+        </tr>)}</tbody>
+      </table></div>
+    </section>
     {open&&m.compose&&<RequestComposer initial={m.compose} model={m} submitting={submitting} onClose={()=>setOpen(false)}/>}
   </section>;
 }
@@ -240,7 +264,7 @@ function AttributionManagement({model:m,error}:{model:AttributionView;error?:str
   useUnload(dirty);
   const change=()=>{setDirty(true);setCommand(crypto.randomUUID());};
   return <section className="t-annual-page">
-    <header className="t-pagehead"><div><p className="t-eyebrow">연차 관리</p><h1>기초 묶음 귀속연도</h1><p>{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p></div><a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a></header>
+    <header className="t-pagehead"><div><h1>기초 묶음 귀속연도</h1><p>{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p></div><a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a></header>
     <p className="notice">묶음 전체가 단일 귀속연도라는 근거가 있을 때만 확정하세요. 혼합된 묶음은 미분류로 유지합니다. 분류는 기초·사용·복원 원장을 바꾸지 않습니다.</p>
     <section className="t-card"><h2>귀속 분류 등록</h2>
       {error&&<p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}

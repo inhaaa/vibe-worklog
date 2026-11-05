@@ -19,8 +19,8 @@ export function EmployeeHeader({ employee: e }: { employee: EmployeeHeaderData }
         {photo ? <img src={photo} alt={`${e.employeeName} 사원사진`} onError={() => setFailedUrl(photo)} /> : <span aria-label="사원사진 미등록">{e.employeeName.slice(0, 1) || 'W'}</span>}
       </div>
       <div className="t-employee-identity">
-        <p className="t-employee-company">{e.companyName}</p>
         <div className="t-employee-name-row"><h2>{e.employeeName}</h2><span className={`t-employment-state t-state-${e.employmentStatus.toLowerCase()}`}>{employmentStatusName(e.employmentStatus)}</span></div>
+        <p className="t-employee-company">{e.companyName}</p>
         <p className="t-employee-meta"><span className="t-employee-organization"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 21V5h10v16 M14 11h6v10 M8 9h2 M8 13h2 M8 17h2 M3 21h18" /></svg>{e.organizationName ?? '소속 미배정'}</span><span className="t-employee-number">사번 {e.employeeNo}</span></p>
       </div>
       <dl className="t-employee-facts">{entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '미등록'}</dd></div>)}</dl>

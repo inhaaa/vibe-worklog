@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-05",
+  "baselineRevision": "f539d51",
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "sources": [
+    {
+      "file": "frontend/package.json",
+      "line": 1,
+      "finding": "React 19.3.1 and Vite; existing framework kept"
+    },
+    {
+      "file": "src/main/resources/static/app.css",
+      "line": 60,
+      "finding": "baseline --t tokens, Korean system sans, duplicated page-specific palettes"
+    },
+    {
+      "file": "frontend/src/App.tsx",
+      "line": 1,
+      "finding": "existing workspace, URL and modal ownership"
+    },
+    {
+      "file": "docs/design/personnel-workspace.md",
+      "finding": "employee identity and role contracts preserved"
+    }
+  ],
+  "preserved": [
+    "all links fields handlers",
+    "role-filtered navigation",
+    "CSRF and server data contracts",
+    "Korean system font",
+    "existing user untracked design proposal"
+  ],
+  "introduced": [
+    "shared tokens",
+    "charcoal and blue theme choice requested by user",
+    "localStorage persistence with storage-failure fallback",
+    "flat ledger and form compositions",
+    "skip-to-content navigation"
+  ],
+  "material": {
+    "real": [
+      "WorkLog source",
+      "existing labels and workflows"
+    ],
+    "pictures": [
+      "synthetic UI captures for verification only"
+    ],
+    "absent": [
+      "invented metrics",
+      "testimonials",
+      "new logos",
+      "stock photographs"
+    ]
+  },
+  "read": {
+    "purpose": "employee records, attendance requests, approvals and administration",
+    "kept": "functional 3-level navigation and complete data fields",
+    "tells": "nested rounded cards, repeated purple-blue accents, small labels",
+    "broken": "contrast, control wrapping and mobile summary table overflow"
+  },
+  "themeDeal": {
+    "picked": "refract",
+    "position": 3,
+    "seed": "korean-employee-attendance-leave-8b6c·92323bcf·2026-11-05·r0",
+    "adaptation": "noon app surfaces; user requested clean charcoal and blue variants"
+  },
+  "verificationTools": {
+    "puppeteerCore": "25.16.0",
+    "license": "Apache-2.0",
+    "nodeRequirement": ">=22.12.0",
+    "installedNode": "22.14.0",
+    "location": "ignored target/hallmark-tools; no runtime dependency change",
+    "source": "https://pptr.dev/guides/installation"
+  }
+}

@@ -1,42 +1,25 @@
-.t-modal {
-  --modal-border: #e2e7f0;
-  --modal-ink: #243149;
-  --modal-muted: #526078;
-  --modal-focus: #4f46e5;
-  width: min(1040px, calc(100vw - 48px));
-  max-width: none;
-  max-height: calc(100dvh - 48px);
-  margin: auto;
-  padding: 0;
-  border: 1px solid var(--modal-border);
-  border-radius: 20px;
-  background: #fff;
-  color: var(--modal-ink);
-  box-shadow: 0 24px 88px #18223b38;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-.t-modal[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; animation: worklog-modal-enter 180ms ease-out; }
-.t-modal::backdrop { background: #17213e80; backdrop-filter: blur(3px); }
-.t-modal .t-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--modal-border); background: #fff; }
-.t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { min-width: 0; margin: 0; color: var(--modal-ink); font-size: 19px; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
-.t-modal .t-modal-close, #tna-app .t-modal .t-modal-close { display: grid; place-items: center; flex: none; width: 44px; min-width: 44px; min-height: 44px; padding: 10px; border: 1px solid transparent; border-radius: 12px; background: #f2f4f9; color: var(--modal-muted); transition: background 140ms ease, border-color 140ms ease; }
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: employee record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
+.t-modal { width: min(1040px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--t-line); border-radius: 10px; background: var(--t-paper); color: var(--t-ink); box-shadow: var(--t-shadow); overflow: hidden; box-sizing: border-box; }
+.t-modal[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.t-modal::backdrop { background: var(--t-overlay); }
+.t-modal .t-modal-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--t-line); background: var(--t-paper); }
+.t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { min-width: 0; margin: 0; color: var(--t-ink); font-size: 20px; line-height: 1.5; font-weight: 600; overflow-wrap: break-word; }
+.t-modal .t-modal-close, #tna-app .t-modal .t-modal-close { display: grid; place-items: center; flex: none; width: 44px; min-width: 44px; min-height: 44px; padding: var(--space-xs); border: 0; border-radius: 6px; background: none; color: var(--t-muted); }
 .t-modal .t-modal-close svg, #tna-app .t-modal .t-modal-close svg { width: 20px; height: 20px; }
-.t-modal .t-modal-close:hover:not(:disabled), #tna-app .t-modal .t-modal-close:hover:not(:disabled) { background: #e9edfa; border-color: #c8d0e3; color: var(--modal-focus); }
-.t-modal .t-modal-body { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 24px; scroll-padding-block: 16px; }
-.t-modal .t-modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 14px 24px; border-top: 1px solid var(--modal-border); background: #fafbfe; }
-.t-modal .t-modal-dismiss, #tna-app .t-modal .t-modal-dismiss { min-width: 88px; min-height: 44px; padding: 10px 20px; border: 1px solid #ccd4e2; border-radius: 10px; background: #fff; color: var(--modal-ink); font-size: 14px; }
-.t-modal :is(.t-modal-close, .t-modal-dismiss):disabled { opacity: .5; cursor: wait; }
-.t-modal :focus-visible { outline: 3px solid var(--modal-focus); outline-offset: 3px; }
-@keyframes worklog-modal-enter { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@media (max-width: 600px) {
-  .t-modal { width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border-radius: 16px; }
-  .t-modal .t-modal-header { gap: 12px; padding: 12px 16px; }
-  .t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { font-size: 17px; }
-  .t-modal .t-modal-body { padding: 18px 16px; }
-  .t-modal .t-modal-footer { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .t-modal[open] { animation: none; }
-  .t-modal .t-modal-close, #tna-app .t-modal .t-modal-close { transition: none; }
+.t-modal .t-modal-close:hover:not(:disabled), #tna-app .t-modal .t-modal-close:hover:not(:disabled) { background: var(--t-surface); color: var(--t-ink); }
+.t-modal .t-modal-close:active:not(:disabled), #tna-app .t-modal .t-modal-close:active:not(:disabled) { background: var(--t-blue-soft); }
+.t-modal .t-modal-body { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 28px; scroll-padding-block: var(--space-md); }
+.t-modal .t-modal-footer { display: flex; justify-content: flex-end; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--t-line); background: var(--t-paper); }
+.t-modal .t-modal-dismiss, #tna-app .t-modal .t-modal-dismiss { min-width: 88px; min-height: 44px; padding: var(--space-xs) 20px; border: 1px solid var(--t-field-border); border-radius: 6px; background: var(--t-paper); color: var(--t-ink); font-size: 14px; }
+.t-modal .t-modal-dismiss:hover:not(:disabled) { background: var(--t-surface); }
+.t-modal .t-modal-dismiss:active:not(:disabled) { background: var(--t-blue-soft); }
+.t-modal :is(.t-modal-close, .t-modal-dismiss):disabled { color: var(--t-muted); background: var(--t-disabled); cursor: wait; }
+.t-modal :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .t-modal { width: calc(100% - 24px); max-height: calc(100dvh - 24px); border-radius: 8px; }
+  .t-modal .t-modal-header { gap: var(--space-sm); padding: var(--space-sm) var(--space-md); }
+  .t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { font-size: 18px; }
+  .t-modal .t-modal-body { padding: 20px var(--space-md); }
+  .t-modal .t-modal-footer { padding: var(--space-sm) var(--space-md) max(var(--space-sm), env(safe-area-inset-bottom)); }
 }
