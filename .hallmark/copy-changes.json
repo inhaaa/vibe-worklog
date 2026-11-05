@@ -1,0 +1,117 @@
+[
+  {
+    "file": "AdminPages.tsx",
+    "before": "구성원 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "AdminPages.tsx",
+    "before": "사원 상세",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "AdminPages.tsx",
+    "before": "조직·사원 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "AdminPages.tsx",
+    "before": "조직 상세",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "AdminPages.tsx",
+    "before": "계정·역할·승인자 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "IdentityPages.tsx",
+    "before": "내 업무",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "IdentityPages.tsx",
+    "before": "관리 업무",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "IdentityPages.tsx",
+    "before": "회사 현황",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "IdentityPages.tsx",
+    "before": "회사 현황",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "CorePages.tsx",
+    "before": "나의 워크스페이스",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "CorePages.tsx",
+    "before": "TODAY'S FLOW",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "CorePages.tsx",
+    "before": "내 업무",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "OrgSheetPages.tsx",
+    "before": "인사 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "OrgSheetPages.tsx",
+    "before": "인사 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "OrgSheetPages.tsx",
+    "before": "회사 현황",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "CodePages.tsx",
+    "before": "운영 관리",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "CodePages.tsx",
+    "before": "근태 설정",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "ApprovalRoutePages.tsx",
+    "before": "권한·결재 설정",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "ApprovalRoutePages.tsx",
+    "before": "권한·결재 설정",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "PersonnelPage.tsx",
+    "before": "PERSONNEL",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "WorkflowPages.tsx",
+    "before": "신청 내역",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "WorkflowPages.tsx",
+    "before": "기록 정정",
+    "after": "상단 경로/화면 제목으로 통합"
+  },
+  {
+    "file": "WorkflowPages.tsx",
+    "before": "ATTENDANCE",
+    "after": "상단 경로/화면 제목으로 통합"
+  }
+]

@@ -89,7 +89,7 @@ function PersonnelEditor({ model: m, error, busy }: { model: PersonnelModel; err
     setPhotoAction('CLEAR'); setPhotoData(''); if (file.current) file.current.value = ''; changed();
   }
   return <div className="t-personnel-page">
-    <header className="t-pagehead"><div><p className="t-eyebrow">PERSONNEL</p><h1>인사정보 등록</h1><p className="t-muted">사원의 기본 인사정보와 적용일별 재직 상태를 관리하세요.</p></div><a className="t-btn" href={path}>기본정보·소속</a></header>
+    <header className="t-pagehead"><div><h1>인사정보 등록</h1><p className="t-muted">사원의 기본 인사정보와 적용일별 재직 상태를 관리하세요.</p></div><a className="t-btn" href={path}>기본정보·소속</a></header>
     <ErrorNotice message={error} />
     <Form key={reset} action={`${path}/personnel`} className="t-personnel-form" data-unsaved-changes={dirty ? 'true' : undefined} onChange={changed}
       onReset={event => { event.preventDefault(); cancel(); }}>

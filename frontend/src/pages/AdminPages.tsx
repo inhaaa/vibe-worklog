@@ -156,7 +156,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">구성원 관리</p>
+
           <h1>직원 목록</h1>
           <p className="t-muted">조직과 재직 정보를 한곳에서.</p>
         </div>
@@ -380,7 +380,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <a href="/admin/employees">사원 목록으로</a>
-      <p className="eyebrow">사원 상세</p>
+
       <h1>{m.employee.displayName}</h1>
       <p><a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a></p>
       <p>
@@ -564,7 +564,7 @@ function OrganizationFields({
 function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
   return (
     <div className="t-legacy-page admin-shell">
-      <p className="eyebrow">조직·사원 관리</p>
+
       <h1>조직 관리</h1>
       <section className="panel" aria-labelledby="organization-list-title">
         <h2 id="organization-list-title">조직 목록</h2>
@@ -648,7 +648,7 @@ function OrganizationPage({ model: m }: { model: OrganizationModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <a href="/admin/organizations">조직 목록으로</a>
-      <p className="eyebrow">조직 상세</p>
+
       <h1>{m.organization.name}</h1>
       <section className="panel" aria-labelledby="organization-change-title">
         <h2 id="organization-change-title">조직 정보 변경</h2>
@@ -677,7 +677,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <a href={path}>사원 상세로</a>
-      <p className="eyebrow">계정·역할·승인자 관리</p>
+
       <h1>{m.employee.displayName}</h1>
       <ErrorNotice message={m.error} />
       {invited && (
@@ -1062,7 +1062,7 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
                       <td>
                         {day.breaks.map((pause, index) => (
                           <span key={index}>
-                            {fmtTime(pause.startTime)}–{fmtTime(pause.endTime)}{' '}
+                            {fmtTime(pause.startTime)} ~ {fmtTime(pause.endTime)}{' '}
                           </span>
                         ))}
                       </td>

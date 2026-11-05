@@ -1,0 +1,45 @@
+[
+ {
+  "mode": "redesign",
+  "depth": "full",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "refract",
+  "axes": "light/system-sans/neutral-blue",
+  "hero": "app screen, no hero",
+  "nav": "preserved role-based three-level sidebar",
+  "footer": "workspace context",
+  "imagery": "existing employee image or initials only",
+  "photos": [],
+  "entry": "frontend/src/App.tsx",
+  "fingerprint": [
+   "app",
+   "record-first",
+   "sidebar",
+   "flat rows",
+   "inline filters",
+   "system-sans"
+  ],
+  "sections": [
+   "employee record",
+   "workspace heading",
+   "tabs or filters",
+   "ledger or form"
+  ],
+  "signature": "employee facts and request ledger",
+  "waived": [],
+  "prompt": "WorkLog clean full redesign with charcoal and blue themes",
+  "checks": {
+   "floor": 0,
+   "reflex": 0,
+   "warnings": 0,
+   "answered": 6,
+   "links": "181/181",
+   "fields": "118/118",
+   "handlers": "92/92",
+   "tests": 318,
+   "finishReview": "subagent, 1 finding resolved: mobile summary tables"
+  },
+  "date": "2026-11-05"
+ }
+]

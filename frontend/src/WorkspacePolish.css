@@ -1,58 +1,127 @@
-/* 업무 화면의 공통 정보 밀도와 입력 규칙. 소개·로그인 화면에는 적용하지 않는다. */
-#tna-app .t-app-shell, #tna-app .t-modal {
-  --t-blue: #4f46e5;
-  --t-ink: #1e293b;
-  --t-muted: #526178;
-  --t-line: #e2e8f0;
-  --t-paper: #fff;
-  --t-radius: 16px;
-}
-#tna-app .t-app-shell { background: #f5f7fb; }
-#tna-app .t-main { padding: 28px 32px 48px; }
-#tna-app .t-main .t-pagehead { gap: 20px; margin-bottom: 24px; }
-#tna-app .t-main .t-pagehead h1 { font-size: clamp(23px, 2vw, 29px); letter-spacing: -.8px; }
-#tna-app .t-main .t-pagehead .t-muted { font-size: 14px; line-height: 1.65; }
-#tna-app .t-app-shell .t-card, #tna-app .t-app-shell .panel,
-#tna-app .t-modal .t-card, #tna-app .t-modal .panel { border-radius: 16px; border-color: var(--t-line); box-shadow: 0 3px 16px #1e293b03; }
-#tna-app .t-app-shell .panel, #tna-app .t-modal .panel { padding: 24px; }
-#tna-app .t-app-shell :is(.t-btn, .actions button, .admin-form button),
-#tna-app .t-modal :is(.t-btn, .actions button, .admin-form button) { min-height: 44px; border-radius: 10px; font-size: 13px; font-weight: 600; transition: background-color 160ms, border-color 160ms, box-shadow 160ms; }
-#tna-app .t-app-shell :is(.t-input, .t-select), #tna-app .t-modal :is(.t-input, .t-select),
-#tna-app .t-modal .admin-form :is(select, textarea) { min-height: 44px; border: 1px solid #94a3b8; border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
-#tna-app .t-app-shell :is(input, select, textarea):focus-visible,
-#tna-app .t-modal :is(input, select, textarea, button, a):focus-visible { outline: 3px solid #818cf8; outline-offset: 3px; }
-#tna-app .t-app-shell .admin-form > label, #tna-app .t-modal .admin-form > label { margin: 20px 0 7px; font-size: 13px; font-weight: 600; color: var(--t-ink); }
-#tna-app .t-app-shell .admin-form :is(.hint, .t-subtle), #tna-app .t-modal :is(.hint, .t-subtle) { font-size: 13px; line-height: 1.7; color: var(--t-muted); }
-#tna-app .t-app-shell .table-scroll, #tna-app .t-modal .table-scroll { border-radius: 12px; border: 1px solid var(--t-line); }
-#tna-app .t-app-shell table, #tna-app .t-modal table { font-size: 13px; }
-#tna-app .t-app-shell th, #tna-app .t-modal th { background: #f8fafc; color: #475569; font-size: 12px; font-weight: 650; }
-#tna-app .t-app-shell :is(th, td), #tna-app .t-modal :is(th, td) { padding: 14px 12px; }
-#tna-app .t-app-shell tbody tr:hover, #tna-app .t-modal tbody tr:hover { background: #f8faff; }
-#tna-app .t-app-shell .t-sheet-table :is(th, td) { padding: 8px; }
-#tna-app .t-app-shell .t-sheet-table input { min-width: 0; }
-#tna-app .t-modal .t-legacy-page { margin: 0; max-width: none; }
-#tna-app .t-modal .t-legacy-page > h1 { font-size: 24px; margin: 8px 0 24px; }
-#tna-app .t-modal .t-legacy-page > a:first-child { display: inline-flex; margin-bottom: 12px; }
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · redesign: full · nav: preserved workspace · signature: employee record · states: existing · posture: restrained · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, flatten repeated cards and let records set the hierarchy */
+/* Hallmark · answered F7 · WorkLog form, filter and toolbar controls deliberately share dimensions for predictable data entry; records use borderless rows. */
+/* Hallmark · finish-review: subagent · 1 finding · 1 resolved · mobile summary tables keep every value in labelled rows · gap: none */
+@import url('./tokens.css');
+@import url('./base.css');
+#tna-app { color: var(--t-ink); background: var(--t-paper); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+#tna-app .t-app-shell { grid-template-columns: 232px minmax(0, 1fr); background: var(--t-paper); }
+#tna-app .t-sidebar { background: var(--t-canvas); padding: 32px var(--space-md) var(--space-lg); border-right: 1px solid var(--t-line); }
+#tna-app .t-main { max-width: var(--container); padding: 32px var(--space-xl) var(--space-2xl); margin-inline: auto; }
+#tna-app .t-topbar { padding: var(--space-md) 32px; gap: var(--space-lg); min-height: 80px; }
+#tna-app .t-wordmark { font-size: 24px; gap: var(--space-sm); font-weight: 600; white-space: nowrap; }
+#tna-app .t-logo { width: 36px; height: 36px; border-radius: 8px; font-size: 28px; background: var(--t-blue); }
+#tna-app .t-brand-sub { font-size: 12px; margin-top: var(--space-2xs); }
+#tna-app .t-brand-button { line-height: 1.2; }
+#tna-app .t-brand-button .t-brand-sub { line-height: 1.3; }
+#tna-app h1[tabindex="-1"]:focus { outline: none; }
+#tna-app .t-brand-button { margin: 0 var(--space-xs) 32px; }
+#tna-app .t-workspace-name { padding: var(--space-md) var(--space-xs); margin-bottom: var(--space-md); background: none; border: 0; border-block: 1px solid var(--t-line); border-radius: 0; font-size: 14px; line-height: 1.6; }
+#tna-app .t-workspace-name small { font-size: 12px; margin-top: var(--space-2xs); }
+#tna-app .t-workspace-icon { display: none; }
+#tna-app .t-sidebar-bottom { padding: var(--space-xl) var(--space-xs) 0; }
+#tna-app .t-sidebar-bottom :is(p, a, .t-demo-label) { font-size: 12px; }
+#tna-app .t-demo-label > span { display: none; }
+#tna-app .t-topbar .t-profile { min-width: 0; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-sm); }
+#tna-app .t-profile-copy { font-size: 14px; font-weight: 600; }
+#tna-app .t-profile-copy small { font-size: 12px; }
+#tna-app .t-profile > .t-avatar { display: none; }
+#tna-app .t-role-picker { display: inline-flex; align-items: center; gap: var(--space-xs); margin: 0; font-size: 12px; color: var(--t-muted); white-space: nowrap; }
+#tna-app .t-role-picker select { min-height: 44px; padding: var(--space-xs); border: 1px solid var(--t-field-border); border-radius: 8px; background: var(--t-paper); color: var(--t-ink); font-size: 14px; }
+#tna-app .t-profile .t-demo-switch { display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; color: var(--t-muted); border: 1px solid var(--t-line); border-radius: 8px; background: var(--t-paper); }
+#tna-app .t-demo-switch svg { width: 20px; height: 20px; }
+#tna-app .t-main .t-pagehead { gap: var(--space-lg); margin-bottom: 32px; align-items: center; }
+#tna-app h1, #tna-app .t-main h1 { font-size: 28px; line-height: 1.4; letter-spacing: -.03em; font-weight: 600; }
+#tna-app h2 { font-size: 20px; line-height: 1.5; letter-spacing: -.02em; font-weight: 600; }
+#tna-app h3 { font-size: 16px; font-weight: 600; }
+#tna-app .t-pagehead h1 { margin: 0 0 var(--space-xs); }
+#tna-app :is(.t-muted, .t-subtle, .hint), #tna-app .t-main .t-pagehead .t-muted { color: var(--t-muted); font-size: 14px; line-height: 1.7; }
+#tna-app :is(.t-card, .panel) { padding: var(--space-lg) 0; background: var(--t-paper); border: 0; border-top: 1px solid var(--t-line); border-radius: 0; box-shadow: none; }
+#tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding: var(--space-md) 0; border: 0; border-radius: 0; box-shadow: none; }
+#tna-app .t-cardhead { gap: var(--space-md); margin-bottom: var(--space-lg); }
+#tna-app :is(.t-btn, .actions button, .admin-form button) { min-height: 44px; padding: var(--space-xs) var(--space-md); border-radius: 8px; font-size: 14px; font-weight: 600; white-space: nowrap; box-shadow: none; transition: none; }
+#tna-app .t-btn { border-color: var(--t-line); background: var(--t-paper); color: var(--t-ink); }
+#tna-app .t-btn.primary { background: var(--t-blue); border-color: var(--t-blue); color: var(--t-paper); box-shadow: none; }
+#tna-app .t-btn.secondary { background: var(--t-paper); color: var(--t-ink); border-color: var(--t-line); }
+#tna-app :is(.t-btn, button):disabled { background: var(--t-disabled); border-color: var(--t-line); color: var(--t-muted); cursor: not-allowed; opacity: .65; }
+#tna-app .t-btn:active { transform: translateY(1px); }
+#tna-app :is(.t-input, .t-select, textarea), #tna-app .admin-form :is(input, select, textarea) { min-height: 44px; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--t-field-border); border-radius: 8px; font-size: 16px; line-height: 1.5; background: var(--t-paper); }
+#tna-app input[type=checkbox] { width: 20px; min-height: 20px; height: 20px; padding: 0; accent-color: var(--t-blue); }
+#tna-app :is(input, select, textarea)[readonly] { background: var(--t-canvas); }
+#tna-app :is(input, select, textarea):disabled { background: var(--t-disabled); color: var(--t-muted); cursor: not-allowed; }
+#tna-app :is(input, select, textarea)[aria-invalid=true] { border-color: var(--t-danger); }
+#tna-app .admin-form > label { margin: var(--space-lg) 0 var(--space-xs); font-size: 14px; font-weight: 600; }
+#tna-app .admin-form { max-width: 720px; }
+#tna-app .actions { gap: var(--space-sm); margin: var(--space-lg) 0; }
+#tna-app .checkbox-label { gap: var(--space-sm); font-size: 14px; }
+#tna-app .checkbox-label input { flex: 0 0 20px; }
+#tna-app :is(.table-scroll, .t-tablewrap) { border: 0; border-radius: 0; }
+#tna-app :is(table, .t-table), #tna-app .t-app-shell :is(.t-table, .t-table th, .t-table td) { font-size: 14px; }
+#tna-app :is(th, td) { padding: var(--space-md) var(--space-sm); border-color: var(--t-line); font-variant-numeric: tabular-nums; }
+#tna-app :is(th, .t-table th) { background: var(--t-canvas); color: var(--t-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
+#tna-app .t-sheet-scroll { border: 1px solid var(--t-line); border-radius: 8px; }
+#tna-app .t-sheet-table :is(th, td) { padding: var(--space-xs); }
+#tna-app .t-sheet-table :is(input, select) { min-width: 0; font-size: 14px; }
+#tna-app .t-sheet-table .t-sheet-check { margin: var(--space-sm) 0; }
+#tna-app :is(.t-sheet-links, .t-sheet-error) { font-size: 14px; }
+#tna-app .t-sheet-table [data-changed=true] { background: var(--t-blue-soft); border-color: var(--t-blue); }
+#tna-app .t-sheet-reason textarea { border-color: var(--t-field-border); }
+#tna-app .t-tag { padding: var(--space-2xs) var(--space-xs); font-size: 12px; line-height: 1.5; border-radius: 4px; white-space: nowrap; }
+#tna-app .t-tag.blue { color: var(--t-blue); background: var(--t-blue-soft); }
+#tna-app .t-tag.gray { color: var(--t-muted); background: var(--t-surface); }
+#tna-app .notice { padding: var(--space-md); font-size: 14px; background: var(--t-surface); border-radius: 8px; }
+#tna-app .notice.error, #tna-app .error { background: var(--t-danger-soft); color: var(--t-danger); }
+#tna-app .t-toolbar { gap: var(--space-md); }
+#tna-app .t-toolbar label { margin-bottom: var(--space-xs); font-size: 14px; }
+#tna-app .t-toolbar :is(.t-input, .t-select) { font-size: 16px; }
+#tna-app .t-legacy-page { max-width: none; margin: 0; }
+#tna-app .t-modal .t-legacy-page > h1 { margin: var(--space-xs) 0 var(--space-lg); font-size: 24px; }
 #tna-app .t-modal .admin-form { max-width: none; }
-#tna-app .t-modal .panel + .panel, #tna-app .t-modal .t-card + .t-card { margin-top: 20px; }
-#tna-app .t-modal .panel h2, #tna-app .t-modal .t-card h2 { font-size: 17px; margin-bottom: 12px; }
-#tna-app .t-modal .checkbox-label { display: flex; align-items: center; gap: 10px; padding: 12px 14px; min-height: 48px; border: 1px solid var(--t-line); background: #f8fafc; border-radius: 10px; }
-#tna-app .t-modal .checkbox-label:has(input:checked) { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
-#tna-app .t-modal .checkbox-label input { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--t-blue); }
-#tna-app .t-modal .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 24px; }
-#tna-app .t-modal .t-pagehead { margin-bottom: 20px; }
-#tna-app .t-modal .t-pagehead h1 { font-size: 23px; }
-#tna-app .t-modal .t-muted { font-size: 14px; line-height: 1.65; }
-@media (max-width: 680px) {
-  #tna-app .t-main { padding: 20px 16px 32px; }
-  #tna-app .t-main .t-pagehead { align-items: flex-start; flex-wrap: wrap; gap: 14px; }
-  #tna-app .t-app-shell .panel, #tna-app .t-modal .panel { padding: 18px; }
-  #tna-app .t-modal .t-head-forms, #tna-app .t-modal .form-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  #tna-app .t-modal :is(.t-input, .t-select, textarea) { font-size: 16px; width: 100%; min-width: 0; max-width: 100%; }
-  #tna-app .t-app-shell :is(.t-input, .t-select, textarea) { font-size: 16px; }
-  #tna-app .t-app-shell .t-personal-table td { padding: 0; }
-  #tna-app .t-modal .t-pagehead { flex-wrap: wrap; }
+#tna-app .t-modal :is(.panel, .t-card) + :is(.panel, .t-card) { margin-top: var(--space-lg); }
+#tna-app .t-grid-3 { gap: var(--space-lg); }
+#tna-app .t-metric-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+#tna-app .t-home-flow .t-flow-legend span::before { content: none; }
+#tna-app .t-home-flow :is(.t-flow-schedule, .t-flow-entry-copy, .t-flow-day) { border: 0; border-radius: 0; background: var(--t-canvas); }
+#tna-app .t-calendar-toolbar { gap: var(--space-md); }
+#tna-app .t-calendar-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: var(--space-lg); }
+#tna-app .t-app-shell :is(.t-calendar-note, .t-calendar-legend, .t-calendar-bottom, .t-weekdays, .t-day .t-day-number, .t-day .t-day-event) { font-size: 12px; }
+#tna-app .t-icon-button, #tna-app .t-mobile-menu { width: 44px; height: 44px; min-height: 44px; }
+#tna-app :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; transition: none; }
+#tna-app :is(input, select, textarea):focus-visible { outline-offset: 2px; }
+@media (hover: hover) {
+  #tna-app .t-btn:hover:not(:disabled), #tna-app .t-demo-switch:hover { background: var(--t-surface); }
+  #tna-app .t-btn.primary:hover:not(:disabled) { background: var(--t-blue-hover); border-color: var(--t-blue-hover); }
+  #tna-app tbody tr:hover { background: var(--t-canvas); }
 }
-@media (prefers-reduced-motion: reduce) {
-  #tna-app .t-app-shell *, #tna-app .t-modal * { transition: none !important; animation: none !important; }
+@media (max-width: 1200px) {
+  #tna-app .t-main { padding-inline: var(--space-lg); }
+  #tna-app .t-topbar { flex-wrap: wrap; padding-inline: var(--space-lg); gap: var(--space-sm); }
+  #tna-app .t-topbar .t-profile { margin-left: auto; }
+}
+@media (max-width: 960px) {
+  #tna-app .t-app-shell { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'top' 'main'; }
+  #tna-app .t-sidebar { display: none; position: static; width: 100%; height: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--t-line); }
+  #tna-app .t-app-shell[data-menu-open=true] { grid-template-areas: 'top' 'side' 'main'; }
+  #tna-app .t-app-shell[data-menu-open=true] .t-sidebar { display: flex; }
+  #tna-app .t-mobile-menu { display: inline-grid; place-items: center; }
+  #tna-app .t-calendar-layout, #tna-app .t-employee-layout, #tna-app .t-homegrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 680px) {
+  #tna-app .t-main { padding: var(--space-lg) var(--space-md) var(--space-xl); }
+  #tna-app .t-topbar { padding: var(--space-sm) var(--space-md); gap: var(--space-xs); }
+  #tna-app .t-topbar .t-breadcrumb { flex-basis: 100%; }
+  #tna-app .t-topbar .t-profile { width: 100%; gap: var(--space-2xs); }
+  #tna-app .t-role-picker > span { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  #tna-app .t-role-picker select { font-size: 16px; max-width: 140px; }
+  #tna-app .t-profile-copy { max-width: 72px; font-size: 14px; }
+  #tna-app .t-profile-copy small { display: none; }
+  #tna-app .t-profile .t-demo-switch { width: 44px; }
+  #tna-app .t-profile .t-logout { padding-inline: var(--space-xs); }
+  #tna-app .t-main .t-pagehead { flex-wrap: wrap; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-lg); }
+  #tna-app .t-main h1 { font-size: 24px; }
+  #tna-app :is(.t-btn, .t-tag) { white-space: nowrap; }
+  #tna-app .t-toolbar :is(.t-select, .t-input) { min-width: 0; }
+  #tna-app .t-modal :is(.t-head-forms, .form-row) { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
+  #tna-app .t-modal :is(.t-input, .t-select, textarea) { width: 100%; max-width: 100%; min-width: 0; }
+  #tna-app .t-app-shell :is(.t-input, .t-select, textarea), #tna-app .t-sheet-table :is(input, select) { font-size: 16px; }
 }

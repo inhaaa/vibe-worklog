@@ -235,7 +235,7 @@ function CommonCodes({ model: m, error }: { model: CommonModel; error?: string |
   const context = { q: m.q, page: m.page, groupId: m.groupId, codeQ: m.codeQ, codePage: m.codePage };
   const selected = m.selectedGroup ?? m.groups.find(group => group.id === m.groupId) ?? null;
   return <section className="t-code-management">
-    <header className="t-pagehead"><div><p className="t-eyebrow">운영 관리</p><h1>공통코드 관리</h1><p className="t-muted">회사별 표시·분류 코드를 관리하세요. 권한·신청 상태·계산 규칙은 변경되지 않습니다.</p></div><a className="t-btn" href="/admin/attendance-types">근태코드 관리</a></header>
+    <header className="t-pagehead"><div><h1>공통코드 관리</h1><p className="t-muted">회사별 표시·분류 코드를 관리하세요. 권한·신청 상태·계산 규칙은 변경되지 않습니다.</p></div><a className="t-btn" href="/admin/attendance-types">근태코드 관리</a></header>
     <section className="t-card" role="region" aria-label="코드그룹 관리">
       <h2>코드그룹</h2>
       <form action="/admin/common-codes" method="get" className="t-toolbar" role="search" aria-label="코드그룹 검색"><label htmlFor="code-group-q">코드그룹 검색</label><input id="code-group-q" className="t-input" name="q" type="search" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><button className="t-btn primary">조회</button></form>
@@ -258,7 +258,7 @@ function CommonCodes({ model: m, error }: { model: CommonModel; error?: string |
 }
 function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string | null }) {
   return <section className="t-code-management">
-    <header className="t-pagehead"><div><p className="t-eyebrow">근태 설정</p><h1>근태코드 관리</h1><p className="t-muted">신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p></div><a className="t-btn" href="/admin/common-codes">공통코드 관리</a></header>
+    <header className="t-pagehead"><div><h1>근태코드 관리</h1><p className="t-muted">신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p></div><a className="t-btn" href="/admin/common-codes">공통코드 관리</a></header>
     <section className="t-card">
       <form action="/admin/attendance-types" method="get" className="t-toolbar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><button className="t-btn primary">조회</button></form>
       <p className="notice">현재는 시스템 종일 연차와 기록 정정을 지원합니다. 신규 코드는 초안으로 등록하며 계산·차감 계약 미지원으로 신청할 수 없습니다.</p>

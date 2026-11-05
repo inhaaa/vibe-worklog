@@ -1,87 +1,75 @@
-#tna-app .t-private-personnel,
-#tna-app .t-profile-details {
-  --personal-ink: #25324b;
-  --personal-muted: #647084;
-  --personal-line: #e5e9f2;
-  --personal-tint: #f7f8fc;
-  --personal-accent: #5145b8;
-  --personal-accent-tint: #efedff;
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: personnel record and request ledger · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
+/* Hallmark · answered F7 · Aligned personnel label/value rows deliberately share one recipe for comparison. */
+#tna-app .t-private-personnel, #tna-app .t-profile-details {
+  --personal-ink: var(--t-ink);
+  --personal-muted: var(--t-muted);
+  --personal-line: var(--t-line);
+  --personal-tint: var(--t-canvas);
+  --personal-accent: var(--t-blue);
+  --personal-accent-tint: var(--t-blue-soft);
 }
-#tna-app .t-private-personnel { margin-bottom: 24px; padding: 0; overflow: hidden; border: 1px solid var(--personal-line); border-radius: 18px; background: #fff; }
-#tna-app .t-personnel-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--personal-line); padding: 12px 16px; background: var(--personal-tint); }
-#tna-app .t-personnel-tabs [role="tab"] { flex: 1 1 auto; min-height: 44px; margin: 0; background: transparent; color: var(--personal-muted); border: 1px solid transparent; border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; white-space: nowrap; transition: color 160ms, background-color 160ms, box-shadow 160ms; }
-#tna-app .t-personnel-tabs [role="tab"]:hover { color: var(--personal-accent); background: var(--personal-accent-tint); }
-#tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] { background: #fff; color: var(--personal-accent); border-color: var(--personal-line); box-shadow: 0 2px 5px #25324b08; }
-#tna-app .t-personnel-tabs [role="tab"]:focus-visible,
-#tna-app .t-personnel-tabpanel:focus-visible { outline: 2px solid var(--personal-accent); outline-offset: -3px; }
-#tna-app .t-personnel-tabpanel { padding: 28px; }
-#tna-app .t-personal-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
-#tna-app .t-personal-panel-heading h2 { margin: 0; color: var(--personal-ink); font-size: 18px; letter-spacing: -.4px; }
-#tna-app .t-personal-panel-heading p { margin: 7px 0 0; color: var(--personal-muted); font-size: 13px; line-height: 1.6; }
-#tna-app .t-personal-count { flex-shrink: 0; border-radius: 8px; background: var(--personal-accent-tint); padding: 7px 10px; font-size: 12px; color: var(--personal-accent); font-weight: 600; }
-#tna-app .t-personal-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 24px; }
+#tna-app .t-private-personnel.t-card { margin-bottom:32px; padding:0; border: 0; border-radius: 0; background: var(--t-paper); box-shadow: none; }
+#tna-app .t-personnel-tabs { display: flex; flex-wrap: wrap; gap:0 var(--space-lg); border-bottom: 1px solid var(--personal-line); padding:0; background: var(--t-paper); }
+#tna-app .t-personnel-tabs [role="tab"] { flex: 0 0 auto; min-height: 48px; margin:0; background: transparent; color: var(--personal-muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding:var(--space-sm) 0; font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: none; }
+#tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] { background: transparent; color: var(--personal-accent); border-bottom-color: var(--personal-accent); font-weight: 600; }
+#tna-app .t-personnel-tabs [role="tab"]:focus-visible, #tna-app .t-personnel-tabpanel:focus-visible { outline: 2px solid var(--t-focus); outline-offset: -3px; }
+#tna-app .t-personnel-tabpanel { padding:32px 0; }
+#tna-app .t-personal-panel-heading { display: flex; align-items: center; justify-content: space-between; gap:var(--space-md); margin-bottom:28px; }
+#tna-app .t-personal-panel-heading h2 { margin:0; color: var(--personal-ink); font-size: 20px; letter-spacing: -.3px; }
+#tna-app .t-personal-panel-heading p { margin:var(--space-xs) 0 0; color: var(--personal-muted); font-size: 14px; line-height: 1.6; }
+#tna-app .t-personal-count { flex-shrink: 0; padding:var(--space-2xs) 0; font-size: 14px; color: var(--personal-muted); font-variant-numeric: tabular-nums; }
+#tna-app .t-personal-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:32px 48px; }
 #tna-app .t-personal-group { min-width: 0; }
-#tna-app .t-personal-group h3 { margin: 0 0 12px; color: var(--personal-ink); font-size: 14px; font-weight: 650; }
+#tna-app .t-personal-group h3 { margin:0 0 var(--space-sm); color: var(--personal-ink); font-size: 16px; font-weight: 600; }
 #tna-app .t-personal-group-wide { grid-column: 1 / -1; }
-#tna-app .t-private-personnel .t-person-info,
-#tna-app .t-profile-details .t-person-info { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; gap: 1px; overflow: hidden; border: 1px solid var(--personal-line); border-radius: 12px; background: var(--personal-line); }
-#tna-app .t-personal-group-wide .t-person-info,
-#tna-app .t-profile-details .t-person-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-#tna-app .t-private-personnel .t-person-info > div,
-#tna-app .t-profile-details .t-person-info > div { display: grid; grid-template-columns: 116px minmax(0, 1fr); min-width: 0; margin: 0; padding: 0; border: 0; background: #fff; }
-#tna-app .t-private-personnel .t-person-info dt,
-#tna-app .t-profile-details .t-person-info dt { display: flex; align-items: center; margin: 0; padding: 14px 16px; background: var(--personal-tint); color: var(--personal-muted); font-size: 12px; line-height: 1.6; font-weight: 500; }
-#tna-app .t-private-personnel .t-person-info dd,
-#tna-app .t-profile-details .t-person-info dd { align-self: center; margin: 0; padding: 14px 16px; color: var(--personal-ink); font-size: 14px; line-height: 1.6; font-weight: 500; overflow-wrap: anywhere; }
-#tna-app .t-private-personnel .t-person-info dd[data-empty] { color: var(--personal-muted); font-weight: 400; }
-#tna-app .t-personal-privacy { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 9px; margin: -4px 0 0; color: var(--personal-muted); font-size: 12px; line-height: 1.7; }
-#tna-app .t-personal-privacy svg { flex: 0 0 18px; height: 18px; margin-top: 1px; color: var(--personal-accent); }
+#tna-app .t-private-personnel .t-person-info, #tna-app .t-profile-details .t-person-info { display: grid; grid-template-columns: minmax(0, 1fr); margin:0; gap:0 48px; border: 0; border-top: 1px solid var(--personal-line); border-radius: 0; background: var(--t-paper); }
+#tna-app .t-personal-group-wide .t-person-info, #tna-app .t-profile-details .t-person-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#tna-app .t-private-personnel .t-person-info > div, #tna-app .t-profile-details .t-person-info > div { display: grid; grid-template-columns: 136px minmax(0, 1fr); min-width: 0; margin:0; padding:0; border: 0; border-bottom: 1px solid var(--personal-line); background: var(--t-paper); }
+#tna-app .t-private-personnel .t-person-info dt, #tna-app .t-profile-details .t-person-info dt { display: flex; align-items: center; margin:0; padding:var(--space-md) var(--space-md) var(--space-md) 0; background: transparent; color: var(--personal-muted); font-size: 14px; line-height: 1.6; font-weight: 400; }
+#tna-app .t-private-personnel .t-person-info dd, #tna-app .t-profile-details .t-person-info dd { align-self: center; margin:0; padding:var(--space-md) 0; color: var(--personal-ink); font-size: 16px; line-height: 1.6; font-weight: 400; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+#tna-app .t-private-personnel .t-person-info dd[data-empty] { color: var(--personal-muted); }
+#tna-app .t-personal-privacy { grid-column: 1 / -1; display: flex; align-items: flex-start; gap:var(--space-xs); margin:0; color: var(--personal-muted); font-size: 14px; line-height: 1.7; }
+#tna-app .t-personal-privacy svg { flex: 0 0 18px; height: 18px; margin-top:var(--space-2xs); color: var(--personal-muted); }
 #tna-app .t-personal-privacy strong { color: var(--personal-ink); font-weight: 600; }
-#tna-app .t-personal-table { overflow: hidden; border: 1px solid var(--personal-line); border-radius: 12px; }
-#tna-app .t-personal-table table { width: 100%; min-width: 0; margin: 0; border-collapse: collapse; table-layout: fixed; }
-#tna-app .t-personal-table th { background: var(--personal-tint); color: var(--personal-muted); font-size: 12px; font-weight: 500; }
-#tna-app .t-personal-table th,
-#tna-app .t-personal-table td { padding: 16px; text-align: left; border: 0; border-bottom: 1px solid var(--personal-line); line-height: 1.6; overflow-wrap: anywhere; white-space: normal; }
-#tna-app .t-personal-table td { font-size: 14px; color: var(--personal-ink); font-variant-numeric: tabular-nums; }
-#tna-app .t-personal-table td strong { font-weight: 600; }
-#tna-app .t-personal-table tr:last-child td { border-bottom: 0; }
-#tna-app .t-personal-current,
-#tna-app .t-personal-version { display: inline-block; border-radius: 6px; padding: 3px 9px; font-size: 12px; background: var(--personal-accent-tint); color: var(--personal-accent); }
+#tna-app .t-personal-table { border: 0; border-top: 1px solid var(--personal-line); border-radius: 0; }
+#tna-app .t-personal-table table { width: 100%; min-width: 0; margin:0; border-collapse: collapse; table-layout: fixed; }
+#tna-app .t-personal-table th { background: var(--personal-tint); color: var(--personal-muted); font-size: 14px; font-weight: 500; }
+#tna-app .t-personal-table th, #tna-app .t-personal-table td { padding:var(--space-md); text-align: left; border: 0; border-bottom: 1px solid var(--personal-line); line-height: 1.6; overflow-wrap: anywhere; white-space: normal; }
+#tna-app .t-personal-table td { font-size: 16px; color: var(--personal-ink); font-variant-numeric: tabular-nums; }
+#tna-app .t-personal-table td strong { font-weight: 500; }
+#tna-app .t-personal-current, #tna-app .t-personal-version { display: inline-block; border-radius: 4px; padding:var(--space-2xs) var(--space-xs); font-size: 14px; background: var(--personal-accent-tint); color: var(--personal-accent); }
 #tna-app .t-personal-version { background: var(--personal-tint); color: var(--personal-muted); }
-#tna-app .t-personal-empty { display: flex; flex-direction: column; align-items: center; padding: 44px 20px; border: 1px dashed var(--personal-line); border-radius: 14px; background: var(--personal-tint); text-align: center; }
-#tna-app .t-personal-empty > span { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 16px; background: #fff; border: 1px solid var(--personal-line); border-radius: 14px; color: var(--personal-accent); }
+#tna-app .t-personal-empty { display: flex; flex-direction: column; align-items: center; padding:48px var(--space-lg); border-top: 1px solid var(--personal-line); border-bottom: 1px solid var(--personal-line); background: var(--t-paper); text-align: center; }
+#tna-app .t-personal-empty > span { color: var(--personal-muted); margin-bottom:var(--space-md); }
 #tna-app .t-personal-empty svg { width: 24px; height: 24px; }
-#tna-app .t-personal-empty p { margin: 0; font-size: 14px; font-weight: 600; color: var(--personal-ink); }
-#tna-app .t-personal-empty small { margin-top: 8px; font-size: 12px; color: var(--personal-muted); }
-#tna-app .t-profile-details .t-personal-panel-heading { margin-bottom: 20px; }
-#tna-app .t-profile-asof { margin: 0 0 16px; color: var(--personal-muted); font-size: 12px; }
-#tna-app .t-profile-footnote { margin: 16px 0 0; color: var(--personal-muted); font-size: 12px; line-height: 1.7; }
+#tna-app .t-personal-empty p { margin:0; font-size: 16px; font-weight: 500; color: var(--personal-ink); }
+#tna-app .t-personal-empty small { margin-top:var(--space-xs); font-size: 14px; color: var(--personal-muted); }
+#tna-app .t-profile-details .t-personal-panel-heading { margin-bottom:var(--space-lg); }
+#tna-app .t-profile-asof { margin:0 0 var(--space-md); color: var(--personal-muted); font-size: 14px; }
+#tna-app .t-profile-footnote { margin:var(--space-md) 0 0; color: var(--personal-muted); font-size: 14px; line-height: 1.7; }
+#tna-app .t-personnel-tabs [role="tab"]:active { background: var(--t-blue-soft); }
+#tna-app .t-personal-panel-heading h2 { text-wrap: balance; }
+@media (hover: hover) {
+  #tna-app .t-personnel-tabs [role="tab"]:hover { color: var(--personal-accent); background: transparent; }
+}
 @media (max-width: 1100px) {
-  #tna-app .t-personal-groups { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  #tna-app .t-personal-group .t-person-info { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #tna-app .t-personal-groups { grid-template-columns: minmax(0, 1fr); gap:32px; }
+  #tna-app .t-personal-group .t-person-info { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:0 var(--space-lg); }
 }
 @media (max-width: 700px) {
-  #tna-app .t-personnel-tabs { padding: 8px; gap: 4px; }
-  #tna-app .t-personnel-tabs [role="tab"] { flex: 1 1 25%; padding: 10px 7px; font-size: 12px; }
-  #tna-app .t-personnel-tabpanel { padding: 20px 16px; }
-  #tna-app .t-personal-panel-heading { align-items: flex-start; margin-bottom: 22px; }
-  #tna-app .t-personal-group .t-person-info,
-  #tna-app .t-profile-details .t-person-info { grid-template-columns: minmax(0, 1fr); }
-  #tna-app .t-private-personnel .t-person-info > div,
-  #tna-app .t-profile-details .t-person-info > div { grid-template-columns: 108px minmax(0, 1fr); }
-  #tna-app .t-private-personnel .t-person-info dt,
-  #tna-app .t-profile-details .t-person-info dt,
-  #tna-app .t-private-personnel .t-person-info dd,
-  #tna-app .t-profile-details .t-person-info dd { padding: 12px; }
-  #tna-app .t-personal-table { border: 0; border-radius: 0; }
-  #tna-app .t-personal-table table,
-  #tna-app .t-personal-table tbody { display: block; }
+  #tna-app .t-personnel-tabs { gap:0 20px; }
+  #tna-app .t-personnel-tabs [role="tab"] { flex: 0 0 auto; min-height: 44px; padding:var(--space-sm) 0; font-size: 14px; }
+  #tna-app .t-personnel-tabpanel { padding:var(--space-lg) 0; }
+  #tna-app .t-personal-panel-heading { align-items: flex-start; margin-bottom:var(--space-lg); }
+  #tna-app .t-personal-group .t-person-info, #tna-app .t-profile-details .t-person-info { grid-template-columns: minmax(0, 1fr); }
+  #tna-app .t-private-personnel .t-person-info > div, #tna-app .t-profile-details .t-person-info > div { grid-template-columns: 128px minmax(0, 1fr); }
+  #tna-app .t-personal-table table, #tna-app .t-personal-table tbody { display: block; }
   #tna-app .t-personal-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  #tna-app .t-personal-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border: 1px solid var(--personal-line); border-radius: 12px; padding: 18px; margin-bottom: 12px; }
-  #tna-app .t-personal-table tbody tr:last-child { margin-bottom: 0; }
-  #tna-app .t-personal-table td { display: block; padding: 0; border: 0; }
+  #tna-app .t-personal-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:var(--space-md); border-bottom: 1px solid var(--personal-line); padding:20px 0; }
+  #tna-app .t-personal-table td { display: block; padding:0; border: 0; }
   #tna-app .t-personal-table td:first-child { grid-column: 1 / -1; }
-  #tna-app .t-personal-table td::before { display: block; content: attr(data-label); margin-bottom: 5px; color: var(--personal-muted); font-size: 12px; font-weight: 400; }
+  #tna-app .t-personal-table td::before { display: block; content: attr(data-label); margin-bottom:var(--space-2xs); color: var(--personal-muted); font-size: 14px; font-weight: 400; }
 }
 @media (prefers-reduced-motion: reduce) {
   #tna-app .t-personnel-tabs [role="tab"] { transition: none; }

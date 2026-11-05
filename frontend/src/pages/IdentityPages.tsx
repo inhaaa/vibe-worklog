@@ -188,7 +188,7 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">내 업무</p>
+
           <h1>내 정보</h1>
           <p className="t-muted">현재 계정과 업무 배정 정보를 확인하세요.</p>
         </div>
@@ -214,7 +214,7 @@ function AccessListPage({ model: m }: { model: AccessList }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">관리 업무</p>
+
           <h1>권한 관리</h1>
           <p className="t-muted">계정별 역할을 확인하고 기존 관리 화면에서 변경하세요.</p>
         </div>
@@ -264,7 +264,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">회사 현황</p><h1>회사 근무현황</h1>
+          <h1>회사 근무현황</h1>
           <p className="t-muted">사원을 선택해 해당 월의 일별 근무 결과를 확인하세요.</p>
         </div>
       </header>
@@ -354,7 +354,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">회사 현황</p><h1>회사 신청 현황</h1>
+          <h1>회사 신청 현황</h1>
           <p className="t-muted">조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
         </div>
       </header>

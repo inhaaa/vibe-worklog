@@ -25,9 +25,9 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
       <header className="t-approval-pagehead">
         <div className="t-approval-heading">
           <span className="t-approval-icon"><ApprovalIcon /></span>
-          <div><p className="t-approval-eyebrow">내 업무 · 결재</p><h1>{m.title}</h1></div>
+          <div><h1>{m.title}</h1></div>
         </div>
-        <a className="t-approval-btn" href="/me/requests">내 신청 보기 <span aria-hidden="true">↗</span></a>
+        <a className="t-approval-btn" href="/me/requests">내 신청 보기</a>
       </header>
       <nav className="t-approval-nav" aria-label="결재 목록">
         <a href="/approvals" aria-current={!m.completed ? 'page' : undefined}>결재 대기함</a>
@@ -52,8 +52,8 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
             {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays} DAY</dd></div>}
           </dl>
           <p className="t-approval-reason">{r.reason}</p>
-          <div className="t-approval-meta"><span>현재 결재 담당 <strong>{r.approverName || '미지정'}</strong></span><span>현재 효력 · {effectName(r.effectStatus)}</span></div>
-          <a className={`t-approval-btn${m.completed ? '' : ' primary'}`} href={`/requests/${r.id}`}>{m.completed ? '상세 보기' : '신청 검토'}<span aria-hidden="true">→</span></a>
+          <div className="t-approval-meta"><span>현재 결재 담당 <strong>{r.approverName || '미지정'}</strong></span><span>현재 효력 <strong>{effectName(r.effectStatus)}</strong></span></div>
+          <a className={`t-approval-btn${m.completed ? '' : ' primary'}`} href={`/requests/${r.id}`}>{m.completed ? '상세 보기' : '신청 검토'}</a>
         </li>)}
       </ul>}
       {m.page !== undefined && <nav className="t-approval-pagination" aria-label="결재 페이지">

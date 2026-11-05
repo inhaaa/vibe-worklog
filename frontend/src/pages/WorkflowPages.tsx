@@ -209,19 +209,19 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     <div className="t-request-detail-page">
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">신청 내역</p>
+
           <h1>신청 상세</h1>
           <p className="t-muted">신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)</p>
         </div>
         <div className="t-request-detail-backlinks">
-          {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals"><span aria-hidden="true">←</span> 대기함으로</a>
-            : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed"><span aria-hidden="true">←</span> 내가 처리한 결재</a>}
-          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 <span aria-hidden="true">↗</span></a>
+          {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
+            : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
+          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
         </div>
       </header>
       <section className="t-card t-request-detail-summary" aria-label="신청 요약">
         <div className="t-request-detail-summary-head">
-          <div><p className="t-eyebrow">{kindName}</p><h2>{r.targetEmployeeName}</h2></div>
+          <div><p className="t-context">{kindName}</p><h2>{r.targetEmployeeName}</h2></div>
           <span className="t-request-detail-status" data-status={r.status} aria-label="현재 상태">{statusName(r.status)}</span>
         </div>
         <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong><span>신청 버전 v{r.version}</span></p>
@@ -235,7 +235,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">제출 당시 담당은 아래 결재선에서 확인하세요.</p></section>
         </div>
         {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
-        {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 <span aria-hidden="true">↗</span></a>}
+        {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
       </section>
       <div className="t-request-detail-columns">
         <div className="t-request-detail-main">
@@ -371,7 +371,7 @@ function Correction({ model: m }: { model: CorrectionModel }) {
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <header className="t-pagehead"><div><p className="t-eyebrow">기록 정정</p><h1>출퇴근·실제 휴게 정정 신청</h1><p className="t-muted">확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다.</p></div></header>
+      <header className="t-pagehead"><div><h1>출퇴근·실제 휴게 정정 신청</h1><p className="t-muted">확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다.</p></div></header>
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -477,7 +477,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
           {m.buckets.map((b) => (
             <li key={b.id}>
               <a href={`/admin/leave-balances/buckets/${b.id}`}>
-                {bucketPeriod(b)} / 잔여 {b.balanceDays} DAY / 대기 {b.pendingDays} DAY
+                {bucketPeriod(b)} / 잔여 {b.balanceDays} <abbr title="일">DAY</abbr> / 대기 {b.pendingDays} <abbr title="일">DAY</abbr>
               </a>
             </li>
           ))}
@@ -756,9 +756,9 @@ function Policies({ model: m }: { model: PoliciesModel }) {
         <ul>
           {m.policies.map((r) => (
             <li key={r.id}>
-              v{r.revision} · {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)} · 월요일 일치검토{' '}
-              {String(r.mondayWeekReviewed)} · {r.basis}
+              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
+              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
+              <p>월요일 일치검토 {String(r.mondayWeekReviewed)}</p><p>{r.basis}</p>
             </li>
           ))}
         </ul>
@@ -781,9 +781,9 @@ function Policies({ model: m }: { model: PoliciesModel }) {
         <ul>
           {m.assessments.map((r) => (
             <li key={r.id}>
-              v{r.revision} · {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)} · 일반규정 검토{' '}
-              {String(r.generalRuleReviewed)} · {r.basis}
+              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
+              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
+              <p>일반규정 검토 {String(r.generalRuleReviewed)}</p><p>{r.basis}</p>
             </li>
           ))}
         </ul>
@@ -1406,7 +1406,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/history':
       content = (
         <>
-          <header className="t-pagehead"><div><p className="t-eyebrow">ATTENDANCE</p><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
+          <header className="t-pagehead"><div><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
           {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">

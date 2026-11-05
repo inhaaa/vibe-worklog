@@ -65,24 +65,24 @@ function Today({ data, reload }: PageProps) {
         <div className="t-flow-date">
           <strong>{day.workDate.slice(-2)}</strong>
           <div>
-            <p className="t-eyebrow">오늘 · 서울</p>
+            <p className="t-context">오늘 · 서울</p>
             <time>{fmtDate(day.workDate)}</time>
           </div>
         </div>
         <div className="t-flow-greeting">
-          <p className="t-eyebrow">나의 워크스페이스</p>
+
           <h1>{home.employee.employeeName}님의 하루</h1>
           <p className="t-muted">일정부터 기록까지, 오늘의 흐름을 한눈에 확인하세요.</p>
         </div>
-        <a className="t-btn secondary" href="/me/schedule">
-          내 근무 일정 →
+        <a className="t-btn secondary" href="/me/schedule" aria-label="내 근무 일정 →">
+          내 근무 일정
         </a>
       </header>
       <div className="t-flow-layout">
         <section className="t-card t-flow-agenda">
           <header className="t-cardhead">
             <div>
-              <p className="t-eyebrow">TODAY'S FLOW</p>
+
               <h2>하루의 흐름</h2>
             </div>
             <div className="t-flow-legend">
@@ -155,7 +155,7 @@ function Today({ data, reload }: PageProps) {
               ))}
             </div>
             <p className="t-subtle">허용 네트워크에서 서버 시각으로 원천을 저장합니다.</p>
-            <a href="/me/attendance">날짜별 기록 보기 ↗</a>
+            <a href="/me/attendance">날짜별 기록 보기</a>
           </section>
           <section className="t-card t-flow-tasks">
             <h2>확인할 일</h2>
@@ -192,7 +192,7 @@ function Today({ data, reload }: PageProps) {
       <section className="t-card t-flow-week">
         <header className="t-cardhead">
           <h2>이번 주 일정</h2>
-          <a href="/me/schedule">전체 일정 →</a>
+          <a href="/me/schedule">전체 일정</a>
         </header>
         <div className="t-flow-days">
           {home.week.map((entry, index) => (
@@ -300,7 +300,7 @@ function Schedule({ data }: PageProps) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">내 업무</p>
+
           <h1>내 근무 일정</h1>
           <p className="t-muted">배정 일정과 신청 효력을 날짜별로 확인하세요.</p>
         </div>
@@ -315,7 +315,7 @@ function Schedule({ data }: PageProps) {
                   href={`/me/schedule?month=${calendar.previousMonth}`}
                   aria-label="이전 달"
                 >
-                  ‹
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
                 </a>
               )}
               <h2>
@@ -327,7 +327,7 @@ function Schedule({ data }: PageProps) {
                   href={`/me/schedule?month=${calendar.nextMonth}`}
                   aria-label="다음 달"
                 >
-                  ›
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
                 </a>
               )}
             </div>
@@ -416,11 +416,11 @@ function Schedule({ data }: PageProps) {
                         .join(' ')}
                       key={item.request.id}
                     >
-                      {item.kindLabel} · {item.statusLabel}
+                      {item.kindLabel}{' · '}{item.statusLabel}
                     </span>
                   ))}
                   {entry.requests.length > 2 && (
-                    <span className="t-day-event">+{entry.requests.length - 2}건 · 날짜 상세</span>
+                    <span className="t-day-event">+{entry.requests.length - 2}건, 날짜 상세</span>
                   )}
                 </a>
               );
@@ -432,7 +432,7 @@ function Schedule({ data }: PageProps) {
           </p>
         </section>
         <section className="t-card t-day-detail" aria-label="선택한 날짜 상세">
-          <p className="t-eyebrow">선택한 날짜</p>
+          <p className="t-context">선택한 날짜</p>
           <h2>
             <time dateTime={calendar.selectedDate}>{fmtDate(calendar.selectedDate)}</time>
           </h2>
