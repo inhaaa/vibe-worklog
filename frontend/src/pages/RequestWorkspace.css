@@ -271,3 +271,62 @@
   #tna-app .t-request-board tbody tr:hover { background:var(--t-canvas); }
   #tna-app .t-annual-page .t-btn.primary:hover:not(:disabled) { background:var(--t-blue-hover); border-color:var(--t-blue-hover); }
 }
+
+/* Shared surfaces distinguish the record, its controls and the current selection. */
+#tna-app .t-annual-page > .t-card, #tna-app .t-correction-workspace .t-card { padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); margin-block:var(--space-lg); }
+#tna-app .t-annual-page .t-annual-metrics { padding:0; gap:0; border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-paper); overflow:hidden; }
+#tna-app .t-annual-page .t-annual-metrics .t-card, #tna-app .t-annual-page .t-annual-metrics .t-card:first-child, #tna-app .t-annual-page .t-annual-metrics .t-card:last-child { padding:var(--space-lg); margin:0; }
+#tna-app .t-annual-page .t-annual-metrics .t-request-available { background:var(--t-blue-soft); }
+#tna-app .t-annual-page .t-annual-metrics .t-request-available :is(h2,strong) { color:var(--t-accent-ink); }
+#tna-app .t-request-balance-basis { padding:var(--space-md) var(--space-lg); background:var(--t-section); border:1px solid var(--t-line); border-top:0; gap:var(--space-lg); }
+#tna-app .t-request-balance-basis dd { color:var(--t-ink); }
+#tna-app .t-annual-page .t-annual-filters { background:var(--t-section); }
+#tna-app .t-request-board { border-block:1px solid var(--t-line); }
+#tna-app .t-request-board th, #tna-app .t-annual-summary-table th { background:var(--t-label); color:var(--t-accent-ink); font-weight:600; }
+#tna-app .t-request-board tbody tr:nth-child(even), #tna-app .t-annual-summary-table tbody tr:nth-child(even) { background:var(--t-surface); }
+#tna-app .t-request-steps { padding:var(--space-md); background:var(--t-section); border:1px solid var(--t-line); border-radius:0; }
+#tna-app .t-request-steps li:not(:last-child)::after { background:var(--t-accent-border); }
+#tna-app .t-request-step-number { background:var(--t-paper); }
+#tna-app .t-request-type-card { background:var(--t-paper); }
+#tna-app .t-request-type-card[data-selected=true] { background:var(--t-blue-soft); border-color:var(--t-blue); }
+#tna-app .t-request-type-card[data-selected=true] .t-request-type-icon { color:var(--t-blue); }
+#tna-app .t-request-summary { padding:var(--space-lg); background:var(--t-label); border:1px solid var(--t-accent-border); }
+#tna-app .t-request-summary-icon { color:var(--t-accent-ink); }
+#tna-app .t-request-summary-facts dd { color:var(--t-ink); }
+#tna-app .t-request-review-details { padding:0; border:1px solid var(--t-line); }
+#tna-app .t-request-review-details > div { gap:0; padding:0; border-bottom:1px solid var(--t-line); }
+#tna-app .t-request-review-details > div:last-child { border-bottom:0; }
+#tna-app .t-request-review-details dt { padding:var(--space-sm); background:var(--t-label); font-size:14px; }
+#tna-app .t-request-review-details dd { padding:var(--space-sm); background:var(--t-paper); }
+#tna-app .t-request-review-totals { padding:var(--space-md); background:var(--t-blue-soft); border-color:var(--t-accent-border); }
+#tna-app .t-request-approval { padding:var(--space-md); background:var(--t-surface); }
+#tna-app .t-correction-step { border-radius:4px; background:var(--t-blue-soft); color:var(--t-accent-ink); }
+#tna-app .t-correction-events { gap:0; border:1px solid var(--t-line); }
+#tna-app .t-correction-events li { padding:var(--space-md); background:var(--t-label); border:0; }
+#tna-app .t-correction-events li + li { border-left:1px solid var(--t-line); }
+#tna-app .t-correction-advanced summary { padding-inline:var(--space-sm); background:var(--t-section); color:var(--t-accent-ink); }
+#tna-app .t-correction-advanced .t-request-field { padding:var(--space-md) var(--space-sm); }
+@media (max-width:800px) {
+  #tna-app .t-request-summary { padding:var(--space-lg); }
+  #tna-app .t-request-summary-facts { gap:0 var(--space-md); }
+}
+@media (max-width:600px) {
+  #tna-app .t-annual-page > .t-card, #tna-app .t-correction-workspace .t-card { padding:var(--space-md); }
+  #tna-app .t-annual-page .t-annual-metrics .t-card, #tna-app .t-annual-page .t-annual-metrics .t-card:first-child, #tna-app .t-annual-page .t-annual-metrics .t-card:last-child { padding:var(--space-md); }
+  #tna-app .t-annual-page .t-annual-metrics .t-card:nth-child(n+3) { border-top:1px solid var(--t-line); }
+  #tna-app .t-request-balance-basis { padding:var(--space-md); }
+  #tna-app .t-request-board tbody { gap:0; }
+  #tna-app .t-request-board tr { padding:var(--space-md) var(--space-sm); }
+  #tna-app .t-request-board td::before { color:var(--t-accent-ink); }
+  #tna-app .t-annual-page .t-annual-summary-table tr { padding:0; border:1px solid var(--t-line); }
+  #tna-app .t-annual-page .t-annual-summary-table td { gap:0; padding:0; border-bottom:1px solid var(--t-line); }
+  #tna-app .t-annual-page .t-annual-summary-table td:last-child { border-bottom:0; }
+  #tna-app .t-annual-page .t-annual-summary-table td::before { padding:var(--space-sm); background:var(--t-label); color:var(--t-accent-ink); }
+  #tna-app .t-annual-page .t-annual-summary-value { padding:var(--space-sm); background:var(--t-paper); }
+  #tna-app .t-request-steps { padding:var(--space-sm); }
+  #tna-app .t-request-steps ol { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-xs); }
+  #tna-app .t-request-steps li { min-width:0; flex-direction:column; gap:var(--space-xs); white-space:normal; text-align:center; }
+  #tna-app .t-request-steps li:not(:last-child)::after { display:none; }
+  #tna-app .t-request-summary { padding:var(--space-md); }
+  #tna-app .t-correction-events li + li { border-left:0; border-top:1px solid var(--t-line); }
+}

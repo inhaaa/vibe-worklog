@@ -80,3 +80,22 @@
   #tna-app .t-personnel-savebar { align-items: stretch; flex-direction: column; }
   #tna-app .t-personnel-savebar>div { justify-content: flex-end; }
 }
+
+/* Employee identity is a single coloured band above the working sheet. */
+#tna-app .t-employee-header { border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); background: var(--t-blue-soft); }
+#tna-app .t-employee-header-body { grid-template-columns: 64px minmax(180px, .85fr) minmax(0, 2fr); gap: var(--space-lg); padding: var(--space-lg); }
+#tna-app .t-employee-portrait { width: 64px; height: 76px; border-color: var(--t-accent-border); background: var(--t-paper); color: var(--t-accent-ink); }
+#tna-app .t-employee-company, #tna-app .t-employee-meta { font-size: 14px; }
+#tna-app .t-employee-organization svg { width: 16px; height: 16px; }
+#tna-app .t-employee-facts { gap: var(--space-md); border-color: var(--t-accent-border); }
+#tna-app .t-employee-facts > div { min-width: 0; }
+#tna-app .t-employee-facts dt { color: var(--t-accent-ink); font-size: 14px; }
+#tna-app .t-employee-facts dd { font-size: 16px; }
+@media (max-width: 1300px) {
+  #tna-app .t-employee-header-body { grid-template-columns: 64px minmax(0, 1fr); }
+  #tna-app .t-employee-facts { grid-column: 1 / -1; padding: var(--space-md) 0 0; border-left: 0; border-top: 1px solid var(--t-accent-border); }
+}
+@media (max-width: 680px) {
+  #tna-app .t-employee-header-body { gap: var(--space-md); padding: var(--space-md); }
+  #tna-app .t-employee-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-md); }
+}

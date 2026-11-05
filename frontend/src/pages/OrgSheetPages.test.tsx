@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { PageEnvelope } from '../types';
@@ -313,6 +313,21 @@ function featurePage(name: string, data: Record<string, unknown>, roles = ['EMPL
   return { page: name, data: { workspacePrincipal: { roles }, workspaceEmployee: { employeeName: '직원', companyName: '합성회사' }, ...data }, csrf };
 }
 describe('조직장·조직도', () => {
+  it('조직장 이력은 모바일 라벨과 기존 표 머리글·값을 함께 보존한다', () => {
+    const view = show(featurePage('org/organization-heads', { organizationHeads }));
+    const region = view.getByRole('region', { name: '조직장 배정 이력' });
+    const table = within(region).getByRole('table');
+    const labels = ['조직장', '시작일 (포함)', '종료일 (제외)', '상태', '사유'];
+    const cells = within(table).getAllByRole('cell');
+    expect(cells.map(cell => cell.getAttribute('data-label'))).toEqual(labels);
+    expect(table.classList.contains('t-record-table')).toBe(true);
+    expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toEqual(labels);
+    expect(cells.map(cell => cell.textContent)).toEqual([
+      '이전조직장E002', '2026-10-01', '2026-10-27', '종료재지정 필요결재 자격 없음', '첫 배정',
+    ]);
+    expect(region.tabIndex).toBe(0);
+  });
+
   it('조직장 POST 대기 중 다른 배정·종료 폼 입력도 잠그고 실패하면 복구한다', async () => {
     let complete!: (value: Response) => void;
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockReturnValue(new Promise<Response>(resolve => { complete = resolve; })));

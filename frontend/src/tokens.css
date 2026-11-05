@@ -51,3 +51,26 @@
   --t-blue-soft: #edf3ff;
   --t-focus: #245dc1;
 }
+
+/* Distinct work surfaces keep labels, records and actions easy to scan. */
+:root {
+  --t-canvas: #eef2f6;
+  --t-surface: #f3f5f8;
+  --t-section: #e7edf3;
+  --t-label: #edf2f6;
+  --t-line: #d4dde6;
+  --t-accent-border: #c9d7e2;
+  --t-accent-ink: #34566e;
+  --t-field-border: #697b8c;
+  --t-blue-soft: #e7eef4;
+}
+:root[data-theme="blue"] {
+  --t-canvas: #edf2f9;
+  --t-surface: #f1f5fc;
+  --t-section: #e0eaf9;
+  --t-label: #eaf1fc;
+  --t-line: #cedbee;
+  --t-accent-border: #b8cdeb;
+  --t-accent-ink: #24539a;
+  --t-blue-soft: #e2ecfc;
+}

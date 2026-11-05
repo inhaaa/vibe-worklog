@@ -1,5 +1,24 @@
 [
  {
+  "date": "2026-11-05",
+  "mode": "redesign",
+  "depth": "surface refinement",
+  "scope": "app",
+  "shape": "app screen",
+  "theme": "refract",
+  "axes": "light/system-sans/charcoal-blue",
+  "signature": "tinted personnel record and aligned label-value tables",
+  "nav": "preserved role-based sidebar",
+  "hero": "app screen, no hero",
+  "footer": "workspace context",
+  "imagery": "existing employee portraits only",
+  "photos": [],
+  "sections": ["employee identity band", "filled tabs", "grouped records", "forms and modal surfaces"],
+  "prompt": "Add restrained color, clear section boundaries and readable personnel tabs and modals in both themes",
+  "waived": [],
+  "checks": {"floor": 0, "reflex": 0, "warnings": 0, "answered": 3, "links": "182/182", "fields": "119/119", "handlers": "94/94", "browserChecks": 130, "tests": 318, "finishReview": "subagent, 2 findings addressed: word wrapping and mobile history labels; focused tests 8 passed"}
+ },
+ {
   "mode": "redesign",
   "depth": "full",
   "scope": "app",

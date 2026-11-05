@@ -74,3 +74,50 @@
 @media (prefers-reduced-motion: reduce) {
   #tna-app .t-personnel-tabs [role="tab"] { transition: none; }
 }
+
+/* Personnel surfaces: one sheet, tinted labels, and flat group headings. */
+#tna-app .t-private-personnel.t-card { border: 1px solid var(--t-line); border-radius: var(--t-radius); background: var(--t-paper); }
+#tna-app .t-personnel-tabs { gap: var(--space-2xs); padding: var(--space-sm); border-radius: var(--t-radius) var(--t-radius) 0 0; background: var(--t-section); }
+#tna-app .t-personnel-tabs [role="tab"] { min-height: 44px; padding: var(--space-xs) var(--space-md); border: 1px solid transparent; border-radius: 6px; color: var(--t-accent-ink); }
+#tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] { border-color: var(--t-blue); background: var(--t-blue); color: var(--t-paper); }
+#tna-app .t-personnel-tabpanel { padding: var(--space-lg); }
+#tna-app .t-personal-panel-heading { margin-bottom: var(--space-lg); }
+#tna-app .t-personal-count { padding: var(--space-2xs) var(--space-sm); border-radius: 4px; background: var(--t-blue-soft); color: var(--t-accent-ink); }
+#tna-app .t-personal-groups { gap: var(--space-lg); }
+#tna-app .t-personal-group h3 { margin: 0; padding: var(--space-sm) var(--space-md); border: 1px solid var(--t-accent-border); border-bottom: 0; background: var(--t-section); color: var(--t-accent-ink); }
+#tna-app .t-private-personnel .t-person-info, #tna-app .t-profile-details .t-person-info { gap: 0; border: 1px solid var(--t-line); border-bottom: 0; }
+#tna-app .t-private-personnel .t-person-info > div, #tna-app .t-profile-details .t-person-info > div { grid-template-columns: 136px minmax(0, 1fr); }
+#tna-app .t-private-personnel .t-person-info dt, #tna-app .t-profile-details .t-person-info dt { padding: var(--space-sm) var(--space-md); border-right: 1px solid var(--t-line); background: var(--t-label); color: var(--t-accent-ink); font-weight: 500; word-break: keep-all; }
+#tna-app .t-private-personnel .t-person-info dd, #tna-app .t-profile-details .t-person-info dd { padding: var(--space-sm) var(--space-md); }
+#tna-app .t-personal-group-wide .t-person-info > div:nth-child(even), #tna-app .t-profile-details .t-person-info > div:nth-child(even) { border-left: 1px solid var(--t-line); }
+#tna-app .t-personal-privacy { padding: var(--space-sm) var(--space-md); border: 1px solid var(--t-line); background: var(--t-surface); }
+#tna-app .t-personal-table { border: 1px solid var(--t-line); border-bottom: 0; }
+#tna-app .t-personal-table th { background: var(--t-section); color: var(--t-accent-ink); font-weight: 500; }
+#tna-app .t-personal-table th + th, #tna-app .t-personal-table td + td { border-left: 1px solid var(--t-line); }
+#tna-app .t-personal-table tbody tr:nth-child(even) { background: var(--t-surface); }
+#tna-app .t-personal-table td { vertical-align: middle; }
+#tna-app .t-personal-empty { border: 1px dashed var(--t-accent-border); background: var(--t-surface); }
+#tna-app .t-personal-empty > span { color: var(--t-accent-ink); }
+#tna-app .t-profile-details .t-profile-asof { padding: var(--space-xs) var(--space-sm); border: 1px solid var(--t-line); background: var(--t-surface); }
+@media (hover: hover) {
+  #tna-app .t-personnel-tabs [role="tab"]:hover { background: var(--t-paper); color: var(--t-accent-ink); }
+  #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"]:hover { background: var(--t-blue-hover); color: var(--t-paper); }
+  #tna-app .t-personal-table tbody tr:hover { background: var(--t-blue-soft); }
+}
+@media (max-width: 1100px) {
+  #tna-app .t-personal-group .t-person-info { gap: 0; }
+  #tna-app .t-personal-group .t-person-info > div:nth-child(even) { border-left: 1px solid var(--t-line); }
+}
+@media (max-width: 700px) {
+  #tna-app .t-personnel-tabs { gap: var(--space-2xs); padding: var(--space-xs); }
+  #tna-app .t-personnel-tabs [role="tab"] { padding-inline: var(--space-sm); }
+  #tna-app .t-personnel-tabpanel { padding: var(--space-lg) var(--space-md); }
+  #tna-app .t-personal-groups { gap: var(--space-lg); }
+  #tna-app .t-private-personnel .t-person-info > div, #tna-app .t-profile-details .t-person-info > div { grid-template-columns: 112px minmax(0, 1fr); border-left: 0; }
+  #tna-app .t-personal-group .t-person-info > div:nth-child(even), #tna-app .t-profile-details .t-person-info > div:nth-child(even) { border-left: 0; }
+  #tna-app .t-private-personnel .t-person-info dt, #tna-app .t-profile-details .t-person-info dt, #tna-app .t-private-personnel .t-person-info dd, #tna-app .t-profile-details .t-person-info dd { padding: var(--space-sm); }
+  #tna-app .t-personal-table tbody tr { gap: var(--space-md); padding: var(--space-md); }
+  #tna-app .t-personal-table td + td { border-left: 0; }
+  #tna-app .t-personal-table td:first-child { padding-bottom: var(--space-sm); border-bottom: 1px solid var(--t-line); }
+  #tna-app .t-personal-table td::before { color: var(--t-accent-ink); font-weight: 500; }
+}
