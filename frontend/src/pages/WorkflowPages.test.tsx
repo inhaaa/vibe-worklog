@@ -351,8 +351,11 @@ describe('WorkflowPages', () => {
     expect(posted.get('baseInputRevision')).toBe('2');
     expect(posted.has('_presenceAsWork')).toBe(true);
     expect(posted.has('_breaksConfirmed')).toBe(true);
-    expect(view.getByLabelText('SET 출근 시각 (서울)').getAttribute('step')).toBe('0.001');
-    expect(view.getAllByRole('option', { name: 'CLEAR' })).toHaveLength(2);
+    expect(view.getByLabelText('제안 출근 시각 (서울)').getAttribute('step')).toBe('0.001');
+    expect(view.getAllByRole('option', { name: '누락으로 정정' })).toHaveLength(2);
+    expect(posted.get('inAction')).toBe('SET');
+    expect(posted.get('outAction')).toBe('KEEP');
+    expect(view.getAllByRole('option', { name: '누락으로 정정' }).every(option => option.getAttribute('value') === 'CLEAR')).toBe(true);
   });
   it('저장된 실제 휴게는 검증된 서울 구간으로 표시하고 손상된 원문을 숨긴다', async () => {
     const data = {
