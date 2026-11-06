@@ -24,6 +24,16 @@
 
 합성 미리보기는 Git 제외 `target/hallmark-tools/simple-tables-20261106`에 전후20쌍과 검증 JSON을 보관한다. 실제 DB·공개 서버를 사용하지 않았으며 JS 오류0·업무 POST0이다. 공개 보안/AG Grid 통합과 실제 배포 결과는 후속 확인 후 아래에 별도로 기록한다. 기존 untracked 공통 시트 설계 문서는 보존한다.
 
-## 공개 반영
+## 공개 통합과 배포 준비
 
-통합·배포 준비 중. 이 문서의 개발 검증을 공개 배포 완료로 간주하지 않는다.
+개발 `a859ccc`를 공개 보안·AG Grid가 있는 별도 작업트리에 `91d6c5606531d74860617dbc34e6d59dbc2a13c8`로 통합했고 두 브랜치에 일반 Push했다. 공개 전체31파일404개·타입·빌드가 통과했다. 공개 자산을 고정한 합성 화면84항목과 AG Grid6조합도 통과했으며 JS 오류·업무 POST·외부 요청은0이다. 개발 검사와 실제 공개 서버 검사는 구분한다.
+
+공개 React CSS SHA256은 `1e92357295aaa0758d113cb60e5d9ec056ede76d81599288d70ef461dc52add1`이다. JS `2c584d641df2549c4cf7a764e07aaf18ec693cd647e3168acf6ca46b8bff7289`, sheet CSS `e5dfb48365fa1ab98e26f6494dbe0da515cdeda8dd4ee9634b8e2f130b22e0d8`, 기존 app CSS `c5f7966cdbde8f1711e09a4fbc5e3a3c045230c0d2ac7312ea40a6738828ec1c`는 직전 공개 자산과 동일하다. 공개 합성 검증은 `target/hallmark-tools/simple-tables-20261106/public-surface/browser-check.json`, `public-grid/grid-theme-check.json`에 보관한다.
+
+설치 없이 Hostinger 웹 콘솔을 새로 연결했으나 이전 관리 셸이 종료되어 root 비밀번호 입력이 필요했다. 사용자에게 콘솔 내 직접 로그인을 요청한 상태이며, 이번 변경의 전송·빌드·앱 교체·실제 공개 HTTP 검사는 아직 실행하지 않았다. 서버·DB·다른 서비스를 변경하지 않았으며 마지막 확인된 공개 소스는 `40816d1`이다. 로그인 대기를 배포 완료로 표현하지 않는다.
+
+재개 패킷은 Git 제외 `target/quiet-records-deploy-20261106`에 고정했다. 직전 실제 소스558파일 대비561파일·정확20파일 변경(제품 CSS9개+문서/기록11개)·신규 문서3개와 전체 파일 모드를 검증했다. 가드18개 통과, 전송 viewer3개 통과·Windows symlink 권한에 따른1개 SKIP, 전송 내용22파일과 콘솔 Python 구문을 확인했다. 패킷86,736바이트 SHA256은 `05be388ced893f6d01f9aa493aa001de2ff22b891ba22863c5e368c5ee0eb8cf`이며 소스 SHA는 이후 문서 커밋과 구분한다.
+
+서버 대상은 `/srv/worklog/.local/quiet-records-20261106`이다. 재개 순서는 전송01~06 → receiver → before → build → artifact → layer-proof → app → 공개 HTTP28항목/모달 GET/실제 두 테마 → final → summary다. 앱 교체 전에 JAR538항목 중 React CSS1개만 변경, 이전 OS/JRE 계층·런타임 설정 보존을 강제한다. WorkLog 앱만 교체하고 V17·48표 전체 값/스키마/권한·Caddy·다른 서비스와 `.env`의 이미지 태그 외 값을 전후 비교한다. 이전 공개 UI 조회가 남긴 감사 로그도 현재 기준으로 포함하며 자료를 초기화하지 않는다.
+
+Java·DB 통합/부하/취약점 검사는 CSS 변경에서 재실행하지 않았다. 공개 계산 상세에 저장된 결과가 없었던 이전 제한도 유지하며 검증용 계산·업무 자료를 만들지 않는다.
