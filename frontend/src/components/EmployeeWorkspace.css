@@ -10,7 +10,14 @@
 #tna-app .t-attendance-filter { padding: var(--space-md) 0; background: none; border: 0; border-bottom: 1px solid var(--t-line); border-radius: 0; gap: var(--space-sm); align-items: center; }
 #tna-app .t-attendance-filter label { margin: 0; }
 #tna-app .t-attendance-filter input { flex: 0 1 180px; width: auto; margin: 0; font-size: 16px; }
-#tna-app .t-employee-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.35fr); gap: var(--space-xs); margin-bottom: var(--space-lg); }
+#tna-app .t-employee-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.35fr);
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius);
+  background: var(--t-paper);
+}
 #tna-app .t-employee-header[data-compact=true] { grid-template-columns: minmax(0, 1fr); }
 #tna-app .t-employee-identity-card {
   display: grid;
@@ -18,25 +25,24 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-md);
-  border: 1px solid var(--t-blue);
-  border-radius: var(--t-radius);
-  background: var(--t-blue);
+  border-radius: var(--t-radius) 0 0 var(--t-radius);
+  background: linear-gradient(115deg, var(--t-blue-hover), var(--t-blue));
   color: var(--t-paper);
 }
 #tna-app .t-employee-header[data-compact=true] .t-employee-identity-card {
   grid-template-columns: 40px minmax(0, 1fr);
-  border-color: var(--t-line);
-  background: var(--t-paper);
+  border-radius: inherit;
+  background: var(--t-blue-soft);
   color: var(--t-ink);
 }
-#tna-app .t-employee-portrait { width: 100%; aspect-ratio: 1; border-radius: var(--t-radius); background: var(--t-blue-soft); display: grid; place-items: center; overflow: hidden; color: var(--t-blue); font-size: 20px; font-weight: 600; }
+#tna-app .t-employee-portrait { width: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--t-paper); display: grid; place-items: center; overflow: hidden; color: var(--t-blue); font-size: 20px; font-weight: 600; }
 #tna-app .t-employee-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 35%; }
 #tna-app .t-employee-identity { min-width: 0; overflow-wrap: anywhere; }
 #tna-app .t-employee-company { margin: var(--space-2xs) 0 0; font-size: 14px; }
 #tna-app .t-employee-header[data-compact=true] .t-employee-company { color: var(--t-muted); }
 #tna-app .t-employee-name-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
 #tna-app .t-employee-name-row h2 { min-width: 0; margin: 0; color: inherit; font-size: 20px; line-height: 1.4; letter-spacing: -.02em; overflow-wrap: anywhere; }
-#tna-app .t-employment-state { display: inline-flex; font-size: 12px; font-weight: 600; border-radius: 4px; padding: var(--space-3xs) var(--space-xs); background: var(--t-surface); color: var(--t-muted); white-space: nowrap; }
+#tna-app .t-employment-state { display: inline-flex; font-size: 12px; font-weight: 600; border-radius: 999px; padding: var(--space-3xs) var(--space-xs); background: var(--t-surface); color: var(--t-muted); white-space: nowrap; }
 #tna-app .t-state-working { background: var(--t-green-soft); color: var(--t-green); }
 #tna-app .t-state-on_leave, #tna-app .t-state-pre_joining { background: var(--t-blue-soft); color: var(--t-blue); }
 #tna-app .t-state-suspended { background: var(--t-amber-soft); color: var(--t-amber); }
@@ -51,9 +57,6 @@
   min-width: 0;
   margin: 0;
   padding: var(--space-md) var(--space-xs);
-  border: 1px solid var(--t-line);
-  border-radius: var(--t-radius);
-  background: var(--t-paper);
 }
 #tna-app .t-employee-facts > div { min-width: 0; padding-inline: var(--space-sm); }
 #tna-app .t-employee-facts > div + div { border-inline-start: 1px solid var(--t-line); }
@@ -91,6 +94,7 @@
 #tna-app .t-personnel-conflict dd { margin: var(--space-2xs) 0 0; }
 @media (max-width: 1120px) {
   #tna-app .t-employee-header { grid-template-columns: minmax(0, 1fr); }
+  #tna-app .t-employee-identity-card { border-radius: var(--t-radius) var(--t-radius) 0 0; }
 }
 @media (max-width: 680px) {
   #tna-app .t-clock-actions { align-items: flex-start; flex-direction: column; padding: var(--space-md) 0; }

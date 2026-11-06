@@ -29,13 +29,23 @@ const choices: Record<string, string> = {
   UNKNOWN: '미등록', YES: '해당', NO: '해당 없음', NEW: '신입', EXPERIENCED: '경력', TRANSFER: '전입',
   COMPLETED: '군필', EXEMPT: '면제', PENDING: '미필', NOT_APPLICABLE: '해당 없음',
 };
+const sheetIcons = {
+  identity: 'M4 5h16v14H4z M7 16v-1a3 3 0 0 1 6 0v1 M10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4 M15 10h2 M15 14h2',
+  employment: 'M4 8h16v12H4z M9 8V5h6v3 M4 12a19 19 0 0 0 16 0 M12 12v2',
+  additional: 'M7 4h10v16H7z M10 8h4 M10 12h4 M10 16h4',
+  address: 'M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Z M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4',
+  contact: 'M4 6h16v12H4z M4 7l8 6 8-6',
+};
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
   return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
 }
-function InfoGroup({ title, values, wide = false }: { title: string; values: [string, string | number | null | undefined][]; wide?: boolean }) {
-  return <section className={`t-personal-group${wide ? ' t-personal-group-wide' : ''}`} aria-label={title}><h3>{title}</h3><Info values={values} /></section>;
+function InfoGroup({ title, icon, values }: { title: string; icon: keyof typeof sheetIcons; values: [string, string | number | null | undefined][] }) {
+  return <section className="t-personal-group" aria-label={title}>
+    <h3><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={sheetIcons[icon]} /></svg>{title}</h3>
+    <Info values={values} />
+  </section>;
 }
 function EmptyDetails({ title }: { title: string }) {
   return <div className="t-personal-empty">
@@ -67,26 +77,28 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
       <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2><p>{descriptions[tab]}</p></div>
         {tab > 0 && tab < 6 && <span className="t-personal-count">총 {tab === 1 ? m.appointments.length : entries.length}건</span>}
       </div>
-      {tab === 0 && <div className="t-personal-groups">
-        <InfoGroup title="신원 정보" values={[
-          ['한글성명', identity.employeeName], ['영문성명', f.englishName], ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
-        ]} />
-        <InfoGroup title="입사 정보" values={[
-          ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn], ['그룹입사일', f.groupJoinedOn],
-        ]} />
-        <InfoGroup title="추가 정보" wide values={[
-          ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'], ['결혼일자', f.marriedOn],
-          ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)], ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch],
-        ]} />
+      {tab === 0 && <>
+        <div className="t-personal-groups">
+          <InfoGroup title="신원 정보" icon="identity" values={[
+            ['한글성명', identity.employeeName], ['영문성명', f.englishName], ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
+          ]} />
+          <InfoGroup title="입사 정보" icon="employment" values={[
+            ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn], ['그룹입사일', f.groupJoinedOn],
+          ]} />
+          <InfoGroup title="추가 정보" icon="additional" values={[
+            ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'], ['결혼일자', f.marriedOn],
+            ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)], ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch],
+          ]} />
+        </div>
         <p className="t-personal-privacy"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 8 3v5c0 5-4 8-8 10-4-2-8-5-8-10V6l8-3Z m-3 9 2 2 4-4" /></svg><span>주민등록번호 <strong>미수집</strong> · 원문 입력·저장하지 않습니다.</span></p>
-      </div>}
+      </>}
       {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab === 6 && <div className="t-personal-groups">
-        <InfoGroup title="주소 정보" values={[
+        <InfoGroup title="주소 정보" icon="address" values={[
           ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],
         ]} />
-        <InfoGroup title="연락 정보" values={[
+        <InfoGroup title="연락 정보" icon="contact" values={[
           ['휴대전화', f.mobilePhone], ['연락 이메일', f.contactEmail],
         ]} />
       </div>}
