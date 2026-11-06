@@ -68,14 +68,14 @@ class PasswordResetWebIT {
     }
     @Test void successfulCompletionInvalidatesExistingSessionAndRequiresManualLogin()throws Exception {
         var login=mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",OLD))
-                .andExpect(redirectedUrl("/me/profile")).andReturn();
+                .andExpect(redirectedUrl("/me/home")).andReturn();
         var session=(MockHttpSession)login.getRequest().getSession(false);resets.request(company,email,address);
         mvc.perform(complete(message().token()).session(session)).andExpect(status().isSeeOther())
                 .andExpect(redirectedUrl("/login?reset"));assertTrue(session.isInvalid());
         mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",OLD))
                 .andExpect(redirectedUrl("/login?error"));
         mvc.perform(post("/login").with(csrf()).param("companyCode",company).param("email",email).param("password",NEW))
-                .andExpect(redirectedUrl("/me/profile"));
+                .andExpect(redirectedUrl("/me/home"));
     }
     @Test void invalidCodeAndPasswordMismatchDoNotReflectSecrets()throws Exception {
         resets.request(company,email,address);String token=message().token();

@@ -220,26 +220,40 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
         </div>
       </header>
-      <section className="t-card t-request-detail-summary" aria-label="신청 요약">
-        <div className="t-request-detail-summary-head">
-          <div><p className="t-context">{kindName}</p><h2>{r.targetEmployeeName}</h2></div>
-          <span className="t-request-detail-status" data-status={r.status} aria-label="현재 상태">{statusName(r.status)}</span>
-        </div>
-        <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong><span>신청 버전 v{r.version}</span></p>
-        <div className="t-request-detail-overview">
-          <section className="t-request-detail-fact">
-            <h3>신청 기간</h3>
-            <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
-            {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays} DAY</p>}
-          </section>
-          <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
-          <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">제출 당시 담당은 아래 결재선에서 확인하세요.</p></section>
-        </div>
-        {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
-        {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
-      </section>
+      <div className="t-request-detail-document">
+        {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
+          <h2 id="request-record-route-title">제출 당시 결재선</h2>
+          <dl className="t-request-detail-values">
+            <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
+            <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
+            <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
+            {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
+            <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
+            <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
+          </dl>
+          <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
+        </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
+        <section className="t-card t-request-detail-summary" aria-labelledby="request-record-application-title">
+          <div className="t-request-detail-summary-head">
+            <div><h2 id="request-record-application-title">신청서</h2><p className="t-request-detail-person">{r.targetEmployeeName} · {kindName}</p></div>
+            <span className="t-request-detail-status" data-status={r.status} aria-label="현재 상태">{statusName(r.status)}</span>
+          </div>
+          <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong><span>신청 버전 v{r.version}</span></p>
+          <div className="t-request-detail-overview">
+            <section className="t-request-detail-fact">
+              <h3>신청 기간</h3>
+              <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
+              {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays} DAY</p>}
+            </section>
+            <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
+            <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
+          </div>
+          {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
+          {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
+        </section>
+      </div>
       <div className="t-request-detail-columns">
-        <div className="t-request-detail-main">
+        {(d.days.length > 0 || d.correction || d.attendancePolicy) && <div className="t-request-detail-main">
           {d.days.length > 0 && <section className="t-card">
             <h2>날짜별 산정</h2>
             <ul className="t-request-detail-days">
@@ -267,19 +281,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             </dl>
             <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
           </section>}
-          {d.routeSnapshot ? <section className="t-card t-request-route">
-            <h2>제출 당시 결재선</h2>
-            <dl className="t-request-detail-values">
-              <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
-              <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
-              <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
-              {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
-              <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
-              <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
-            </dl>
-            <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
-          </section> : <section className="t-card t-request-route"><h2>제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
-        </div>
+        </div>}
         <div className="t-request-detail-side">
           <section className="t-card">
             <div className="t-request-detail-section-head"><h2>처리 이력</h2><span className="t-muted">{d.history.length}건</span></div>

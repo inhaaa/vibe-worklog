@@ -157,9 +157,9 @@ describe('React 앱 탐색과 제출', () => {
     expect(screen.queryByRole('option', { name: '대표' })).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it('업무 메뉴를 3단계로 제공하고 홈 링크를 제거한다', () => {
+  it('홈 링크와 3단계 업무 메뉴를 제공한다', () => {
     render(<App initial={today} />);
-    expect(screen.queryByRole('link', { name: '홈', hidden: true })).toBeNull();
+    expect(screen.getByRole('link', { name: '홈' }).getAttribute('href')).toBe('/me/home');
     const group = screen.getByRole('button', { name: /내 업무/ });
     if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group);
     expect(screen.getByRole('button', { name: /근태관리/ })).toBeTruthy();
@@ -210,6 +210,13 @@ describe('React 앱 탐색과 제출', () => {
     fireEvent.click(screen.getByRole('button', { name: '인사정보' }));
     expect(screen.getByRole('link', { name: '내 정보' }).getAttribute('href')).toBe('/me/profile');
     expect(screen.getByRole('link', { name: '민감직원 합성회사' }).getAttribute('href')).toBe('/me/profile');
+  });
+
+  it('업무 화면에서 홈으로 이동하고 인사정보는 한 번만 표시한다', () => {
+    render(<App initial={employees} />);
+    expect(screen.getByRole('link', { name: '홈' }).getAttribute('href')).toBe('/me/home');
+    expect(screen.getByRole('link', { name: /WorkLog/ }).getAttribute('href')).toBe('/me/home');
+    expect(screen.getByRole('region', { name: '사원 인사정보' }).textContent).toContain('합성회사');
   });
 
   it('대표는 회사 현황을 조회하며 관리자·결재 기능을 자동으로 얻지 않는다', () => {

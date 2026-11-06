@@ -201,7 +201,7 @@ class WorkspaceWebIT {
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", companyCode)
                         .param("email", "workspace@example.test").param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
     }
 }

@@ -15,6 +15,11 @@ public final class WorkspaceController {
     private final WorkspaceQueries queries;
     public WorkspaceController(WorkspaceQueries queries) { this.queries = queries; }
 
+    @GetMapping("/me/home")
+    ModelAndView home(@AuthenticationPrincipal TnaPrincipal actor) {
+        return new ModelAndView("workspace/home").addObject("workspaceHome", WorkspaceHomeData.from(queries.home(actor)));
+    }
+
     @GetMapping("/me/schedule")
     ModelAndView schedule(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required = false) @DateTimeFormat(pattern = "uuuu-MM") YearMonth month,

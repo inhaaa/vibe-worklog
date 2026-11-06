@@ -30,10 +30,10 @@ class WorkspaceEntryTest {
         assertEquals("fragments/status :: status", controller.status());
     }
 
-    @Test void normalIndexUsesProfileWhileLocalDemoKeepsItsLandingPage() {
+    @Test void normalIndexUsesHomeWhileLocalDemoKeepsItsLandingPage() {
         var demo = mock(LocalDemoLogin.class);
         var controller = new DemoController(demo, mock(AuthStore.class));
-        assertEquals("redirect:/me/profile", controller.index(null));
+        assertEquals("redirect:/me/home", controller.index(null));
         when(demo.enabled()).thenReturn(true);
         assertEquals("redirect:/demo", controller.index(null));
     }

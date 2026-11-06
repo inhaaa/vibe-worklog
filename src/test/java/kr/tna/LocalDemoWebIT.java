@@ -126,7 +126,7 @@ class LocalDemoWebIT {
     void storedEmployeeNumbersAuthenticateWithoutChangingTheAccountAndMustMatchCurrentNumber() throws Exception {
         var session = (MockHttpSession) mvc.perform(credentials("99999", "admin").with(csrf())
                         .param("companyCode", DatabaseFixture.COMPANY_B))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
         var principal = (TnaPrincipal) context(session).getAuthentication().getPrincipal();
         assertEquals(LocalDemoLogin.ACCOUNT_ID, principal.accountId());
         assertEquals(LocalDemoLogin.EMPLOYEE_ID, principal.employeeId());
@@ -146,7 +146,7 @@ class LocalDemoWebIT {
                         .param("companyCode", DatabaseFixture.COMPANY_B)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
         assertNotEquals(oldId, session.getId());
         var context = context(session);
@@ -204,7 +204,7 @@ class LocalDemoWebIT {
         mvc.perform(get("/approvals").session(switched)).andExpect(status().isOk());
         mvc.perform(get("/admin/employees").session(switched)).andExpect(status().isForbidden());
         var applicant = (MockHttpSession) mvc.perform(credentials("admin", "admin").session(switched).with(csrf()))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
         assertEquals(LocalDemoLogin.ACCOUNT_ID, ((TnaPrincipal) context(applicant).getAuthentication().getPrincipal()).accountId());
         mvc.perform(get("/approvals").session(applicant)).andExpect(status().isForbidden());
     }
@@ -310,7 +310,7 @@ class LocalDemoWebIT {
 
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mvc.perform(credentials("admin", "admin").with(csrf()))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 
     private SecurityContext context(MockHttpSession session) {

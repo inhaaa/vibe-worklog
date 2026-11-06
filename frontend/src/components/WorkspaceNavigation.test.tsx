@@ -10,7 +10,7 @@ describe('업무 트리', () => {
     expect(screen.getByRole('button', { name: '인사·조직' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: '조직·사원' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('link', { name: '사원 관리' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.queryByRole('link', { name: '홈' })).toBeNull();
+    expect(screen.getByRole('link', { name: '홈' }).hasAttribute('aria-current')).toBe(false);
     expect(screen.queryByRole('tree')).toBeNull();
   });
 

@@ -34,5 +34,5 @@ class WorktimeWebIT {
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/from", "2026-09-28"))
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/to", "2026-10-05"));
     }
-    private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
 }

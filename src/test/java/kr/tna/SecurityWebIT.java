@@ -63,7 +63,7 @@ class SecurityWebIT {
                 var session = (MockHttpSession) mvc.perform(post("/login").with(csrf())
                                 .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                                 .param("companyCode", company).param("email", "26001").param("password", PASSWORD))
-                        .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                        .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
                 assertEquals(company.equals(DatabaseFixture.COMPANY_A) ? DatabaseFixture.TENANT_A : DatabaseFixture.TENANT_B,
                         principal(session).tenantId());
             }
@@ -122,7 +122,7 @@ class SecurityWebIT {
                         .param("companyCode", DatabaseFixture.COMPANY_A)
                         .with(request -> { request.setRequestedSessionId(oldId); request.setRequestedSessionIdValid(true); return request; })
                         .param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"));
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/home"));
         assertNotEquals(oldId, before.getId());
         for (String company : new String[]{DatabaseFixture.COMPANY_A, "unknown-company"}) {
             mvc.perform(post("/login").with(csrf()).with(request -> { request.setRemoteAddr(remoteAddress); return request; }).param("companyCode", company)
@@ -258,7 +258,7 @@ class SecurityWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", companyCode).param("email", DatabaseFixture.EMAIL)
                         .param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
     }
 

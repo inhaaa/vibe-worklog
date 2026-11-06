@@ -10,6 +10,7 @@ interface NavigationProps {
   onNavigate?: () => void;
 }
 const groupIcons: Record<string, string> = {
+  home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',
   mine: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
   approvals: 'M5 3h14v18H5z m3 9 3 3 5-6 M9 6h6',
   people: 'M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5 M6 8a3 3 0 1 0 6 0a3 3 0 1 0-6 0',
@@ -29,6 +30,10 @@ export function WorkspaceNavigation({ roles, page, data, pathname = location.pat
   const toggle = (id: string) => setOpen(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
   return (
     <nav className="t-workspace-navigation" aria-label="업무 메뉴">
+      {roles.length > 0 && <a className="t-nav-item t-navigation-major t-navigation-home" href="/me/home" aria-current={page === 'workspace/home' ? 'page' : undefined} onClick={onNavigate}>
+        <span className="t-navigation-icon"><NavigationIcon path={groupIcons.home} className="t-navigation-group-icon" /></span>
+        <span className="t-navigation-label">홈</span>
+      </a>}
       {getNavigation(roles).map(group => (
         <div key={group.id} className="t-navigation-group">
           <button className="t-nav-item t-navigation-toggle t-navigation-major" type="button" data-active={context?.groupId === group.id} aria-expanded={open.includes(group.id)} aria-controls={`${prefix}-${group.id}`} onClick={() => toggle(group.id)}>
@@ -58,11 +63,12 @@ export function WorkspaceNavigation({ roles, page, data, pathname = location.pat
 }
 export function Breadcrumbs({ page, data, pathname = location.pathname }: Omit<NavigationProps, 'roles' | 'onNavigate'>) {
   const context = getNavigationContext(page, pathname, data);
-  if (!context) return null;
+  const crumbs = page === 'workspace/home' ? [{ label: '홈', href: undefined }] : context?.breadcrumbs;
+  if (!crumbs) return null;
   return (
     <nav className="t-location-breadcrumbs" aria-label="현재 위치"><ol>
-      {context.breadcrumbs.map((crumb, index) => (
-        <li key={`${index}-${crumb.label}`}>{crumb.href ? <a href={crumb.href}>{crumb.label}</a> : <span aria-current={index === context.breadcrumbs.length - 1 ? 'page' : undefined}>{crumb.label}</span>}</li>
+      {crumbs.map((crumb, index) => (
+        <li key={`${index}-${crumb.label}`}>{crumb.href ? <a href={crumb.href}>{crumb.label}</a> : <span aria-current={index === crumbs.length - 1 ? 'page' : undefined}>{crumb.label}</span>}</li>
       ))}
     </ol></nav>
   );

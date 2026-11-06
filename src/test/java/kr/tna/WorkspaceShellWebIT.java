@@ -141,7 +141,7 @@ class WorkspaceShellWebIT {
                         .with(request -> { request.setRemoteAddr("198.19.1." + ADDRESS.getAndIncrement()); return request; })
                         .param("companyCode", DatabaseFixture.COMPANY_A)
                         .param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
     }
 }

@@ -310,7 +310,7 @@ class AccountAccessWebIT {
 
     private MockHttpSession login(String company, String email) throws Exception {
         return (MockHttpSession) mvc.perform(loginPost(company, email)).andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 
     private MockHttpServletRequestBuilder loginPost(String company, String email) {

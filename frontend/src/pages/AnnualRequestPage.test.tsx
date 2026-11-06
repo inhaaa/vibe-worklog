@@ -36,18 +36,35 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   fireEvent.click(view.getByRole('button',{name:'신청 창 닫기'}));
   expect(view.queryByRole('dialog')).toBeNull();
  });
- it('공통 모달 안에서는 작성 폼만 표시하고 닫기와 입력 보호를 공통 모달에 위임한다',()=>{
+ it('공통 모달을 열면 결재선·작성자·신청서가 보이고 입력 보호를 공통 모달에 위임한다',()=>{
   const onClose=vi.fn();
-  const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={onClose}/>);
+  const initial=envelope({},compose);
+  initial.data.employeeHeader={employeeName:'합성 직원',employeeNo:'24001',organizationName:'제품팀'};
+  const view=render(<AnnualRequestPage {...initial} reload={()=>{}} onClose={onClose}/>);
   expect(view.queryByRole('dialog')).toBeNull();
   expect(view.queryByRole('heading',{name:'내 근태현황·신청'})).toBeNull();
   expect(view.queryByRole('heading',{name:'근태 신청'})).toBeNull();
-  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText('조직장 결재선')).toBeTruthy();
+  expect(route.getByText('합성 조직장')).toBeTruthy();
+  const applicant=within(view.getByRole('region',{name:'신청자'}));
+  expect(applicant.getByText('합성 직원')).toBeTruthy();
+  expect(applicant.getByText('24001')).toBeTruthy();
+  expect(applicant.getByText('제품팀')).toBeTruthy();
+  expect(view.getByRole('heading',{name:'신청서'})).toBeTruthy();
   fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'작성 중'}});
   expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
   expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('mode')).toBe('MODAL');
   expect(view.queryByRole('button',{name:'닫기'})).toBeNull();
   expect(view.container.querySelector('[data-modal-busy="false"]')).toBeTruthy();
+ });
+ it('신청 유형을 변경하면 새 근거 조회 전까지 상단에 이전 결재선을 표시하지 않는다',()=>{
+  const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={()=>{}}/>);
+  fireEvent.click(view.getByRole('button',{name:'유형 변경'}));
+  fireEvent.click(view.getByRole('radio',{name:/출퇴근·휴게 정정/}));
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText('유형·일자 조회 후 확인')).toBeTruthy();
+  expect(route.queryByText('합성 조직장')).toBeNull();
  });
  it('페이지 제목 옆에서 신청을 시작하고 조회 필터와 분리한다',()=>{
   const view=render(<App initial={envelope()}/>);

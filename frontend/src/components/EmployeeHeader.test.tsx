@@ -18,6 +18,25 @@ it('서버가 제공한 대상 사원의 인사정보와 상태를 표시한다'
   expect(within(header).getByRole('img', { name: '김직원 사원사진' }).getAttribute('src')).toBe('/me/profile/photo');
 });
 
+it('요약만 제공되는 업무 화면에서 공개된 이름과 회사만 표시한다', () => {
+  render(<EmployeeHeader employee={{ employeeName: '김직원', companyName: '합성회사' }} />);
+  const header = screen.getByRole('region', { name: '사원 인사정보' });
+  expect(within(header).getByText('김직원')).toBeTruthy();
+  expect(within(header).getByText('합성회사')).toBeTruthy();
+  expect(within(header).queryByRole('img')).toBeNull();
+  expect(header.textContent).not.toMatch(/사번|생년월일|입사일|미등록|재직/);
+});
+
+it('홈의 간결한 헤더는 사원 신원과 사진을 표시하고 상세 항목은 접는다', () => {
+  render(<EmployeeHeader employee={employee} compact />);
+  const header = screen.getByRole('region', { name: '사원 인사정보' });
+  expect(within(header).getByRole('img', { name: '김직원 사원사진' })).toBeTruthy();
+  expect(within(header).getByText('개발팀')).toBeTruthy();
+  expect(within(header).getByText('사번 E001')).toBeTruthy();
+  expect(within(header).getByText('휴직')).toBeTruthy();
+  expect(header.textContent).not.toMatch(/생년월일|입사일|1990-01-01/);
+});
+
 it('사진이 없거나 실패하면 이니셜을 쓰고 누락 상태를 재직으로 추정하지 않는다', () => {
   render(<EmployeeHeader employee={{ ...employee, photoUrl: null, birthDate: null, gradeName: null, positionName: null, jobName: null, employmentStatus: 'UNKNOWN' }} />);
   expect(screen.queryByRole('img')).toBeNull();

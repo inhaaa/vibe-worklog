@@ -15,8 +15,8 @@ const annual: AnnualModel['annual'] = { year:2026, today:'2026-11-04', asOf:'202
 function envelope(current: ComposeView | null = null, changes: Partial<AnnualModel['annual']> = {}, error?: string): PageEnvelope {
   return { page:'request/mine', csrf, data:{ ...shared, annual:{...annual,...changes}, compose:current, error, buckets:[{id:'bucket-1',usableFrom:'2026-01-01',usableTo:'2027-12-31',balanceDays:9,availableDays:9,pendingDays:2}] } };
 }
-function preview() {
-  return envelope({ ...compose, leaveForm:{...leave,reason:'합성 휴가'}, preview:{quantityDays:2,availableDays:9,selectedBucketAvailableDays:9,policy:{code:'ANNUAL_LEAVE',name:'연차',revision:1},approval,eligible:true,message:'미리보기 완료'} });
+function preview(approvalResult = approval, from = leave.from) {
+  return envelope({ ...compose, leaveForm:{...leave,from,reason:'합성 휴가'}, preview:{quantityDays:2,availableDays:9,selectedBucketAvailableDays:9,policy:{code:'ANNUAL_LEAVE',name:'연차',revision:1},approval:approvalResult,eligible:true,message:'미리보기 완료'} });
 }
 function response(data: PageEnvelope, path: string, status = 200) {
   const result = new Response(JSON.stringify(data), { status, headers:{'Content-Type':'application/vnd.worklog.page+json'} });
@@ -39,7 +39,6 @@ async function open(fetcher: ReturnType<typeof vi.fn<typeof fetch>>) {
   return { dialog:await screen.findByRole('dialog',{name:'근태 신청'}), search, trigger };
 }
 function write(dialog: HTMLElement) {
-  fireEvent.click(within(dialog).getByRole('button',{name:'내용 작성으로'}));
   fireEvent.change(within(dialog).getByLabelText('신청 사유'),{target:{value:'합성 휴가'}});
   fireEvent.click(within(dialog).getByRole('button',{name:'미리보기'}));
 }
@@ -50,6 +49,9 @@ describe('신청 공통 모달 통합', () => {
     const { dialog, search, trigger } = await open(fetcher);
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(within(dialog).queryByRole('heading',{name:'내 근태현황·신청'})).toBeNull();
+    expect(within(dialog).getByRole('region',{name:'결재선'})).toBeTruthy();
+    expect(within(dialog).getByRole('form',{name:'신청서'})).toBeTruthy();
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading',{name:'근태 신청'}));
     expect(document.contains(search)).toBe(true);
     expect(search.value).toBe('검색 유지');
     fireEvent.click(dialog.querySelector<HTMLButtonElement>('.t-modal-close')!);
@@ -67,15 +69,17 @@ describe('신청 공통 모달 통합', () => {
       .mockImplementationOnce(() => new Promise(done => { resolve = done; }));
     const confirm = vi.spyOn(window,'confirm').mockReturnValue(true);
     const { dialog } = await open(fetcher);
+    fireEvent.change(within(dialog).getByLabelText('시작일'),{target:{value:'2026-11-06'}});
     write(dialog);
     const close = within(dialog).getAllByRole('button',{name:'닫기'}) as HTMLButtonElement[];
     await waitFor(() => expect(close.every(button => button.disabled)).toBe(true));
     fireEvent.click(close[0]); fireEvent(dialog,new Event('cancel',{cancelable:true}));
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(confirm).not.toHaveBeenCalled();
-    await act(async () => resolve(response(preview(),'/me/requests/preview')));
+    await act(async () => resolve(response(preview({...approval,approverName:'미리보기 결재자'},'2026-11-06'),'/me/requests/preview')));
     await waitFor(() => expect(close.every(button => !button.disabled)).toBe(true));
     expect(within(dialog).getByRole('button',{name:'신청 제출'})).toBeTruthy();
+    expect(within(within(dialog).getByRole('region',{name:'결재선'})).getByText('미리보기 결재자')).toBeTruthy();
     fireEvent.click(close[0]);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(confirm).toHaveBeenCalledTimes(1);
@@ -111,6 +115,7 @@ describe('신청 공통 모달 통합', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(envelope(compose),'/me/requests/new?year=2026'))
       .mockResolvedValueOnce(response(envelope(next,{},'근무일 자료를 확인해 주세요.'),'/me/requests/new?year=2026&mode=MODAL&kind=ATTENDANCE_CORRECTION&date=2026-11-04',422));
     const { dialog, search } = await open(fetcher);
+    fireEvent.click(within(dialog).getByRole('button',{name:'유형 변경'}));
     fireEvent.click(within(dialog).getByRole('radio',{name:/출퇴근·휴게 정정/}));
     fireEvent.click(within(dialog).getByRole('button',{name:'내용 작성으로'}));
     const error = await within(dialog).findByRole('alert');

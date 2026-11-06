@@ -148,6 +148,6 @@ class AuditTrailWebIT {
     private MockHttpSession login(String name) throws Exception {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).param("companyCode", company)
                 .param("email", name + "@example.test").param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 }

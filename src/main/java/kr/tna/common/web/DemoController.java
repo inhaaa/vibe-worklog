@@ -23,7 +23,7 @@ public final class DemoController {
 
     @GetMapping("/")
     String index(RedirectAttributes redirectAttributes) {
-        return localDemo.enabled() ? "redirect:/demo" : "redirect:/me/profile";
+        return localDemo.enabled() ? "redirect:/demo" : "redirect:/me/home";
     }
 
     @GetMapping("/login")

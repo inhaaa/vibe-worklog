@@ -25,7 +25,7 @@
   --t-overlay: #1f283666;
   --t-shadow-color: #18243314;
   --t-shadow: 0 16px 48px var(--t-shadow-color);
-  --t-radius: 8px;
+  --t-radius: 12px;
   --color-paper: var(--t-paper);
   --color-paper-2: var(--t-canvas);
   --color-paper-3: var(--t-surface);
@@ -54,7 +54,7 @@
 
 /* Neutral records keep colour for actions and selection in both themes. */
 :root {
-  --t-canvas: #f3f5f7;
+  --t-canvas: #f1f4f7;
   --t-surface: #f6f7f9;
   --t-section: #f4f6f8;
   --t-label: #f7f8fa;
@@ -65,7 +65,7 @@
   --t-blue-soft: #edf1f5;
 }
 :root[data-theme="blue"] {
-  --t-canvas: #f3f5fa;
+  --t-canvas: #eff3fb;
   --t-accent-border: #b8cdeb;
   --t-accent-ink: #24539a;
   --t-blue-soft: #edf3ff;

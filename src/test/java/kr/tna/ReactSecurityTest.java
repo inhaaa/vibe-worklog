@@ -2,8 +2,11 @@ package kr.tna;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.CompanyAuthenticationProvider;
 import kr.tna.common.auth.LocalDemoLogin;
@@ -12,6 +15,11 @@ import kr.tna.common.config.SecurityConfiguration;
 import kr.tna.common.config.WorkspaceWebConfiguration;
 import kr.tna.common.web.DemoController;
 import kr.tna.common.web.ReactPageViewResolver;
+import kr.tna.org.EmployeeOverview;
+import kr.tna.workspace.WorkspaceController;
+import kr.tna.workspace.WorkspaceData.DayView;
+import kr.tna.workspace.WorkspaceData.HomeView;
+import kr.tna.workspace.WorkspaceQueries;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -20,6 +28,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(DemoController.class)
+@WebMvcTest({DemoController.class, WorkspaceController.class})
 @Import({SecurityConfiguration.class, ReactPageViewResolver.class, ReactSecurityTest.Time.class})
 class ReactSecurityTest {
     @Autowired MockMvc mvc;
@@ -36,6 +45,42 @@ class ReactSecurityTest {
     @MockitoBean AuthStore auth;
     @MockitoBean LocalDemoLogin demo;
     @MockitoBean WorkspaceWebConfiguration workspace;
+    @MockitoBean WorkspaceQueries workspaceQueries;
+
+    @Test
+    void homeAllowsOnlyAuthenticatedGetAndUsesTheCurrentPrincipal() throws Exception {
+        var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+        var authentication = org.springframework.security.authentication.UsernamePasswordAuthenticationToken.authenticated(
+                principal, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_EMPLOYEE")));
+        when(auth.isCurrent(principal)).thenReturn(true);
+        var day = new DayView(new DaySnapshot(principal.employeeId(), LocalDate.of(2026, 11, 6),
+                List.of(), null, null, null, "UNCONFIRMED", 0, 0, null, "internal-fingerprint", List.of()),
+                List.of(), true, true);
+        when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
+                day, List.of(day), null, 2, List.of()));
+        mvc.perform(get("/me/home").accept(ReactPageViewResolver.MEDIA_TYPE))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/me/home").with(authentication(authentication)).with(csrf()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/me/home").param("tenantId", UUID.randomUUID().toString())
+                .with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page").value("workspace/home"))
+                .andExpect(jsonPath("$.data.workspaceHome.pendingRequests").value(2))
+                .andExpect(jsonPath("$.data.workspaceHome.today.snapshot.workDate").value("2026-11-06"))
+                .andExpect(jsonPath("$.data.workspaceHome.today.snapshot.sourceFingerprint").doesNotExist());
+    }
+
+    @Test
+    void successfulEmployeeLoginOpensHome() throws Exception {
+        var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+        when(provider.supports(UsernamePasswordAuthenticationToken.class)).thenReturn(true);
+        when(provider.authenticate(any())).thenReturn(UsernamePasswordAuthenticationToken.authenticated(principal, null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_EMPLOYEE"))));
+        mvc.perform(post("/login").with(csrf()).param("email", "employee@example.test").param("password", "fixture"))
+                .andExpect(redirectedUrl("/me/home"));
+    }
 
     @Test
     void anonymousPageNavigationIsJsonUnauthorizedAndNormalNavigationStillRedirects() throws Exception {

@@ -140,6 +140,6 @@ class LeaveBalanceSelectionWebIT {
     private MockHttpSession login(String email) throws Exception {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).param("companyCode", company)
                         .param("email", email).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 }
