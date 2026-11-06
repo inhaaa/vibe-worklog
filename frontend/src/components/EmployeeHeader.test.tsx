@@ -18,12 +18,23 @@ it('서버가 제공한 대상 사원의 인사정보와 상태를 표시한다'
   expect(within(header).getByRole('img', { name: '김직원 사원사진' }).getAttribute('src')).toBe('/me/profile/photo');
 });
 
+it('인사 요약에서 항목 이름과 값을 같은 그룹으로 읽을 수 있다', () => {
+  render(<EmployeeHeader employee={employee} />);
+  const summary = screen.getByRole('region', { name: '인사 요약' });
+  expect(within(summary).getByRole('heading', { name: '인사 요약' })).toBeTruthy();
+  const groups = within(summary).getAllByRole('term').map(term => [term.textContent, term.nextElementSibling?.textContent]);
+  expect(groups).toEqual([
+    ['생년월일', '1990-01-01'], ['직급', '선임'], ['직책', '팀원'], ['직무', '개발'], ['입사일', '2024-03-04'],
+  ]);
+});
+
 it('요약만 제공되는 업무 화면에서 공개된 이름과 회사만 표시한다', () => {
   render(<EmployeeHeader employee={{ employeeName: '김직원', companyName: '합성회사' }} />);
   const header = screen.getByRole('region', { name: '사원 인사정보' });
   expect(within(header).getByText('김직원')).toBeTruthy();
   expect(within(header).getByText('합성회사')).toBeTruthy();
   expect(within(header).queryByRole('img')).toBeNull();
+  expect(within(header).queryByRole('region', { name: '인사 요약' })).toBeNull();
   expect(header.textContent).not.toMatch(/사번|생년월일|입사일|미등록|재직/);
 });
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import './EmployeeWorkspace.css';
 export interface EmployeeHeaderData {
   employeeId: string; employeeNo: string; employeeName: string; companyName: string; organizationName: string | null;
@@ -10,6 +10,7 @@ export const employmentStatusName = (status: string) => ({ WORKING: '재직', ON
 
 export function EmployeeHeader({ employee }: { employee: EmployeeHeaderData | EmployeeSummary }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const summaryHeading = useId();
   const details = 'employeeId' in employee ? employee : null;
   const photoUrl = details?.photoUrl;
   const photo = photoUrl && failedUrl !== photoUrl ? photoUrl : null;
@@ -36,8 +37,11 @@ export function EmployeeHeader({ employee }: { employee: EmployeeHeaderData | Em
         </p>}
       </div>
     </div>
-    {details && <dl className="t-employee-facts">
-      {entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '미등록'}</dd></div>)}
-    </dl>}
+    {details && <section className="t-employee-summary" aria-labelledby={summaryHeading}>
+      <h3 id={summaryHeading}>인사 요약</h3>
+      <dl className="t-employee-facts">
+        {entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '미등록'}</dd></div>)}
+      </dl>
+    </section>}
   </section>;
 }
