@@ -7,6 +7,7 @@ import { AdminPages } from './pages/AdminPages';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
+import { WorkspaceHome } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
@@ -46,6 +47,7 @@ const publicPages = new Set([
 ]);
 const titles: Record<string, string> = {
   today: '출퇴근 기록',
+  'workspace/home': '홈',
   'org/personnel': '인사정보 등록',
   'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
@@ -141,6 +143,14 @@ function Workspace({
   const activeRole = selectWorkspaceRole(roles, selectedRole);
   const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
+  const headerEmployee = employeeHeader ?? employee;
+  const brand = (
+    <a className="t-brand-button t-wordmark" href="/me/home" aria-label="WorkLog 홈으로"
+      aria-current={page === 'workspace/home' ? 'page' : undefined} onClick={() => setOpen(false)}>
+      <span className="t-logo" aria-hidden="true">W</span>
+      <span>WorkLog<span className="t-brand-sub">Work, in rhythm.</span></span>
+    </a>
+  );
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -152,14 +162,7 @@ function Workspace({
     <div className="t-app-shell" data-menu-open={String(open)}>
       <a className="t-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>본문으로 건너뛰기</a>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
-        <a className="t-brand-button t-wordmark" href="/me/profile">
-          <span className="t-logo" aria-hidden="true">
-            W
-          </span>
-          <span>
-            WorkLog<span className="t-brand-sub">Work, in rhythm.</span>
-          </span>
-        </a>
+        {brand}
         <div className="t-workspace-name">
           <span className="t-workspace-icon">T</span>
           <span>
@@ -193,6 +196,7 @@ function Workspace({
           >
             <Icon name="menu" />
           </button>
+          {brand}
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
@@ -221,13 +225,14 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {employeeHeader && <EmployeeHeader employee={employeeHeader} />}
+        {page !== 'workspace/home' && headerEmployee && <EmployeeHeader employee={headerEmployee} />}
         {children}
       </main>
     </div>
   );
 }
 function Content(props: PageProps) {
+  if (props.page === 'workspace/home') return <WorkspaceHome data={props.data} busy={props.busy} />;
   return (
     <>
       <AuthPages {...props} />

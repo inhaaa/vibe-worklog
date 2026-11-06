@@ -35,8 +35,12 @@
 #tna-app .t-request-detail-page .t-request-detail-person { font-size:16px; font-weight:600; overflow-wrap:anywhere; }
 #tna-app .t-request-detail-page .t-request-detail-notice { margin:20px 0 0; padding:var(--space-sm) var(--space-md); border: 0; border-radius: 0; background: var(--t-canvas); color: var(--t-muted); font-size: 16px; overflow-wrap: anywhere; }
 #tna-app .t-request-detail-page .t-request-detail-original { margin-top:var(--space-md); }
+#tna-app .t-request-detail-page .t-request-detail-document { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:var(--space-lg); align-items:start; }
+#tna-app .t-request-detail-page .t-request-record-routing { margin:0; padding:var(--space-md); border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-surface); }
+#tna-app .t-request-detail-page .t-request-detail-summary-head .t-request-detail-person { margin:var(--space-2xs) 0 0; }
 #tna-app .t-request-detail-page .t-request-detail-columns { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); gap:32px; margin-top:var(--space-lg); align-items: start; }
 #tna-app .t-request-detail-page .t-request-detail-main, #tna-app .t-request-detail-page .t-request-detail-side { display:grid; gap:20px; min-width:0; }
+#tna-app .t-request-detail-page .t-request-detail-side:only-child { grid-column:1/-1; }
 #tna-app .t-request-detail-page .t-request-detail-values { display: grid; grid-template-columns: minmax(90px,.4fr) minmax(0,1fr); gap:0; margin:20px 0 0; border: 0; border-radius: 0; overflow: hidden; font-size: 16px; line-height: 1.8; border-top: 1px solid var(--t-line); }
 #tna-app .t-request-detail-page .t-request-detail-values dt { padding:var(--space-sm) var(--space-md) var(--space-sm) 0; border-bottom: 1px solid var(--t-line); background: transparent; color: var(--t-muted); font-size: 14px; }
 #tna-app .t-request-detail-page .t-request-detail-values dd { margin:0; padding:var(--space-sm) 0; border-bottom: 1px solid var(--t-line); min-width: 0; overflow-wrap: anywhere; }
@@ -72,6 +76,9 @@
 #tna-app .t-request-detail-page .t-request-decision-panel .t-request-decision-reject .t-btn { border-color:var(--t-line); color:var(--t-danger); }
 @media (max-width:1100px) {
   #tna-app .t-request-detail-page .t-request-detail-columns { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:800px) {
+  #tna-app .t-request-detail-page .t-request-detail-document { grid-template-columns:minmax(0,1fr); gap:var(--space-md); }
 }
 @media (max-width:680px) {
   #tna-app .t-request-detail-page .t-pagehead { flex-wrap:wrap; gap:var(--space-sm); }

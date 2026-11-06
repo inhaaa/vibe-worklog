@@ -378,7 +378,7 @@ class Client:
         form = form_fields(page, "/login")
         form.update(companyCode=self.data["companyCode"], email=self.data["email"], password=self.run.data["password"])
         headers, _ = self.http("login.submit", "/login", form, expected=302, paced=False)
-        assert local_location(self.run.base, headers["Location"]) == "/me/profile", "No authenticated session"
+        assert local_location(self.run.base, headers["Location"]) == "/me/home", "No authenticated session"
         self.http("login.verify", "/me/profile", contains=self.data["marker"], paced=False)
 
     def work(self):

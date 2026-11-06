@@ -164,7 +164,7 @@ class CompanyAccessWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf()).with(request -> {
                     request.setRemoteAddr(address); return request;
                 }).param("companyCode", company).param("email", member.email()).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 
     private Member member(String number, String name, Set<String> roles) {

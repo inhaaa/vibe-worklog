@@ -71,6 +71,16 @@ describe('WorkflowPages', () => {
   it('알 수 없는 페이지는 다른 화면에 위임한다', async () => {
     expect((await render('unknown/page', {})).container.innerHTML).toBe('');
   });
+  it('결재 정보가 없는 관리 목록과 fragment의 공통 그리드 계약은 유지한다', async () => {
+    for (const page of ['request/list', 'request/rows']) {
+      const view = await render(page, { title: '고객사 신청 현황', requests: [request] });
+      expect(view.getByRole('grid', { name: '근태 신청 목록' })).toBeTruthy();
+      expect(view.container.querySelector('[row-id="request-1"]')).toBeTruthy();
+      expect(view.container.querySelector('.t-approval-workspace')).toBeNull();
+      expect(view.queryByRole('navigation', { name: '결재 목록' })).toBeNull();
+      view.unmount();
+    }
+  });
   it('결재 대기함은 조회한 페이지 건수와 신청자·기간·한글 상태를 카드로 표시한다', async () => {
     const view = await render('request/list', { title: '결재 대기함', requests: [request], completed: false, page: 0, hasNext: true });
     expect(view.getByRole('list', { name: '결재 신청 목록' })).toBeTruthy();
@@ -267,9 +277,11 @@ describe('WorkflowPages', () => {
   });
   it('저장 이력이 없으면 가상의 제출·완료 단계를 만들지 않는다', async () => {
     const view = await render('request/detail', { request, detail: { days: [], history: [], correction: null } });
-    expect(view.container.textContent).toContain('저장된 처리 이력이 없습니다.');
+    const history = within(view.getByRole('heading', { name: '처리 이력' }).closest('section')!);
+    expect(history.getByText('저장된 처리 이력이 없습니다.')).toBeTruthy();
+    expect(history.queryByRole('list')).toBeNull();
     expect(view.container.querySelector('time')).toBeNull();
-    expect(view.container.textContent).not.toContain('신청 제출');
+    expect(view.queryByText('신청 제출', { exact: true })).toBeNull();
     expect(view.container.textContent).toContain('현재 가능한 결정·변경이 없습니다.');
   });
   it('정정은 DAY 수량 없이 유지·변경·제거와 원천 보존 안내를 표시한다', async () => {
@@ -351,11 +363,18 @@ describe('WorkflowPages', () => {
     expect(posted.get('baseInputRevision')).toBe('2');
     expect(posted.has('_presenceAsWork')).toBe(true);
     expect(posted.has('_breaksConfirmed')).toBe(true);
-    expect(view.getByLabelText('제안 출근 시각 (서울)').getAttribute('step')).toBe('0.001');
-    expect(view.getAllByRole('option', { name: '누락으로 정정' })).toHaveLength(2);
+    expect(posted.has('presenceAsWork')).toBe(false);
+    expect(posted.has('breaksConfirmed')).toBe(false);
     expect(posted.get('inAction')).toBe('SET');
     expect(posted.get('outAction')).toBe('KEEP');
-    expect(view.getAllByRole('option', { name: '누락으로 정정' }).every(option => option.getAttribute('value') === 'CLEAR')).toBe(true);
+    expect(posted.get('requestedInAt')).toBe('2026-10-26T09:00:00.123');
+    expect(view.getByLabelText('제안 출근 시각 (서울)').getAttribute('step')).toBe('0.001');
+    for (const label of ['출근 변경', '퇴근 변경']) {
+      const options = (view.getByLabelText(label) as HTMLSelectElement).options;
+      expect(Array.from(options, option => [option.value, option.text])).toEqual([
+        ['KEEP', '유지'], ['SET', '시각 수정'], ['CLEAR', '누락으로 정정'],
+      ]);
+    }
   });
   it('저장된 실제 휴게는 검증된 서울 구간으로 표시하고 손상된 원문을 숨긴다', async () => {
     const data = {

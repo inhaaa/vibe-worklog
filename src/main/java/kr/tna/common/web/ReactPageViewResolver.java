@@ -34,7 +34,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("today", "employee", "workspaceHome", "attendanceAdmin", "approver", "today", "day",
                     "eventTimes", "confirmationForm", "inCommand", "outCommand"),
             page("fragments/status"), page("workspace/schedule", "workspaceCalendar", "selectedDay"),
-            page("workspace/profile", "profile", "personalDetails"),
+            page("workspace/profile", "profile", "personalDetails"), page("workspace/home", "workspaceHome", "homeWidgetScope"),
             page("company/attendance", "companyAttendance"), page("company/requests", "companyRequests"),
             page("org/access-list", "accessRows", "q", "page", "hasNext"),
             page("org/problem", "status", "message", "traceId"),

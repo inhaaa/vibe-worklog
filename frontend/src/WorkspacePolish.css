@@ -6,9 +6,21 @@
 @import url('./base.css');
 #tna-app { color: var(--t-ink); background: var(--t-paper); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
 #tna-app .t-app-shell { grid-template-columns: 232px minmax(0, 1fr); background: var(--t-paper); }
-#tna-app .t-sidebar { background: var(--t-canvas); padding: 32px var(--space-md) var(--space-lg); border-right: 1px solid var(--t-line); }
+#tna-app .t-sidebar {
+  --t-focus: var(--t-nav-focus);
+  padding: 32px var(--space-md) var(--space-lg);
+  border-right: 1px solid var(--t-nav-rule);
+  background: var(--t-nav);
+  color: var(--t-nav-ink);
+  scrollbar-color: var(--t-nav-rule) var(--t-nav);
+}
+#tna-app .t-sidebar .t-brand-button { color: var(--t-nav-ink); }
+#tna-app .t-sidebar .t-logo { background: var(--t-nav-work); color: var(--t-nav); }
+#tna-app .t-sidebar :is(.t-brand-sub, .t-workspace-name small, .t-sidebar-bottom) { color: var(--t-nav-muted); }
+#tna-app .t-sidebar-bottom .t-demo-label { color: var(--t-nav-ink); }
+#tna-app .t-sidebar-bottom a { color: var(--t-nav-work); }
 #tna-app .t-main { max-width: var(--container); padding: 32px var(--space-xl) var(--space-2xl); margin-inline: auto; }
-#tna-app .t-topbar { padding: var(--space-md) 32px; gap: var(--space-lg); min-height: 80px; }
+#tna-app .t-topbar { padding: var(--space-sm) 32px; gap: var(--space-lg); min-height: 72px; }
 #tna-app .t-wordmark { font-size: 24px; gap: var(--space-sm); font-weight: 600; white-space: nowrap; }
 #tna-app .t-logo { width: 36px; height: 36px; border-radius: 8px; font-size: 28px; background: var(--t-blue); }
 #tna-app .t-brand-sub { font-size: 12px; margin-top: var(--space-2xs); }
@@ -16,7 +28,8 @@
 #tna-app .t-brand-button .t-brand-sub { line-height: 1.3; }
 #tna-app h1[tabindex="-1"]:focus { outline: none; }
 #tna-app .t-brand-button { margin: 0 var(--space-xs) 32px; }
-#tna-app .t-workspace-name { padding: var(--space-md) var(--space-xs); margin-bottom: var(--space-md); background: none; border: 0; border-block: 1px solid var(--t-line); border-radius: 0; font-size: 14px; line-height: 1.6; }
+#tna-app .t-topbar .t-brand-button { display: none; }
+#tna-app .t-workspace-name { padding: var(--space-sm); margin-bottom: var(--space-md); background: var(--t-nav-hover); border: 1px solid var(--t-nav-rule); border-radius: var(--t-radius); color: var(--t-nav-ink); font-size: 14px; line-height: 1.6; }
 #tna-app .t-workspace-name small { font-size: 12px; margin-top: var(--space-2xs); }
 #tna-app .t-workspace-icon { display: none; }
 #tna-app .t-sidebar-bottom { padding: var(--space-xl) var(--space-xs) 0; }
@@ -45,7 +58,7 @@
 #tna-app .t-btn.secondary { background: var(--t-paper); color: var(--t-ink); border-color: var(--t-line); }
 #tna-app :is(.t-btn, button):disabled { background: var(--t-disabled); border-color: var(--t-line); color: var(--t-muted); cursor: not-allowed; opacity: .65; }
 #tna-app .t-btn:active { transform: translateY(1px); }
-#tna-app :is(.t-input, .t-select, textarea), #tna-app .admin-form :is(input, select, textarea) { min-height: 44px; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--t-field-border); border-radius: 8px; font-size: 16px; line-height: 1.5; background: var(--t-paper); }
+#tna-app :is(.t-input, .t-select, textarea), #tna-app .admin-form :is(input, select, textarea) { min-height: 44px; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--t-field-border); border-radius: var(--radius-input); font-size: 16px; line-height: 1.5; background: var(--t-paper); }
 #tna-app input[type=checkbox] { width: 20px; min-height: 20px; height: 20px; padding: 0; accent-color: var(--t-blue); }
 #tna-app :is(input, select, textarea)[readonly] { background: var(--t-canvas); }
 #tna-app :is(input, select, textarea):disabled { background: var(--t-disabled); color: var(--t-muted); cursor: not-allowed; }
@@ -104,6 +117,12 @@
   #tna-app .t-app-shell[data-menu-open=true] { grid-template-areas: 'top' 'side' 'main'; }
   #tna-app .t-app-shell[data-menu-open=true] .t-sidebar { display: flex; }
   #tna-app .t-mobile-menu { display: inline-grid; place-items: center; }
+  #tna-app .t-sidebar .t-brand-button { display: none; }
+  #tna-app .t-topbar .t-brand-button { display: inline-flex; min-height: 44px; margin: 0; gap: var(--space-xs); font-size: 20px; }
+  #tna-app .t-topbar .t-brand-button .t-logo { width: 32px; height: 32px; font-size: 23px; }
+  #tna-app .t-topbar .t-brand-sub { display: none; }
+  #tna-app .t-topbar .t-breadcrumb { min-width: 0; flex-wrap: wrap; }
+  #tna-app .t-topbar .t-location-breadcrumbs { flex: 0 1 auto; }
   #tna-app .t-calendar-layout, #tna-app .t-employee-layout, #tna-app .t-homegrid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 680px) {
@@ -126,11 +145,27 @@
   #tna-app .t-app-shell :is(.t-input, .t-select, textarea), #tna-app .t-sheet-table :is(input, select) { font-size: 16px; }
 }
 
+/* Keep sheet editors compact and use a shared closed appearance on forms. */
+#tna-app :is(.t-app-shell, .t-modal) select:not([multiple], [size], .w-sheet-editor) {
+  appearance: none;
+  padding-inline-start: var(--space-sm);
+  padding-inline-end: 32px;
+  border-radius: var(--radius-input);
+  background-image: linear-gradient(45deg, transparent 50%, var(--t-muted) 50%),
+    linear-gradient(135deg, var(--t-muted) 50%, transparent 50%);
+  background-position: right 17px center, right 11px center;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+}
+#tna-app :is(.t-app-shell, .t-modal) select:not([disabled], [multiple], [size], .w-sheet-editor) { cursor: pointer; }
+#tna-app .t-topbar select:not([multiple], [size]) { border-radius: 22px; }
+@media (forced-colors: active) {
+  #tna-app :is(.t-app-shell, .t-modal) select:not([multiple], [size], .w-sheet-editor) { appearance: auto; background-image: none; padding-inline-end: var(--space-sm); }
+}
+
 /* One white working surface against a tinted canvas; inner sections stay flat. */
 #tna-app, #tna-app .t-app-shell { background: var(--t-canvas); }
-#tna-app .t-sidebar { background: var(--t-paper); }
-#tna-app .t-workspace-name { background: var(--t-surface); border: 0; border-radius: var(--t-radius); padding: var(--space-md); }
-#tna-app .t-topbar { background: var(--t-paper); border-bottom: 1px solid var(--t-line); }
+#tna-app .t-topbar { background: color-mix(in srgb, var(--t-paper) 90%, var(--t-blue-soft)); border-bottom: 1px solid var(--t-line); }
 #tna-app :is(.t-card, .panel) { padding: var(--space-lg); border: 1px solid var(--t-line); border-radius: var(--t-radius); background: var(--t-paper); }
 #tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding: var(--space-md) 0; border: 0; border-radius: 0; background: transparent; }
 #tna-app .t-cardhead { padding-bottom: 0; border-bottom: 0; }

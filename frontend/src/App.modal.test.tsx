@@ -93,8 +93,7 @@ describe('업무 모달 탐색', () => {
     fireEvent.click(within(dialog).getAllByRole('button', { name: '닫기' })[0]);
     await waitFor(() => expect(location.pathname).toBe('/admin/access'));
     expect(screen.getByText('공통 · 결재 담당 가능')).toBeTruthy();
-    const restoredTrigger = await screen.findByRole('link', { name: '직원 권한 관리' });
-    await waitFor(() => expect(document.activeElement).toBe(restoredTrigger));
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: '직원 권한 관리' }));
   });
   it('저장은 성공하고 목록 조회만 실패하면 새 폼 버전과 정확한 결과를 유지한다', async () => {
     const saved = { ...access, data: { ...access.data, rolesForm: { ...command, expectedVersion: 2, roles: ['EMPLOYEE', 'APPROVER'] } } };

@@ -169,7 +169,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")
                         .with(request -> { request.setRemoteAddr("198.51.100.251"); return request; }))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
         var path = java.net.URI.create("/admin/employees/%20" + LocalDemoLogin.EMPLOYEE_ID + "%20/roles");
         publicMvc.perform(post(path).session(session).with(csrf())
@@ -185,7 +185,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")
                         .with(request -> { request.setRemoteAddr("198.51.100.250"); return request; }))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
         String employee = "/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID;
         for (String suffix : new String[]{"/changes", "/roles", "/invitations", "/personnel"}) {
@@ -205,7 +205,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         var session = (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")
                         .with(request -> { request.setRemoteAddr("198.51.100.249"); return request; }))
-                .andExpect(redirectedUrl("/me/profile"))
+                .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
         String rows = """
                 [{"clientRowId":"%s","id":"%s","expectedVersion":0,"operation":"UPDATE",
@@ -262,7 +262,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         return (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; }))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 
     private JdbcTemplate demoDb() { return new JdbcTemplate(DatabaseFixture.start().adminDataSource()); }

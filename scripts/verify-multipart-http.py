@@ -147,7 +147,7 @@ def run_probe(data, with_file=False, session_factory=Session):
     positive, token = session_with_token()
     encoded = urllib.parse.urlencode({**credentials, "_csrf": token}).encode("utf-8")
     record("urlencoded_login", positive.request("/login", encoded,
-            {"Content-Type": "application/x-www-form-urlencoded"}), 302, location="/me/profile")
+            {"Content-Type": "application/x-www-form-urlencoded"}), 302, location="/me/home")
     record("urlencoded_authenticated_page", positive.request("/me/profile"), 200, marker=user["marker"])
 
     missing, _ = session_with_token()

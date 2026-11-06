@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import type { PageEnvelope } from './types';
@@ -157,9 +157,9 @@ describe('React 앱 탐색과 제출', () => {
     expect(screen.queryByRole('option', { name: '대표' })).toBeNull();
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it('업무 메뉴를 3단계로 제공하고 홈 링크를 제거한다', () => {
+  it('별도 홈 항목 없이 3단계 업무 메뉴를 제공한다', () => {
     render(<App initial={today} />);
-    expect(screen.queryByRole('link', { name: '홈', hidden: true })).toBeNull();
+    expect(screen.queryByRole('link', { name: '홈' })).toBeNull();
     const group = screen.getByRole('button', { name: /내 업무/ });
     if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group);
     expect(screen.getByRole('button', { name: /근태관리/ })).toBeTruthy();
@@ -210,6 +210,29 @@ describe('React 앱 탐색과 제출', () => {
     fireEvent.click(screen.getByRole('button', { name: '인사정보' }));
     expect(screen.getByRole('link', { name: '내 정보' }).getAttribute('href')).toBe('/me/profile');
     expect(screen.getByRole('link', { name: '민감직원 합성회사' }).getAttribute('href')).toBe('/me/profile');
+  });
+
+  it('상단 WorkLog 로고는 업무 메뉴를 열지 않고 홈으로 이동한다', async () => {
+    window.history.replaceState(null, '', '/admin/employees');
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ ...today, page: 'workspace/home' }, '/me/home'));
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={employees} />);
+    const menu = screen.getByRole('button', { name: '업무 메뉴 열기' });
+    const topbar = within(menu.closest('header')!);
+    const sidebar = within(screen.getByRole('complementary', { name: '주 메뉴' }));
+    expect(sidebar.getByRole('link', { name: /WorkLog/ }).getAttribute('href')).toBe('/me/home');
+    expect(menu.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByRole('region', { name: '사원 인사정보' }).textContent).toContain('합성회사');
+    fireEvent.click(topbar.getByRole('link', { name: 'WorkLog 홈으로' }));
+    await screen.findByRole('heading', { name: '민감직원님, 안녕하세요' });
+    expect(location.pathname).toBe('/me/home');
+    expect(topbar.getByRole('link', { name: 'WorkLog 홈으로' }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('홈에는 인사 헤더 없이 근무 대시보드만 표시한다', () => {
+    render(<App initial={{ ...today, page: 'workspace/home' }} />);
+    expect(screen.getByRole('heading', { name: '민감직원님, 안녕하세요' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: '사원 인사정보' })).toBeNull();
   });
 
   it('대표는 회사 현황을 조회하며 관리자·결재 기능을 자동으로 얻지 않는다', () => {

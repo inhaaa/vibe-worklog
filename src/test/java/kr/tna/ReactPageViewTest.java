@@ -100,6 +100,8 @@ class ReactPageViewTest {
         assertTrue(body.contains("href=\"/app.css\""));
         assertTrue(body.contains("href=\"/react/app.css\""));
         assertTrue(body.contains("href=\"/react/sheet.css\""));
+        assertTrue(body.indexOf("href=\"/app.css\"") < body.indexOf("href=\"/react/app.css\""));
+        assertTrue(body.indexOf("href=\"/react/app.css\"") < body.indexOf("href=\"/react/sheet.css\""));
         assertTrue(body.indexOf("href=\"/app.css\"") < body.indexOf("href=\"/react/sheet.css\""));
         assertFalse(body.contains("<img"));
         assertTrue(body.contains("\\u003c/script\\u003e"));

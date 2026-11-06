@@ -1,7 +1,9 @@
 package kr.tna.workspace;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +16,15 @@ import org.springframework.web.servlet.ModelAndView;
 public final class WorkspaceController {
     private final WorkspaceQueries queries;
     public WorkspaceController(WorkspaceQueries queries) { this.queries = queries; }
+
+    @GetMapping("/me/home")
+    ModelAndView home(@AuthenticationPrincipal TnaPrincipal actor) {
+        var scope = UUID.nameUUIDFromBytes(("worklog.home-widget:" + actor.tenantId() + ":" + actor.accountId())
+                .getBytes(StandardCharsets.UTF_8));
+        return new ModelAndView("workspace/home")
+                .addObject("workspaceHome", WorkspaceHomeData.from(queries.home(actor)))
+                .addObject("homeWidgetScope", scope.toString());
+    }
 
     @GetMapping("/me/schedule")
     ModelAndView schedule(@AuthenticationPrincipal TnaPrincipal actor,

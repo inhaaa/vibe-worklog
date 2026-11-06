@@ -70,7 +70,7 @@ public class SecurityConfiguration {
                             .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")
                         .requestMatchers("/approvals", "/approvals/completed").hasRole("APPROVER")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/me/home", "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll();
@@ -82,7 +82,7 @@ public class SecurityConfiguration {
                                     && authentication.getPrincipal() instanceof TnaPrincipal principal
                                     && LocalDemoLogin.TENANT_ID.equals(principal.tenantId())
                                     && LocalDemoLogin.APPROVER_ACCOUNT_ID.equals(principal.accountId());
-                            response.sendRedirect(request.getContextPath() + (approverPersona ? "/approvals" : "/me/profile"));
+                            response.sendRedirect(request.getContextPath() + (approverPersona ? "/approvals" : "/me/home"));
                         })
                         .failureHandler((request, response, exception) -> {
                             response.setHeader("Cache-Control", "no-store");

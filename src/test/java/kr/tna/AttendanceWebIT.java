@@ -50,5 +50,5 @@ class AttendanceWebIT {
         var jdbc=new JdbcTemplate(DatabaseFixture.start().adminDataSource());
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",Integer.class,DatabaseFixture.TENANT_A,DatabaseFixture.EMPLOYEE_A));
     }
-    private MockHttpSession login(boolean admin) throws Exception {return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession login(boolean admin) throws Exception {return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
 }

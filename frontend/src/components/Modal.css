@@ -1,6 +1,6 @@
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: employee record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
-.t-modal { width: min(1040px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--t-line); border-radius: 10px; background: var(--t-paper); color: var(--t-ink); box-shadow: var(--t-shadow); overflow: hidden; box-sizing: border-box; }
+.t-modal { width: min(1100px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--t-line); border-radius: 16px; background: var(--t-paper); color: var(--t-ink); box-shadow: var(--t-shadow); overflow: hidden; box-sizing: border-box; }
 .t-modal[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 .t-modal::backdrop { background: var(--t-overlay); }
 .t-modal .t-modal-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--t-line); background: var(--t-paper); }
@@ -17,7 +17,7 @@
 .t-modal :is(.t-modal-close, .t-modal-dismiss):disabled { color: var(--t-muted); background: var(--t-disabled); cursor: wait; }
 .t-modal :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; }
 @media (max-width: 680px) {
-  .t-modal { width: calc(100% - 24px); max-height: calc(100dvh - 24px); border-radius: 8px; }
+  .t-modal { width: calc(100% - 24px); max-height: calc(100dvh - 24px); border-radius: var(--t-radius); }
   .t-modal .t-modal-header { gap: var(--space-sm); padding: var(--space-sm) var(--space-md); }
   .t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { font-size: 18px; }
   .t-modal .t-modal-body { padding: 20px var(--space-md); }
