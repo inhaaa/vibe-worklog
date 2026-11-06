@@ -87,26 +87,53 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   await view.findByRole('region',{name:'신청 미리보기'});
   expect(new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams).getAll('bucketId')).toEqual([second.id]);
  });
- it('신청 기간 시트의 날짜를 수정하면 종료일 기준을 갱신하고 미리보기에 전송한다',async()=>{
+ it('신청서 안의 날짜 시트에서 시작일과 종료일을 선택해 미리보기로 전송한다',async()=>{
   const edited={...leave,from:'2026-11-03',to:'2026-11-06',reason:'기간 확인'};
   const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(preview({leaveForm:edited})));
   vi.stubGlobal('fetch',fetcher);
   const view=render(<App initial={envelope({},compose)}/>);
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
   const sheet=within(view.getByRole('group',{name:'신청 기간'}));
-  const from=sheet.getByLabelText('시작일') as HTMLInputElement;
-  const to=sheet.getByLabelText('종료일 (포함)') as HTMLInputElement;
-  expect(from.min).toBe(annual.today);
-  fireEvent.change(from,{target:{value:edited.from}});
-  expect(to.min).toBe(edited.from);
-  expect(to.validity.rangeUnderflow).toBe(true);
-  fireEvent.change(to,{target:{value:edited.to}});
+  const from=sheet.getByRole('button',{name:/^시작일/});
+  const to=sheet.getByRole('button',{name:/^종료일/});
+  expect(sheet.queryByRole('textbox')).toBeNull();
+  fireEvent.click(from);
+  const fromCalendar=within(sheet.getByRole('region',{name:'시작일 선택'}));
+  fireEvent.click(fromCalendar.getByRole('button',{name:edited.from}));
+  expect(document.activeElement).toBe(from);
+  expect(from.getAttribute('aria-expanded')).toBe('false');
+  expect(to.getAttribute('aria-invalid')).toBe('true');
   fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:edited.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(to);
+  fireEvent.click(to);
+  const toCalendar=within(sheet.getByRole('region',{name:'종료일 선택'}));
+  expect(toCalendar.getByRole('button',{name:leave.to}).hasAttribute('disabled')).toBe(true);
+  fireEvent.click(toCalendar.getByRole('button',{name:edited.to}));
+  expect(to.getAttribute('aria-invalid')).not.toBe('true');
   fireEvent.click(view.getByRole('button',{name:'미리보기'}));
   await view.findByRole('region',{name:'신청 미리보기'});
   const sent=new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams);
   expect(sent.getAll('from')).toEqual([edited.from]);
   expect(sent.getAll('to')).toEqual([edited.to]);
+ });
+ it('달력에서 키보드로 월을 넘기고 Escape로 신청서는 유지한 채 날짜 선택만 닫는다',()=>{
+  const view=render(<App initial={envelope({}, {...compose,leaveForm:{...leave,from:'2026-12-31',to:'2027-01-04'}})}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const trigger=view.getByRole('button',{name:/^시작일/});
+  fireEvent.click(trigger);
+  const calendar=within(view.getByRole('region',{name:'시작일 선택'}));
+  const lastDay=calendar.getByRole('button',{name:'2026-12-31'});
+  expect(document.activeElement).toBe(lastDay);
+  fireEvent.keyDown(lastDay,{key:'ArrowRight'});
+  const firstDay=calendar.getByRole('button',{name:'2027-01-01'});
+  expect(document.activeElement).toBe(firstDay);
+  fireEvent.keyDown(firstDay,{key:'Escape'});
+  expect(view.queryByRole('region',{name:'시작일 선택'})).toBeNull();
+  expect(document.activeElement).toBe(trigger);
+  expect(view.getByRole('dialog')).toBeTruthy();
+  expect(trigger.textContent).toContain('2026-12-31');
  });
  it('고를 수 있는 연차 묶음이 없으면 신청 미리보기 전송을 막는다',()=>{
   const fetcher=vi.fn<typeof fetch>();
@@ -131,7 +158,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const leaveView=render(<App initial={envelope({},compose)}/>);
   fireEvent.click(leaveView.getByRole('button',{name:'내용 작성으로'}));
   expect(leaveView.queryByRole('button',{name:'유형·일자 조회'})).toBeNull();
-  expect(leaveView.getByLabelText('시작일')).toBeTruthy();
+  expect(leaveView.getByRole('button',{name:/^시작일/})).toBeTruthy();
   leaveView.unmount();
   const correctionView=render(<App initial={envelope({}, {...compose,kind:'ATTENDANCE_CORRECTION'})}/>);
   fireEvent.click(correctionView.getByRole('button',{name:'내용 작성으로'}));
@@ -144,7 +171,8 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(summary.getByText(/9 DAY/)).toBeTruthy();
   expect(summary.queryByText(/예상 차감/)).toBeNull();
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
-  fireEvent.change(view.getByLabelText('종료일 (포함)'),{target:{value:'2026-11-04'}});
+  fireEvent.click(view.getByRole('button',{name:/^종료일/}));
+  fireEvent.click(within(view.getByRole('region',{name:'종료일 선택'})).getByRole('button',{name:'2026-11-04'}));
   expect(summary.getByText(/2026-11-01 ~ 2026-11-04/)).toBeTruthy();
   expect(summary.getByText('합성 조직장')).toBeTruthy();
  });
@@ -427,7 +455,11 @@ describe('연도별 본인 현황과 모달 신청',()=>{
  it('빈 날짜의 422 응답은 연도와 빈 입력을 경고 없이 유지한다',()=>{
   const error=vi.spyOn(console,'error').mockImplementation(()=>{});
   const view=render(<App initial={envelope({}, {...compose,leaveForm:{...leave,from:null,to:null}},'시작일과 종료일을 확인하세요')}/>);
-  expect((view.getByLabelText('시작일') as HTMLInputElement).value).toBe('');expect((view.getByLabelText('종료일 (포함)') as HTMLInputElement).value).toBe('');
+  const sheet=within(view.getByRole('group',{name:'신청 기간'}));
+  expect(sheet.getByRole('button',{name:/^시작일/}).textContent).toContain('날짜 선택');
+  expect(sheet.getByRole('button',{name:/^종료일/}).textContent).toContain('날짜 선택');
+  const form=new FormData(view.getByRole('form',{name:'신청서'}) as HTMLFormElement);
+  expect(form.get('from')).toBe('');expect(form.get('to')).toBe('');
   expect(error).not.toHaveBeenCalled();
  });
  it('최종 제출 중 닫기와 Escape를 막고 503 후 같은 입력·명령으로 재시도한다',async()=>{

@@ -105,10 +105,29 @@
 #tna-app :is(.t-request-bucket-picker,.t-request-period-picker) > legend { padding:0; margin:0 0 var(--space-xs); font-size:14px; font-weight:650; }
 #tna-app :is(.t-request-bucket-sheet,.t-request-period-sheet) { border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:clip; }
 #tna-app .t-request-period-sheet { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,15.25rem),1fr)); gap:1px; background:var(--t-line); }
-#tna-app .t-request-period-cell { display:grid; grid-template-columns:5.75rem minmax(0,1fr); }
-#tna-app .t-request-period-cell > label { display:flex; align-items:center; padding:var(--space-xs) var(--space-sm); margin:0; background:var(--t-label); color:var(--t-muted); font-size:13px; font-weight:650; word-break:keep-all; }
-#tna-app .t-request-period-sheet .t-request-period-cell > .t-input { box-sizing:border-box; width:100%; min-width:0; min-height:48px; padding:var(--space-xs); border:0; border-radius:0; background:var(--t-paper); color:var(--t-ink); font-size:16px; font-variant-numeric:tabular-nums; }
-#tna-app .t-request-period-sheet .t-request-period-cell > .t-input:focus-visible { outline:2px solid var(--t-focus); outline-offset:-2px; }
+#tna-app button.t-request-period-trigger { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; justify-content:stretch; gap:0 var(--space-xs); min-width:0; min-height:58px; padding:var(--space-xs) var(--space-sm); border:0; border-radius:0; text-align:left; background:var(--t-paper); color:var(--t-ink); }
+#tna-app .t-request-period-trigger > span { color:var(--t-muted); font-size:13px; font-weight:650; }
+#tna-app .t-request-period-trigger > strong { grid-row:2; font-size:15px; font-variant-numeric:tabular-nums; }
+#tna-app .t-request-period-trigger > svg { grid-area:1 / 2 / span 2; width:18px; height:18px; color:var(--t-accent-ink); }
+#tna-app .t-request-period-trigger[aria-expanded="true"] { background:var(--t-blue-soft); box-shadow:inset 0 -2px var(--t-blue); }
+#tna-app .t-request-period-trigger[aria-invalid="true"] { box-shadow:inset 0 -2px var(--t-danger); }
+#tna-app .t-request-period-error { margin:var(--space-2xs) 0 0; color:var(--t-danger); font-size:13px; }
+#tna-app .t-request-calendar { grid-column:1 / -1; padding:var(--space-xs); background:var(--t-label); }
+#tna-app .t-request-calendar-head { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; margin:0 auto var(--space-2xs); max-width:31rem; text-align:center; }
+#tna-app .t-request-calendar-head h4 { margin:0; color:var(--t-ink); font-size:15px; font-weight:700; }
+#tna-app .t-request-calendar-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:2px; max-width:31rem; margin:0 auto; text-align:center; }
+#tna-app .t-request-calendar-days > span { padding-block:var(--space-2xs); color:var(--t-muted); font-size:12px; font-weight:650; }
+#tna-app :is(.t-request-calendar-head,.t-request-calendar-days) > .t-btn { display:grid; place-items:center; justify-content:stretch; min-width:0; min-height:44px; padding:0; border:1px solid transparent; border-radius:8px; background:var(--t-paper); color:var(--t-ink); font-size:14px; font-variant-numeric:tabular-nums; }
+#tna-app .t-request-calendar-head > button { width:44px; border-color:var(--t-line); }
+#tna-app .t-request-calendar-head > button svg { width:17px; height:17px; }
+#tna-app .t-request-calendar-days > button[aria-current="date"] { border-color:var(--t-blue); }
+#tna-app .t-request-calendar-days > button[aria-pressed="true"] { border-color:var(--t-blue); background:var(--t-blue); color:var(--t-paper); font-weight:700; }
+#tna-app .t-request-calendar button:is(:disabled,[aria-disabled="true"]) { background:transparent; color:var(--t-muted); opacity:.65; cursor:default; }
+#tna-app :is(.t-request-period-trigger,.t-request-calendar button):focus-visible { outline:2px solid var(--t-focus); outline-offset:-2px; }
+@media (hover:hover) {
+  #tna-app .t-request-calendar button:hover:not(:disabled,[aria-disabled="true"],[aria-pressed="true"]),
+  #tna-app .t-request-period-trigger:hover:not(:disabled,[aria-expanded="true"]) { background:var(--t-blue-soft); }
+}
 #tna-app :is(.t-request-bucket-head,.t-request-bucket-row) { display:grid; grid-template-columns:minmax(90px,.9fr) minmax(0,2.2fr) minmax(66px,.7fr) minmax(66px,.7fr); align-items:center; gap:var(--space-sm); padding:var(--space-xs) var(--space-sm); }
 #tna-app .t-request-bucket-head { background:var(--t-label); color:var(--t-muted); font-size:13px; font-weight:650; }
 #tna-app .t-request-bucket-row { min-height:48px; margin:0; border-top:1px solid var(--t-line); background:var(--t-paper); color:var(--t-ink); cursor:pointer; font-size:14px; font-variant-numeric:tabular-nums; }

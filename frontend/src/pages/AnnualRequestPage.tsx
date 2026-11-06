@@ -6,6 +6,7 @@ import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
+import { RequestPeriodSheet, requestPeriodIssue } from '../components/RequestPeriodSheet';
 import './RequestWorkspace.css';
 
 const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' }[kind] ?? kind);
@@ -116,6 +117,8 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   const locked = busy || submitting;
   const isLeave = compose.kind === 'LEAVE_DAY', current = isLeave ? leave : correction;
   const noLeaveBuckets = isLeave && !model.buckets.length;
+  const period = { from: leave.from, to: leave.to, today: model.annual.today };
+  const invalidPeriod = isLeave && requestPeriodIssue(period);
   const loadedDate = (isLeave ? compose.leaveForm.from : compose.correctionForm.workDate) ?? model.annual.today;
   const needsContext = kind !== compose.kind || date !== loadedDate;
   const approval = needsContext ? undefined : step === 'REVIEW' ? compose.preview?.approval : compose.approval;
@@ -149,8 +152,13 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     if (dirty && !window.confirm('입력한 신청 내용이 사라집니다. 닫을까요?')) return;
     dialog.current?.close(); setDirty(false); onClose();
   }
+  function focusInvalidPeriod() {
+    form.current?.querySelector<HTMLButtonElement>('[data-period-invalid="true"]')?.focus();
+  }
   async function preview() {
-    if (activeRequest.current || submitting || noLeaveBuckets || !form.current?.reportValidity()) return;
+    if (activeRequest.current || submitting || noLeaveBuckets) return;
+    if (invalidPeriod) { focusInvalidPeriod(); return; }
+    if (!form.current?.reportValidity()) return;
     const body = encodeForm(new FormData(form.current));
     activeRequest.current = true; setBusy(true); setError('');
     try {
@@ -174,6 +182,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     setCompose(current => ({ ...current, conflict: false })); setReady(false); setDirty(true); setError(''); setStep('CONTENT');
   }
   function submit(event: FormEvent<HTMLFormElement>) {
+    if (invalidPeriod) { event.preventDefault(); event.stopPropagation(); focusInvalidPeriod(); return; }
     if (!ready || locked || compose.conflict || noLeaveBuckets) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const content = <>
@@ -201,19 +210,8 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='CONTENT'&&!error?'true':undefined}>신청서</h3>
         {isLeave ? <>
           <LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} />
-          <fieldset className="t-request-period-picker">
-            <legend>신청 기간</legend>
-            <div className="t-request-period-sheet">
-              <div className="t-request-period-cell">
-                <label htmlFor="annual-from">시작일</label>
-                <input id="annual-from" className="t-input" type="date" name="from" value={leave.from ?? ''} onChange={event => change('from', event.target.value)} min={model.annual.today} required />
-              </div>
-              <div className="t-request-period-cell">
-                <label htmlFor="annual-to">종료일 (포함)</label>
-                <input id="annual-to" className="t-input" type="date" name="to" value={leave.to ?? ''} onChange={event => change('to', event.target.value)} min={leave.from ?? undefined} required />
-              </div>
-            </div>
-          </fieldset>
+          {hidden('from', leave.from)}{hidden('to', leave.to)}
+          {step==='CONTENT' && <RequestPeriodSheet {...period} onSelect={change} />}
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
           <p>대상 근무일 {fmtDate(correction.workDate)}</p>
