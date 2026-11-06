@@ -66,6 +66,40 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(route.getByText('유형·일자 조회 후 확인')).toBeTruthy();
   expect(route.queryByText('합성 조직장')).toBeNull();
  });
+ it('연차 선택 시트에서 기간과 잔여를 비교하고 고른 묶음으로 미리보기 한다',async()=>{
+  const second={...bucket,id:'bucket-2',usableFrom:'2026-10-01',usableTo:null,availableDays:4,pendingDays:1};
+  const selected={...leave,bucketId:second.id,reason:'합성 연차 신청'};
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(preview({leaveForm:selected})));
+  vi.stubGlobal('fetch',fetcher);
+  const initial=envelope({},compose);
+  initial.data.buckets=[bucket,second];
+  const view=render(<App initial={initial}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'사용할 연차'}));
+  const first=sheet.getByRole('radio',{name:/연차 1.*사용 가능 9일/}) as HTMLInputElement;
+  const next=sheet.getByRole('radio',{name:/연차 2.*2026-10-01.*종료 없음.*사용 가능 4일.*결재 대기 1일/}) as HTMLInputElement;
+  expect(first.checked).toBe(true);
+  fireEvent.click(next);
+  expect(next.checked).toBe(true);
+  expect(first.checked).toBe(false);
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:selected.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  await view.findByRole('region',{name:'신청 미리보기'});
+  expect(new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams).getAll('bucketId')).toEqual([second.id]);
+ });
+ it('고를 수 있는 연차 묶음이 없으면 신청 미리보기 전송을 막는다',()=>{
+  const fetcher=vi.fn<typeof fetch>();
+  vi.stubGlobal('fetch',fetcher);
+  const initial=envelope({}, {...compose,leaveForm:{...leave,bucketId:null}});
+  initial.data.buckets=[];
+  const view=render(<App initial={initial}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'사용할 연차'}));
+  expect(sheet.getByText('선택할 수 있는 연차 묶음이 없습니다.')).toBeTruthy();
+  expect((view.getByRole('button',{name:'미리보기'}) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.submit(view.getByRole('form',{name:'신청서'}));
+  expect(fetcher).not.toHaveBeenCalled();
+ });
  it('페이지 제목 옆에서 신청을 시작하고 조회 필터와 분리한다',()=>{
   const view=render(<App initial={envelope()}/>);
   const head=view.getByRole('heading',{name:'내 근태현황·신청'}).closest('header')!;

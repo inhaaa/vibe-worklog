@@ -3,7 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { Form, fmtDate, fmtDateTime } from '../ui';
 import { encodeForm, fetchPage, PageRequestError } from '../transport';
-import type { RequestView } from './WorkflowTypes';
+import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import './RequestWorkspace.css';
@@ -48,17 +48,13 @@ function useUnload(dirty: boolean) {
 function ApprovalLine({ approval, checked }: { approval: ApprovalPreview | undefined; checked: boolean }) {
   const status = approval?.eligible ? (checked ? '미리보기 확인' : '결재 가능') : '확인 필요';
   return <section className="t-request-routing" aria-labelledby="annual-approval-line">
-    <div className="t-request-context-heading">
-      <h3 id="annual-approval-line">결재선</h3>
-      {approval && <span className="t-request-route-status" data-eligible={approval.eligible}>
-        {status}
-      </span>}
-    </div>
+    <h3 id="annual-approval-line">결재선</h3>
     {approval ? <>
       <dl className="t-request-context-facts">
         <div><dt>결재 경로</dt><dd>{approval.routeName ?? (approval.source === 'LEGACY' ? '사원별 지정 승인자' : '미지정')}</dd></div>
         <div><dt>결재 담당</dt><dd>{approval.approverName ?? '미지정'}</dd></div>
       </dl>
+      <span className="t-request-route-status" data-eligible={approval.eligible}>{status}</span>
       {approval.message && approval.message !== status && <p className="t-request-route-note">{approval.message}</p>}
     </> : <p className="t-request-route-note" role="status">유형·일자 조회 후 확인</p>}
   </section>;
@@ -66,7 +62,7 @@ function ApprovalLine({ approval, checked }: { approval: ApprovalPreview | undef
 function ApplicantFacts({ model }: { model: AnnualModel }) {
   const employee = model.employeeHeader;
   return <section className="t-request-applicant" aria-labelledby="annual-applicant">
-    <div className="t-request-context-heading"><h3 id="annual-applicant">신청자</h3></div>
+    <h3 id="annual-applicant">신청자</h3>
     <dl className="t-request-context-facts">
       <div><dt>이름</dt><dd>{employee?.employeeName ?? model.workspaceEmployee?.employeeName ?? '확인 필요'}</dd></div>
       <div><dt>소속</dt><dd>{employee?.organizationName ?? (employee ? '소속 미배정' : model.workspaceEmployee?.companyName ?? '확인 필요')}</dd></div>
@@ -74,6 +70,29 @@ function ApplicantFacts({ model }: { model: AnnualModel }) {
       <div><dt>작성 기준일</dt><dd>{fmtDate(model.annual.today)}</dd></div>
     </dl>
   </section>;
+}
+function LeaveBucketSheet({ buckets, selected, onSelect }: { buckets: Bucket[]; selected: string | null; onSelect: (id: string) => void }) {
+  return <fieldset className="t-request-bucket-picker">
+    <legend>사용할 연차</legend>
+    {buckets.length ? <div className="t-request-bucket-sheet">
+      <div className="t-request-bucket-head" aria-hidden="true"><span>연차 묶음</span><span>사용 기간</span><span>사용 가능</span><span>결재 대기</span></div>
+      {buckets.map((bucket, index) => {
+        const name = `연차 ${index + 1}`;
+        const period = `${fmtDate(bucket.usableFrom)} ~ ${bucket.usableTo ? fmtDate(bucket.usableTo) : '종료 없음'}`;
+        return <label className="t-request-bucket-row" key={bucket.id}>
+          <span className="t-request-bucket-choice">
+            <input type="radio" name="bucketId" value={bucket.id} checked={selected === bucket.id} required
+              aria-label={`${name}, 사용 기간 ${period}, 사용 가능 ${bucket.availableDays}일, 결재 대기 ${bucket.pendingDays}일`}
+              onChange={() => onSelect(bucket.id)} />
+            <span>{name}</span>
+          </span>
+          <span className="t-request-bucket-period">{period}</span>
+          <span><small className="t-request-bucket-caption">사용 가능</small><strong>{bucket.availableDays}일</strong></span>
+          <span><small className="t-request-bucket-caption">결재 대기</small>{bucket.pendingDays}일</span>
+        </label>;
+      })}
+    </div> : <p className="t-request-bucket-empty" role="status">선택할 수 있는 연차 묶음이 없습니다.</p>}
+  </fieldset>;
 }
 function RequestComposer({ initial, model, onClose, submitting, embedded = false }: { initial: ComposeView; model: AnnualModel; onClose: () => void; submitting: boolean; embedded?: boolean }) {
   type Step = 'TYPE' | 'CONTENT' | 'REVIEW';
@@ -96,6 +115,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   const activeRequest = useRef(false), previewHeading = useRef<HTMLHeadingElement>(null), contentHeading = useRef<HTMLHeadingElement>(null);
   const locked = busy || submitting;
   const isLeave = compose.kind === 'LEAVE_DAY', current = isLeave ? leave : correction;
+  const noLeaveBuckets = isLeave && !model.buckets.length;
   const loadedDate = (isLeave ? compose.leaveForm.from : compose.correctionForm.workDate) ?? model.annual.today;
   const needsContext = kind !== compose.kind || date !== loadedDate;
   const approval = needsContext ? undefined : step === 'REVIEW' ? compose.preview?.approval : compose.approval;
@@ -130,7 +150,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     dialog.current?.close(); setDirty(false); onClose();
   }
   async function preview() {
-    if (activeRequest.current || submitting || !form.current?.reportValidity()) return;
+    if (activeRequest.current || submitting || noLeaveBuckets || !form.current?.reportValidity()) return;
     const body = encodeForm(new FormData(form.current));
     activeRequest.current = true; setBusy(true); setError('');
     try {
@@ -154,7 +174,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     setCompose(current => ({ ...current, conflict: false })); setReady(false); setDirty(true); setError(''); setStep('CONTENT');
   }
   function submit(event: FormEvent<HTMLFormElement>) {
-    if (!ready || locked || compose.conflict) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
+    if (!ready || locked || compose.conflict || noLeaveBuckets) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const content = <>
     {!embedded && <header className="t-modal-head"><div><h2 id="annual-compose-title">근태 신청</h2><p className="t-request-year">{model.annual.year}년 신청</p><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div><button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button></header>}
@@ -180,7 +200,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         <div className="t-request-content-fields" hidden={step!=='CONTENT'}>
         <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='CONTENT'&&!error?'true':undefined}>신청서</h3>
         {isLeave ? <>
-          <div className="t-request-field"><label htmlFor="annual-bucket">사용할 연차</label><select id="annual-bucket" name="bucketId" className="t-select" value={leave.bucketId ?? ''} onChange={event => change('bucketId', event.target.value)} required><option value="">선택하세요</option>{model.buckets.map(bucket => <option key={bucket.id} value={bucket.id}>사용 가능 {bucket.availableDays} DAY · {fmtDate(bucket.usableFrom)} ~ {bucket.usableTo ? fmtDate(bucket.usableTo) : '종료 없음'}</option>)}</select></div>
+          <LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} />
           <div className="t-request-date-range"><div className="t-request-field"><label htmlFor="annual-from">시작일</label><input id="annual-from" className="t-input" type="date" name="from" value={leave.from ?? ''} onChange={event => change('from', event.target.value)} min={model.annual.today} required /></div><span aria-hidden="true">→</span><div className="t-request-field"><label htmlFor="annual-to">종료일 (포함)</label><input id="annual-to" className="t-input" type="date" name="to" value={leave.to ?? ''} onChange={event => change('to', event.target.value)} min={leave.from ?? undefined} required /></div></div>
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
@@ -216,7 +236,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
           {compose.preview.policy && <p>{compose.preview.policy.name} · 정책 v{compose.preview.policy.revision}</p>}
           <p>{compose.preview.message}</p><p className="t-muted">{ready ? '제출·승인 시 다시 검증합니다.' : '입력 또는 근거가 바뀌었습니다. 미리보기를 다시 확인하세요.'}</p>
         </section>}
-        <div className="t-request-footer">{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>
+        <div className="t-request-footer">{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict || noLeaveBuckets}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict || noLeaveBuckets}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>
       </fieldset>
     </Form> : <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
     {!embedded&&<a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>}
