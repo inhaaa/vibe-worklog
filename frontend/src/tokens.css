@@ -1,0 +1,87 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · redesign: full · signature: employee record · posture: restrained · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workforce navigation and remove ornamental surfaces */
+:root {
+  color-scheme: light;
+  --font-body: "Noto Sans KR", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+  --t-ink: #23272e;
+  --t-muted: #606873;
+  --t-paper: #ffffff;
+  --t-canvas: #fafbfc;
+  --t-surface: #f3f5f6;
+  --t-line: #dde1e5;
+  --t-field-border: #858e99;
+  --t-blue: #303b45;
+  --t-blue-hover: #1e2933;
+  --t-blue-soft: #edf0f2;
+  --t-focus: #344e63;
+  --t-green: #276349;
+  --t-green-soft: #edf5f0;
+  --t-amber: #805817;
+  --t-amber-soft: #faf4e7;
+  --t-danger: #a0373f;
+  --t-danger-soft: #fbefef;
+  --t-disabled: #e9ecef;
+  --t-overlay: #1f283666;
+  --t-shadow-color: #18243314;
+  --t-shadow: 0 16px 48px var(--t-shadow-color);
+  --t-radius: 12px;
+  --t-nav: #202a38;
+  --t-nav-ink: #f4f7fc;
+  --t-nav-muted: #b9c7da;
+  --t-nav-rule: #40516a;
+  --t-nav-hover: #2d3b4f;
+  --t-nav-selected: #354963;
+  --t-nav-focus: #b7d0ff;
+  --t-nav-work: #a9c7ff;
+  --t-nav-approval: #e0c0ff;
+  --t-nav-people: #8fe2d6;
+  --t-nav-operations: #ffd39a;
+  --color-paper: var(--t-paper);
+  --color-paper-2: var(--t-canvas);
+  --color-paper-3: var(--t-surface);
+  --color-ink: var(--t-ink);
+  --color-ink-2: var(--t-ink);
+  --color-muted: var(--t-muted);
+  --color-rule: var(--t-line);
+  --color-accent: var(--t-blue);
+  --color-accent-ink: var(--t-paper);
+  --color-focus: var(--t-focus);
+  --color-error: var(--t-danger);
+  --color-success: var(--t-green);
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px;
+  --text-xs: .75rem; --text-sm: .875rem; --text-md: 1rem; --text-lg: 1.25rem; --text-xl: 1.5rem; --text-2xl: 1.75rem;
+  --container: 1440px; --gutter: 40px; --gap-columns: var(--space-lg);
+  --radius-card: 8px; --radius-input: 12px;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-micro: 120ms; --dur-short: 220ms;
+}
+:root[data-theme="blue"] {
+  --t-blue: #245dc1;
+  --t-blue-hover: #194ba3;
+  --t-blue-soft: #edf3ff;
+  --t-focus: #245dc1;
+}
+
+/* Neutral records keep colour for actions and selection in both themes. */
+:root {
+  --t-canvas: #f1f4f7;
+  --t-surface: #f6f7f9;
+  --t-section: #f4f6f8;
+  --t-label: #f7f8fa;
+  --t-line: #e0e5ea;
+  --t-accent-border: #c9d7e2;
+  --t-accent-ink: #465563;
+  --t-field-border: #768493;
+  --t-blue-soft: #edf1f5;
+}
+:root[data-theme="blue"] {
+  --t-canvas: #eff3fb;
+  --t-nav: #172947;
+  --t-nav-rule: #3e5070;
+  --t-nav-hover: #233959;
+  --t-nav-selected: #2b4570;
+  --t-accent-border: #b8cdeb;
+  --t-accent-ink: #24539a;
+  --t-blue-soft: #edf3ff;
+}

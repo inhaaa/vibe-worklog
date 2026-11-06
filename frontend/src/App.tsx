@@ -7,6 +7,7 @@ import { AdminPages } from './pages/AdminPages';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
+import { WorkspaceHome } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
@@ -17,6 +18,22 @@ import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
 import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
 import { getNavigation, getNavigationContext, getWorkspaceMenuRoles, getWorkspaceRoles, selectWorkspaceRole } from './navigation';
+import { Modal } from './components/Modal';
+import { ThemeSwitcher } from './ThemeSwitcher';
+import './WorkspacePolish.css';
+
+function isTaskUrl(url: URL) {
+  return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
+    || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
+    || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId'))
+    || /^\/(?:me\/requests\/(?:new|correction)|admin\/requests\/exceptions\/new|admin\/approval-route-assignments)$/.test(url.pathname)
+    || (url.pathname === '/admin/work-policies' && url.searchParams.has('employeeId'))
+    || /^\/requests\/[^/]+$/.test(url.pathname)
+    || /^\/admin\/leave-balances\/buckets\/[^/]+(?:\/attributions)?$/.test(url.pathname)
+    || /^\/worktime\/results\/[^/]+$/.test(url.pathname);
+}
+
+interface BackgroundPage { envelope: PageEnvelope; url: string; revision: number; position: number }
 
 const publicPages = new Set([
   'login',
@@ -30,6 +47,7 @@ const publicPages = new Set([
 ]);
 const titles: Record<string, string> = {
   today: '출퇴근 기록',
+  'workspace/home': '홈',
   'org/personnel': '인사정보 등록',
   'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
@@ -125,6 +143,14 @@ function Workspace({
   const activeRole = selectWorkspaceRole(roles, selectedRole);
   const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
+  const headerEmployee = employeeHeader ?? employee;
+  const brand = (
+    <a className="t-brand-button t-wordmark" href="/me/home" aria-label="WorkLog 홈으로"
+      aria-current={page === 'workspace/home' ? 'page' : undefined} onClick={() => setOpen(false)}>
+      <span className="t-logo" aria-hidden="true">W</span>
+      <span>WorkLog<span className="t-brand-sub">Work, in rhythm.</span></span>
+    </a>
+  );
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -134,15 +160,9 @@ function Workspace({
   }, []);
   return (
     <div className="t-app-shell" data-menu-open={String(open)}>
+      <a className="t-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>본문으로 건너뛰기</a>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
-        <a className="t-brand-button t-wordmark" href="/me/profile">
-          <span className="t-logo" aria-hidden="true">
-            W
-          </span>
-          <span>
-            WorkLog<span className="t-brand-sub">Work, in rhythm.</span>
-          </span>
-        </a>
+        {brand}
         <div className="t-workspace-name">
           <span className="t-workspace-icon">T</span>
           <span>
@@ -158,7 +178,7 @@ function Workspace({
             <>
               <span className="t-demo-label">로컬 데모 워크스페이스</span>
               <p>합성 자료로 기능을 확인하세요.</p>
-              <a href="/demo">← 소개 화면으로</a>
+              <a href="/demo">소개 화면으로</a>
             </>
           )}
           <p>Asia/Seoul 기준</p>
@@ -176,9 +196,11 @@ function Workspace({
           >
             <Icon name="menu" />
           </button>
+          {brand}
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
+          <ThemeSwitcher />
           {roleOptions.length > 0 && <label className="t-role-picker">
             <span>업무 권한</span>
             <select aria-label="업무 권한" value={activeRole} onChange={event => setSelectedRole(selectWorkspaceRole(roles, event.target.value))}>
@@ -202,14 +224,15 @@ function Workspace({
           </Form>
         </div>
       </header>
-      <main className="t-main">
-        {employeeHeader && <EmployeeHeader employee={employeeHeader} />}
+      <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
+        {page !== 'workspace/home' && headerEmployee && <EmployeeHeader employee={headerEmployee} />}
         {children}
       </main>
     </div>
   );
 }
 function Content(props: PageProps) {
+  if (props.page === 'workspace/home') return <WorkspaceHome data={props.data} busy={props.busy} />;
   return (
     <>
       <AuthPages {...props} />
@@ -228,11 +251,19 @@ function Content(props: PageProps) {
 }
 
 export function App({ initial }: { initial: PageEnvelope }) {
-  const [envelope, setEnvelope] = useState(() => ['request/detail', 'worktime/result'].includes(initial.page) && typeof history.state?.worklogNavigationFrom === 'string'
+  const [envelope, setEnvelope] = useState<PageEnvelope>(() => ['request/detail', 'worktime/result'].includes(initial.page) && typeof history.state?.worklogNavigationFrom === 'string'
     ? { ...initial, data: { ...initial.data, navigationFrom: history.state.worklogNavigationFrom } } : initial);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [background, setBackground] = useState<BackgroundPage | null>(null);
+  const [modalWorking, setModalWorking] = useState(false);
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
+  const currentPage = useRef({ envelope, revision });
+  currentPage.current = { envelope, revision };
+  const modalDirty = useRef(false);
+  const skipPageFocus = useRef(false);
   const serial = useRef(0);
   const posting = useRef(false);
   const pending = useRef<AbortController | null>(null);
@@ -243,19 +274,48 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const restoringHistory = useRef(false);
   const historyState = (position: number, source?: string) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position, worklogNavigationFrom: source ?? null });
   const workspace = !publicPages.has(envelope.page);
+  const hasUnsaved = () => backgroundRef.current
+    ? modalDirty.current || Boolean(document.querySelector('.t-modal [data-unsaved-changes="true"]'))
+    : Boolean(document.querySelector('[data-unsaved-changes="true"]'));
+  const restoreBackground = useCallback(() => {
+    const saved = backgroundRef.current;
+    if (!saved) return;
+    ++serial.current;
+    pending.current?.abort();
+    currentUrl.current = saved.url;
+    historyPosition.current = saved.position;
+    skipPageFocus.current = true;
+    setEnvelope(saved.envelope);
+    setRevision(saved.revision);
+    backgroundRef.current = null;
+    setBackground(null);
+    modalDirty.current = false;
+    setBusy(false);
+  }, []);
+  const closeModal = useCallback(() => {
+    if (posting.current || !backgroundRef.current || document.querySelector('.t-modal [data-modal-busy="true"]')) return;
+    if ((modalDirty.current || document.querySelector('.t-modal [data-unsaved-changes="true"]')) &&
+      !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) return;
+    modalDirty.current = false;
+    const saved = backgroundRef.current;
+    restoreBackground();
+    // 모달 안의 이동은 같은 이력 항목을 교체하므로 한 번만 돌아간다.
+    if (location.href !== saved.url) history.back();
+  }, [restoreBackground]);
   const navigate = useCallback(
     async (
       url: string,
       options: RequestInit = {},
       historyMode: 'push' | 'replace' | 'none' = 'push',
       discardConfirmed = false,
+      openAsTask = true,
     ) => {
       if (posting.current && options.method?.toUpperCase() !== 'POST') {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
       if (!discardConfirmed && options.method?.toUpperCase() !== 'POST' &&
-          document.querySelector('[data-unsaved-changes="true"]') &&
+          hasUnsaved() &&
           !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
         if (location.href !== currentUrl.current) history.replaceState(null, '', currentUrl.current);
         return;
@@ -279,9 +339,54 @@ export function App({ initial }: { initial: PageEnvelope }) {
           destination.hash = requested.hash;
         if (destination.origin !== location.origin)
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
+        const activeBackground = backgroundRef.current;
+        const isPost = options.method?.toUpperCase() === 'POST';
+        const task = !publicPages.has(result.envelope.page) && (isTaskUrl(destination) ||
+          Boolean(activeBackground && formError));
+        if (activeBackground && isPost && !formError && !publicPages.has(result.envelope.page)) {
+          // 저장된 값은 배경 목록에도 반영하고, 갱신 중 권한 회수 역시 검사한다.
+          let refreshFailed = false;
+          try {
+            const refreshed = destination.href === activeBackground.url ? result
+              : await fetchPage(activeBackground.url, { signal: controller.signal });
+            if (requestId !== serial.current) return;
+            if (publicPages.has(refreshed.envelope.page)) throw new PageRequestError(401, '로그인 상태를 다시 확인해 주세요.');
+            const receipt = result.envelope.data.annual as Record<string, unknown> | undefined;
+            const annual = refreshed.envelope.data.annual as Record<string, unknown> | undefined;
+            const refreshedEnvelope = receipt?.createdId && annual ? { ...refreshed.envelope,
+              data: { ...refreshed.envelope.data, annual: { ...annual, createdId: receipt.createdId, outsideYear: receipt.outsideYear } } } : refreshed.envelope;
+            const updated = { ...activeBackground, envelope: refreshedEnvelope, revision: activeBackground.revision + 1 };
+            backgroundRef.current = updated;
+            setBackground(updated);
+          } catch (error) {
+            if (requestId !== serial.current || controller.signal.aborted) return;
+            if (error instanceof PageRequestError && ([401, 403].includes(error.status) || error.reauthenticate)) throw error;
+            refreshFailed = true;
+          }
+          modalDirty.current = false;
+          setNotice(refreshFailed ? '저장은 완료했습니다. 목록 새로고침에 실패했으니 닫은 뒤 다시 조회해 주세요.' : '저장했습니다. 최신 내용을 반영했습니다.');
+          if (!task) {
+            restoreBackground();
+            history.back();
+            return;
+          }
+        } else if (!activeBackground && task && !isPost && openAsTask && historyMode !== 'none' && !currentPage.current.envelope.data.compose &&
+          !publicPages.has(currentPage.current.envelope.page) &&
+          (currentPage.current.envelope.page !== result.envelope.page || Boolean(result.envelope.data.compose))) {
+          const saved = { ...currentPage.current, url: currentUrl.current, position: historyPosition.current };
+          backgroundRef.current = saved;
+          setBackground(saved);
+          modalDirty.current = false;
+        } else if (activeBackground && !task) {
+          backgroundRef.current = null;
+          setBackground(null);
+          modalDirty.current = false;
+        }
         const sharedDetail = ['request/detail', 'worktime/result'].includes(result.envelope.page);
         const detailSource = sharedDetail && typeof sourceMenu === 'string' ? sourceMenu : undefined;
-        if (historyMode === 'push' && !formError) {
+        if (activeBackground && task && historyMode !== 'none') {
+          history.replaceState(historyState(historyPosition.current, detailSource), '', destination.href);
+        } else if (historyMode === 'push' && !formError) {
           historyPosition.current += 1;
           history.pushState(historyState(historyPosition.current, detailSource), '', destination.href);
         } else if (historyMode === 'replace') history.replaceState(historyState(historyPosition.current, detailSource), '', destination.href);
@@ -289,6 +394,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         currentUrl.current = destination.href;
         setEnvelope(detailSource ? { ...result.envelope, data: { ...result.envelope.data, navigationFrom: detailSource } } : result.envelope);
         setRevision((value) => value + 1);
+        modalDirty.current = formError;
       } catch (error) {
         if (requestId !== serial.current || controller.signal.aborted) return;
         if (error instanceof PageDownload) {
@@ -308,6 +414,9 @@ export function App({ initial }: { initial: PageEnvelope }) {
             error instanceof PageRequestError &&
             ([401, 403].includes(error.status) || error.reauthenticate)
           ) {
+            backgroundRef.current = null;
+            setBackground(null);
+            modalDirty.current = false;
             setEnvelope({
               page: 'org/problem',
               data: { message },
@@ -323,13 +432,30 @@ export function App({ initial }: { initial: PageEnvelope }) {
         if (requestId === serial.current) setBusy(false);
       }
     },
-    [],
+    [restoreBackground],
   );
   useEffect(() => {
     history.replaceState(historyState(historyPosition.current, navigationFrom.current), '', currentUrl.current);
     const back = () => {
       if (restoringHistory.current) {
         restoringHistory.current = false;
+        return;
+      }
+      const saved = backgroundRef.current;
+      if (saved && document.querySelector('.t-modal [data-modal-busy="true"]')) {
+        const targetPosition = history.state?.worklogPosition;
+        const delta = Number.isInteger(targetPosition) ? historyPosition.current - targetPosition : 0;
+        if (delta) { restoringHistory.current = true; history.go(delta); }
+        else history.pushState(historyState(historyPosition.current), '', currentUrl.current);
+        return;
+      }
+      if (saved && location.href === saved.url && !posting.current) {
+        if (hasUnsaved() && !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) {
+          restoringHistory.current = true;
+          history.forward();
+          return;
+        }
+        restoreBackground();
         return;
       }
       const current = new URL(currentUrl.current);
@@ -347,7 +473,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
-      if (document.querySelector('[data-unsaved-changes="true"]') &&
+      if (hasUnsaved() &&
           !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 이동할까요?')) {
         const targetPosition = history.state?.worklogPosition;
         const delta = Number.isInteger(targetPosition) ? historyPosition.current - targetPosition : 0;
@@ -367,7 +493,20 @@ export function App({ initial }: { initial: PageEnvelope }) {
       window.removeEventListener('popstate', back);
       pending.current?.abort();
     };
-  }, [navigate]);
+  }, [navigate, restoreBackground]);
+  useEffect(() => {
+    const dialog = document.querySelector('.t-modal');
+    if (!background || !dialog) { setModalWorking(false); return; }
+    const update = () => setModalWorking(Boolean(dialog.querySelector('[data-modal-busy="true"]')));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(dialog, { subtree: true, attributes: true, attributeFilter: ['data-modal-busy'], childList: true });
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (modalDirty.current || dialog.querySelector('[data-unsaved-changes="true"], [data-modal-busy="true"]')) event.preventDefault();
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => { observer.disconnect(); window.removeEventListener('beforeunload', beforeUnload); };
+  }, [background, revision]);
   useEffect(() => {
     document.title = `${titles[envelope.page] ?? 'WorkLog'} · WorkLog`;
     document.body.className = workspace
@@ -375,12 +514,14 @@ export function App({ initial }: { initial: PageEnvelope }) {
       : envelope.page === 'demo'
         ? 'intro-body'
         : '';
-    const errorField = document.querySelector<HTMLElement>('[data-error-focus="true"]:not(:disabled)');
+    if (skipPageFocus.current) { skipPageFocus.current = false; return; }
+    const focusRoot = backgroundRef.current ? document.querySelector('.t-modal') : document;
+    const errorField = focusRoot?.querySelector<HTMLElement>('[data-error-focus="true"]:not(:disabled)');
     if (errorField) {
       errorField.focus({ preventScroll: true });
       return;
     }
-    if (location.hash) {
+    if (!backgroundRef.current && location.hash) {
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
         if (target) {
@@ -391,6 +532,10 @@ export function App({ initial }: { initial: PageEnvelope }) {
       } catch {
         /* 잘못 인코딩된 fragment는 제목으로 초점을 옮긴다. */
       }
+    }
+    if (backgroundRef.current) {
+      if (!focusRoot?.contains(document.activeElement)) document.querySelector<HTMLElement>('.t-modal-title')?.focus({ preventScroll: true });
+      return;
     }
     const heading = document.querySelector<HTMLElement>('main h1');
     if (heading) {
@@ -421,7 +566,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       return;
     if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
     event.preventDefault();
-    void navigate(url.href);
+    void navigate(url.href, {}, 'push', false, !anchor.closest('.t-sidebar, .t-topbar'));
   };
   const submit = (event: SubmitEvent<HTMLDivElement>) => {
     const form = event.target;
@@ -467,16 +612,17 @@ export function App({ initial }: { initial: PageEnvelope }) {
       void navigate(currentUrl.current, {}, 'replace');
     },
   };
+  const base = background?.envelope ?? envelope;
   const content = (
-    <div key={revision}>
-      <Content {...props} />
+    <div key={background?.revision ?? revision}>
+      <Content {...props} {...base} busy={background ? false : busy} />
     </div>
   );
   return (
     <CsrfContext value={envelope.csrf}>
       <div id="tna-app" onClick={click} onSubmit={submit} aria-busy={busy}>
-        {notice && (
-          <p className="notice error" role="alert">
+        {notice && !background && (
+          <p className="notice" role="alert">
             {notice}
           </p>
         )}
@@ -487,15 +633,27 @@ export function App({ initial }: { initial: PageEnvelope }) {
         )}
         {workspace ? (
           <Workspace
-            data={envelope.data}
-            page={envelope.page}
-            title={titles[envelope.page] ?? '업무'}
+            data={base.data}
+            page={base.page}
+            title={titles[base.page] ?? '업무'}
           >
             {content}
           </Workspace>
         ) : (
-          content
+          <>
+            <div className="t-public-tools"><ThemeSwitcher /></div>
+            {content}
+          </>
         )}
+        {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}>
+          {notice && <p className="notice" role="alert">{notice}</p>}
+          <div key={revision} onChange={event => {
+            const form = (event.target as Element).closest('form');
+            if (form && form.method.toLowerCase() !== 'get') modalDirty.current = true;
+          }}>
+            <Content {...props} onClose={closeModal} />
+          </div>
+        </Modal>}
       </div>
     </CsrfContext>
   );

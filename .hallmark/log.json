@@ -1,0 +1,116 @@
+[
+  {
+    "date": "2026-11-06",
+    "mode": "redesign",
+    "depth": "table and information composition",
+    "scope": "app",
+    "shape": "app screen",
+    "theme": "refract",
+    "axes": "light/system-sans/charcoal-blue",
+    "signature": "quiet aligned records with fine horizontal rules",
+    "nav": "preserved role-based sidebar",
+    "hero": "app screen, no hero",
+    "footer": "workspace context",
+    "imagery": "existing employee images only",
+    "photos": [],
+    "sections": [
+      "employee identity",
+      "underline tabs",
+      "neutral records",
+      "plain modal headings"
+    ],
+    "prompt": "Simplify tables and information layouts using three user screenshots as inspiration without copying their content",
+    "waived": [],
+    "checks": {
+      "floor": 0,
+      "warnings": 0,
+      "answered": 6,
+      "tests": 321,
+      "surfaceChecks": 74,
+      "contrastCombinations": 24,
+      "contrastSamples": 1020,
+      "recordCombinations": 18,
+      "mobileStepChecks": 4,
+      "finishReview": "subagent · ship · 1 finding · 1 resolved · gap: none",
+      "publicDeployment": "pending separate integration and verification"
+    }
+  },
+  {
+    "date": "2026-11-05",
+    "mode": "redesign",
+    "depth": "surface refinement",
+    "scope": "app",
+    "shape": "app screen",
+    "theme": "refract",
+    "axes": "light/system-sans/charcoal-blue",
+    "signature": "tinted personnel record and aligned label-value tables",
+    "nav": "preserved role-based sidebar",
+    "hero": "app screen, no hero",
+    "footer": "workspace context",
+    "imagery": "existing employee portraits only",
+    "photos": [],
+    "sections": [
+      "employee identity band",
+      "filled tabs",
+      "grouped records",
+      "forms and modal surfaces"
+    ],
+    "prompt": "Add restrained color, clear section boundaries and readable personnel tabs and modals in both themes",
+    "waived": [],
+    "checks": {
+      "floor": 0,
+      "reflex": 0,
+      "warnings": 0,
+      "answered": 3,
+      "links": "182/182",
+      "fields": "119/119",
+      "handlers": "94/94",
+      "browserChecks": 130,
+      "tests": 318,
+      "finishReview": "subagent, 2 findings addressed: word wrapping and mobile history labels; focused tests 8 passed"
+    }
+  },
+  {
+    "mode": "redesign",
+    "depth": "full",
+    "scope": "app",
+    "shape": "app screen",
+    "theme": "refract",
+    "axes": "light/system-sans/neutral-blue",
+    "hero": "app screen, no hero",
+    "nav": "preserved role-based three-level sidebar",
+    "footer": "workspace context",
+    "imagery": "existing employee image or initials only",
+    "photos": [],
+    "entry": "frontend/src/App.tsx",
+    "fingerprint": [
+      "app",
+      "record-first",
+      "sidebar",
+      "flat rows",
+      "inline filters",
+      "system-sans"
+    ],
+    "sections": [
+      "employee record",
+      "workspace heading",
+      "tabs or filters",
+      "ledger or form"
+    ],
+    "signature": "employee facts and request ledger",
+    "waived": [],
+    "prompt": "WorkLog clean full redesign with charcoal and blue themes",
+    "checks": {
+      "floor": 0,
+      "reflex": 0,
+      "warnings": 0,
+      "answered": 6,
+      "links": "181/181",
+      "fields": "118/118",
+      "handlers": "92/92",
+      "tests": 318,
+      "finishReview": "subagent, 1 finding resolved: mobile summary tables"
+    },
+    "date": "2026-11-05"
+  }
+]

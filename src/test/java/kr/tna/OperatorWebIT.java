@@ -73,6 +73,6 @@ class OperatorWebIT {
         assertEquals(1,db().queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=?",Integer.class,tenant));
     }
     private MockHttpSession operatorLogin(MockHttpSession existing)throws Exception{var request=post("/operator/login").with(csrf()).param("loginId",login).param("password",PASSWORD);if(existing!=null)request.session(existing);return (MockHttpSession)mvc.perform(request).andExpect(redirectedUrl("/operator/tenants")).andReturn().getRequest().getSession(false);}
-    private MockHttpSession customerLogin()throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",DatabaseFixture.COMPANY_A).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);}
+    private MockHttpSession customerLogin()throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",DatabaseFixture.COMPANY_A).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
     private JdbcTemplate db(){return new JdbcTemplate(DatabaseFixture.start().adminDataSource());}
 }

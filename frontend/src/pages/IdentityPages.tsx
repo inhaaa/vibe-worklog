@@ -189,21 +189,21 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">내 업무</p>
+
           <h1>내 정보</h1>
           <p className="t-muted">현재 계정과 업무 배정 정보를 확인하세요.</p>
         </div>
       </header>
       {details && <PersonalDetailsTabs model={details} identity={{ employeeName: p.employeeName, joinedOn: p.joinedOn, birthDate }} />}
       <section className="panel t-profile-details" aria-label="본인 정보">
-        {hasHeader && <div className="t-section-heading"><span className="t-section-number">i</span><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>}
-        <p className="hint">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
+        <div className="t-personal-panel-heading"><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>
+        <p className="t-profile-asof">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
         <dl className="t-person-info">
           {entries.filter(([label]) => !hasHeader || !['이름', '사번', '회사', '입사일', '현재 소속'].includes(label)).map(([label, value]) => (
             <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
           ))}
         </dl>
-        <p className="hint">
+        <p className="t-profile-footnote">
           공통 업무와 명시적으로 부여된 역할을 함께 사용합니다. 결재 담당 기능은 실제 배정된 신청에 적용됩니다.
         </p>
       </section>
@@ -215,7 +215,7 @@ function AccessListPage({ model: m }: { model: AccessList }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">관리 업무</p>
+
           <h1>권한 관리</h1>
           <p className="t-muted">계정별 역할을 확인하고 기존 관리 화면에서 변경하세요.</p>
         </div>
@@ -258,7 +258,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">회사 현황</p><h1>회사 근무현황</h1>
+          <h1>회사 근무현황</h1>
           <p className="t-muted">사원을 선택해 해당 월의 일별 근무 결과를 확인하세요.</p>
         </div>
       </header>
@@ -347,7 +347,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
     <>
       <header className="t-pagehead">
         <div>
-          <p className="t-eyebrow">회사 현황</p><h1>회사 신청 현황</h1>
+          <h1>회사 신청 현황</h1>
           <p className="t-muted">조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
         </div>
       </header>

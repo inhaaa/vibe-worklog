@@ -219,6 +219,6 @@ class EmployeeWorkspaceWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf())
                         .with(request -> { request.setRemoteAddr("198.18.22." + ADDRESS.getAndIncrement()); return request; })
                         .param("companyCode", company).param("email", email).param("password", PASSWORD))
-                .andExpect(redirectedUrl("/me/profile")).andReturn().getRequest().getSession(false);
+                .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
     }
 }

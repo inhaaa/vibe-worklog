@@ -380,7 +380,7 @@ class OrganizationWebIT {
         return (MockHttpSession) mvc.perform(post("/login").with(csrf())
                         .with(request -> { request.setRemoteAddr(remoteAddress); return request; })
                         .param("companyCode", company).param("email", DatabaseFixture.EMAIL).param("password", PASSWORD))
-                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/profile"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
     }
 

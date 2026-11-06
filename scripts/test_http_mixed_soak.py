@@ -222,7 +222,7 @@ class ProbeTest(unittest.TestCase):
 
     def test_login_uses_json_csrf_and_the_real_urlencoded_session_flow(self):
         client, _, requests = client_with(Response(page("login")),
-            Response(b"", 302, headers={"Location": "/me/profile"}), Response(page("workspace/profile", {
+            Response(b"", 302, headers={"Location": "/me/home"}), Response(page("workspace/profile", {
                 "profile": {"employeeName": "SOAK_T1_0003", "companyName": "SOAK_T1_COMPANY"}})))
         client.login()
         self.assertEqual(["/login", "/login", "/me/profile"], [urllib.parse.urlsplit(r.full_url).path for r in requests])

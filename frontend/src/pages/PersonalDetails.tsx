@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useRef, useState, useSyncExternalStore } from 'react';
 import { Field, Form, SelectField, TextAreaField } from '../ui';
 import './PersonalDetails.css';
 
@@ -23,52 +23,118 @@ export interface PersonalDetailsModel {
   entryForm?: EntryForm;
 }
 interface Identity { employeeName: string; joinedOn: string; birthDate?: string | null }
-const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'];
+const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'] as const;
+const wideSheet = '(min-width: 70rem)';
+
+function subscribeToSheetWidth(notify: () => void) {
+  const media = window.matchMedia?.(wideSheet);
+  media?.addEventListener('change', notify);
+  return () => media?.removeEventListener('change', notify);
+}
+
+function sheetIsWide() { return window.matchMedia?.(wideSheet).matches ?? false; }
+
 const kinds = ['FAMILY', 'EDUCATION', 'QUALIFICATION', 'LANGUAGE'];
 const choices: Record<string, string> = {
   UNKNOWN: '미등록', YES: '해당', NO: '해당 없음', NEW: '신입', EXPERIENCED: '경력', TRANSFER: '전입',
   COMPLETED: '군필', EXEMPT: '면제', PENDING: '미필', NOT_APPLICABLE: '해당 없음',
 };
+const sheetIcons = {
+  identity: 'M4 5h16v14H4z M7 16v-1a3 3 0 0 1 6 0v1 M10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4 M15 10h2 M15 14h2',
+  employment: 'M4 8h16v12H4z M9 8V5h6v3 M4 12a19 19 0 0 0 16 0 M12 12v2',
+  additional: 'M7 4h10v16H7z M10 8h4 M10 12h4 M10 16h4',
+  address: 'M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Z M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4',
+  contact: 'M4 6h16v12H4z M4 7l8 6 8-6',
+};
+const tabIcons = {
+  '기본사항': sheetIcons.identity,
+  '발령내역': sheetIcons.employment,
+  '가족사항': 'M3 20v-2a5 5 0 0 1 10 0v2 M5 8a3 3 0 1 0 6 0 3 3 0 0 0-6 0 M16 5a3 3 0 0 1 0 6 M17 14a5 5 0 0 1 4 4v2',
+  '학력사항': 'm2 9 10-5 10 5-10 5-10-5Z M6 11v5c2 3 10 3 12 0v-5 M22 9v6',
+  '자격사항': 'M8 14l-1 7 5-3 5 3-1-7 M7 9a5 5 0 1 0 10 0 5 5 0 0 0-10 0',
+  '어학사항': 'M4 5h16v12H9l-5 4V5Z M8 9h8 M8 13h5',
+  '주소·연락처': sheetIcons.address,
+} satisfies Record<(typeof tabs)[number], string>;
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
-  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{display(value)}</dd></div>)}</dl>;
+  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
+}
+function InfoGroup({ title, icon, values }: { title: string; icon: keyof typeof sheetIcons; values: [string, string | number | null | undefined][] }) {
+  const titleId = useId();
+  return <section className="t-personal-group" aria-labelledby={titleId}>
+    <h3 id={titleId}>
+      <span className="t-personal-group-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={sheetIcons[icon]} /></svg></span>
+      {title}
+    </h3>
+    <Info values={values} />
+  </section>;
+}
+function EmptyDetails({ title }: { title: string }) {
+  return <div className="t-personal-empty">
+    <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4h6l2 3h3v13H4V7h3l2-3Z M9 4v4h6V4 M8 12h8 M8 16h5" /></svg></span>
+    <p>등록된 {title}이 없습니다.</p><small>등록된 정보가 생기면 이곳에 표시됩니다.</small>
+  </div>;
 }
 
 export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDetailsModel; identity: Identity }) {
   const [tab, setTab] = useState(0), id = useId(), buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const vertical = useSyncExternalStore(subscribeToSheetWidth, sheetIsWide, () => false);
   const f = m.form;
   function move(event: React.KeyboardEvent, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
-    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+    if (event.key === 'ArrowRight' || (vertical && event.key === 'ArrowDown')) next = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft' || (vertical && event.key === 'ArrowUp')) next = (index + tabs.length - 1) % tabs.length;
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = tabs.length - 1;
     else return;
     event.preventDefault(); setTab(next); buttons.current[next]?.focus();
   }
   const entries = m.entries.filter(entry => entry.kind === kinds[tab - 2]);
+  const descriptions = ['개인 정보와 입사 정보를 한눈에 확인하세요.', '소속 변경 이력을 적용 기간별로 확인하세요.', '등록된 가족 관계와 상세 정보를 확인하세요.', '등록된 학력과 전공 정보를 확인하세요.', '보유 자격과 발급 정보를 확인하세요.', '등록된 언어와 평가 정보를 확인하세요.', '등록된 주소와 연락 수단을 확인하세요.'];
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
-    <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목">{tabs.map((label, index) =>
-      <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
-        aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
-        onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>{label}</button>)}</div>
+    <div className="t-personnel-index">
+      <p className="t-personnel-index-title">인사기록</p>
+      <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목" aria-orientation={vertical ? 'vertical' : 'horizontal'}>
+        {tabs.map((label, index) => (
+          <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
+            aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
+            onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>
+            <svg className="t-personnel-tab-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d={tabIcons[label]} /></svg>
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
     <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${tab}`} tabIndex={0} className="t-personnel-tabpanel">
-      <h2>{tabs[tab]}</h2>
-      {tab === 0 && <Info values={[
-        ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn],
-        ['그룹입사일', f.groupJoinedOn], ['한글성명', identity.employeeName], ['영문성명', f.englishName],
-        ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'],
-        ['결혼일자', f.marriedOn], ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)],
-        ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch], ['주민등록번호', '미수집 · 원문 입력·저장하지 않습니다.'],
-        ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
-      ]} />}
-      {tab === 1 && (m.appointments.length ? <div className="table-scroll"><table><thead><tr><th>발령일</th><th>종료일 (미포함)</th><th>소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td>{a.validFrom}</td><td>{a.validTo ?? '현재'}</td><td>{a.organizationName}</td></tr>)}</tbody></table></div> : <p className="t-empty-note">등록된 발령내역이 없습니다.</p>)}
-      {tab >= 2 && tab <= 5 && (entries.length ? <div className="table-scroll"><table><thead><tr><th>항목</th><th>상세</th><th>적용일</th><th>종료일</th><th>이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td>{e.title}</td><td>{display(e.detail)}</td><td>{e.effectiveFrom}</td><td>{display(e.effectiveTo)}</td><td>{e.revision}</td></tr>)}</tbody></table></div> : <p className="t-empty-note">등록된 {tabs[tab]}이 없습니다.</p>)}
-      {tab === 6 && <Info values={[
-        ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],
-        ['휴대전화', f.mobilePhone], ['연락 이메일', f.contactEmail],
-      ]} />}
+      <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2><p>{descriptions[tab]}</p></div>
+        {tab > 0 && tab < 6 && <span className="t-personal-count">총 {tab === 1 ? m.appointments.length : entries.length}건</span>}
+      </div>
+      {tab === 0 && <>
+        <div className="t-personal-groups">
+          <InfoGroup title="신원 정보" icon="identity" values={[
+            ['한글성명', identity.employeeName], ['영문성명', f.englishName], ['생년월일', identity.birthDate], ['휴대전화', f.mobilePhone],
+          ]} />
+          <InfoGroup title="입사 정보" icon="employment" values={[
+            ['입사구분', status(f.admissionType)], ['인정경력 (개월)', f.recognizedMonths], ['회사 입사일', identity.joinedOn], ['그룹입사일', f.groupJoinedOn],
+          ]} />
+          <InfoGroup title="추가 정보" icon="additional" values={[
+            ['결혼여부', f.maritalStatus === 'YES' ? '기혼' : f.maritalStatus === 'NO' ? '미혼' : '미등록'], ['결혼일자', f.marriedOn],
+            ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)], ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch],
+          ]} />
+        </div>
+        <p className="t-personal-privacy"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 8 3v5c0 5-4 8-8 10-4-2-8-5-8-10V6l8-3Z m-3 9 2 2 4-4" /></svg><span>주민등록번호 <strong>미수집</strong> · 원문 입력·저장하지 않습니다.</span></p>
+      </>}
+      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab === 6 && <div className="t-personal-groups">
+        <InfoGroup title="주소 정보" icon="address" values={[
+          ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],
+        ]} />
+        <InfoGroup title="연락 정보" icon="contact" values={[
+          ['휴대전화', f.mobilePhone], ['연락 이메일', f.contactEmail],
+        ]} />
+      </div>}
     </div>
   </section>;
 }
@@ -140,7 +206,7 @@ export function PersonalDetailsEditor({ model: m, today, busy }: { model: Person
         <div className="actions"><button type="reset" className="t-btn" disabled={busy}>이력 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || entryConflict}>이력 추가</button></div>
         {entryConflict && <section className="t-personnel-conflict" aria-label="최신 이력 비교"><h3>다른 이력이 반영되었습니다</h3>
           <p>입력은 유지했습니다. 현재 버전 {m.version}의 등록된 이력을 확인한 뒤 다시 저장하세요.</p>
-          {m.entries.length ? <ul>{m.entries.map(entry => <li key={entry.id}>{tabs[kinds.indexOf(entry.kind) + 2]} · {entry.title} · {display(entry.detail)} · {entry.effectiveFrom} · 버전 {entry.revision}</li>)}</ul> : <p>현재 등록된 이력이 없습니다.</p>}
+          {m.entries.length ? <ul>{m.entries.map(entry => <li key={entry.id}><strong>{tabs[kinds.indexOf(entry.kind) + 2]}: {entry.title}</strong><p>{display(entry.detail)}</p><p>{entry.effectiveFrom}, 버전 {entry.revision}</p></li>)}</ul> : <p>현재 등록된 이력이 없습니다.</p>}
           <button type="button" className="t-btn" disabled={busy} onClick={() => { setEntryVersion(m.version); entryChanged(); }}>이력 최신 버전 확인 후 입력 유지</button>
         </section>}
       </Form>

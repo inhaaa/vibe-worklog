@@ -225,7 +225,7 @@ function RouteSheet({ model: m, error }: {
   return <section className="t-org-sheet t-approval-routes" data-unsaved-changes={String(unsaved)}>
     <header className="t-pagehead">
       <div>
-        <p className="t-eyebrow">권한·결재 설정</p>
+
         <h1>결재선 관리</h1>
         <p className="t-muted">한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요.</p>
       </div>
@@ -370,7 +370,7 @@ function RouteAssignments({ model: m, error }: {
   return <section className="t-approval-assignments" data-unsaved-changes={String(dirty)}>
     <header className="t-pagehead">
       <div>
-        <p className="t-eyebrow">권한·결재 설정</p>
+
         <h1>결재선 배정</h1>
         <p className="t-muted">사원 또는 조직에 적용할 1단계 결재선 버전을 지정하세요.</p>
       </div>

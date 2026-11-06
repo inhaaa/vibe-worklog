@@ -56,12 +56,12 @@ class FakeSession:
 
 def sessions(multipart_enabled=False, header_status=None, positive_type="text/html;charset=UTF-8",
              login_body=FORM, positive_body=PROFILE):
-    positive = FakeSession([response(200, body=login_body), response(302, "/me/profile"),
+    positive = FakeSession([response(200, body=login_body), response(302, "/me/home"),
                             response(200, body=positive_body, content_type=positive_type)])
     missing = FakeSession([response(200, body=login_body), response(403), response(302, "/login")])
     enabled = multipart_enabled
     valid = FakeSession([response(200, body=login_body),
-                         response(header_status or 302, "/me/profile" if enabled else "/login?error"),
+                         response(header_status or 302, "/me/home" if enabled else "/login?error"),
                          response(200, body=PROFILE) if enabled else response(302, "/login")])
     pending = [positive, missing, valid]
     return pending, lambda base: pending.pop(0)

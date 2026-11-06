@@ -1,0 +1,37 @@
+{
+  "scanned": "2026-11-06",
+  "findings": {
+    "system": "design.md:5; two existing themes",
+    "font": "frontend/src/tokens.css:5; Korean system sans",
+    "framework": "frontend/package.json:13; React and Vite",
+    "records": "frontend/src/pages/PersonalDetails.css; existing seven tabs",
+    "detail": "frontend/src/pages/RecordDetails.css; existing dl evidence"
+  },
+  "preserve": [
+    "theme storage and colours for actions",
+    "links fields handlers routes data",
+    "user untracked design proposal"
+  ],
+  "introduce": [
+    "quiet neutral labels",
+    "horizontal table rules",
+    "underline selection tabs",
+    "plain modal headings"
+  ],
+  "material": {
+    "real": [
+      "existing WorkLog content",
+      "three user reference screenshots for layout inspiration only"
+    ],
+    "pictures": [
+      "existing employee images unchanged"
+    ],
+    "absent": [
+      "copied reference people or records",
+      "new invented metrics"
+    ]
+  },
+  "scope": "app",
+  "theme": "locked Refract noon, charcoal and blue",
+  "depth": "table and information composition"
+}

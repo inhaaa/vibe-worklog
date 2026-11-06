@@ -13,4 +13,5 @@ export interface PageEnvelope {
 export interface PageProps extends PageEnvelope {
   reload: () => void;
   busy?: boolean;
+  onClose?: () => void;
 }

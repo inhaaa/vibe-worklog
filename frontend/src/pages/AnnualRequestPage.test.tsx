@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { PageEnvelope } from '../types';
 import type { ComposeView } from './AnnualRequestTypes';
+import { AnnualRequestPage } from './AnnualRequestPage';
 
 const csrf={token:'csrf',parameterName:'_csrf',headerName:'X-CSRF-TOKEN'};
 const principal={workspacePrincipal:{roles:['EMPLOYEE']},workspaceEmployee:{employeeName:'합성 직원',companyName:'합성 회사'}};
@@ -23,6 +24,103 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it('신청 창의 X로 닫고 입력이 있으면 기존 손실 확인을 지킨다',()=>{
+  const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'보존할 입력'}});
+  fireEvent.click(view.getByRole('button',{name:'신청 창 닫기'}));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(view.getByRole('dialog')).toBeTruthy();
+  confirm.mockReturnValue(true);
+  fireEvent.click(view.getByRole('button',{name:'신청 창 닫기'}));
+  expect(view.queryByRole('dialog')).toBeNull();
+ });
+ it('공통 모달을 열면 결재선·작성자·신청서가 보이고 입력 보호를 공통 모달에 위임한다',()=>{
+  const onClose=vi.fn();
+  const initial=envelope({},compose);
+  initial.data.employeeHeader={employeeName:'합성 직원',employeeNo:'24001',organizationName:'제품팀'};
+  const view=render(<AnnualRequestPage {...initial} reload={()=>{}} onClose={onClose}/>);
+  expect(view.queryByRole('dialog')).toBeNull();
+  expect(view.queryByRole('heading',{name:'내 근태현황·신청'})).toBeNull();
+  expect(view.queryByRole('heading',{name:'근태 신청'})).toBeNull();
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText('조직장 결재선')).toBeTruthy();
+  expect(route.getByText('합성 조직장')).toBeTruthy();
+  const applicant=within(view.getByRole('region',{name:'신청자'}));
+  expect(applicant.getByText('합성 직원')).toBeTruthy();
+  expect(applicant.getByText('24001')).toBeTruthy();
+  expect(applicant.getByText('제품팀')).toBeTruthy();
+  expect(view.getByRole('heading',{name:'신청서'})).toBeTruthy();
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'작성 중'}});
+  expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
+  expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('mode')).toBe('MODAL');
+  expect(view.queryByRole('button',{name:'닫기'})).toBeNull();
+  expect(view.container.querySelector('[data-modal-busy="false"]')).toBeTruthy();
+ });
+ it('신청 유형을 변경하면 새 근거 조회 전까지 상단에 이전 결재선을 표시하지 않는다',()=>{
+  const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={()=>{}}/>);
+  fireEvent.click(view.getByRole('button',{name:'유형 변경'}));
+  fireEvent.click(view.getByRole('radio',{name:/출퇴근·휴게 정정/}));
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText('유형·일자 조회 후 확인')).toBeTruthy();
+  expect(route.queryByText('합성 조직장')).toBeNull();
+ });
+ it('연차 선택 시트에서 기간과 잔여를 비교하고 고른 묶음으로 미리보기 한다',async()=>{
+  const second={...bucket,id:'bucket-2',usableFrom:'2026-10-01',usableTo:null,availableDays:4,pendingDays:1};
+  const selected={...leave,bucketId:second.id,reason:'합성 연차 신청'};
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(preview({leaveForm:selected})));
+  vi.stubGlobal('fetch',fetcher);
+  const initial=envelope({},compose);
+  initial.data.buckets=[bucket,second];
+  const view=render(<App initial={initial}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'사용할 연차'}));
+  const first=sheet.getByRole('radio',{name:/연차 1.*사용 가능 9일/}) as HTMLInputElement;
+  const next=sheet.getByRole('radio',{name:/연차 2.*2026-10-01.*종료 없음.*사용 가능 4일.*결재 대기 1일/}) as HTMLInputElement;
+  expect(first.checked).toBe(true);
+  fireEvent.click(next);
+  expect(next.checked).toBe(true);
+  expect(first.checked).toBe(false);
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:selected.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  await view.findByRole('region',{name:'신청 미리보기'});
+  expect(new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams).getAll('bucketId')).toEqual([second.id]);
+ });
+ it('신청 기간 시트의 날짜를 수정하면 종료일 기준을 갱신하고 미리보기에 전송한다',async()=>{
+  const edited={...leave,from:'2026-11-03',to:'2026-11-06',reason:'기간 확인'};
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(preview({leaveForm:edited})));
+  vi.stubGlobal('fetch',fetcher);
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'신청 기간'}));
+  const from=sheet.getByLabelText('시작일') as HTMLInputElement;
+  const to=sheet.getByLabelText('종료일 (포함)') as HTMLInputElement;
+  expect(from.min).toBe(annual.today);
+  fireEvent.change(from,{target:{value:edited.from}});
+  expect(to.min).toBe(edited.from);
+  expect(to.validity.rangeUnderflow).toBe(true);
+  fireEvent.change(to,{target:{value:edited.to}});
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:edited.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  await view.findByRole('region',{name:'신청 미리보기'});
+  const sent=new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams);
+  expect(sent.getAll('from')).toEqual([edited.from]);
+  expect(sent.getAll('to')).toEqual([edited.to]);
+ });
+ it('고를 수 있는 연차 묶음이 없으면 신청 미리보기 전송을 막는다',()=>{
+  const fetcher=vi.fn<typeof fetch>();
+  vi.stubGlobal('fetch',fetcher);
+  const initial=envelope({}, {...compose,leaveForm:{...leave,bucketId:null}});
+  initial.data.buckets=[];
+  const view=render(<App initial={initial}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'사용할 연차'}));
+  expect(sheet.getByText('선택할 수 있는 연차 묶음이 없습니다.')).toBeTruthy();
+  expect((view.getByRole('button',{name:'미리보기'}) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.submit(view.getByRole('form',{name:'신청서'}));
+  expect(fetcher).not.toHaveBeenCalled();
+ });
  it('페이지 제목 옆에서 신청을 시작하고 조회 필터와 분리한다',()=>{
   const view=render(<App initial={envelope()}/>);
   const head=view.getByRole('heading',{name:'내 근태현황·신청'}).closest('header')!;
