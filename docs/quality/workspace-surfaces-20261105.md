@@ -1,6 +1,6 @@
 # 정보 영역·두 테마 후속 검증
 
-2026-11-05. [표시 계약](../design/workspace-surfaces.md)을 따른다. 차콜·블루 테마와 정보표·공통 모달 개선은 공개 `2da93d8`·V17에 반영했다. 계산 근거·감사 상세의 추가 정보표 `40816d1`은 개발·공개 통합 검증을 마쳤으나 후속 배포는 미완료다.
+2026-11-05~06. [표시 계약](../design/workspace-surfaces.md)을 따른다. 차콜·블루 테마와 정보표·공통 모달 개선을 공개 `2da93d8`·V17에 먼저 반영했고, 11월6일 계산 근거·감사 상세의 추가 정보표까지 공개 `40816d1`로 반영했다. 초기 배포 이력과 재개 후 실제 검증 범위를 아래에서 구분한다.
 
 ## 구현
 
@@ -61,14 +61,38 @@
 
 추가로 저장된 실행·36자 ID·원천/유효 출퇴근·근로/휴게 확인을 갖춘 합성 근거를 구성해 계산 모달 두 테마×2폭4조합을 검증했다. 긴 라벨과 사건표에도 문서/DL 가로 넘침·JS 오류·업무 POST가 없었고 Escape/초점 복원이 정상이다. `target/hallmark-tools/record-complete-artifacts/verification.json`과 구간별16장에 기록했다.
 
-## 추가 공개 후보와 미완료 배포
+## 추가 공개 후보와 11월5일 중단 이력
 
 공개 전용 브랜치에 `40816d1af0f341de6a30a9d2cd65583f6243cef6`으로 통합하고 일반 Push를 마쳤다. 공개의 기존 AG Grid·공유 계정 보호를 보존한 관련34개 테스트와 타입·빌드가 통과했다. 변경은 `WorkflowPages.tsx`, `RecordDetails.css`, `RecordDetails.test.tsx` 3파일이며 Java·DB·패키지·배포 설정 변경은 없다.
 
 후속 패킷은 `/srv/worklog/.local/workspace-surfaces-modal-20261105`만 대상으로 준비했다. 기존 공개 `2da93d8`의 소스556파일·이미지·JAR를 고정하고, 새 소스558파일·정확3파일 변경·전체 UI자산4개 해시·실제 변경 자산2개를 검증했다. 보존 가드17개와 전송 viewer3개가 통과했고 Windows symlink 권한 부족으로 viewer의 symlink 테스트1개만 건너뛰었다. 전송 완료/부분 전송/잘못된 길이/손상된 접두부 재진입 검사4개도 통과했다. 패킷과 검증 근거는 `target/workspace-surfaces-modal-deploy-20261105/`에 보존했다.
 
-서버 전송은 1~3번 조각의 총60,000바이트 수신까지 확인했다. 4번 조각의 수신 여부는 확인하지 못했다. 이후 CUA 연결 복원과 자동 권한 검토가 반복해서 응답 시간 초과되어 추가 실행을 중단했다. 이는 실제 안전성 거부 판정이 아니다. **후속 receiver·이미지 빌드·앱 교체·최종28항목 검사는 실행하지 않았으며 실제 공개 버전은 `2da93d8` 그대로다.** 재개 시 `console-complete-transfer.txt`가 60,000바이트이면 검증된 마지막 조각만 추가하고, 이미77,220바이트이면 전체 해시만 확인한다. 다른 길이나 손상은 거부하며 기존 파일을 덮어쓰거나 삭제하지 않는다.
+11월5일 서버 전송은 1~3번 조각의 총60,000바이트 수신까지 확인했다. 4번 조각의 수신 여부는 확인하지 못했다. 이후 CUA 연결 복원과 자동 권한 검토가 반복해서 응답 시간 초과되어 추가 실행을 중단했다. 이는 실제 안전성 거부 판정이 아니다. 당시 후속 receiver·이미지 빌드·앱 교체·최종28항목 검사는 실행하지 않았으며 공개 버전은 `2da93d8`이었다. 재개용 `console-complete-transfer.txt`는 60,000바이트이면 검증된 마지막 조각만 추가하고, 이미77,220바이트이면 전체 해시만 확인한다. 다른 길이나 손상은 거부하며 기존 파일을 덮어쓰거나 삭제하지 않는다.
 
-중단 후 18:36:32~34 서울에 WorkLog health200, demo health200, portfolio200, PriceSys401의 기대 응답을 다시 확인했다. `current-sites-readonly.json`에 시각과 결과를 남겼다. CUA 연결 실패 때문에 마지막 실제 브라우저 로그아웃·viewport 원복·관리 셸 exit는 확인하지 못했다. 마지막 관측은 실제 브라우저의 test1 로그인과 콘솔5의 root 로그인 상태였으며 종료 확인이 남는다. 별도 HTTP 검사 세션의 로그아웃 성공과 구분한다.
+중단 후 18:36:32~34 서울에 WorkLog health200, demo health200, portfolio200, PriceSys401의 기대 응답을 다시 확인했다. `current-sites-readonly.json`에 시각과 결과를 남겼다. CUA 연결 실패 때문에 마지막 실제 브라우저 로그아웃·viewport 원복·관리 셸 exit는 확인하지 못했다. 마지막 관측은 실제 브라우저의 test1 로그인과 콘솔5의 root 로그인 상태였으며 당시 종료 확인이 남았다. 별도 HTTP 검사 세션의 로그아웃 성공과 구분한다.
 
-재개 순서는 `target/workspace-surfaces-modal-deploy-20261105/console-complete-transfer.txt`(60,000/77,220바이트만 허용) → receiver → before → build → artifact → layer-proof → app → 공개28항목·모달·브라우저 검증 → final → summary다. 이 재개 경로를 기록한 이후 실제 전송이나 서버 명령을 추가 실행하지 않았다.
+당시 남긴 재개 순서는 `target/workspace-surfaces-modal-deploy-20261105/console-complete-transfer.txt`(60,000/77,220바이트만 허용) → receiver → before → build → artifact → layer-proof → app → 공개28항목·모달·브라우저 검증 → final → summary였다. 11월5일에는 이 경로를 기록한 뒤 서버 명령을 추가 실행하지 않았다.
+
+## 11월6일 공개 후속 반영
+
+사용자의 재개 승인으로 설치 없이 Hostinger 콘솔에 다시 연결했다. 개발·공개 HEAD와 origin, 기존 패킷·ops·payload 해시, `40816d1` 소스3파일 및 자산4개의 바이트 일치를 확인했다. 로컬 소스 변경·재빌드 없이 준비된 후보를 사용했으며, 서버에서 before·build·artifact·layer-proof·app·final 단계의 PASS를 확인했다. 실제 공개 소스는 `40816d1af0f341de6a30a9d2cd65583f6243cef6`, 이미지 ID는 `sha256:b0affb6fcb6f2410e90db4557af71c8fe102afb92b6ab88f377008de99a1653e`, JAR SHA-256은 `868094a10012bf7565ed6456c6a9a1fca28d724fc7d0f6291cfa6c6c35937df6`이다. 최종 기록은 2026-11-06 11:01:36 서울(`02:01:36.581248+00:00`)이다.
+
+| 검증 | 실제 결과 |
+| --- | --- |
+| 공개 HTTP | 후보 자산4개 SHA·로그인/권한/보안/읽기28항목 PASS, exit0 |
+| 공개 모달 GET | 17개 PASS, 저장 계산 결과가 없어 계산 근거1개 SKIP, exit0 |
+| 실제 공개 PC | 내 정보7탭×차콜/블루, 신청 모달 두 테마·Escape 닫기/초점 복귀, `REQUEST_APPROVE` 감사 상세 두 테마 확인 |
+| 동일 공개 자산 합성 UI | SHA가 일치하는 공개 자산으로 계산 모달·감사 상세8조합과 완전 계산 근거4조합, 총12조합 확인 |
+| 배포 자료 보존 | 앱 교체 전후48표446행 전체 값·스키마·권한 동일, V17 유지 |
+| 감사 조회 후 자료 보존 | 기존446행 전부 동일, 감사 목록/상세 조회 로그 각1행만 추가: 전체448행·감사11→13행, 스키마·권한 동일 |
+| 배포 산출물 | JAR538항목 중 React CSS/JS2개만 변경, 나머지536개 동일. OS/JRE12계층과 revision 외 실행 설정 동일 |
+| 기존 서비스 보존 | 기존42개 컨테이너 상태·Caddy 동일, demo `/store/health`200·portfolio200·PriceSys401·WorkLog health200 유지 |
+| 전용 설정 경계 | `/srv/worklog`, Compose `worklog-demo`의 앱만 교체, `.env`는 이미지 태그 외 값·모드 보존 |
+
+감사 목록과 상세 GET은 기존 정책에 따라 `AUDIT_VIEW`·`AUDIT_DETAIL_VIEW`를 각각 기록한다. 실제 화면은 목록1회·상세1회만 조회하고 테마는 클라이언트에서 전환했다. 별도 읽기 전용 증거 명령은 두 행의 행위·대상·사유·주체를 확인한 뒤 이를 제외한 감사 전체 해시가 앱 교체 직후와 같음을 확인했다. 나머지47개 표와 모든 스키마·권한도 기존 완전 일치 검사로 비교했다. 감사 증거 기록은 2026-11-06 11:01:01 서울(`02:01:01.847474+00:00`)이며 원본 `audit-ui-data-proof.json`, `data-after-ui-audit.json`과 서버 최종 요약을 전용 배포 디렉터리에 보존했다. 최종 요약의446행은 앱 교체 중 정지 상태의 전후 비교이며, UI 조회 후 현재448행 검증과 구분한다. 검증을 위한 재계산·업무 자료 생성·초기화·마이그레이션·seed 재실행은 하지 않았다.
+
+공개 모달 GET 검사에서 계산 결과 ID가 없어 실제 계산 상세를 열지 못했다. 같은 공개 자산과 합성 자료로 계산 근거의 값·표·긴 ID·모바일 배치·Escape/초점 복귀를 확인한 결과와 구분한다. 또한 이번 실제 공개 탭에는 IAB viewport override가 적용되지 않아 실제 모바일 검증으로 세지 않는다. 1440/390px 두 테마의 합성12조합은 `target/hallmark-tools/public-record-details-artifacts-20261106/verification.json`, `public-record-complete-artifacts-20261106/verification.json`에, 자산 일치는 `public-record-evidence-20261106/asset-verification.json`에 남겼다.
+
+공개 HTTP 검사의 첫 sandbox 실행은 health 단계에서 실패해 완료한 검사는0개였으며, 승인된 외부 연결 실행에서는28항목이 통과했다. 실제 실패 기록과 성공 로그를 모두 보존했다. 최종 로그는 `target/workspace-surfaces-modal-deploy-20261105/public-smoke-final-20261106-network.log`와 `public-modal-get-final-20261106.log`다. 두 검사 모두 감사 GET을 제외했고 로그인/로그아웃 외 업무 POST는0, 검사 세션 로그아웃을 확인했다. 감사 자료 보존 증거 명령의 로컬 경계 테스트9개도 통과했다.
+
+마지막으로 실제 공개 브라우저 로그아웃(`/demo?logout`), VPS 관리 셸 exit 후 Ubuntu login prompt, viewport 원복을 확인했다. 전송·중복 모바일 탭을 닫고 이번 작업의 전송 viewer18097과 합성 미리보기18094~18096을 종료했다. 기존 preview18089와 배포 패킷·검증 증거 파일은 보존했다.
