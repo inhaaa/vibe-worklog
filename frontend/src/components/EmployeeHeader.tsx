@@ -38,7 +38,7 @@ export function EmployeeHeader({ employee }: { employee: EmployeeHeaderData | Em
       </div>
     </div>
     {details && <section className="t-employee-summary" aria-labelledby={summaryHeading}>
-      <h3 id={summaryHeading}>인사 요약</h3>
+      <h3 id={summaryHeading} className="sr-only">인사 요약</h3>
       <dl className="t-employee-facts">
         {entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '미등록'}</dd></div>)}
       </dl>
