@@ -37,7 +37,7 @@
   margin: 0;
   padding: var(--space-xs) var(--space-2xs);
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--personal-muted);
   font-size: var(--text-sm);
@@ -46,6 +46,12 @@
   white-space: normal;
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+#tna-app .t-personnel-tab-icon {
+  display: none;
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] {
   background: var(--personal-selection);
@@ -56,6 +62,9 @@
 #tna-app .t-personnel-tabs [role="tab"]:focus-visible,
 #tna-app .t-personnel-tabpanel:focus-visible {
   outline: 2px solid var(--t-focus);
+}
+#tna-app .t-personnel-tabs [role="tab"]:focus-visible { outline-offset: 1px; }
+#tna-app .t-personnel-tabpanel:focus-visible {
   outline-offset: -3px;
 }
 #tna-app .t-personnel-tabpanel {
@@ -235,32 +244,57 @@
 #tna-app .t-profile-footnote { margin: var(--space-md) 0 0; color: var(--personal-muted); font-size: 14px; }
 #tna-app .t-personnel-tabs [role="tab"]:active { background: var(--personal-selection); }
 @media (hover: hover) {
-  #tna-app .t-personnel-tabs [role="tab"]:hover:not([aria-selected="true"]) { color: var(--personal-accent); background: var(--personal-rail); }
+  #tna-app .t-personnel-tabs [role="tab"]:hover { filter: none; }
+  #tna-app .t-personnel-tabs [role="tab"]:hover:not([aria-selected="true"]):not(:active) {
+    color: var(--personal-accent);
+    background: var(--personal-rail);
+  }
   #tna-app .t-personal-table tbody tr:hover { background: var(--personal-label); }
 }
+@media (min-width: 48rem) {
+  #tna-app .t-personnel-tab-icon { display: block; }
+  #tna-app .t-personnel-tabs [role="tab"] {
+    flex-direction: column;
+    gap: var(--space-2xs);
+  }
+}
 @media (min-width: 70rem) {
-  #tna-app .t-private-personnel.t-card { grid-template-columns: 10.75rem minmax(0, 1fr); }
+  #tna-app .t-private-personnel.t-card { grid-template-columns: 11.5rem minmax(0, 1fr); }
   #tna-app .t-personnel-index {
-    padding: var(--space-lg) var(--space-sm);
+    padding: var(--space-lg) var(--space-md);
     border-block-end: 0;
     border-inline-end: 1px solid var(--personal-line);
     border-radius: var(--t-radius) 0 0 var(--t-radius);
   }
   #tna-app .t-personnel-index-title {
     display: block;
-    margin: 0 0 var(--space-xs);
-    padding-inline: var(--space-sm);
+    margin: 0 0 var(--space-sm);
+    padding-inline: var(--space-md);
     color: var(--personal-muted);
     font-size: var(--text-sm);
     font-weight: 600;
   }
   #tna-app .t-personnel-tabs { grid-template-columns: minmax(0, 1fr); }
   #tna-app .t-personnel-tabs [role="tab"] {
+    position: relative;
+    flex-direction: row;
     justify-content: flex-start;
-    padding-inline: var(--space-sm);
+    gap: var(--space-xs);
+    padding-inline: var(--space-md) var(--space-xs);
     text-align: start;
   }
-  #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] { box-shadow: inset 3px 0 var(--personal-accent); }
+  #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] {
+    box-shadow: inset 0 0 0 1px var(--t-accent-border);
+  }
+  #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"]::before {
+    position: absolute;
+    inset-inline-start: var(--space-2xs);
+    width: 3px;
+    height: 16px;
+    border-radius: 4px;
+    background: currentColor;
+    content: '';
+  }
 }
 @container personnel-panel (min-width: 42rem) {
   #tna-app .t-private-personnel .t-person-info { grid-template-columns: repeat(4, minmax(0, 1fr)); }

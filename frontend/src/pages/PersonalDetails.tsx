@@ -23,7 +23,7 @@ export interface PersonalDetailsModel {
   entryForm?: EntryForm;
 }
 interface Identity { employeeName: string; joinedOn: string; birthDate?: string | null }
-const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'];
+const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'] as const;
 const wideSheet = '(min-width: 70rem)';
 
 function subscribeToSheetWidth(notify: () => void) {
@@ -46,6 +46,15 @@ const sheetIcons = {
   address: 'M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Z M12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4',
   contact: 'M4 6h16v12H4z M4 7l8 6 8-6',
 };
+const tabIcons = {
+  '기본사항': sheetIcons.identity,
+  '발령내역': sheetIcons.employment,
+  '가족사항': 'M3 20v-2a5 5 0 0 1 10 0v2 M5 8a3 3 0 1 0 6 0 3 3 0 0 0-6 0 M16 5a3 3 0 0 1 0 6 M17 14a5 5 0 0 1 4 4v2',
+  '학력사항': 'm2 9 10-5 10 5-10 5-10-5Z M6 11v5c2 3 10 3 12 0v-5 M22 9v6',
+  '자격사항': 'M8 14l-1 7 5-3 5 3-1-7 M7 9a5 5 0 1 0 10 0 5 5 0 0 0-10 0',
+  '어학사항': 'M4 5h16v12H9l-5 4V5Z M8 9h8 M8 13h5',
+  '주소·연락처': sheetIcons.address,
+} satisfies Record<(typeof tabs)[number], string>;
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
@@ -90,7 +99,10 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
         {tabs.map((label, index) => (
           <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
             aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
-            onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>{label}</button>
+            onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>
+            <svg className="t-personnel-tab-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d={tabIcons[label]} /></svg>
+            {label}
+          </button>
         ))}
       </div>
     </div>

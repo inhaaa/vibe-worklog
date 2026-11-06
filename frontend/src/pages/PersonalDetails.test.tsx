@@ -70,6 +70,8 @@ it('화면이 넓어지면 기록 목차가 수직 방향을 알리고 위아래
   const view = render(<PersonalDetailsTabs model={model} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01' }} />);
   const list = view.getByRole('tablist', { name: '인사정보 항목' });
   const tabs = within(list).getAllByRole('tab');
+  expect(tabs.map(tab => tab.querySelector('svg[aria-hidden="true"][focusable="false"]') !== null)).toEqual(Array(7).fill(true));
+  expect(within(list).getByRole('tab', { name: '기본사항', selected: true })).toBe(tabs[0]);
   expect(list.getAttribute('aria-orientation')).toBe('horizontal');
   fireEvent.keyDown(tabs[0], { key: 'ArrowDown' });
   expect(tabs[0].getAttribute('aria-selected')).toBe('true');
