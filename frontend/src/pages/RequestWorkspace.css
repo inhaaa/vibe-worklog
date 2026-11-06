@@ -87,8 +87,6 @@
 #tna-app .t-request-field .t-input, #tna-app .t-request-field .t-select { width:100%; box-sizing:border-box; min-width:0; }
 #tna-app .t-request-field textarea { border:1px solid var(--t-field-border); padding:var(--space-sm); font:inherit; font-size:16px; resize:vertical; }
 #tna-app .t-request-main :is(.t-input,.t-select,textarea), #tna-app .t-correction-form :is(.t-input,.t-select,textarea) { border-radius:var(--t-radius); }
-#tna-app .t-request-date-range { display:grid; grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr); align-items:end; gap:var(--space-sm); }
-#tna-app .t-request-date-range > span { padding-bottom:var(--space-sm); color:var(--t-muted); text-align:center; }
 #tna-app .t-request-form-context { margin-top:var(--space-md); border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:clip; }
 #tna-app :is(.t-request-routing,.t-request-applicant) { display:grid; grid-template-columns:5rem minmax(0,1fr); align-items:center; gap:var(--space-xs) var(--space-md); min-width:0; padding:var(--space-sm) var(--space-md); }
 #tna-app .t-request-routing { grid-template-columns:5rem minmax(0,1fr) auto; background:var(--t-blue-soft); }
@@ -103,9 +101,14 @@
 #tna-app .t-request-route-note { grid-column:2 / -1; margin:0; color:var(--t-muted); font-size:14px; overflow-wrap:anywhere; }
 #tna-app .t-request-routing:has([data-eligible=false]) .t-request-route-note { color:var(--t-amber); }
 #tna-app .t-request-embedded .t-request-form-context { margin-top:0; }
-#tna-app .t-annual-compose-form .t-request-bucket-picker { padding:0; margin:0; border:0; min-width:0; }
-#tna-app .t-request-bucket-picker > legend { padding:0; margin:0 0 var(--space-xs); font-size:14px; font-weight:650; }
-#tna-app .t-request-bucket-sheet { border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:clip; }
+#tna-app .t-annual-compose-form :is(.t-request-bucket-picker,.t-request-period-picker) { padding:0; margin:0; border:0; min-width:0; }
+#tna-app :is(.t-request-bucket-picker,.t-request-period-picker) > legend { padding:0; margin:0 0 var(--space-xs); font-size:14px; font-weight:650; }
+#tna-app :is(.t-request-bucket-sheet,.t-request-period-sheet) { border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:clip; }
+#tna-app .t-request-period-sheet { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,15.25rem),1fr)); gap:1px; background:var(--t-line); }
+#tna-app .t-request-period-cell { display:grid; grid-template-columns:5.75rem minmax(0,1fr); }
+#tna-app .t-request-period-cell > label { display:flex; align-items:center; padding:var(--space-xs) var(--space-sm); margin:0; background:var(--t-label); color:var(--t-muted); font-size:13px; font-weight:650; word-break:keep-all; }
+#tna-app .t-request-period-sheet .t-request-period-cell > .t-input { box-sizing:border-box; width:100%; min-width:0; min-height:48px; padding:var(--space-xs); border:0; border-radius:0; background:var(--t-paper); color:var(--t-ink); font-size:16px; font-variant-numeric:tabular-nums; }
+#tna-app .t-request-period-sheet .t-request-period-cell > .t-input:focus-visible { outline:2px solid var(--t-focus); outline-offset:-2px; }
 #tna-app :is(.t-request-bucket-head,.t-request-bucket-row) { display:grid; grid-template-columns:minmax(90px,.9fr) minmax(0,2.2fr) minmax(66px,.7fr) minmax(66px,.7fr); align-items:center; gap:var(--space-sm); padding:var(--space-xs) var(--space-sm); }
 #tna-app .t-request-bucket-head { background:var(--t-label); color:var(--t-muted); font-size:13px; font-weight:650; }
 #tna-app .t-request-bucket-row { min-height:48px; margin:0; border-top:1px solid var(--t-line); background:var(--t-paper); color:var(--t-ink); cursor:pointer; font-size:14px; font-variant-numeric:tabular-nums; }
@@ -286,8 +289,6 @@
   #tna-app .t-request-type-card small { font-size:14px; padding-right:var(--space-xs); }
   #tna-app .t-request-context-date .t-input { max-width:none; width:100%; flex-basis:100%; font-size:16px; box-sizing:border-box; }
   #tna-app .t-request-context-date .t-btn { width:100%; }
-  #tna-app .t-request-date-range { grid-template-columns:minmax(0,1fr); }
-  #tna-app .t-request-date-range > span { display:none; }
   #tna-app .t-request-preview { padding:0; }
   #tna-app .t-break-row { grid-template-columns:16px minmax(0,1fr) auto; }
   #tna-app .t-break-row label { grid-column:2; }

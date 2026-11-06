@@ -201,7 +201,19 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='CONTENT'&&!error?'true':undefined}>신청서</h3>
         {isLeave ? <>
           <LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} />
-          <div className="t-request-date-range"><div className="t-request-field"><label htmlFor="annual-from">시작일</label><input id="annual-from" className="t-input" type="date" name="from" value={leave.from ?? ''} onChange={event => change('from', event.target.value)} min={model.annual.today} required /></div><span aria-hidden="true">→</span><div className="t-request-field"><label htmlFor="annual-to">종료일 (포함)</label><input id="annual-to" className="t-input" type="date" name="to" value={leave.to ?? ''} onChange={event => change('to', event.target.value)} min={leave.from ?? undefined} required /></div></div>
+          <fieldset className="t-request-period-picker">
+            <legend>신청 기간</legend>
+            <div className="t-request-period-sheet">
+              <div className="t-request-period-cell">
+                <label htmlFor="annual-from">시작일</label>
+                <input id="annual-from" className="t-input" type="date" name="from" value={leave.from ?? ''} onChange={event => change('from', event.target.value)} min={model.annual.today} required />
+              </div>
+              <div className="t-request-period-cell">
+                <label htmlFor="annual-to">종료일 (포함)</label>
+                <input id="annual-to" className="t-input" type="date" name="to" value={leave.to ?? ''} onChange={event => change('to', event.target.value)} min={leave.from ?? undefined} required />
+              </div>
+            </div>
+          </fieldset>
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
           <p>대상 근무일 {fmtDate(correction.workDate)}</p>

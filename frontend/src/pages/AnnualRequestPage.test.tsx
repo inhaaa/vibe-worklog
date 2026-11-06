@@ -87,6 +87,27 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   await view.findByRole('region',{name:'신청 미리보기'});
   expect(new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams).getAll('bucketId')).toEqual([second.id]);
  });
+ it('신청 기간 시트의 날짜를 수정하면 종료일 기준을 갱신하고 미리보기에 전송한다',async()=>{
+  const edited={...leave,from:'2026-11-03',to:'2026-11-06',reason:'기간 확인'};
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(preview({leaveForm:edited})));
+  vi.stubGlobal('fetch',fetcher);
+  const view=render(<App initial={envelope({},compose)}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const sheet=within(view.getByRole('group',{name:'신청 기간'}));
+  const from=sheet.getByLabelText('시작일') as HTMLInputElement;
+  const to=sheet.getByLabelText('종료일 (포함)') as HTMLInputElement;
+  expect(from.min).toBe(annual.today);
+  fireEvent.change(from,{target:{value:edited.from}});
+  expect(to.min).toBe(edited.from);
+  expect(to.validity.rangeUnderflow).toBe(true);
+  fireEvent.change(to,{target:{value:edited.to}});
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:edited.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  await view.findByRole('region',{name:'신청 미리보기'});
+  const sent=new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams);
+  expect(sent.getAll('from')).toEqual([edited.from]);
+  expect(sent.getAll('to')).toEqual([edited.to]);
+ });
  it('고를 수 있는 연차 묶음이 없으면 신청 미리보기 전송을 막는다',()=>{
   const fetcher=vi.fn<typeof fetch>();
   vi.stubGlobal('fetch',fetcher);
