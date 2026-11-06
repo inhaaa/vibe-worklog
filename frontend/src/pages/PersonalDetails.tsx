@@ -52,8 +52,12 @@ function Info({ values }: { values: [string, string | number | null | undefined]
   return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
 }
 function InfoGroup({ title, icon, values }: { title: string; icon: keyof typeof sheetIcons; values: [string, string | number | null | undefined][] }) {
-  return <section className="t-personal-group" aria-label={title}>
-    <h3><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={sheetIcons[icon]} /></svg>{title}</h3>
+  const titleId = useId();
+  return <section className="t-personal-group" aria-labelledby={titleId}>
+    <h3 id={titleId}>
+      <span className="t-personal-group-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={sheetIcons[icon]} /></svg></span>
+      {title}
+    </h3>
     <Info values={values} />
   </section>;
 }

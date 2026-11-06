@@ -13,14 +13,21 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('기본사항은 의미별 정보 표로 묶고 주소 탭에서는 주소와 연락 수단을 구분한다', () => {
+it('기본사항과 연락처는 화면 제목에 연결된 용어·값 목록으로 읽을 수 있다', () => {
   const view = render(<PersonalDetailsTabs model={{ ...model, form: {
     ...model.form, englishName: 'Synthetic Employee', address: '합성 주소', addressDetail: '테스트 동', contactEmail: 'synthetic@example.test',
   } }} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01' }} />);
-  expect(within(view.getByRole('region', { name: '신원 정보' })).getByText('Synthetic Employee')).toBeTruthy();
+  const identity = view.getByRole('region', { name: '신원 정보' });
+  const heading = within(identity).getByRole('heading', { name: '신원 정보', level: 3 });
+  expect(identity.getAttribute('aria-labelledby')).toBe(heading.id);
+  const term = within(identity).getByText('영문성명', { selector: 'dt' });
+  expect(term.nextElementSibling).toBe(within(identity).getByText('Synthetic Employee'));
+  expect(term.nextElementSibling?.tagName).toBe('DD');
   expect(within(view.getByRole('region', { name: '입사 정보' })).getByText('0')).toBeTruthy();
   expect(view.getByRole('region', { name: '추가 정보' }).textContent).toContain('해당 없음');
   fireEvent.click(view.getByRole('tab', { name: '주소·연락처' }));
+  const selected = view.getByRole('tab', { selected: true, name: '주소·연락처' });
+  expect(view.getByRole('tabpanel', { name: '주소·연락처' }).getAttribute('aria-labelledby')).toBe(selected.id);
   expect(view.getByRole('region', { name: '주소 정보' }).textContent).toContain('합성 주소');
   expect(view.getByRole('region', { name: '연락 정보' }).textContent).toContain('synthetic@example.test');
 });
