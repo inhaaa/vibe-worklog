@@ -62,66 +62,67 @@ export function WorkspaceHome({ data }: Pick<PageProps, 'data'>) {
 
   return <div className="t-work-home">
     <header className="t-work-home-welcome">
-      <div>
+      <div className="t-work-home-intro">
         <p className="t-work-home-date"><Icon name="calendar" /><time dateTime={date}>{dateLabel.format(seoulDay(date))}</time></p>
         <h1>{home.employee.employeeName}님, 안녕하세요</h1>
         <p>오늘의 근무 일정과 내 신청을 한눈에 확인하세요.</p>
+        <div className="t-work-home-actions">
+          <a href="/me/attendance"><Icon name="clock" />출퇴근 기록</a>
+          <a href="/me/requests/new"><Icon name="plus" />근태 신청</a>
+        </div>
       </div>
-      <div className="t-work-home-actions">
-        <a href="/me/attendance"><Icon name="clock" />출퇴근 기록</a>
-        <a href="/me/requests/new"><Icon name="plus" />근태 신청</a>
-      </div>
+      <dl className="t-work-home-metrics" aria-label="내 근태 요약">
+        <div><dt><Icon name="calendar" />오늘 예정 근무</dt><dd><strong>{today.scheduleText}</strong><small>{todayOnLeave ? '승인된 연차가 있습니다' : today.calendarText}</small></dd></div>
+        <div><dt><Icon name="leave" />사용 가능 연차</dt><dd><strong>{availableLeaveDays == null ? '미등록' : `${availableLeaveDays}일`}</strong><small>현재 사용 기간의 원장 기준</small></dd></div>
+        <div><dt><Icon name="request" />검토 중인 내 신청</dt><dd><strong>{pendingRequests}건</strong><small>본인이 대상인 신청 기준</small></dd></div>
+      </dl>
     </header>
 
-    <dl className="t-work-home-metrics" aria-label="내 근태 요약">
-      <div><dt><Icon name="calendar" />오늘 예정 근무</dt><dd>{today.scheduleText}</dd><dd>{todayOnLeave ? '승인된 연차가 있습니다' : today.calendarText}</dd></div>
-      <div><dt><Icon name="leave" />사용 가능 연차</dt><dd>{availableLeaveDays == null ? '미등록' : `${availableLeaveDays}일`}</dd><dd>현재 사용 기간의 원장 기준</dd></div>
-      <div><dt><Icon name="request" />검토 중인 내 신청</dt><dd>{pendingRequests}건</dd><dd>본인이 대상인 신청 기준</dd></div>
-    </dl>
+    <div className="t-work-home-desk">
+      <div className="t-work-home-columns">
+        <section className="t-work-home-panel" aria-labelledby="home-work-heading">
+          <div className="t-work-home-panel-heading"><h2 id="home-work-heading">오늘 근무</h2><a href="/me/attendance">기록 상세 <Icon name="arrow" /></a></div>
+          <dl className="t-work-home-clock">
+            <div><dt>현재 반영 출근</dt><dd>{today.inTime}</dd></div>
+            <div><dt>현재 반영 퇴근</dt><dd>{today.outTime}</dd></div>
+          </dl>
+          <p className="t-work-home-confirmation">{today.confirmationText}</p>
+          {today.timeline.length > 0 ? <ol className="t-work-home-timeline" role="list">
+            {today.timeline.map((entry, index) => <li key={`${entry.time}-${entry.title}-${index}`}>
+              <time dateTime={entry.time}>{entry.time.slice(0, 5)}</time>
+              <span>{entry.title}</span>
+              <span className="t-work-home-badge" data-tone={entry.kind === 'recorded' ? 'recorded' : undefined}>{entry.kind === 'recorded' ? '현재 반영' : '예정'}</span>
+            </li>)}
+          </ol> : <p className="t-work-home-empty">표시할 일정이나 출퇴근 기록이 없습니다.</p>}
+        </section>
 
-    <div className="t-work-home-columns">
-      <section className="t-work-home-panel" aria-labelledby="home-work-heading">
-        <div className="t-work-home-panel-heading"><h2 id="home-work-heading">오늘 근무</h2><a href="/me/attendance">기록 상세 <Icon name="arrow" /></a></div>
-        <dl className="t-work-home-clock">
-          <div><dt>현재 반영 출근</dt><dd>{today.inTime}</dd></div>
-          <div><dt>현재 반영 퇴근</dt><dd>{today.outTime}</dd></div>
-        </dl>
-        <p className="t-work-home-confirmation">{today.confirmationText}</p>
-        {today.timeline.length > 0 ? <ol className="t-work-home-timeline" role="list">
-          {today.timeline.map((entry, index) => <li key={`${entry.time}-${entry.title}-${index}`}>
-            <time dateTime={entry.time}>{entry.time.slice(0, 5)}</time>
-            <span>{entry.title}</span>
-            <span className="t-work-home-badge" data-tone={entry.kind === 'recorded' ? 'recorded' : undefined}>{entry.kind === 'recorded' ? '현재 반영' : '예정'}</span>
-          </li>)}
-        </ol> : <p className="t-work-home-empty">표시할 일정이나 출퇴근 기록이 없습니다.</p>}
-      </section>
+        <section className="t-work-home-panel" aria-labelledby="home-requests-heading">
+          <div className="t-work-home-panel-heading"><h2 id="home-requests-heading">최근 내 신청</h2><a href="/me/requests">전체 보기 <Icon name="arrow" /></a></div>
+          {recentRequests.length > 0 ? <ul className="t-work-home-recent" role="list">
+            {recentRequests.map(({ request, kindLabel, statusLabel, tone }) => <li key={request.id}>
+              <a href={`/requests/${request.id}`}>
+                <span className="t-work-home-request-icon"><Icon name="request" /></span>
+                <span><strong>{kindLabel}</strong><small>{request.fromDate === request.toDate ? request.fromDate : `${request.fromDate} ~ ${request.toDate}`}</small></span>
+                <span className="t-work-home-badge" data-tone={tone}>{statusLabel}</span>
+              </a>
+            </li>)}
+          </ul> : <p className="t-work-home-empty">아직 본인 대상 신청이 없습니다.</p>}
+        </section>
+      </div>
 
-      <section className="t-work-home-panel" aria-labelledby="home-requests-heading">
-        <div className="t-work-home-panel-heading"><h2 id="home-requests-heading">최근 내 신청</h2><a href="/me/requests">전체 보기 <Icon name="arrow" /></a></div>
-        {recentRequests.length > 0 ? <ul className="t-work-home-recent" role="list">
-          {recentRequests.map(({ request, kindLabel, statusLabel, tone }) => <li key={request.id}>
-            <a href={`/requests/${request.id}`}>
-              <span className="t-work-home-request-icon"><Icon name="request" /></span>
-              <span><strong>{kindLabel}</strong><small>{request.fromDate === request.toDate ? request.fromDate : `${request.fromDate} ~ ${request.toDate}`}</small></span>
-              <span className="t-work-home-badge" data-tone={tone}>{statusLabel}</span>
-            </a>
-          </li>)}
-        </ul> : <p className="t-work-home-empty">아직 본인 대상 신청이 없습니다.</p>}
+      <section className="t-work-home-panel t-work-home-week-panel" aria-labelledby="home-week-heading">
+        <div className="t-work-home-panel-heading"><h2 id="home-week-heading">이번 주 일정</h2><a href="/me/schedule">전체 일정 <Icon name="arrow" /></a></div>
+        <div className="t-work-home-week">
+          {week.map(day => {
+            const workDate = day.snapshot.workDate;
+            return <a key={workDate} href={`/me/schedule?month=${workDate.slice(0, 7)}&date=${workDate}`} aria-current={day.today ? 'date' : undefined}>
+              <span className="t-work-home-week-date">{weekdayLabel.format(seoulDay(workDate))}<time dateTime={workDate}>{workDate.slice(5).replace('-', '.')}</time>{day.today && <span>오늘</span>}</span>
+              <span className="t-work-home-week-shift"><strong>{day.scheduleText}</strong>
+                <small>{day.requests.some(request => request.effectiveLeave) ? '승인된 연차' : day.calendarText}</small></span>
+            </a>;
+          })}
+        </div>
       </section>
     </div>
-
-    <section className="t-work-home-panel" aria-labelledby="home-week-heading">
-      <div className="t-work-home-panel-heading"><h2 id="home-week-heading">이번 주 일정</h2><a href="/me/schedule">전체 일정 <Icon name="arrow" /></a></div>
-      <div className="t-work-home-week">
-        {week.map(day => {
-          const workDate = day.snapshot.workDate;
-          return <a key={workDate} href={`/me/schedule?month=${workDate.slice(0, 7)}&date=${workDate}`} aria-current={day.today ? 'date' : undefined}>
-            <span className="t-work-home-week-date"><time dateTime={workDate}>{workDate.slice(5).replace('-', '.')}</time> {weekdayLabel.format(seoulDay(workDate))}{day.today && <span>오늘</span>}</span>
-            <strong>{day.scheduleText}</strong>
-            <small>{day.requests.some(request => request.effectiveLeave) ? '승인된 연차' : day.calendarText}</small>
-          </a>;
-        })}
-      </div>
-    </section>
   </div>;
 }
