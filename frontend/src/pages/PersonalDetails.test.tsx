@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, within } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { PersonalDetailsEditor, PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 const model: PersonalDetailsModel = {
@@ -8,7 +8,10 @@ const model: PersonalDetailsModel = {
   entries: [{ id: 'entry', kind: 'QUALIFICATION', title: '<script>합성 자격</script>', detail: '합성 기관', effectiveFrom: '2026-01-01', effectiveTo: null, revision: 1 }],
   appointments: [{ id: 'appointment', organizationName: '합성팀', validFrom: '2026-01-01', validTo: null }],
 };
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 it('기본사항은 의미별 정보 표로 묶고 주소 탭에서는 주소와 연락 수단을 구분한다', () => {
   const view = render(<PersonalDetailsTabs model={{ ...model, form: {
@@ -52,6 +55,29 @@ it('0개월과 비해당·미등록을 구분하고 모든 탭을 키보드로 �
   fireEvent.click(tabs[4]);
   expect(panel.textContent).toContain('<script>합성 자격</script>');
   expect(view.container.querySelector('script')).toBeNull();
+});
+
+it('화면이 넓어지면 기록 목차가 수직 방향을 알리고 위아래 키로 같은 탭을 탐색한다', () => {
+  const media = Object.assign(new EventTarget(), { matches: false });
+  vi.stubGlobal('matchMedia', () => media);
+  const view = render(<PersonalDetailsTabs model={model} identity={{ employeeName: '합성사원', joinedOn: '2026-01-01' }} />);
+  const list = view.getByRole('tablist', { name: '인사정보 항목' });
+  const tabs = within(list).getAllByRole('tab');
+  expect(list.getAttribute('aria-orientation')).toBe('horizontal');
+  fireEvent.keyDown(tabs[0], { key: 'ArrowDown' });
+  expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+  act(() => {
+    media.matches = true;
+    media.dispatchEvent(new Event('change'));
+  });
+  expect(list.getAttribute('aria-orientation')).toBe('vertical');
+  fireEvent.keyDown(tabs[0], { key: 'ArrowDown' });
+  expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+  expect(document.activeElement).toBe(tabs[1]);
+  expect(view.getByRole('tabpanel', { name: '발령내역' }).textContent).toContain('합성팀');
+  fireEvent.keyDown(tabs[1], { key: 'ArrowUp' });
+  expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+  expect(document.activeElement).toBe(tabs[0]);
 });
 
 it('상세정보 충돌 시 현재 저장된 모든 항목을 비교하고 입력을 보존한 채 새 버전을 사용한다', () => {

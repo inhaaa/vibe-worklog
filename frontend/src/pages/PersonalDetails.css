@@ -9,33 +9,43 @@
   --personal-accent: var(--t-blue);
 }
 #tna-app .t-private-personnel.t-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   margin-bottom: var(--space-lg);
   padding: 0;
   border: 1px solid var(--personal-line);
   border-radius: var(--t-radius);
   background: var(--t-paper);
 }
-#tna-app .t-personnel-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2xs);
-  padding: var(--space-sm) var(--space-lg);
+#tna-app .t-personnel-index {
+  min-width: 0;
   border-bottom: 1px solid var(--personal-line);
   border-radius: var(--t-radius) var(--t-radius) 0 0;
   background: var(--personal-label);
 }
+#tna-app .t-personnel-index-title { display: none; }
+#tna-app .t-personnel-tabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
 #tna-app .t-personnel-tabs [role="tab"] {
+  min-width: 0;
   min-height: 44px;
-  padding: var(--space-xs) var(--space-md);
-  border: 1px solid transparent;
-  border-radius: 999px;
+  margin: 0;
+  padding: var(--space-xs) var(--space-3xs);
+  border: 0;
+  border-block-end: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--personal-muted);
   font-weight: 600;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 #tna-app .t-personnel-tabs [role="tab"][aria-selected="true"] {
-  border-color: var(--t-accent-border);
-  background: var(--personal-rail);
+  border-color: var(--personal-accent);
+  background: var(--t-paper);
   color: var(--personal-accent);
 }
 #tna-app .t-personnel-tabs [role="tab"]:focus-visible,
@@ -43,7 +53,7 @@
   outline: 2px solid var(--t-focus);
   outline-offset: -3px;
 }
-#tna-app .t-personnel-tabpanel { padding: var(--space-lg); }
+#tna-app .t-personnel-tabpanel { min-width: 0; padding: var(--space-lg); }
 #tna-app .t-personal-panel-heading {
   display: flex;
   flex-wrap: wrap;
@@ -229,8 +239,32 @@
 #tna-app .t-profile-footnote { margin: var(--space-md) 0 0; color: var(--personal-muted); font-size: 14px; }
 #tna-app .t-personnel-tabs [role="tab"]:active { background: var(--personal-rail); }
 @media (hover: hover) {
-  #tna-app .t-personnel-tabs [role="tab"]:hover { color: var(--personal-accent); background: var(--personal-rail); }
+  #tna-app .t-personnel-tabs [role="tab"]:hover:not([aria-selected="true"]) { color: var(--personal-accent); background: var(--personal-rail); }
   #tna-app .t-personal-table tbody tr:hover { background: var(--personal-label); }
+}
+@media (min-width: 70rem) {
+  #tna-app .t-private-personnel.t-card { grid-template-columns: 148px minmax(0, 1fr); }
+  #tna-app .t-personnel-index {
+    padding-block: var(--space-lg);
+    border-block-end: 0;
+    border-inline-end: 1px solid var(--personal-line);
+    border-radius: var(--t-radius) 0 0 var(--t-radius);
+  }
+  #tna-app .t-personnel-index-title {
+    display: block;
+    margin: 0 0 var(--space-xs);
+    padding-inline: var(--space-md);
+    color: var(--personal-ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  #tna-app .t-personnel-tabs { grid-template-columns: minmax(0, 1fr); }
+  #tna-app .t-personnel-tabs [role="tab"] {
+    padding-inline: var(--space-md);
+    border-block-end: 0;
+    border-inline-start: 2px solid transparent;
+    text-align: start;
+  }
 }
 @media (max-width: 800px) {
   #tna-app .t-personal-group { grid-template-columns: minmax(0, 1fr); }
@@ -241,17 +275,11 @@
 }
 @media (max-width: 680px) {
   #tna-app .t-personnel-tabs {
-    display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: var(--space-3xs);
-    padding: var(--space-xs);
+    gap: 1px;
+    background: var(--personal-line);
   }
-  #tna-app .t-personnel-tabs [role="tab"] {
-    padding-inline: var(--space-3xs);
-    white-space: normal;
-    word-break: keep-all;
-    overflow-wrap: anywhere;
-  }
+  #tna-app .t-personnel-tabs [role="tab"] { background: var(--personal-label); }
   #tna-app .t-personnel-tabs [role="tab"]:last-child { grid-column: span 2; }
   #tna-app .t-personnel-tabpanel { padding: var(--space-md); }
   #tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info { grid-template-columns: minmax(0, 1fr); }
