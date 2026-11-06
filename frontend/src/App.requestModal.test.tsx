@@ -69,7 +69,8 @@ describe('신청 공통 모달 통합', () => {
       .mockImplementationOnce(() => new Promise(done => { resolve = done; }));
     const confirm = vi.spyOn(window,'confirm').mockReturnValue(true);
     const { dialog } = await open(fetcher);
-    fireEvent.change(within(dialog).getByLabelText('시작일'),{target:{value:'2026-11-06'}});
+    fireEvent.click(within(dialog).getByRole('button',{name:/^시작일/}));
+    fireEvent.click(within(within(dialog).getByRole('region',{name:'시작일 선택'})).getByRole('button',{name:'2026-11-06'}));
     write(dialog);
     const close = within(dialog).getAllByRole('button',{name:'닫기'}) as HTMLButtonElement[];
     await waitFor(() => expect(close.every(button => button.disabled)).toBe(true));
