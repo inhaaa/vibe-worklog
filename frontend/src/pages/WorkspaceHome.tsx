@@ -61,24 +61,24 @@ export function WorkspaceHome({ data }: Pick<PageProps, 'data'>) {
   const todayOnLeave = today.requests.some(request => request.effectiveLeave);
 
   return <div className="t-work-home">
-    <header className="t-work-home-welcome">
-      <div className="t-work-home-intro">
-        <p className="t-work-home-date"><Icon name="calendar" /><time dateTime={date}>{dateLabel.format(seoulDay(date))}</time></p>
-        <h1>{home.employee.employeeName}님, 안녕하세요</h1>
-        <p>오늘의 근무 일정과 내 신청을 한눈에 확인하세요.</p>
+    <div className="t-work-home-desk">
+      <header className="t-work-home-welcome">
+        <div className="t-work-home-intro">
+          <p className="t-work-home-date"><Icon name="calendar" /><time dateTime={date}>{dateLabel.format(seoulDay(date))}</time></p>
+          <h1>{home.employee.employeeName}님, 안녕하세요</h1>
+          <p>오늘의 근무 일정과 내 신청을 한눈에 확인하세요.</p>
+        </div>
         <div className="t-work-home-actions">
           <a href="/me/attendance"><Icon name="clock" />출퇴근 기록</a>
           <a href="/me/requests/new"><Icon name="plus" />근태 신청</a>
         </div>
-      </div>
+      </header>
       <dl className="t-work-home-metrics" aria-label="내 근태 요약">
         <div><dt><Icon name="calendar" />오늘 예정 근무</dt><dd><strong>{today.scheduleText}</strong><small>{todayOnLeave ? '승인된 연차가 있습니다' : today.calendarText}</small></dd></div>
         <div><dt><Icon name="leave" />사용 가능 연차</dt><dd><strong>{availableLeaveDays == null ? '미등록' : `${availableLeaveDays}일`}</strong><small>현재 사용 기간의 원장 기준</small></dd></div>
         <div><dt><Icon name="request" />검토 중인 내 신청</dt><dd><strong>{pendingRequests}건</strong><small>본인이 대상인 신청 기준</small></dd></div>
       </dl>
-    </header>
 
-    <div className="t-work-home-desk">
       <div className="t-work-home-columns">
         <section className="t-work-home-panel" aria-labelledby="home-work-heading">
           <div className="t-work-home-panel-heading"><h2 id="home-work-heading">오늘 근무</h2><a href="/me/attendance">기록 상세 <Icon name="arrow" /></a></div>
