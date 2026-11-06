@@ -52,25 +52,21 @@
   --t-focus: #245dc1;
 }
 
-/* Distinct work surfaces keep labels, records and actions easy to scan. */
+/* Neutral records keep colour for actions and selection in both themes. */
 :root {
-  --t-canvas: #eef2f6;
-  --t-surface: #f3f5f8;
-  --t-section: #e7edf3;
-  --t-label: #edf2f6;
-  --t-line: #d4dde6;
+  --t-canvas: #f3f5f7;
+  --t-surface: #f6f7f9;
+  --t-section: #f4f6f8;
+  --t-label: #f7f8fa;
+  --t-line: #e0e5ea;
   --t-accent-border: #c9d7e2;
-  --t-accent-ink: #34566e;
-  --t-field-border: #697b8c;
-  --t-blue-soft: #e7eef4;
+  --t-accent-ink: #465563;
+  --t-field-border: #768493;
+  --t-blue-soft: #edf1f5;
 }
 :root[data-theme="blue"] {
-  --t-canvas: #edf2f9;
-  --t-surface: #f1f5fc;
-  --t-section: #e0eaf9;
-  --t-label: #eaf1fc;
-  --t-line: #cedbee;
+  --t-canvas: #f3f5fa;
   --t-accent-border: #b8cdeb;
   --t-accent-ink: #24539a;
-  --t-blue-soft: #e2ecfc;
+  --t-blue-soft: #edf3ff;
 }

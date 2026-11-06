@@ -1,77 +1,37 @@
 {
-  "date": "2026-11-05",
-  "baselineRevision": "e157299",
-  "mode": "redesign",
-  "depth": "full",
-  "scope": "app",
-  "sources": [
-    {
-      "file": "frontend/package.json",
-      "line": 1,
-      "finding": "React 19.3.1 and Vite; existing framework kept"
-    },
-    {
-      "file": "src/main/resources/static/app.css",
-      "line": 60,
-      "finding": "baseline --t tokens, Korean system sans, duplicated page-specific palettes"
-    },
-    {
-      "file": "frontend/src/App.tsx",
-      "line": 1,
-      "finding": "existing workspace, URL and modal ownership"
-    },
-    {
-      "file": "docs/design/personnel-workspace.md",
-      "finding": "employee identity and role contracts preserved"
-    }
+  "scanned": "2026-11-06",
+  "findings": {
+    "system": "design.md:5; two existing themes",
+    "font": "frontend/src/tokens.css:5; Korean system sans",
+    "framework": "frontend/package.json:13; React and Vite",
+    "records": "frontend/src/pages/PersonalDetails.css; existing seven tabs",
+    "detail": "frontend/src/pages/RecordDetails.css; existing dl evidence"
+  },
+  "preserve": [
+    "theme storage and colours for actions",
+    "links fields handlers routes data",
+    "user untracked design proposal"
   ],
-  "preserved": [
-    "all links fields handlers",
-    "role-filtered navigation",
-    "CSRF and server data contracts",
-    "Korean system font",
-    "existing user untracked design proposal"
-  ],
-  "introduced": [
-    "shared tokens",
-    "charcoal and blue theme choice requested by user",
-    "localStorage persistence with storage-failure fallback",
-    "tinted canvas, section headings and label-value tables by user request",
-    "skip-to-content navigation"
+  "introduce": [
+    "quiet neutral labels",
+    "horizontal table rules",
+    "underline selection tabs",
+    "plain modal headings"
   ],
   "material": {
     "real": [
-      "WorkLog source",
-      "existing labels and workflows"
+      "existing WorkLog content",
+      "three user reference screenshots for layout inspiration only"
     ],
     "pictures": [
-      "synthetic UI captures for verification only"
+      "existing employee images unchanged"
     ],
     "absent": [
-      "invented metrics",
-      "testimonials",
-      "new logos",
-      "stock photographs"
+      "copied reference people or records",
+      "new invented metrics"
     ]
   },
-  "read": {
-    "purpose": "employee records, attendance requests, approvals and administration",
-    "kept": "functional 3-level navigation and complete data fields",
-    "tells": "nested rounded cards, repeated purple-blue accents, small labels",
-    "broken": "flat white surfaces obscure grouping; label wrapping and modal tables need legibility"
-  },
-  "themeDeal": {
-    "picked": "refract",
-    "position": 3,
-    "seed": "korean-employee-attendance-leave-8b6c·92323bcf·2026-11-05·r0",
-    "adaptation": "noon app surfaces; user requested clean charcoal and blue variants"
-  },
-  "verificationTools": {
-    "puppeteerCore": "25.16.0",
-    "license": "Apache-2.0",
-    "nodeRequirement": ">=22.12.0",
-    "installedNode": "22.14.0",
-    "location": "ignored target/hallmark-tools; no runtime dependency change",
-    "source": "https://pptr.dev/guides/installation"
-  }
+  "scope": "app",
+  "theme": "locked Refract noon, charcoal and blue",
+  "depth": "table and information composition"
 }

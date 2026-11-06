@@ -1,7 +1,7 @@
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · redesign: full · nav: preserved workspace · signature: employee record · states: existing · posture: restrained · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, flatten repeated cards and let records set the hierarchy */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, let aligned records and fine rules replace coloured boxes */
 /* Hallmark · answered F7 · WorkLog form, filter and toolbar controls deliberately share dimensions for predictable data entry; records use borderless rows. */
-/* Hallmark · finish-review: subagent · 1 finding · 1 resolved · mobile summary tables keep every value in labelled rows · gap: none */
+/* Hallmark · finish-review: subagent · ship · 1 finding · 1 resolved · mobile step labels wrap at word boundaries · gap: none */
 @import url('./tokens.css');
 @import url('./base.css');
 #tna-app { color: var(--t-ink); background: var(--t-paper); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
@@ -129,16 +129,17 @@
 /* One white working surface against a tinted canvas; inner sections stay flat. */
 #tna-app, #tna-app .t-app-shell { background: var(--t-canvas); }
 #tna-app .t-sidebar { background: var(--t-paper); }
-#tna-app .t-workspace-name { background: var(--t-section); border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); padding: var(--space-md); }
+#tna-app .t-workspace-name { background: var(--t-surface); border: 0; border-radius: var(--t-radius); padding: var(--space-md); }
 #tna-app .t-topbar { background: var(--t-paper); border-bottom: 1px solid var(--t-line); }
 #tna-app :is(.t-card, .panel) { padding: var(--space-lg); border: 1px solid var(--t-line); border-radius: var(--t-radius); background: var(--t-paper); }
 #tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding: var(--space-md) 0; border: 0; border-radius: 0; background: transparent; }
-#tna-app .t-cardhead { padding-bottom: var(--space-md); border-bottom: 1px solid var(--t-line); }
-#tna-app :is(.t-tablewrap, .table-scroll) { border: 1px solid var(--t-line); border-radius: 6px; background: var(--t-paper); }
-#tna-app :is(th, .t-table th) { background: var(--t-section); color: var(--t-accent-ink); font-weight: 600; }
+#tna-app .t-cardhead { padding-bottom: 0; border-bottom: 0; }
+#tna-app :is(.t-tablewrap, .table-scroll) { border: 0; border-block: 1px solid var(--t-line); border-radius: 0; background: var(--t-paper); }
+#tna-app :is(th, .t-table th) { background: var(--t-section); color: var(--t-muted); font-weight: 500; }
+#tna-app :is(.t-tablewrap, .table-scroll) :is(th, td) { border-inline: 0; }
 #tna-app tbody tr { background: var(--t-paper); }
-#tna-app tbody tr:nth-child(even) { background: var(--t-surface); }
-#tna-app .t-toolbar { background: var(--t-surface); padding: var(--space-md); border-bottom: 1px solid var(--t-line); }
+#tna-app tbody tr:nth-child(even) { background: var(--t-paper); }
+#tna-app .t-toolbar { background: transparent; padding: 0 0 var(--space-md); border-bottom: 0; }
 #tna-app .notice { border: 1px solid var(--t-accent-border); }
 #tna-app .notice.error { border-left-color: var(--t-danger); }
 #tna-app .t-clock-actions { background: var(--t-blue-soft); padding: var(--space-lg); border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); }
