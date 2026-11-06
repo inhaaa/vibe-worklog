@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceHome } from './WorkspaceHome';
 
 const day = {
@@ -29,6 +29,15 @@ const home = {
   }],
 };
 
+beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true, value(this: HTMLDialogElement) { this.open = true; },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true, value(this: HTMLDialogElement) { this.open = false; },
+  });
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -36,7 +45,11 @@ afterEach(() => {
 });
 
 const homePage = (homeWidgetScope?: string) => <WorkspaceHome data={{ workspaceHome: home, homeWidgetScope }} />;
-const editWidgets = () => fireEvent.click(screen.getByRole('button', { name: '위젯 편집' }));
+const widgetSettings = () => screen.getByRole('button', { name: '위젯 설정' });
+function editWidgets() {
+  fireEvent.click(widgetSettings());
+  return within(screen.getByRole('dialog', { name: '위젯 설정' }));
+}
 
 describe('업무 홈', () => {
   it('서버가 제공한 오늘 일정, 출퇴근 및 내 신청 상태를 연결한다', () => {
@@ -71,16 +84,21 @@ describe('업무 홈', () => {
 
   it('저장한 위젯만 표시하고 다시 열었을 때도 계정별로 구성을 복원한다', () => {
     const view = render(homePage('scope-1'));
-    editWidgets();
-    const picker = screen.getByRole('group', { name: '표시할 위젯' });
+    expect(widgetSettings().textContent).toBe('');
+    expect(widgetSettings().getAttribute('aria-haspopup')).toBe('dialog');
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    const settings = editWidgets();
+    expect(document.activeElement).toBe(settings.getByRole('heading', { name: '위젯 설정' }));
+    const picker = settings.getByRole('group', { name: '표시할 위젯' });
     expect(within(picker).getAllByRole('checkbox')).toHaveLength(6);
     fireEvent.click(within(picker).getByRole('checkbox', { name: /사용 가능 연차/ }));
     expect(screen.getByText('0일')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: '구성 저장' }));
+    fireEvent.click(settings.getByRole('button', { name: '구성 저장' }));
 
     expect(screen.queryByText('0일')).toBeNull();
     expect(screen.getByRole('link', { name: '근태 신청' })).toBeTruthy();
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: '위젯 편집' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(widgetSettings());
     expect(JSON.parse(localStorage.getItem('worklog-home-widgets:scope-1')!)).toEqual([
       'schedule', 'pending', 'attendance', 'requests', 'week',
     ]);
@@ -97,6 +115,34 @@ describe('업무 홈', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /사용 가능 연차/ }));
     fireEvent.click(screen.getByRole('button', { name: '구성 저장' }));
     expect(screen.getByText('0일')).toBeTruthy();
+  });
+
+  it.each(['취소', '닫기', 'Escape'])('%s로 설정을 닫으면 수정 전 선택과 열기 버튼 초점으로 돌아간다', action => {
+    render(homePage('scope-1'));
+    const settings = editWidgets();
+    const leave = () => settings.getByRole<HTMLInputElement>('checkbox', { name: /사용 가능 연차/ });
+    fireEvent.click(leave());
+    expect(leave().checked).toBe(false);
+
+    if (action === 'Escape') fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+    else fireEvent.click(settings.getByRole('button', { name: action }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(widgetSettings());
+    expect(localStorage.getItem('worklog-home-widgets:scope-1')).toBeNull();
+    const reopened = editWidgets().getByRole<HTMLInputElement>('checkbox', { name: /사용 가능 연차/ });
+    expect(reopened.checked).toBe(true);
+  });
+
+  it('다른 업무 화면이 열리는 중에는 위젯 설정을 열지 않는다', () => {
+    const data = { workspaceHome: home, homeWidgetScope: 'scope-1' };
+    const view = render(<WorkspaceHome data={data} busy />);
+    expect((widgetSettings() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(widgetSettings());
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    view.rerender(<WorkspaceHome data={data} />);
+    expect(editWidgets().getAllByRole('checkbox')).toHaveLength(6);
   });
 
   it('모든 위젯을 뺀 상태를 저장하고 다시 선택할 수 있다', () => {

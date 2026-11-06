@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from 'react';
+import { useState } from 'react';
+import { Modal } from '../components/Modal';
 import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
 import './WorkspaceHome.css';
@@ -45,7 +46,7 @@ const iconPaths = {
   request: 'M6 3h9l3 3v15H6zM14 3v4h4M9 11h6m-6 4h6',
   arrow: 'M4 12h15m-6-6 6 6-6 6',
   plus: 'M12 5v14M5 12h14',
-  edit: 'M4 6h6m4 0h6M4 12h10m4 0h2M4 18h2m4 0h10M10 4v4m4 2v4M6 16v4',
+  settings: 'M10 3h4l.6 2.7 1.5.9 2.6-.8 2 3.4-2 1.9v1.8l2 1.9-2 3.4-2.6-.8-1.5.9L14 21h-4l-.6-2.7-1.5-.9-2.6.8-2-3.4 2-1.9v-1.8l-2-1.9 2-3.4 2.6.8 1.5-.9L10 3Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
   clock: 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3 2',
 };
 
@@ -82,24 +83,21 @@ function readWidgets(storageKey: string | undefined): readonly WidgetId[] {
   return widgetIds;
 }
 
-export function WorkspaceHome({ data }: Pick<PageProps, 'data'>) {
+export function WorkspaceHome({ data, busy }: Pick<PageProps, 'data' | 'busy'>) {
   const home = data.workspaceHome as HomeView | undefined;
   if (!home) return <section className="t-work-home"><h1>홈</h1><p>업무 현황을 확인하려면 화면을 새로 고쳐 주세요.</p></section>;
   const scope = typeof data.homeWidgetScope === 'string' ? data.homeWidgetScope : '';
   const storageKey = scope ? `worklog-home-widgets:${scope}` : undefined;
-  return <HomeDashboard key={storageKey} home={home} storageKey={storageKey} />;
+  return <HomeDashboard key={storageKey} home={home} storageKey={storageKey} busy={busy} />;
 }
 
-function HomeDashboard({ home, storageKey }: { home: HomeView; storageKey?: string }) {
+function HomeDashboard({ home, storageKey, busy }: { home: HomeView; storageKey?: string; busy?: boolean }) {
   const [visible, setVisible] = useState(() => readWidgets(storageKey));
   const [draft, setDraft] = useState<readonly WidgetId[] | null>(null);
   const [localOnly, setLocalOnly] = useState(false);
-  const editorId = useId();
-  const editButton = useRef<HTMLButtonElement>(null);
 
   function closeEditor() {
     setDraft(null);
-    editButton.current?.focus();
   }
 
   function saveWidgets() {
@@ -144,38 +142,34 @@ function HomeDashboard({ home, storageKey }: { home: HomeView; storageKey?: stri
         </div>
       </header>
       <div className="t-work-home-toolbar">
-        <div>
-          <h2>내 위젯</h2>
-          <p role="status">{visible.length}개 표시 중{localOnly && <> · <span>이 화면에만 구성이 적용됩니다.</span></>}</p>
-        </div>
-        <button type="button" className="t-btn t-work-home-button" ref={editButton} aria-expanded={draft !== null}
-          aria-controls={draft ? editorId : undefined} onClick={() => draft ? closeEditor() : setDraft(visible)}>
-          <Icon name="edit" />위젯 편집
+        <h2>내 위젯</h2>
+        <button type="button" className="t-btn t-work-home-settings-trigger" aria-label="위젯 설정" aria-haspopup="dialog" title="위젯 설정" disabled={busy}
+          onClick={event => { event.currentTarget.focus({ preventScroll: true }); setDraft(visible); }}>
+          <Icon name="settings" />
         </button>
       </div>
-      {draft && <form id={editorId} className="t-work-home-editor" onSubmit={event => { event.preventDefault(); saveWidgets(); }}>
-        <fieldset>
+      {localOnly && <p className="t-work-home-local-note" role="status">이 화면에만 구성이 적용됩니다.</p>}
+      {draft && <Modal title="위젯 설정" className="t-work-home-settings" onClose={closeEditor} footer={<>
+        <button type="button" className="t-btn t-modal-dismiss" onClick={closeEditor}>취소</button>
+        <button type="button" className="t-btn primary t-work-home-settings-save" onClick={saveWidgets}>구성 저장</button>
+      </>}>
+        <fieldset className="t-work-home-widget-picker">
           <legend>표시할 위젯</legend>
           <div className="t-work-home-widget-options">
             {widgetIds.map(id => <label key={id}>
+              <span className="t-work-home-widget-icon" data-widget={id}><Icon name={widgets[id].icon} /></span>
+              <span><strong>{widgets[id].title}</strong><small>{widgets[id].detail}</small></span>
               <input type="checkbox" checked={draft.includes(id)} onChange={event => {
                 const checked = event.target.checked;
                 setDraft(widgetIds.filter(item => item === id ? checked : draft.includes(item)));
               }} />
-              <span className="t-work-home-widget-icon" data-widget={id}><Icon name={widgets[id].icon} /></span>
-              <span><strong>{widgets[id].title}</strong><small>{widgets[id].detail}</small></span>
             </label>)}
           </div>
         </fieldset>
-        <div className="t-work-home-editor-actions">
-          <button type="button" className="t-btn t-work-home-button" onClick={closeEditor}>취소</button>
-          <button type="submit" className="t-btn t-work-home-button primary">구성 저장</button>
-        </div>
-      </form>}
+      </Modal>}
       {visible.length === 0 && <section className="t-work-home-panel t-work-home-no-widgets" aria-label="빈 위젯 영역">
-        <Icon name="edit" />
         <p><strong>표시 중인 위젯이 없습니다.</strong></p>
-        <p>위젯 편집에서 홈에 보고 싶은 항목을 골라보세요.</p>
+        <p>톱니바퀴를 눌러 홈에 표시할 항목을 골라보세요.</p>
       </section>}
 
       {displayedMetrics.length > 0 && <dl className="t-work-home-metrics" aria-label="내 근태 요약">

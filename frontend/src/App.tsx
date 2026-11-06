@@ -232,7 +232,7 @@ function Workspace({
   );
 }
 function Content(props: PageProps) {
-  if (props.page === 'workspace/home') return <WorkspaceHome data={props.data} />;
+  if (props.page === 'workspace/home') return <WorkspaceHome data={props.data} busy={props.busy} />;
   return (
     <>
       <AuthPages {...props} />

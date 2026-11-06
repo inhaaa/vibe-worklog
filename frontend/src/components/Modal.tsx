@@ -9,9 +9,10 @@ interface ModalProps {
   onClose: () => void;
   busy?: boolean;
   className?: string;
+  footer?: ReactNode;
 }
 
-export function Modal({ title, children, onClose, busy = false, className = '' }: ModalProps) {
+export function Modal({ title, children, onClose, busy = false, className = '', footer }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -69,7 +70,7 @@ export function Modal({ title, children, onClose, busy = false, className = '' }
       </header>
       <div className="t-modal-body">{children}</div>
       <footer className="t-modal-footer">
-        <button type="button" className="t-btn t-modal-dismiss" disabled={busy} onClick={onClose}>닫기</button>
+        {footer ?? <button type="button" className="t-btn t-modal-dismiss" disabled={busy} onClick={onClose}>닫기</button>}
       </footer>
     </dialog>,
     document.getElementById('tna-app') ?? document.body,
