@@ -31,6 +31,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -72,6 +75,45 @@ class ReactSecurityTest {
     }
 
     @Test
+    void homeWidgetScopeIsOpaqueAndStableForEachTenantAndAccount() throws Exception {
+        var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+        var nextSession = new TnaPrincipal(principal.tenantId(), principal.accountId(), principal.employeeId(), 2,
+                Set.of("EMPLOYEE", "APPROVER"), Instant.now());
+        var otherAccount = new TnaPrincipal(principal.tenantId(), UUID.randomUUID(), principal.employeeId(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+        var otherTenant = new TnaPrincipal(UUID.randomUUID(), principal.accountId(), principal.employeeId(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+
+        String scope = homeWidgetScope(principal);
+        assertEquals(scope, homeWidgetScope(nextSession));
+        assertNotEquals(scope, homeWidgetScope(otherAccount));
+        assertNotEquals(scope, homeWidgetScope(otherTenant));
+        assertNotEquals(principal.tenantId().toString(), scope);
+        assertNotEquals(principal.accountId().toString(), scope);
+        assertNotEquals(principal.employeeId().toString(), scope);
+        assertTrue(scope.matches("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"));
+    }
+
+    private String homeWidgetScope(TnaPrincipal principal) throws Exception {
+        when(auth.isCurrent(principal)).thenReturn(true);
+        var day = new DayView(new DaySnapshot(principal.employeeId(), LocalDate.of(2026, 11, 6),
+                List.of(), null, null, null, "UNCONFIRMED", 0, 0, null, "fixture", List.of()),
+                List.of(), true, true);
+        when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
+                day, List.of(day), null, 0, List.of()));
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_EMPLOYEE")));
+        var response = mvc.perform(get("/me/home").param("homeWidgetScope", "client-selected-scope")
+                        .with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.homeWidgetScope").isString())
+                .andReturn().getResponse();
+        return tools.jackson.databind.json.JsonMapper.builder().build().readTree(response.getContentAsString())
+                .get("data").get("homeWidgetScope").asString();
+    }
+
+    @Test
     void successfulEmployeeLoginOpensHome() throws Exception {
         var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
                 Set.of("EMPLOYEE"), Instant.now());
@@ -110,6 +152,7 @@ class ReactSecurityTest {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/login").header("Accept", ReactPageViewResolver.MEDIA_TYPE))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.page").value("login"))
+                .andExpect(jsonPath("$.data.homeWidgetScope").doesNotExist())
                 .andExpect(jsonPath("$.csrf.token").isNotEmpty());
     }
 

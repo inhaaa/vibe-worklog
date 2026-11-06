@@ -6,21 +6,19 @@
 #tna-app .t-work-home :is(h1, h2, p, dl, dd) { margin: 0; }
 #tna-app .t-work-home svg { inline-size: 18px; block-size: 18px; flex: none; }
 #tna-app .t-work-home-desk {
-  --home-inset: clamp(var(--space-md), 2.4vw, 32px);
+  --home-inset: clamp(var(--space-md), 2vw, 24px);
+  --home-gap: clamp(var(--space-xs), 1.4vw, var(--space-md));
+  --home-radius: 18px;
+  display: grid;
+  gap: var(--home-gap);
   min-inline-size: 0;
-  border: 1px solid var(--t-line);
-  border-radius: var(--t-radius);
-  background: var(--t-paper);
-}
-#tna-app .t-work-home-desk > :is(.t-work-home-welcome, .t-work-home-metrics, .t-work-home-columns, .t-work-home-week-panel) {
-  padding-inline: var(--home-inset);
 }
 #tna-app .t-work-home-welcome {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-lg);
-  padding-block: var(--home-inset);
+  padding: var(--home-inset) 0;
 }
 #tna-app .t-work-home-intro { min-inline-size: 0; }
 #tna-app .t-work-home .t-work-home-welcome h1 {
@@ -42,7 +40,7 @@
   font-weight: 650;
 }
 #tna-app .t-work-home-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
-#tna-app .t-work-home-actions a {
+#tna-app .t-work-home :is(.t-work-home-actions a, .t-work-home-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -53,40 +51,117 @@
   border-radius: var(--radius-input);
   background: var(--t-paper);
   color: var(--t-ink);
+  font: inherit;
   font-size: 14px;
   font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
 }
-#tna-app .t-work-home-actions a:last-child {
+#tna-app .t-work-home :is(.t-work-home-actions a:last-child, .t-work-home-button.primary) {
   border-color: var(--t-blue);
   background: var(--t-blue);
   color: var(--t-paper);
 }
-#tna-app .t-work-home-metrics {
+#tna-app .t-work-home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+#tna-app .t-work-home-toolbar h2 { font-size: 22px; line-height: 1.3; letter-spacing: -.025em; }
+#tna-app .t-work-home-toolbar p { color: var(--t-muted); font-size: 14px; word-break: keep-all; }
+#tna-app .t-work-home .t-work-home-button[aria-expanded="true"] {
+  background: var(--t-blue-soft);
+  color: var(--t-accent-ink);
+}
+#tna-app .t-work-home :is(.t-work-home-editor, .t-work-home-metric, .t-work-home-panel) {
+  min-inline-size: 0;
+  padding: var(--home-inset);
+  border: 1px solid var(--t-line);
+  border-radius: var(--home-radius);
+  background: var(--t-paper);
+}
+#tna-app .t-work-home .t-work-home-editor { border-color: var(--t-accent-border); }
+#tna-app .t-work-home-editor fieldset { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+#tna-app .t-work-home-editor legend { padding: 0; margin-block-end: var(--space-sm); font-size: 16px; font-weight: 700; }
+#tna-app .t-work-home-widget-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding-block: var(--space-md);
-  border-block: 1px solid var(--t-line);
-  background: var(--t-surface);
+  gap: var(--space-xs);
 }
-#tna-app .t-work-home-metrics > div { min-inline-size: 0; padding-inline: var(--space-lg); }
-#tna-app .t-work-home-metrics > div:first-child { padding-inline-start: 0; }
-#tna-app .t-work-home-metrics > div:last-child { padding-inline-end: 0; }
-#tna-app .t-work-home-metrics > div + div { border-inline-start: 1px solid var(--t-line); }
+#tna-app .t-work-home-widget-options label {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-xs);
+  min-inline-size: 0;
+  min-block-size: 64px;
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--t-line);
+  border-radius: var(--radius-input);
+  cursor: pointer;
+}
+#tna-app .t-work-home-widget-options label:has(input:checked) {
+  border-color: var(--t-accent-border);
+  background: color-mix(in srgb, var(--t-paper) 70%, var(--t-blue-soft));
+}
+#tna-app .t-work-home-widget-options label:has(input:focus-visible) { outline: 2px solid var(--t-focus); outline-offset: 2px; }
+#tna-app .t-work-home-widget-options input {
+  inline-size: 17px;
+  block-size: 17px;
+  margin: 0;
+  accent-color: var(--t-blue);
+  cursor: pointer;
+}
+#tna-app .t-work-home-widget-options :is(strong, small) { display: block; overflow-wrap: anywhere; word-break: keep-all; }
+#tna-app .t-work-home-widget-options strong { font-size: 14px; }
+#tna-app .t-work-home-widget-options small { color: var(--t-muted); font-size: 13px; }
+#tna-app .t-work-home-editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-xs); margin-block-start: var(--space-md); }
+#tna-app .t-work-home .t-work-home-no-widgets {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2xs);
+  padding-block: clamp(24px, 4vw, 48px);
+  border-style: dashed;
+  text-align: center;
+  word-break: keep-all;
+}
+#tna-app .t-work-home-no-widgets > svg { margin-block-end: var(--space-2xs); color: var(--t-accent-ink); }
+#tna-app .t-work-home-no-widgets p:last-child { color: var(--t-muted); }
+
+#tna-app .t-work-home-widget-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: 11px;
+  background: var(--t-blue-soft);
+  color: var(--t-accent-ink);
+}
+#tna-app .t-work-home [data-widget="leave"] .t-work-home-widget-icon,
+#tna-app .t-work-home .t-work-home-widget-icon[data-widget="leave"] { background: var(--t-green-soft); color: var(--t-green); }
+#tna-app .t-work-home [data-widget="pending"] .t-work-home-widget-icon,
+#tna-app .t-work-home .t-work-home-widget-icon[data-widget="pending"] { background: var(--t-amber-soft); color: var(--t-amber); }
+#tna-app .t-work-home-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
+  gap: var(--home-gap);
+}
 #tna-app .t-work-home-metrics dt {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  color: var(--t-accent-ink);
+  color: var(--t-ink);
   font-size: 14px;
   font-weight: 650;
   word-break: keep-all;
 }
-#tna-app .t-work-home-metrics dd { min-inline-size: 0; margin-block-start: var(--space-2xs); }
+#tna-app .t-work-home-metrics dd { min-inline-size: 0; margin-block-start: var(--space-sm); }
 #tna-app .t-work-home-metrics strong {
   display: block;
-  font-size: clamp(21px, 2vw, 28px);
+  font-size: clamp(22px, 2.25vw, 32px);
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -102,14 +177,8 @@
 
 #tna-app .t-work-home-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: clamp(20px, 3vw, 40px);
-  padding-block-start: var(--home-inset);
-}
-#tna-app .t-work-home-panel { min-inline-size: 0; }
-#tna-app .t-work-home-columns > section + section {
-  padding-inline-start: clamp(20px, 3vw, 40px);
-  border-inline-start: 1px solid var(--t-line);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--home-gap);
 }
 #tna-app .t-work-home-panel-heading {
   display: flex;
@@ -119,7 +188,14 @@
   gap: 0 var(--space-xs);
   margin-block-end: var(--space-xs);
 }
-#tna-app .t-work-home-panel-heading h2 { font-size: 21px; font-weight: 700; letter-spacing: -.025em; }
+#tna-app .t-work-home-panel-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
 #tna-app .t-work-home-panel-heading a {
   display: inline-flex;
   align-items: center;
@@ -194,20 +270,20 @@
 #tna-app .t-work-home-recent a :is(strong, small) { display: block; overflow-wrap: anywhere; }
 #tna-app .t-work-home :is(.t-work-home-recent, .t-work-home-week) small { color: var(--t-muted); font-size: 13px; }
 #tna-app .t-work-home-empty { padding-block: var(--space-lg); color: var(--t-muted); }
-#tna-app .t-work-home-week-panel { margin-block-start: var(--space-lg); padding-block: var(--space-md) var(--home-inset); border-block-start: 1px solid var(--t-line); }
-#tna-app .t-work-home-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+#tna-app .t-work-home-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2xs); }
 #tna-app .t-work-home-week a {
   display: grid;
   align-content: start;
   gap: var(--space-xs);
   min-block-size: 82px;
   padding: var(--space-sm);
+  border-radius: var(--radius-input);
+  background: var(--t-surface);
   color: var(--t-ink);
   text-decoration: none;
   overflow-wrap: anywhere;
   word-break: keep-all;
 }
-#tna-app .t-work-home-week a + a { border-inline-start: 1px solid var(--t-line); }
 #tna-app .t-work-home-week a[aria-current] { background: var(--t-blue-soft); box-shadow: inset 0 -2px var(--t-blue); }
 #tna-app .t-work-home-week-date { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2xs); color: var(--t-muted); font-size: 13px; }
 #tna-app .t-work-home-week-date time { color: var(--t-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -216,38 +292,49 @@
 #tna-app .t-work-home-week-shift strong { font-size: 14px; font-variant-numeric: tabular-nums; }
 
 @media (hover: hover) {
-  #tna-app .t-work-home-actions a:first-child:hover { background: var(--t-blue-soft); }
-  #tna-app .t-work-home-actions a:last-child:hover { background: var(--t-blue-hover); }
+  #tna-app .t-work-home :is(.t-work-home-actions a:first-child, .t-work-home-button:not(.primary)):hover { background: var(--t-blue-soft); }
+  #tna-app .t-work-home :is(.t-work-home-actions a:last-child, .t-work-home-button.primary):hover { background: var(--t-blue-hover); }
   #tna-app .t-work-home-panel-heading a:hover { text-decoration: underline; }
   #tna-app .t-work-home-recent a:hover strong { text-decoration: underline; }
-  #tna-app .t-work-home-week a:hover { background: var(--t-surface); }
-  #tna-app .t-work-home-week a[aria-current]:hover { background: var(--t-blue-soft); }
+  #tna-app .t-work-home-week a:hover { background: var(--t-blue-soft); }
+  #tna-app .t-work-home-widget-options label:hover { border-color: var(--t-focus); }
+}
+
+@container work-home (min-width: 600px) {
+  #tna-app .t-work-home-metric:only-child { display: flex; align-items: center; gap: var(--space-lg); }
+  #tna-app .t-work-home-metric:only-child dd {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-xs) var(--space-md);
+    margin: 0;
+  }
+  #tna-app .t-work-home-metric:only-child small { margin: 0; }
 }
 
 @container work-home (max-width: 800px) {
   #tna-app .t-work-home-week { grid-template-columns: minmax(0, 1fr); }
   #tna-app .t-work-home-week a { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; min-block-size: 56px; }
-  #tna-app .t-work-home-week a + a { border-inline-start: 0; border-block-start: 1px solid var(--t-line); }
   #tna-app .t-work-home-week a[aria-current] { box-shadow: inset 2px 0 var(--t-blue); }
+  #tna-app .t-work-home-widget-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @container work-home (max-width: 720px) {
   #tna-app .t-work-home-welcome { align-items: flex-start; flex-direction: column; gap: var(--space-md); }
-  #tna-app .t-work-home-columns { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
-  #tna-app .t-work-home-columns > section + section { padding-inline-start: 0; padding-block-start: var(--space-sm); border-inline-start: 0; border-block-start: 1px solid var(--t-line); }
 }
 
-@container work-home (max-width: 570px) {
-  #tna-app .t-work-home-metrics { grid-template-columns: minmax(0, 1fr); padding-block: 0; }
-  #tna-app .t-work-home-metrics > div {
+@container work-home (max-width: 475px) {
+  #tna-app .t-work-home-widget-options, #tna-app .t-work-home-metrics { grid-template-columns: minmax(0, 1fr); }
+  #tna-app .t-work-home .t-work-home-metric {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: center;
     gap: var(--space-xs);
     min-block-size: 60px;
-    padding: var(--space-xs) 0;
+    padding: var(--space-sm) var(--home-inset);
   }
-  #tna-app .t-work-home-metrics > div + div { border-inline-start: 0; border-block-start: 1px solid var(--t-line); }
   #tna-app .t-work-home-metrics dd { margin-block-start: 0; text-align: end; }
 }
 
