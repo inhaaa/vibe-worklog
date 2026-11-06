@@ -219,6 +219,12 @@ describe('React 앱 탐색과 제출', () => {
     expect(screen.getByRole('region', { name: '사원 인사정보' }).textContent).toContain('합성회사');
   });
 
+  it('홈에는 인사 헤더 없이 근무 대시보드만 표시한다', () => {
+    render(<App initial={{ ...today, page: 'workspace/home' }} />);
+    expect(screen.getByRole('heading', { name: '민감직원님, 안녕하세요' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: '사원 인사정보' })).toBeNull();
+  });
+
   it('대표는 회사 현황을 조회하며 관리자·결재 기능을 자동으로 얻지 않는다', () => {
     const view = render(<App initial={{
       ...today,

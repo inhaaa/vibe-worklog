@@ -224,7 +224,7 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {headerEmployee && <EmployeeHeader employee={headerEmployee} compact={page === 'workspace/home'} />}
+        {page !== 'workspace/home' && headerEmployee && <EmployeeHeader employee={headerEmployee} />}
         {children}
       </main>
     </div>

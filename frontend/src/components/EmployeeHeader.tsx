@@ -8,10 +8,9 @@ export interface EmployeeHeaderData {
 type EmployeeSummary = Pick<EmployeeHeaderData, 'employeeName' | 'companyName'>;
 export const employmentStatusName = (status: string) => ({ WORKING: '재직', ON_LEAVE: '휴직', SUSPENDED: '정직', PRE_JOINING: '입사 예정', LEFT: '퇴사', UNKNOWN: '상태 미등록' }[status] ?? '상태 미등록');
 
-export function EmployeeHeader({ employee, compact = false }: { employee: EmployeeHeaderData | EmployeeSummary; compact?: boolean }) {
+export function EmployeeHeader({ employee }: { employee: EmployeeHeaderData | EmployeeSummary }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const details = 'employeeId' in employee ? employee : null;
-  const compactLayout = compact || !details;
   const photoUrl = details?.photoUrl;
   const photo = photoUrl && failedUrl !== photoUrl ? photoUrl : null;
   const entries = details ? [
@@ -19,7 +18,7 @@ export function EmployeeHeader({ employee, compact = false }: { employee: Employ
     ['직무', details.jobName], ['입사일', details.joinedOn],
   ] : [];
 
-  return <section className="t-employee-header" aria-label="사원 인사정보" data-compact={compactLayout}>
+  return <section className="t-employee-header" aria-label="사원 인사정보" data-compact={!details}>
     <div className="t-employee-identity-card">
       <div className="t-employee-portrait">
         {photo ? <img src={photo} alt={`${employee.employeeName} 사원사진`} onError={() => setFailedUrl(photo)} />
@@ -37,7 +36,7 @@ export function EmployeeHeader({ employee, compact = false }: { employee: Employ
         </p>}
       </div>
     </div>
-    {!compactLayout && <dl className="t-employee-facts">
+    {details && <dl className="t-employee-facts">
       {entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '미등록'}</dd></div>)}
     </dl>}
   </section>;
