@@ -11,8 +11,6 @@
 #tna-app .t-workspace-navigation .t-navigation-icon { display: grid; place-items: center; width: 20px; height: 24px; flex: 0 0 20px; color: var(--t-muted); }
 #tna-app .t-workspace-navigation .t-navigation-group-icon { width: 18px; height: 18px; }
 #tna-app .t-workspace-navigation .t-navigation-major[data-active=true] .t-navigation-icon { color: var(--t-blue); }
-#tna-app .t-workspace-navigation .t-navigation-home { min-height: 44px; gap: var(--space-xs); margin-bottom: var(--space-xs); }
-#tna-app .t-workspace-navigation .t-navigation-home[aria-current=page], #tna-app .t-workspace-navigation .t-navigation-home[aria-current=page] .t-navigation-icon { background: var(--t-blue-soft); color: var(--t-blue); font-weight: 600; }
 #tna-app .t-workspace-navigation .t-navigation-label { flex: 1; min-width: 0; }
 #tna-app .t-workspace-navigation .t-navigation-chevron { width: 12px; height: 12px; flex: 0 0 12px; margin-left: auto; color: var(--t-muted); }
 #tna-app .t-workspace-navigation .t-navigation-toggle[aria-expanded=true] .t-navigation-chevron { transform: rotate(90deg); }

@@ -144,6 +144,13 @@ function Workspace({
   const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
   const headerEmployee = employeeHeader ?? employee;
+  const brand = (
+    <a className="t-brand-button t-wordmark" href="/me/home" aria-label="WorkLog 홈으로"
+      aria-current={page === 'workspace/home' ? 'page' : undefined} onClick={() => setOpen(false)}>
+      <span className="t-logo" aria-hidden="true">W</span>
+      <span>WorkLog<span className="t-brand-sub">Work, in rhythm.</span></span>
+    </a>
+  );
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -155,14 +162,7 @@ function Workspace({
     <div className="t-app-shell" data-menu-open={String(open)}>
       <a className="t-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>본문으로 건너뛰기</a>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
-        <a className="t-brand-button t-wordmark" href="/me/home" onClick={() => setOpen(false)}>
-          <span className="t-logo" aria-hidden="true">
-            W
-          </span>
-          <span>
-            WorkLog<span className="t-brand-sub">Work, in rhythm.</span>
-          </span>
-        </a>
+        {brand}
         <div className="t-workspace-name">
           <span className="t-workspace-icon">T</span>
           <span>
@@ -196,6 +196,7 @@ function Workspace({
           >
             <Icon name="menu" />
           </button>
+          {brand}
           <Breadcrumbs page={page} data={data} />
         </div>
         <div className="t-profile">
