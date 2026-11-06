@@ -65,25 +65,12 @@
   #tna-app .t-approval-empty { padding:48px var(--space-md); }
 }
 
-/* One ledger surface, with quiet color separating navigation and each record. */
-#tna-app .t-approval-icon { color:var(--t-accent-ink); }
-#tna-app .t-approval-nav { gap:var(--space-xs); padding:var(--space-xs); background:var(--t-section); border:1px solid var(--t-line); border-radius:var(--t-radius); }
-#tna-app .t-approval-nav a { padding:var(--space-sm) var(--space-md); border-bottom:0; border-radius:4px; }
-#tna-app .t-approval-nav a[aria-current=page] { background:var(--t-paper); color:var(--t-accent-ink); box-shadow:inset 0 -2px var(--t-blue); }
-#tna-app .t-approval-count { padding:var(--space-2xs) var(--space-xs); background:var(--t-blue-soft); color:var(--t-accent-ink); border-radius:4px; }
+/* One continuous ledger, with the accent reserved for selection and actions. */
 #tna-app .t-approval-list { border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:hidden; }
 #tna-app .t-approval-card { padding:var(--space-lg); }
 #tna-app .t-approval-card:last-child { border-bottom:0; }
-#tna-app .t-approval-card:nth-child(even) { background:var(--t-surface); }
-#tna-app .t-approval-avatar { background:var(--t-blue-soft); color:var(--t-accent-ink); }
-#tna-app .t-approval-facts { padding-left:var(--space-lg); border-left:1px solid var(--t-line); }
-#tna-app .t-approval-facts .t-approval-quantity { color:var(--t-accent-ink); }
-#tna-app .t-approval-meta { padding-top:var(--space-md); border-top:1px solid var(--t-line); }
+#tna-app .t-approval-avatar { background:var(--t-blue-soft); color:var(--t-blue); }
 #tna-app .t-approval-empty { border:1px solid var(--t-line); border-radius:var(--t-radius); }
-@media (max-width:800px) {
-  #tna-app .t-approval-facts { padding:var(--space-md) 0 0; border-left:0; border-top:1px solid var(--t-line); }
-}
 @media (max-width:680px) {
   #tna-app .t-approval-card { padding:var(--space-md); }
-  #tna-app .t-approval-nav a { flex:1; padding-inline:var(--space-sm); }
 }

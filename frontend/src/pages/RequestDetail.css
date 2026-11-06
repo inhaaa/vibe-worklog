@@ -1,6 +1,6 @@
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: request ledger · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
-#tna-app .t-request-detail-page { min-width:0; color:var(--t-ink); }
+#tna-app .t-request-detail-page { min-width:0; padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-paper); color:var(--t-ink); }
 #tna-app .t-request-detail-page * { box-sizing:border-box; }
 #tna-app .t-request-detail-page .t-pagehead { gap:20px; }
 #tna-app .t-request-detail-page .t-pagehead h1 { font-size: 28px; letter-spacing: -.5px; }
@@ -94,32 +94,18 @@
   #tna-app .t-request-detail-page .t-request-detail-form .primary:hover { background:var(--t-blue-hover); border-color:var(--t-blue-hover); }
 }
 
-/* Record sections share the same tinted labels as personnel details. */
-#tna-app .t-request-detail-page .t-card { padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); }
-#tna-app .t-request-detail-page .t-request-detail-summary { border-color:var(--t-accent-border); border-top:3px solid var(--t-blue); }
-#tna-app .t-request-detail-page .t-request-detail-effect { padding:var(--space-sm) var(--space-md); background:var(--t-blue-soft); color:var(--t-accent-ink); }
-#tna-app .t-request-detail-page .t-request-detail-effect strong { color:var(--t-accent-ink); font-weight:600; }
-#tna-app .t-request-detail-page .t-request-detail-overview { gap:var(--space-lg); }
-#tna-app .t-request-detail-page .t-request-detail-fact + .t-request-detail-fact { padding-left:var(--space-lg); border-left:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-fact h3 { color:var(--t-accent-ink); font-size:14px; }
-#tna-app .t-request-detail-page .t-request-detail-values { border:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-values dt { padding:var(--space-sm); background:var(--t-label); color:var(--t-accent-ink); border-right:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-values dd { padding:var(--space-sm); background:var(--t-paper); }
-#tna-app .t-request-detail-page .t-request-detail-days { border:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-days li { padding:var(--space-sm); border-top:0; border-bottom:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-days li:nth-child(odd) { background:var(--t-label); }
-#tna-app .t-request-detail-page .t-request-detail-days li:last-child { border-bottom:0; }
-#tna-app .t-request-detail-page .t-request-detail-timeline { border-top:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-timeline li { padding:var(--space-md); border-top:0; border-bottom:1px solid var(--t-line); }
-#tna-app .t-request-detail-page .t-request-detail-timeline li:nth-child(odd) { background:var(--t-surface); }
-#tna-app .t-request-detail-page .t-request-detail-timeline li:last-child { padding-bottom:var(--space-md); border-bottom:0; }
+/* A single work surface keeps sections distinct without nested boxes. */
+#tna-app .t-request-detail-page .t-request-detail-effect { padding:var(--space-sm) 0; color:var(--t-muted); }
+#tna-app .t-request-detail-page .t-request-detail-fact h3 { font-size:14px; }
+#tna-app .t-request-detail-page .t-request-detail-values { border-block:1px solid var(--t-line); }
+#tna-app .t-request-detail-page .t-request-detail-values dt { padding:var(--space-sm); background:var(--t-label); color:var(--t-muted); }
+#tna-app .t-request-detail-page .t-request-detail-values dd { padding:var(--space-sm) var(--space-md); background:var(--t-paper); }
+#tna-app .t-request-detail-page .t-request-detail-days { border-bottom:1px solid var(--t-line); }
 #tna-app .t-request-detail-page .t-request-detail-empty { padding:var(--space-md); background:var(--t-surface); }
-#tna-app .t-request-detail-page .t-request-decision-panel { border-top:3px solid var(--t-blue); }
-#tna-app .t-request-detail-page .t-request-decision-panel .t-request-detail-form { padding:var(--space-md); background:var(--t-surface); }
-#tna-app .t-request-detail-page .t-request-decision-panel .t-request-decision-approve { background:var(--t-green-soft); border-color:var(--t-line); }
+#tna-app .t-modal .t-request-detail-page { padding:0; border:0; border-radius:0; }
 @media (max-width:680px) {
-  #tna-app .t-request-detail-page .t-card { padding:var(--space-md); }
-  #tna-app .t-request-detail-page .t-request-detail-fact + .t-request-detail-fact { padding-left:0; padding-top:var(--space-md); border-left:0; border-top:1px solid var(--t-line); }
+  #tna-app .t-request-detail-page { padding:var(--space-md); }
+  #tna-app .t-request-detail-page .t-request-detail-fact + .t-request-detail-fact { padding-top:var(--space-md); border-top:1px solid var(--t-line); }
   #tna-app .t-request-detail-page .t-request-detail-values { grid-template-columns:minmax(88px,.8fr) minmax(0,1.6fr); }
   #tna-app .t-request-detail-page .t-request-detail-values dt { border-bottom:1px solid var(--t-line); }
   #tna-app .t-request-detail-page .t-request-detail-values dt:nth-last-child(2) { border-bottom:0; }

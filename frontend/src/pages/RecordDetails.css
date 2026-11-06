@@ -1,18 +1,21 @@
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · signature: recorded evidence · v2.0.0 */
-/* Hallmark · pre-emit critique: preserve evidence semantics; use tinted terms and aligned values to distinguish long records. */
-#tna-app .t-record-detail { min-width:0; }
+/* Hallmark · pre-emit critique: preserve evidence semantics; quiet labels and horizontal rules make long records easier to scan. */
+#tna-app .t-record-detail { min-width:0; padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-paper); }
 #tna-app .t-record-detail > h1 { font-size:24px; overflow-wrap:break-word; min-width:0; }
-#tna-app .t-record-detail > .panel { margin-block:var(--space-lg); }
-#tna-app .t-record-detail > .panel > h2:first-child { margin:0 0 var(--space-md); padding:var(--space-sm) var(--space-md); border-left:3px solid var(--t-accent-border); background:var(--t-section); color:var(--t-accent-ink); font-size:18px; }
-#tna-app .t-record-detail dl { display:grid; grid-template-columns:minmax(160px,.4fr) minmax(0,1fr); gap:0; margin:var(--space-md) 0; border:1px solid var(--t-line); background:var(--t-paper); }
+#tna-app .t-record-detail :is(p,li) { overflow-wrap:anywhere; }
+#tna-app .t-record-detail > .panel { margin-block:var(--space-lg); padding:var(--space-lg) 0 0; border:0; border-top:1px solid var(--t-line); border-radius:0; background:transparent; }
+#tna-app .t-record-detail > .panel > h2:first-child { margin:0 0 var(--space-md); padding:0; border:0; background:transparent; color:var(--t-ink); font-size:18px; font-weight:600; }
+#tna-app .t-record-detail dl { display:grid; grid-template-columns:minmax(160px,.4fr) minmax(0,1fr); gap:0; margin:var(--space-md) 0; border:0; border-block:1px solid var(--t-line); background:var(--t-paper); }
 #tna-app .t-record-detail dl:empty { display:none; }
 #tna-app .t-record-detail dl > :is(dt,dd) { min-width:0; margin:0; padding:var(--space-sm) var(--space-md); border-bottom:1px solid var(--t-line); line-height:1.7; overflow-wrap:anywhere; }
-#tna-app .t-record-detail dl > dt { background:var(--t-label); color:var(--t-accent-ink); border-right:1px solid var(--t-line); font-size:14px; font-weight:500; word-break:keep-all; }
+#tna-app .t-record-detail dl > dt { background:var(--t-label); color:var(--t-muted); font-size:14px; font-weight:500; word-break:keep-all; }
 #tna-app .t-record-detail dl > dd { background:var(--t-paper); color:var(--t-ink); font-size:16px; font-variant-numeric:tabular-nums; }
 #tna-app .t-record-detail dl > dt:nth-last-child(2), #tna-app .t-record-detail dl > dd:last-child { border-bottom:0; }
-#tna-app .t-modal .t-record-detail > .panel { padding:0; border:0; border-radius:0; background:transparent; }
+#tna-app .t-modal .t-record-detail { padding:0; border:0; border-radius:0; }
+#tna-app .t-modal .t-record-detail > .panel { padding:var(--space-lg) 0 0; }
 @media (max-width:680px) {
-  #tna-app .t-record-detail > .panel > h2:first-child { padding:var(--space-sm); font-size:16px; }
+  #tna-app .t-record-detail { padding:var(--space-md); }
+  #tna-app .t-record-detail > .panel > h2:first-child { font-size:18px; }
   #tna-app .t-record-detail dl { grid-template-columns:minmax(100px,.75fr) minmax(0,1.25fr); }
   #tna-app .t-record-detail dl > :is(dt,dd) { padding:var(--space-sm); }
 }
