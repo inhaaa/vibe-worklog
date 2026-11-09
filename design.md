@@ -41,3 +41,5 @@
 홈과 공통 인사 헤더, 신청 모달의 표시 및 탐색 계약은 [홈과 업무 화면 개편](docs/design/workspace-home-refresh.md)을 따른다.
 
 새 업무 화면의 탐색, 둥근 선택 입력, 홈·인사·신청서 시트는 [업무 화면 재설계](docs/design/modern-hr-workspace.md)를 따른다.
+
+2026-11-07 사용자의 Hallmark 메인 재설계 요청에 따라 로그인 전 `demo` 화면에만 입체 달력·시계와 짧은 등장 모션을 허용한다. 기존 업무 화면의 차콜·블루 규칙은 유지하며, 별도 `DemoLanding.css` 토큰과 축소 모션 처리를 사용한다. 범위와 검증은 [입체 메인 화면](docs/design/worklog-landing.md)을 따른다.

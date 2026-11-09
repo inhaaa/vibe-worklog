@@ -15,6 +15,19 @@ const html = (name: string, data: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('AuthPages', () => {
+  it('메인 화면 시작 링크가 기존 사번 로그인 폼으로 연결된다', () => {
+    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', {
+      demoAccounts: [{ employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' }],
+    })}</CsrfContext.Provider>);
+    const start = view.getByRole('link', { name: 'WorkLog 시작하기' });
+    expect(start.getAttribute('href')).toBe('#demo-login-form');
+    const form = view.container.querySelector<HTMLFormElement>(start.getAttribute('href')!)!;
+    expect(form.getAttribute('action')).toBe('/login');
+    expect(form.method).toBe('post');
+    expect(view.getByRole('button', { name: '데모 살펴보기' }).getAttribute('form')).toBe(form.id);
+    expect(view.container.querySelectorAll('form[action="/login"]')).toHaveLength(1);
+    expect(form.querySelector<HTMLInputElement>('[name="_csrf"]')!.value).toBe('csrf-value');
+  });
   it('사번 로그인과 서버가 제공한 테스트 사원 선택을 같은 정상 폼으로 연결한다', () => {
     const view = render(<CsrfContext.Provider value={csrf}>{page('demo', { demoAccounts: [
       { employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' },
