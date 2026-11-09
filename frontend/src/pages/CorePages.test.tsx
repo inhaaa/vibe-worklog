@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactElement } from 'react';
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CorePages } from './CorePages';
 import type { PageProps } from '../types';
@@ -178,6 +178,45 @@ describe('개인 홈과 일정', () => {
       [...selected.querySelectorAll('.t-day-event')].map((item) => item.textContent),
     ).toContain('확인된 휴일');
     expect(doc.querySelector('.t-day-detail h2 time')?.getAttribute('datetime')).toBe('2026-10-25');
+  });
+
+  it('선택하지 않은 날짜의 우클릭과 더보기에서 같은 날짜와 유형의 신청 링크를 연다', () => {
+    const previous = {
+      ...day, today: false, selected: true,
+      snapshot: { ...snapshot, workDate: '2026-10-25' },
+    };
+    const target = { ...day, selected: false };
+    const view = render(<CorePages {...props('workspace/schedule', {
+      workspaceCalendar: {
+        month: '2026-10', selectedDate: '2026-10-25', selectedDay: previous,
+        days: [previous, target], leadingBlanks: [], previousMonth: null, nextMonth: null,
+      },
+    })} />);
+    const dateLink = view.getByRole('link', { name: /^2026-10-26 ·/ });
+    const trigger = view.getByRole('button', { name: '2026-10-26 신청 메뉴' });
+    const checkMenu = () => {
+      const menu = within(view.getByRole('group', { name: '2026-10-26 신청 메뉴' }));
+      for (const [name, kind] of [['종일 연차', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
+        const url = new URL((menu.getByRole('link', { name }).getAttribute('href'))!, 'https://worklog.test');
+        expect(url.pathname).toBe('/me/requests/new');
+        expect(Object.fromEntries(url.searchParams)).toEqual({ year: '2026', kind, date: '2026-10-26' });
+      }
+      expect(view.getByRole('region', { name: '선택한 날짜 상세' }).querySelector('time')?.dateTime).toBe('2026-10-25');
+      return menu;
+    };
+
+    fireEvent.contextMenu(dateLink);
+    const first = checkMenu().getByRole('link', { name: '종일 연차' });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: 'Escape' });
+    expect(view.queryByRole('group', { name: '2026-10-26 신청 메뉴' })).toBeNull();
+    expect(document.activeElement).toBe(dateLink);
+    fireEvent.click(trigger);
+    checkMenu();
+    fireEvent.pointerDown(document.body);
+    expect(view.queryByRole('group', { name: '2026-10-26 신청 메뉴' })).toBeNull();
+    fireEvent.keyDown(dateLink, { key: 'F10', shiftKey: true });
+    checkMenu();
   });
 
   it('최근 신청을 안정된 신청 ID의 조회 시트에 표시하고 상세 링크와 상태를 보존한다', async () => {
