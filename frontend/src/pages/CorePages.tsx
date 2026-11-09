@@ -1,8 +1,10 @@
 import type { PageProps } from '../types';
+import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import './ScheduleCalendar.css';
 
 interface RequestItem {
   request: { id: string; fromDate: string; toDate: string };
@@ -288,23 +290,105 @@ function Today({ data, reload }: PageProps) {
   );
 }
 
+function seoulCalendarToday() {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  return ['year', 'month', 'day'].map(type => parts.find(part => part.type === type)?.value).join('-');
+}
+
+const calendarRequestKinds = [
+  { kind: 'LEAVE_DAY', title: '종일 연차', icon: 'M4 12h16m-8-8v16' },
+  { kind: 'ATTENDANCE_CORRECTION', title: '출퇴근·휴게 정정', icon: 'M12 6v6l4 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z' },
+] as const;
+
+function calendarRequestRestriction(kind: typeof calendarRequestKinds[number]['kind'], date: string, today: string) {
+  const year = Number(date.slice(0, 4));
+  if (year < 1900 || year > 9998) return '신청은 1900~9998년 날짜로 할 수 있습니다.';
+  if (kind === 'LEAVE_DAY' && date < today) return '지난 날짜에는 연차를 신청할 수 없습니다.';
+  if (kind === 'ATTENDANCE_CORRECTION' && date > today) return '미래 날짜는 정정할 수 없습니다.';
+  return null;
+}
+
 function Schedule({ data }: PageProps) {
   const calendar = data.workspaceCalendar as Calendar;
   const selected = calendar.selectedDay;
   const [year, month] = calendar.month.split('-');
+  const menuId = useId();
+  const [request, setRequest] = useState<{ date: string; detail: boolean } | null>(null);
+  const requestDate = request?.date;
+  const menu = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement>(null);
+  const today = calendar.days.find(entry => entry.today)?.snapshot.workDate ?? seoulCalendarToday();
+
+  function openMenu(date: string, trigger: HTMLElement, detail = false) {
+    opener.current = trigger;
+    setRequest({ date, detail });
+  }
+
+  function closeMenu(restoreFocus: boolean) {
+    if (restoreFocus) opener.current?.focus({ preventScroll: true });
+    setRequest(null);
+  }
+
+  useEffect(() => {
+    if (!request) return;
+    (menu.current?.querySelector('a') ?? menu.current?.querySelector('button'))?.focus({ preventScroll: true });
+    function outside(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!menu.current?.contains(target) && !opener.current?.contains(target)) setRequest(null);
+    }
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [request]);
+
+  function requestMenu(date: string) {
+    const year = date.slice(0, 4);
+    return <div ref={menu} id={menuId} className="t-attendance-request-menu" role="group"
+      aria-label={`${date} 신청 메뉴`} onKeyDown={event => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeMenu(true);
+        }
+      }} onBlur={event => {
+        if (event.relatedTarget && event.relatedTarget !== opener.current && !event.currentTarget.contains(event.relatedTarget)) closeMenu(false);
+      }}>
+      <header>
+        <div><span>날짜별 신청</span><time dateTime={date}>{fmtDate(date)}</time></div>
+        <button type="button" className="t-icon-button" aria-label="신청 메뉴 닫기" onClick={() => closeMenu(true)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </header>
+      {calendarRequestKinds.map(({ kind, title, icon }) => {
+        const blocked = calendarRequestRestriction(kind, date, today);
+        const label = <>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d={icon} /></svg>
+          <span>{title}{blocked && <small>{blocked}</small>}</span>
+        </>;
+        return blocked
+          ? <span key={kind} className="t-attendance-request-option" aria-disabled="true">{label}</span>
+          : <a key={kind} className="t-attendance-request-option"
+            href={`/me/requests/new?${new URLSearchParams({ year, kind, date })}`}
+            onClick={event => {
+              if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) closeMenu(true);
+            }}>{label}</a>;
+      })}
+    </div>;
+  }
+
   return (
     <>
       <header className="t-pagehead">
         <div>
-
-          <h1>내 근무 일정</h1>
-          <p className="t-muted">배정 일정과 신청 효력을 날짜별로 확인하세요.</p>
+          <h1>근태 캘린더</h1>
+          <p className="t-muted">배정된 근무와 신청 상태를 확인하고 날짜에서 바로 신청하세요.</p>
         </div>
       </header>
-      <div className="t-calendar-layout">
-        <section className="t-card t-calendar-card" aria-label="월별 근무 일정">
+      <div className="t-attendance-calendar">
+        <section className="t-card t-calendar-card t-attendance-board" aria-label="월별 근무 일정">
           <div className="t-calendar-toolbar">
-            <div className="t-month-navigation">
+            <h2 className="t-attendance-month"><span>{year}년</span>{' '}{Number(month)}월</h2>
+            <div className="t-month-navigation" aria-label="표시 월 이동">
               {calendar.previousMonth && (
                 <a
                   className="t-icon-button"
@@ -314,9 +398,7 @@ function Schedule({ data }: PageProps) {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
                 </a>
               )}
-              <h2>
-                {year}년 {Number(month)}월
-              </h2>
+              <a className="t-btn secondary" href="/me/schedule">오늘</a>
               {calendar.nextMonth && (
                 <a
                   className="t-icon-button"
@@ -327,28 +409,13 @@ function Schedule({ data }: PageProps) {
                 </a>
               )}
             </div>
-            <a className="t-btn secondary" href="/me/schedule">
-              오늘
-            </a>
+            <Form method="get" action="/me/schedule" className="t-toolbar t-attendance-jump">
+              <label className="t-sr-only" htmlFor="workspace-month">조회 월</label>
+              <input className="t-input" id="workspace-month" type="month" name="month"
+                defaultValue={calendar.month} min="0001-01" max="9999-12" required />
+              <button className="t-btn secondary" type="submit">월 조회</button>
+            </Form>
           </div>
-          <Form method="get" action="/me/schedule" className="t-toolbar">
-            <label className="t-sr-only" htmlFor="workspace-month">
-              조회 월
-            </label>
-            <input
-              className="t-input"
-              id="workspace-month"
-              type="month"
-              name="month"
-              defaultValue={calendar.month}
-              min="0001-01"
-              max="9999-12"
-              required
-            />
-            <button className="t-btn secondary" type="submit">
-              월 조회
-            </button>
-          </Form>
           <div className="t-calendar-legend">
             <span>
               <i className="blue" aria-hidden="true" />
@@ -362,6 +429,7 @@ function Schedule({ data }: PageProps) {
               <i className="green" aria-hidden="true" />
               승인 연차
             </span>
+            <span className="t-attendance-hint">날짜 우클릭 또는 ⋯로 신청</span>
           </div>
           <div className="t-weekdays" aria-hidden="true">
             {weekdays.map((day) => (
@@ -376,49 +444,50 @@ function Schedule({ data }: PageProps) {
               const date = entry.snapshot.workDate;
               const weekend = [0, 6].includes(new Date(`${date}T00:00:00Z`).getUTCDay());
               return (
-                <a
-                  key={date}
-                  className={[
-                    't-day',
-                    entry.selected ? 'selected' : '',
-                    entry.today ? 'today' : '',
-                    weekend ? 'weekend' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  href={`/me/schedule?month=${calendar.month}&date=${date}`}
-                  aria-current={entry.today ? 'date' : undefined}
-                  aria-label={`${date} · ${entry.scheduleText}${entry.selected ? ' · 선택한 날짜' : ''}`}
-                >
-                  <time className="t-day-number" dateTime={date}>
-                    {Number(date.slice(-2))}
-                  </time>
-                  <span className="t-day-event">
-                    {entry.snapshot.schedule == null ? '미배정' : entry.scheduleText}
-                  </span>
-                  {entry.snapshot.dayKind === 'UNCONFIRMED' && (
-                    <span className="t-day-event warning">미확인</span>
-                  )}
-                  {entry.snapshot.dayKind === 'HOLIDAY' && (
-                    <span className="t-day-event">확인된 휴일</span>
-                  )}
-                  {entry.requests.slice(0, 2).map((item) => (
-                    <span
-                      className={[
-                        't-day-event',
-                        item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'warning' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      key={item.request.id}
-                    >
-                      {item.kindLabel}{' · '}{item.statusLabel}
+                <div className="t-attendance-slot" key={date} onContextMenu={event => {
+                  if (menu.current?.contains(event.target as Node)) return;
+                  event.preventDefault();
+                  openMenu(date, event.currentTarget.querySelector<HTMLAnchorElement>('.t-day')!);
+                }}>
+                  <a
+                    className={['t-day', entry.selected && 'selected', entry.today && 'today', weekend && 'weekend'].filter(Boolean).join(' ')}
+                    href={`/me/schedule?month=${calendar.month}&date=${date}`}
+                    aria-current={entry.today ? 'date' : undefined}
+                    aria-label={`${date} · ${entry.scheduleText}${entry.selected ? ' · 선택한 날짜' : ''}`}
+                    onKeyDown={event => {
+                      if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                        event.preventDefault();
+                        openMenu(date, event.currentTarget);
+                      }
+                    }}
+                  >
+                    <time className="t-day-number" dateTime={date}>{Number(date.slice(-2))}</time>
+                    <span className="t-day-event t-attendance-plan">
+                      {entry.snapshot.schedule == null ? '미배정' : entry.scheduleText}
                     </span>
-                  ))}
-                  {entry.requests.length > 2 && (
-                    <span className="t-day-event">+{entry.requests.length - 2}건, 날짜 상세</span>
-                  )}
-                </a>
+                    {entry.snapshot.dayKind === 'UNCONFIRMED' && <span className="t-day-event warning">미확인</span>}
+                    {entry.snapshot.dayKind === 'HOLIDAY' && <span className="t-day-event">확인된 휴일</span>}
+                    {entry.requests.slice(0, 2).map(item => (
+                      <span key={item.request.id}
+                        className={`t-day-event ${item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'warning' : ''}`}>
+                        {item.kindLabel} · {item.statusLabel}
+                      </span>
+                    ))}
+                    {entry.requests.length > 2 && <span className="t-day-event">+{entry.requests.length - 2}건, 날짜 상세</span>}
+                  </a>
+                  <button type="button" className="t-icon-button t-attendance-more"
+                    aria-label={`${date} 신청 메뉴`} aria-expanded={requestDate === date && !request?.detail}
+                    aria-controls={requestDate === date && !request?.detail ? menuId : undefined}
+                    onClick={event => {
+                      if (requestDate === date && !request?.detail) closeMenu(true);
+                      else openMenu(date, event.currentTarget);
+                    }}>
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+                    </svg>
+                  </button>
+                  {requestDate === date && !request?.detail && requestMenu(date)}
+                </div>
               );
             })}
           </div>
@@ -427,58 +496,61 @@ function Schedule({ data }: PageProps) {
             신청 전체는 날짜 상세에서 확인하세요.
           </p>
         </section>
-        <section className="t-card t-day-detail" aria-label="선택한 날짜 상세">
-          <p className="t-context">선택한 날짜</p>
-          <h2>
-            <time dateTime={calendar.selectedDate}>{fmtDate(calendar.selectedDate)}</time>
-          </h2>
-          <div className="t-list">
-            <div className="t-listrow">
-              <span className="t-muted">근무 일정</span>
-              <strong>{selected.scheduleText}</strong>
-            </div>
-            <div className="t-listrow">
-              <span className="t-muted">휴일 확인</span>
-              <strong>{selected.calendarText}</strong>
-            </div>
-            <div className="t-listrow">
-              <span className="t-muted">실제 근로</span>
-              <span>{selected.confirmationText}</span>
-            </div>
-          </div>
-          {!!selected.snapshot.schedule?.breaks.length && (
+        <section className="t-card t-day-detail t-attendance-detail" aria-label="선택한 날짜 상세">
+          <header>
             <div>
-              <h3>예정 휴게</h3>
-              {selected.snapshot.schedule.breaks.map((pause, index) => (
-                <p className="t-subtle" key={index}>
-                  {fmtTime(pause.startTime)} ~ {fmtTime(pause.endTime)}
-                </p>
-              ))}
+              <p className="t-context">선택한 날짜</p>
+              <h2><time dateTime={calendar.selectedDate}>{fmtDate(calendar.selectedDate)}</time></h2>
             </div>
-          )}
-          <div>
-            <h3>해당 날짜의 신청·효력</h3>
-            {selected.requests.length ? (
-              selected.requests.map((item) => (
+            <button className="t-btn secondary" type="button" aria-expanded={Boolean(request?.detail)}
+              aria-controls={request?.detail ? menuId : undefined}
+              onClick={event => {
+                if (request?.detail) closeMenu(true);
+                else openMenu(calendar.selectedDate, event.currentTarget, true);
+              }}>이 날짜로 신청</button>
+            {request?.detail && requestMenu(request.date)}
+          </header>
+          <dl className="t-attendance-facts">
+            <div>
+              <dt>근무 일정</dt>
+              <dd>{selected.scheduleText}</dd>
+            </div>
+            <div>
+              <dt>휴일 확인</dt>
+              <dd>{selected.calendarText}</dd>
+            </div>
+            <div>
+              <dt>실제 근로</dt>
+              <dd>{selected.confirmationText}</dd>
+            </div>
+          </dl>
+          <div className="t-attendance-detail-body">
+            {!!selected.snapshot.schedule?.breaks.length && (
+              <div>
+                <h3>예정 휴게</h3>
+                {selected.snapshot.schedule.breaks.map((pause, index) => (
+                  <p className="t-subtle" key={index}>{fmtTime(pause.startTime)} ~ {fmtTime(pause.endTime)}</p>
+                ))}
+              </div>
+            )}
+            <div>
+              <h3>해당 날짜의 신청·효력</h3>
+              {selected.requests.length ? selected.requests.map(item => (
                 <div className="t-listrow" key={item.request.id}>
                   <a href={`/requests/${item.request.id}`}>{item.kindLabel}</a>
                   <span className={`t-tag ${item.tone}`}>{item.statusLabel}</span>
                 </div>
-              ))
-            ) : (
-              <p className="t-muted">이 날짜에 조회된 본인 대상 신청이 없습니다.</p>
-            )}
+              )) : <p className="t-muted">이 날짜에 조회된 본인 대상 신청이 없습니다.</p>}
+            </div>
           </div>
           <p className="t-subtle">
             예정 근무와 휴게를 실제 시간으로 확정하지 않습니다. 대기 정정은 승인된 사실과
             구분합니다.
           </p>
-          <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>
-            원천·정정 반영 내역
-          </a>
-          <a className="t-btn secondary" href="/me/requests">
-            휴가·정정 신청
-          </a>
+          <div className="t-attendance-detail-actions">
+            <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>원천·정정 반영 내역</a>
+            <a className="t-btn secondary" href="/me/requests">휴가·정정 신청</a>
+          </div>
         </section>
       </div>
     </>

@@ -1,0 +1,203 @@
+#tna-app .t-attendance-calendar {
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+#tna-app .t-attendance-board {
+  background: var(--t-paper);
+  border-radius: 16px;
+  overflow: visible;
+  padding: var(--space-md);
+}
+
+#tna-app .t-attendance-board .t-calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  padding: 0 0 var(--space-sm);
+}
+
+#tna-app .t-attendance-board .t-attendance-month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 5rem;
+  margin: 0 auto 0 0;
+  font-size: clamp(1.6rem, 3.5vw, 2.15rem);
+  line-height: 1.05;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+#tna-app .t-attendance-month span { color: var(--t-accent-ink); font-size: 13px; }
+#tna-app .t-attendance-board .t-month-navigation { gap: var(--space-2xs); }
+#tna-app .t-attendance-board .t-attendance-jump { margin: 0; }
+#tna-app .t-attendance-jump .t-input { flex: 0 1 auto; width: 9.5rem; min-width: 0; }
+#tna-app .t-attendance-board .t-calendar-legend { padding: 0 0 var(--space-xs); gap: var(--space-xs) var(--space-md); }
+#tna-app .t-attendance-hint { margin-inline-start: auto; }
+
+#tna-app .t-attendance-board .t-weekdays {
+  background: transparent;
+  border: 0;
+  font-weight: 650;
+  padding: var(--space-xs) 0;
+}
+
+#tna-app .t-attendance-board .t-month-grid { gap: var(--space-2xs); }
+#tna-app .t-attendance-slot { position: relative; min-width: 0; display: grid; }
+
+#tna-app .t-attendance-board .t-day {
+  min-height: 5.8rem;
+  height: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--t-label);
+  padding: var(--space-2xs) var(--space-xs) var(--space-xs);
+  text-decoration: none;
+}
+
+#tna-app .t-attendance-board .t-day.outside { background: var(--t-canvas); opacity: .55; }
+#tna-app .t-attendance-board .t-day.weekend:not(.selected) { background: var(--t-canvas); }
+#tna-app .t-attendance-board .t-day.selected { background: var(--t-blue-soft); border-color: var(--t-blue); }
+#tna-app .t-attendance-board .t-day:hover:not(.selected) { background: var(--t-blue-soft); }
+#tna-app .t-attendance-board .t-day:focus-visible { outline-offset: -3px; }
+#tna-app .t-attendance-board .t-day-number { width: 26px; height: 26px; font-size: 13px; font-weight: 750; }
+
+#tna-app .t-attendance-board .t-day-event {
+  padding-inline: var(--space-2xs);
+  border-radius: 4px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+#tna-app .t-attendance-board .t-attendance-plan {
+  color: var(--t-accent-ink);
+  border-inline-start: 2px solid var(--t-accent-border);
+}
+
+#tna-app .t-attendance-slot .t-attendance-more {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  min-width: 30px;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--t-muted);
+}
+
+#tna-app .t-attendance-slot .t-attendance-more:is(:hover, :focus-visible, [aria-expanded=true]) {
+  background: var(--t-paper);
+  color: var(--t-blue);
+}
+
+#tna-app .t-attendance-request-menu {
+  position: absolute;
+  z-index: 8;
+  inset-block-start: 32px;
+  inset-inline-start: 0;
+  width: min(17rem, calc(100vw - 32px));
+  padding: var(--space-xs);
+  background: var(--t-paper);
+  border: 1px solid var(--t-accent-border);
+  border-radius: var(--t-radius);
+  box-shadow: var(--t-shadow);
+  text-align: start;
+}
+
+#tna-app .t-attendance-slot:nth-child(7n+5) .t-attendance-request-menu,
+#tna-app .t-attendance-slot:nth-child(7n+6) .t-attendance-request-menu,
+#tna-app .t-attendance-slot:nth-child(7n) .t-attendance-request-menu {
+  inset-inline: auto 0;
+}
+
+#tna-app .t-attendance-slot:nth-last-child(-n+14) .t-attendance-request-menu { inset-block: auto 32px; }
+#tna-app .t-attendance-request-menu header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--t-line);
+  padding: var(--space-2xs) var(--space-2xs) var(--space-xs);
+  margin-bottom: var(--space-2xs);
+}
+
+#tna-app .t-attendance-request-menu header span { display: block; color: var(--t-muted); font-size: 12px; }
+#tna-app .t-attendance-request-menu time { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#tna-app .t-attendance-request-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: var(--space-2xs) var(--space-xs);
+  border-radius: 6px;
+  color: var(--t-ink);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+#tna-app .t-attendance-request-option svg { width: 18px; height: 18px; flex: none; color: var(--t-accent-ink); }
+#tna-app a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--t-blue-soft); }
+#tna-app .t-attendance-request-option[aria-disabled] { color: var(--t-muted); font-weight: 500; }
+#tna-app .t-attendance-request-option small { display: block; font-size: 12px; }
+
+#tna-app .t-attendance-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-sm);
+  background: var(--t-paper);
+  border-radius: 16px;
+}
+
+#tna-app .t-attendance-detail > header {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+}
+
+#tna-app .t-attendance-detail > header h2 { margin: 0; font-variant-numeric: tabular-nums; }
+#tna-app .t-attendance-detail > header .t-attendance-request-menu { inset: auto 0 100% auto; }
+#tna-app .t-attendance-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+#tna-app .t-attendance-facts > div { padding: var(--space-sm); background: var(--t-blue-soft); border-radius: 8px; }
+#tna-app .t-attendance-facts dt { color: var(--t-accent-ink); font-size: 12px; }
+#tna-app .t-attendance-facts dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+#tna-app .t-attendance-detail-body { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-xl); }
+#tna-app .t-attendance-detail-body > div { flex: 1 1 13rem; min-width: 0; }
+#tna-app .t-attendance-detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+#tna-app .t-attendance-detail :is(.t-subtle, .t-context) { margin-block: 0; }
+
+@container (max-width: 720px) {
+  #tna-app .t-attendance-board { padding: var(--space-xs); }
+  #tna-app .t-attendance-hint { margin-inline-start: 0; }
+  #tna-app .t-attendance-board .t-day { min-height: 6.35rem; padding: var(--space-2xs) var(--space-2xs) 34px; }
+  #tna-app .t-attendance-slot .t-attendance-more { inset-block: auto 0; inset-inline: 0; width: 100%; min-height: 34px; }
+  #tna-app .t-attendance-board .t-day-event { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #tna-app .t-attendance-calendar .t-attendance-request-menu {
+    position: fixed;
+    inset: auto var(--space-sm) max(var(--space-sm), env(safe-area-inset-bottom)) auto;
+    width: min(17rem, calc(100vw - 24px));
+  }
+}
+
+@container (max-width: 460px) {
+  #tna-app .t-attendance-board .t-month-grid { gap: var(--space-3xs); }
+  #tna-app .t-attendance-board .t-day { padding-inline: var(--space-3xs); }
+  #tna-app .t-attendance-board .t-day-event { padding-inline: 0; font-size: 11px; }
+  #tna-app .t-attendance-facts { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (pointer: coarse) {
+  #tna-app .t-attendance-slot .t-attendance-more { min-height: 44px; }
+  #tna-app .t-attendance-board .t-day { padding-block-end: 44px; }
+}
