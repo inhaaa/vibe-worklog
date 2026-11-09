@@ -187,10 +187,14 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   }
   const content = <>
     {!embedded && <header className="t-modal-head"><div><h2 id="annual-compose-title">근태 신청</h2><p className="t-request-year">{model.annual.year}년 신청</p><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div><button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button></header>}
-    <div className="t-request-form-context"><ApprovalLine approval={approval} checked={step==='REVIEW'} /><ApplicantFacts model={model} /></div>
     <nav className="t-request-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="t-request-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
-    <div className="t-request-layout"><div className="t-request-main">
+    <div className="t-request-form-context"><ApprovalLine approval={approval} checked={step==='REVIEW'} /><ApplicantFacts model={model} /></div>
+    <div className="t-request-layout"><section className="t-request-main" aria-label={step==='CONTENT'?'신청 내용':undefined}>
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
+    {step==='CONTENT' && <header className="t-request-document-head">
+      <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&!error?'true':undefined}>신청서</h3>
+      <div className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></div>
+    </header>}
     <Form action="/me/requests/new" method="get" className="t-annual-context" hidden={step==='REVIEW'}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}
       {kind === compose.kind && current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
@@ -200,22 +204,20 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
       <div className="t-request-context-date" hidden={step==='CONTENT'&&kind==='LEAVE_DAY'}><label htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label><input id="annual-date" className="t-input" type="date" disabled={locked} name="date" value={date} onChange={event => {setDate(event.target.value);lookupDates.current[kind]=event.target.value;}} max={kind === 'ATTENDANCE_CORRECTION' ? model.annual.today : undefined} required />
         <button type={step==='TYPE'&&!needsContext?'button':'submit'} className={`t-btn ${step==='TYPE'?'primary':''}`} disabled={locked} onClick={event=>{if(step==='TYPE'&&!needsContext){event.preventDefault();if(event.currentTarget.form?.reportValidity())setStep('CONTENT');}}}>{step==='TYPE'?'내용 작성으로':'유형·일자 조회'}</button>
       </div>
-      {step==='CONTENT'&&<p className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></p>}
     </Form>
     {kind === compose.kind ? <Form action={isLeave ? '/me/requests/leave' : '/me/requests/correction'} className="t-annual-compose-form" onSubmit={submit} hidden={step==='TYPE'} aria-labelledby={step==='CONTENT'?'annual-application-title':undefined}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}{hidden('kind', compose.kind)}{hidden('commandId', current.commandId)}
       {current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
       <fieldset ref={element => { form.current = element?.form ?? null; }} disabled={locked}>
         <div className="t-request-content-fields" hidden={step!=='CONTENT'}>
-        <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='CONTENT'&&!error?'true':undefined}>신청서</h3>
         {isLeave ? <>
-          <LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} />
           {hidden('from', leave.from)}{hidden('to', leave.to)}
           {step==='CONTENT' && <RequestPeriodSheet {...period} onSelect={change} />}
+          <LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} />
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
-          <p>대상 근무일 {fmtDate(correction.workDate)}</p>
-          <section className="notice" role="region" aria-label="현재 정정 근거"><strong>현재 유효한 출퇴근 근거</strong>
+          <section className="t-request-correction-source" aria-label="현재 정정 근거">
+            <div><strong>현재 유효한 출퇴근 근거</strong><span>대상 근무일 {fmtDate(correction.workDate)}</span></div>
             {(compose.day?.effectiveEvents ?? compose.day?.events ?? []).length ? <ul>{(compose.day?.effectiveEvents ?? compose.day?.events ?? []).map(event=><li key={event.id}>{event.kind==='IN'?'출근':'퇴근'} · {fmtDateTime(event.occurredAt)} (서울)</li>)}</ul> : <p>조회된 유효 출퇴근 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</p>}
             {compose.day?.confirmation ? <p>실제 근로·휴게 확인 {fmtDateTime(compose.day.confirmation.confirmedAt)}</p> : <p>실제 근로·휴게 확인이 아직 없습니다.</p>}
           </section>
@@ -250,7 +252,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
       </fieldset>
     </Form> : <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
     {!embedded&&<a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>}
-    </div><aside className="t-request-summary" aria-label="신청 요약">
+    </section><aside className="t-request-summary" aria-label="신청 요약">
       <div className="t-request-summary-head"><span className="t-request-summary-icon"><RequestIcon kind={kind}/></span><span className="t-request-summary-stage">{step==='REVIEW'?'제출 전 확인':'작성 중'}</span></div>
       <h3>신청 요약</h3><p className="t-request-summary-intro">입력한 내용을 한눈에 확인하세요.</p>
       <dl className="t-request-summary-facts">
