@@ -107,13 +107,6 @@
   text-align: start;
 }
 
-#tna-app .t-attendance-slot:nth-child(7n+5) .t-attendance-request-menu,
-#tna-app .t-attendance-slot:nth-child(7n+6) .t-attendance-request-menu,
-#tna-app .t-attendance-slot:nth-child(7n) .t-attendance-request-menu {
-  inset-inline: auto 0;
-}
-
-#tna-app .t-attendance-slot:nth-last-child(-n+14) .t-attendance-request-menu { inset-block: auto 32px; }
 #tna-app .t-attendance-request-menu header {
   display: flex;
   align-items: center;
@@ -161,7 +154,6 @@
 }
 
 #tna-app .t-attendance-detail > header h2 { margin: 0; font-variant-numeric: tabular-nums; }
-#tna-app .t-attendance-detail > header .t-attendance-request-menu { inset: auto 0 100% auto; }
 #tna-app .t-attendance-facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -176,6 +168,14 @@
 #tna-app .t-attendance-detail-body > div { flex: 1 1 13rem; min-width: 0; }
 #tna-app .t-attendance-detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
 #tna-app .t-attendance-detail :is(.t-subtle, .t-context) { margin-block: 0; }
+
+@container (width > 720px) {
+  #tna-app .t-attendance-slot:is(:nth-child(7n+5), :nth-child(7n+6), :nth-child(7n)) .t-attendance-request-menu {
+    inset-inline: auto 0;
+  }
+  #tna-app .t-attendance-slot:nth-last-child(-n+14) .t-attendance-request-menu { inset-block: auto 32px; }
+  #tna-app .t-attendance-detail > header .t-attendance-request-menu { inset: auto 0 100% auto; }
+}
 
 @container (max-width: 720px) {
   #tna-app .t-attendance-board { padding: var(--space-xs); }
