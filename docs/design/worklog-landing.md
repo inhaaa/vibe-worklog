@@ -39,7 +39,15 @@
 - 개발 프런트 전체 345개와 TypeScript·Vite 빌드를 통과했다. 첫 화면은 기본 사번 `99999`로만 제출하며, 다른 합성 사번은 상단 모달에서 선택하고 확정해야 제출된다.
 - 합성 HTTP 테스트 3개와 Chromium의 PC·390px·320px 관리자 → 승인자 → 관리자 흐름을 확인했다. `/login` POST 9회에 합성 CSRF·세션 교체·이전 세션 차단·이전 권한 메뉴 제거를 검증했다. 화면 22개와 검증 JSON은 `target/hallmark-tools/worklog-entry-20261109/`에 남겼다.
 - 기존 `/login`과 세션 처리를 사용했다. 현재 로컬 Docker 데몬에 연결할 수 없어 PostgreSQL을 사용하는 Java 인증 통합 테스트는 재실행하지 않았다.
-- 현재 공개 자산은 `89da774`와 일치한다. 이 버전을 기준으로 공개 전용 안전 안내와 날짜 UI를 보존한 별도 후보를 통합했다. SSH 연결이 시간 초과되어 공개 반영에는 VPS 콘솔 접근이 필요하다.
+- 첫 공개 후보는 `89da774`를 기준으로 공개 안전 안내와 신청 날짜 UI를 보존해 통합했다. 구현 당시에는 SSH 연결이 시간 초과되어 배포를 보류했다.
+
+## 2026-11-09 공개 배포
+
+- 17:46 KST에 [공개 WorkLog](https://worklog.inhaaa.com/demo)의 WorkLog 앱을 `153470d3a31f2207a474f5341029f2d6a61cf0c4`로 교체했다. 서버 이미지 ID는 `sha256:40c04c8a0c1b8e4da2330f0d5363dafc907a970fbe3137ff3bfd2f139a0fd0f1`이다.
+- 서버에서 새 이미지를 빌드했다. JAR 547개 항목 중 React JS·CSS 2개만 달랐다. V17 스키마·권한, 앱을 정지한 동안의 데이터, Caddy 설정과 기존 서비스 상태를 비교해 보존을 확인했다.
+- 공개 후보 프런트 430개와 배포 도구 테스트 13개가 통과했다. 배포 후 GET 검증 14개에서 상태 응답, 정적 자산 4개, 미인증 접근 차단과 기존 demo·portfolio·PriceSys 응답을 확인했다.
+- 실제 공개 화면에서 1440px·390px 모두 **WorkLog 시작하기 → 99999 관리자 홈 → 사번 변경으로 26001 승인자 화면 → 99999 관리자 복귀 → 로그아웃**을 통과했다. 전환마다 새 문서와 세션, 선택 계정의 메뉴를 확인했다. 검증 요청은 로그인 6회와 로그아웃 2회였다.
+- 로컬 확인 자료는 `target/demo-entry-public-ops-20261109/public-get-candidate.json`과 `target/hallmark-tools/worklog-entry-public-20261109/public/verification.json`에 남겼다.
 
 ## 2026-11-07 공개 반영 기록
 
