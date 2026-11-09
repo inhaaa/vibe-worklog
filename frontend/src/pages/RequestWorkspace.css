@@ -104,7 +104,8 @@
 #tna-app .t-annual-compose-form :is(.t-request-bucket-picker,.t-request-period-picker) { padding:0; margin:0; border:0; min-width:0; }
 #tna-app :is(.t-request-bucket-picker,.t-request-period-picker) > legend { padding:0; margin:0 0 var(--space-xs); font-size:14px; font-weight:650; }
 #tna-app :is(.t-request-bucket-sheet,.t-request-period-sheet) { border:1px solid var(--t-line); border-radius:var(--t-radius); overflow:clip; }
-#tna-app .t-request-period-sheet { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,15.25rem),1fr)); gap:1px; background:var(--t-line); }
+/* Keep the calendar's full-width span from holding open a third column. */
+#tna-app .t-request-period-sheet { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,max(15.25rem,calc(50% - 1px))),1fr)); gap:1px; background:var(--t-line); }
 #tna-app button.t-request-period-trigger { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; justify-content:stretch; gap:0 var(--space-xs); min-width:0; min-height:58px; padding:var(--space-xs) var(--space-sm); border:0; border-radius:0; text-align:left; background:var(--t-paper); color:var(--t-ink); }
 #tna-app .t-request-period-trigger > span { color:var(--t-muted); font-size:13px; font-weight:650; }
 #tna-app .t-request-period-trigger > strong { grid-row:2; font-size:15px; font-variant-numeric:tabular-nums; }
