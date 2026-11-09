@@ -131,6 +131,8 @@ function assertPageRequest(options: RequestInit | undefined) {
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/initial');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.open = false; } });
 });
 afterEach(() => {
   cleanup();
@@ -195,15 +197,125 @@ describe('React 앱 탐색과 제출', () => {
     await screen.findByRole('heading', { name: '신청 상세' });
     expect(screen.getByRole('navigation', { name: '현재 위치' }).textContent).toContain('회사 신청 현황');
   });
-  it('데모 계정 선택 아이콘은 로그아웃 바로 앞에서 접근할 수 있다', () => {
+  it('사번 변경은 데모 상단에서만 표시하고 열기 전에는 계정을 조회하지 않는다', () => {
+    const fetcher = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetcher);
     const view = render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
-    const switchAccount = screen.getByRole('link', { name: '다른 테스트 사원 로그인' });
-    expect(switchAccount.getAttribute('href')).toBe('/demo');
-    expect(switchAccount.textContent).toBe('');
+    const switchAccount = screen.getByRole('button', { name: '사번 변경' });
+    expect(switchAccount.getAttribute('aria-haspopup')).toBe('dialog');
     expect(switchAccount.nextElementSibling).toBe(screen.getByRole('button', { name: '로그아웃' }).closest('form'));
+    expect(fetcher).not.toHaveBeenCalled();
     view.unmount();
     render(<App initial={today} />);
-    expect(screen.queryByRole('link', { name: '다른 테스트 사원 로그인' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '사번 변경' })).toBeNull();
+  });
+  it('데모 홈은 보유한 담당자 권한을 기본 선택하고 실제 업무 경로와 일반 홈의 선택은 유지한다', () => {
+    const data = { ...today.data, workspaceDemo: true, workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] } };
+    window.history.replaceState(null, '', '/me/home');
+    const view = render(<App initial={{ ...today, page: 'workspace/home', data }} />);
+    expect((screen.getByRole('combobox', { name: '업무 권한' }) as HTMLSelectElement).value).toBe('ATTENDANCE_ADMIN');
+    expect(screen.getByRole('link', { name: '권한 관리', hidden: true })).toBeTruthy();
+    view.unmount();
+    window.history.replaceState(null, '', '/me/attendance');
+    const attendance = render(<App initial={{ ...today, data }} />);
+    expect((screen.getByRole('combobox', { name: '업무 권한' }) as HTMLSelectElement).value).toBe('EMPLOYEE');
+    attendance.unmount();
+    const normal = render(<App initial={{ ...today, page: 'workspace/home', data: { ...data, workspaceDemo: false } }} />);
+    expect((screen.getByRole('combobox', { name: '업무 권한' }) as HTMLSelectElement).value).toBe('EMPLOYEE');
+    normal.unmount();
+    render(<App initial={{ ...today, page: 'workspace/home', data: { ...data, workspacePrincipal: { roles: ['EMPLOYEE'] } } }} />);
+    expect(screen.queryByRole('option', { name: '담당자' })).toBeNull();
+  });
+  it('사원 선택만으로 인증을 바꾸지 않고 현재 CSRF로 정상 문서 POST 전환한다', async () => {
+    const accounts = [
+      { employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'synthetic-admin' },
+      { employeeNo: '26001', employeeName: '승인자', roles: ['EMPLOYEE', 'APPROVER'], password: 'synthetic-approver' },
+    ];
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ page: 'demo', csrf: { ...csrf, token: 'do-not-replace-current-csrf' }, data: { demoAccounts: accounts } }, '/demo'));
+    vi.stubGlobal('fetch', fetcher);
+    window.history.replaceState(null, '', '/me/attendance');
+    render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true, employeeHeader: {
+      employeeId: 'e-1', employeeNo: '99999', employeeName: '담당자', companyName: '합성회사', employmentStatus: 'WORKING', joinedOn: '2026-01-01', asOf: '2026-11-09T00:00:00Z',
+    } } }} />);
+    const trigger = screen.getByRole('button', { name: '사번 변경' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: '사번 변경' });
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: '사번 변경' }));
+    const select = await within(dialog).findByRole('combobox', { name: '테스트 사원' });
+    expect(fetcher.mock.calls[0][0]).toBe('/demo');
+    assertPageRequest(fetcher.mock.calls[0][1]);
+    expect((select as HTMLSelectElement).value).toBe('99999');
+    expect((within(dialog).getByRole('button', { name: '선택한 사원으로 전환' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(select, { target: { value: '26001' } });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const form = within(dialog).getByRole('button', { name: '선택한 사원으로 전환' }).closest('form')!;
+    expect(form.action).toBe(new URL('/login', location.href).href);
+    expect(form.method).toBe('post');
+    const values = new FormData(form);
+    expect(values.get('email')).toBe('26001');
+    expect(values.get('password')).toBe('synthetic-approver');
+    expect(values.get('_csrf')).toBe(csrf.token);
+    expect(form.querySelector('input[type="password"]')).toBeNull();
+    expect(fireEvent.submit(form)).toBe(true);
+    expect(fireEvent.submit(form)).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+  it('사번 목록 조회를 닫으면 취소하고 늦은 응답은 화면에 남기지 않는다', async () => {
+    const pendingAccounts = deferred<Response>();
+    const fetcher = vi.fn<typeof fetch>().mockReturnValue(pendingAccounts.promise);
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
+    fireEvent.click(screen.getByRole('button', { name: '사번 변경' }));
+    expect(screen.getByRole('status').textContent).toContain('불러오는 중');
+    const signal = fetcher.mock.calls[0][1]?.signal as AbortSignal;
+    fireEvent.click(screen.getAllByRole('button', { name: '닫기' })[0]);
+    expect(signal.aborted).toBe(true);
+    await act(async () => pendingAccounts.resolve(response({ page: 'demo', csrf, data: { demoAccounts: [] } }, '/demo')));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it.each(['failed', 'empty', 'unexpected'] as const)('사번 목록 %s 응답은 전환을 막고 다시 조회할 수 있다', async kind => {
+    const fetcher = vi.fn<typeof fetch>();
+    if (kind === 'failed') fetcher.mockRejectedValueOnce(new Error('offline'));
+    else fetcher.mockResolvedValueOnce(response({ page: kind === 'unexpected' ? 'login' : 'demo', csrf, data: { demoAccounts: [] } }, '/demo'));
+    fetcher.mockResolvedValueOnce(response({ page: 'demo', csrf, data: { demoAccounts: [{ employeeNo: '26001', employeeName: '승인자', roles: ['EMPLOYEE'], password: 'synthetic' }] } }, '/demo'));
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
+    fireEvent.click(screen.getByRole('button', { name: '사번 변경' }));
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: '선택한 사원으로 전환' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '다시 불러오기' }));
+    const select = await screen.findByRole('combobox', { name: '테스트 사원' });
+    expect((select as HTMLSelectElement).value).toBe('');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it('다른 사원의 인사 헤더를 현재 로그인 사번으로 오인하지 않고 미저장 취소를 존중한다', async () => {
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response({ page: 'demo', csrf, data: { demoAccounts: [{ employeeNo: '26001', employeeName: '조회대상', roles: ['EMPLOYEE'], password: 'synthetic' }] } }, '/demo')));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    window.history.replaceState(null, '', '/admin/employees');
+    const view = render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true, employeeHeader: {
+      employeeId: 'e-2', employeeNo: '26001', employeeName: '조회대상', companyName: '합성회사', employmentStatus: 'WORKING', joinedOn: '2026-01-01', asOf: '2026-11-09T00:00:00Z',
+    } } }} />);
+    fireEvent.click(screen.getByRole('button', { name: '사번 변경' }));
+    const select = await screen.findByRole('combobox', { name: '테스트 사원' });
+    expect((select as HTMLSelectElement).value).toBe('');
+    fireEvent.change(select, { target: { value: '26001' } });
+    view.container.querySelector('main')!.setAttribute('data-unsaved-changes', 'true');
+    const form = screen.getByRole('button', { name: '선택한 사원으로 전환' }).closest('form')!;
+    expect(fireEvent.submit(form)).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(location.pathname).toBe('/admin/employees');
+    confirm.mockReturnValue(true);
+    expect(fireEvent.submit(form)).toBe(true);
+    expect(fireEvent.submit(form)).toBe(false);
+    const beforeUnload = new Event('beforeunload', { cancelable: true });
+    beforeUnload.preventDefault();
+    fireEvent(window, beforeUnload);
+    await act(async () => new Promise(resolve => setTimeout(resolve, 0)));
+    expect(fireEvent.submit(form)).toBe(true);
   });
   it('공통 메뉴와 상단 이름에서 본인 내 정보로 이동할 수 있다', () => {
     render(<App initial={today} />);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { PageProps } from '../types';
+import type { DemoAccount, PageProps } from '../types';
 import { Form, Field, TextAreaField, ErrorNotice, fmtDateTime } from '../ui';
 import './DemoAccess.css';
 import './DemoLanding.css';
@@ -17,11 +17,7 @@ interface AuthModel {
   error?: string;
   localDemo?: boolean;
   companyCode?: string;
-  demoLogin?: string;
-  demoPassword?: string;
-  demoApproverLogin?: string;
-  demoApproverPassword?: string;
-  demoAccounts?: { employeeNo: string; employeeName: string; roles: string[]; password: string }[];
+  demoAccounts?: DemoAccount[];
 }
 interface Tenant {
   id: string;
@@ -58,9 +54,10 @@ const hidden = (name: string, value: string | number | boolean | undefined) => (
 );
 
 function Demo({ model: m }: { model: AuthModel }) {
-  const accounts = m.demoAccounts ?? [];
-  const [employeeNo, setEmployeeNo] = useState(accounts[0]?.employeeNo ?? '');
-  const [password, setPassword] = useState(accounts[0]?.password ?? '');
+  const administrator = m.demoAccounts?.find(account =>
+    account.employeeNo === '99999' && account.roles.includes('ATTENDANCE_ADMIN') && account.password,
+  );
+  const start = <button className="t-landing-start" type="submit" disabled={!administrator}>WorkLog 시작하기</button>;
   return (
     <section className="t-intro t-worklog-landing" aria-labelledby="demo-title">
       <header className="t-intro-nav">
@@ -72,9 +69,6 @@ function Demo({ model: m }: { model: AuthModel }) {
             WorkLog<span className="t-brand-sub">근태관리 워크스페이스</span>
           </span>
         </div>
-        <button className="t-btn secondary" type="submit" form="demo-login-form">
-          데모 살펴보기
-        </button>
       </header>
       <div className="t-hero">
         <div className="t-hero-copy">
@@ -88,7 +82,18 @@ function Demo({ model: m }: { model: AuthModel }) {
             <br />
             우리 팀의 하루를 연결하는 근태관리.
           </p>
-          <a className="t-landing-start" href="#demo-login-form">WorkLog 시작하기</a>
+          {administrator ? (
+            <Form id="demo-login-form" action="/login" method="post">
+              {hidden('email', administrator.employeeNo)}
+              {hidden('password', administrator.password)}
+              {start}
+            </Form>
+          ) : (
+            <>
+              {start}
+              <p className="notice" role="status">기본 데모 관리자 계정을 사용할 수 없습니다.</p>
+            </>
+          )}
           <div className="t-feature-labels">
             <span>출퇴근 기록</span>
             <span>근무 일정</span>
@@ -96,7 +101,7 @@ function Demo({ model: m }: { model: AuthModel }) {
           </div>
           {m.flags?.error && (
             <p className="notice error" role="alert">
-              로그인 정보를 확인해 주세요.
+              데모에 입장하지 못했습니다. 다시 시도해 주세요.
             </p>
           )}
           {m.flags?.logout && (
@@ -146,36 +151,6 @@ function Demo({ model: m }: { model: AuthModel }) {
           <div><dt>근무 일정</dt><dd>우리 팀의 흐름을 살펴봐요.</dd></div>
           <div><dt>휴가와 신청</dt><dd>신청부터 확인까지 이어져요.</dd></div>
         </dl>
-      </section>
-      <section className="t-landing-access" aria-labelledby="demo-access-title">
-        <div className="t-landing-access-copy">
-          <h2 id="demo-access-title">나의 하루를<br />시작해 볼까요?</h2>
-          <p>테스트 사원을 선택하고<br />WorkLog의 근태관리를 직접 경험해 보세요.</p>
-          <p className="t-demo-flow-note">같은 사원의 보유 권한은 로그인 후 상단에서 선택하세요. 다른 사원으로 로그인하면 로그인 주체가 바뀌며, 본인 신청은 직접 승인할 수 없습니다.</p>
-        </div>
-        <div className="t-landing-access-form">
-          <div className="t-demo-personas" aria-label="데모 사번 로그인">
-            <Form id="demo-login-form" action="/login" method="post">
-              {accounts.length > 0 && <label className="t-demo-account-picker" htmlFor="demo-account">테스트 사원 선택
-                <select id="demo-account" value={accounts.some(account => account.employeeNo === employeeNo) ? employeeNo : ''} onChange={event => {
-                  const account = accounts.find(item => item.employeeNo === event.target.value);
-                  if (account) { setEmployeeNo(account.employeeNo); setPassword(account.password); }
-                }}>
-                  <option value="" disabled>사원 선택</option>
-                  {accounts.map(account => <option key={account.employeeNo} value={account.employeeNo}>{account.employeeNo} · {account.employeeName}</option>)}
-                </select>
-              </label>}
-              <label htmlFor="demo-employee-no">사번</label>
-              <input id="demo-employee-no" className="t-input" name="email" autoComplete="username" maxLength={40} required value={employeeNo} onChange={event => setEmployeeNo(event.target.value)} />
-              <label htmlFor="demo-password">비밀번호</label>
-              <input id="demo-password" className="t-input" name="password" type="password" autoComplete="current-password" minLength={5} maxLength={256} required value={password} onChange={event => setPassword(event.target.value)} />
-              <button className="t-btn primary t-enter" type="submit">
-                사번으로 로그인
-              </button>
-            </Form>
-          </div>
-          <p className="t-enter-note">테스트 사원을 선택하면 공개 합성 계정의 사번과 비밀번호가 입력됩니다.</p>
-        </div>
       </section>
       <footer className="t-intro-footer">
         <span>WorkLog <span className="t-intro-footer-tagline">일하는 하루의 기준</span></span>
@@ -249,7 +224,7 @@ function Login({ model: m }: { model: AuthModel }) {
           />
           <p id="password-help" className="hint">
             {m.localDemo
-              ? '담당자 사번은 99999입니다. 테스트 사원은 소개 화면에서 선택할 수 있습니다.'
+              ? '담당자 사번은 99999입니다. 데모 상단의 사번 변경에서 다른 테스트 사원을 선택할 수 있습니다.'
               : '공백을 포함한 12~128자의 비밀번호를 사용합니다. 기존 이메일 계정도 계속 로그인할 수 있습니다.'}
           </p>
           <button type="submit">로그인</button>
