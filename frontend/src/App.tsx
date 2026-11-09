@@ -139,6 +139,7 @@ function Workspace({
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const roleOptions = getWorkspaceRoles(roles);
   const demo = data.workspaceDemo === true;
+  const workspaceName = demo ? 'WorkLog 데모' : (employee?.companyName ?? '워크스페이스');
   const [selectedRole, setSelectedRole] = useState(() => {
     const href = getNavigationContext(page, location.pathname, data)?.href;
     return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value
@@ -169,7 +170,7 @@ function Workspace({
         <div className="t-workspace-name">
           <span className="t-workspace-icon">T</span>
           <span>
-            {employee?.companyName ?? '워크스페이스'}
+            {workspaceName}
             <small>
               {formatRoles(roles)}
             </small>
@@ -179,7 +180,7 @@ function Workspace({
         <div className="t-sidebar-bottom">
           {demo && (
             <>
-              <span className="t-demo-label">로컬 데모 워크스페이스</span>
+              <span className="t-demo-label">{workspaceName}</span>
               <p>합성 자료로 기능을 확인하세요.</p>
               <a href="/demo">소개 화면으로</a>
             </>
@@ -212,7 +213,7 @@ function Workspace({
           </label>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
-            <small>{employee?.companyName ?? '워크스페이스'}</small>
+            <small>{workspaceName}</small>
           </a>
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
@@ -224,7 +225,9 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {page !== 'workspace/home' && headerEmployee && <EmployeeHeader employee={headerEmployee} />}
+        {page !== 'workspace/home' && headerEmployee && (
+          <EmployeeHeader employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />
+        )}
         {children}
       </main>
     </div>

@@ -209,6 +209,21 @@ describe('React 앱 탐색과 제출', () => {
     render(<App initial={today} />);
     expect(screen.queryByRole('button', { name: '사번 변경' })).toBeNull();
   });
+  it('데모 업무 화면의 상단과 사이드바에는 하나의 데모 이름을 사용한다', () => {
+    const workspaceEmployee = { employeeName: '담당자', companyName: '로컬 합성 데모' };
+    const view = render(<App initial={{ ...today, data: { ...today.data, workspaceEmployee, workspaceDemo: true } }} />);
+
+    expect(screen.getByRole('link', { name: /담당자\s*WorkLog 데모/ })).toBeTruthy();
+    expect(within(screen.getByRole('complementary', { name: '주 메뉴' })).getAllByText('WorkLog 데모')).toHaveLength(2);
+    expect(within(screen.getByRole('region', { name: '사원 인사정보' })).getByText('WorkLog 데모')).toBeTruthy();
+    expect(screen.queryByText('로컬 합성 데모')).toBeNull();
+    expect(screen.queryByText('로컬 데모 워크스페이스')).toBeNull();
+
+    view.unmount();
+    render(<App initial={today} />);
+    expect(screen.getByRole('link', { name: /민감직원\s*합성회사/ })).toBeTruthy();
+    expect(screen.queryByText('WorkLog 데모')).toBeNull();
+  });
   it('데모 홈은 보유한 담당자 권한을 기본 선택하고 실제 업무 경로와 일반 홈의 선택은 유지한다', () => {
     const data = { ...today.data, workspaceDemo: true, workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] } };
     window.history.replaceState(null, '', '/me/home');
