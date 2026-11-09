@@ -58,6 +58,33 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.queryByRole('button',{name:'닫기'})).toBeNull();
   expect(view.container.querySelector('[data-modal-busy="false"]')).toBeTruthy();
  });
+ it.each([
+  {kind:'LEAVE_DAY',date:'2026-11-09',action:'leave'},
+  {kind:'ATTENDANCE_CORRECTION',date:'2026-10-26',action:'correction'},
+ ])('날짜로 연 $kind ($date) 신청은 공통 신청 내용에 날짜를 채운다',({kind,date,action})=>{
+  history.replaceState(null,'',`/me/requests/new?year=2026&kind=${kind}&date=${date}`);
+  const initial=envelope({}, {kind,leaveForm:{...leave,from:date,to:date},correctionForm:{...correction,workDate:date},day:{...compose.day,workDate:date}});
+  const view=render(<AnnualRequestPage {...initial} reload={()=>{}} onClose={()=>{}}/>);
+  const routing=view.getByRole('region',{name:'결재선'});
+  const applicant=view.getByRole('region',{name:'신청자'});
+  const content=view.getByRole('region',{name:'신청 내용'});
+  expect(routing.compareDocumentPosition(applicant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(applicant.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const withinContent=within(content);
+  const form=withinContent.getByRole('form',{name:'신청서'}) as HTMLFormElement;
+  expect(form.getAttribute('action')).toBe(`/me/requests/${action}`);
+  const values=new FormData(form);
+  expect(values.get('kind')).toBe(kind);
+  if(kind==='LEAVE_DAY') {
+   expect(withinContent.getByRole('button',{name:`시작일 ${date}`})).toBeTruthy();
+   expect(withinContent.getByRole('button',{name:`종료일 (포함) ${date}`})).toBeTruthy();
+   expect([values.get('from'),values.get('to')]).toEqual([date,date]);
+  } else {
+   expect((withinContent.getByLabelText('정정할 날짜') as HTMLInputElement).value).toBe(date);
+   expect(values.get('workDate')).toBe(date);
+  }
+  expect(withinContent.getByRole('button',{name:'미리보기'})).toBeTruthy();
+ });
  it('신청 유형을 변경하면 새 근거 조회 전까지 상단에 이전 결재선을 표시하지 않는다',()=>{
   const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={()=>{}}/>);
   fireEvent.click(view.getByRole('button',{name:'유형 변경'}));
