@@ -1,0 +1,151 @@
+/* Hallmark · shape: workday stage · genre: modern-minimal · theme: WorkLog custom, existing wordmark and face · redesign: full · job: try · hero: dimensional calendar and direct demo entry · nav: wordmark · footer: product signature · signature: a working week in motion · posture: full palette · v2.0.0 */
+/* Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V5 · weakest: S, make one visible action enter the demo. */
+/* Hallmark · waive 47c · user explicitly requested physical calendar and time objects · WorkLog uses dimensional attendance objects, not imitation application windows. */
+/* Hallmark · waive 80 · user explicitly requested dimensional calendar and time objects · WorkLog uses native CSS to keep the requested objects sharp and responsive. */
+/* Hallmark · reworded "근무는 한눈에. 관리는 간결하게." to "일하는 하루, 기록이 되다." · user requested a new WorkLog identity. */
+/* Hallmark · answered F3 · WorkLog Korean headline has an intentional phrase break, tested at desktop and mobile sizes. */
+/* Hallmark · hero-review: subagent ship · finish-review: subagent ship · mobile object overflow resolved in browser checks. */
+:root {
+  --wl-paper: #faf9f6;
+  --wl-ink: #252b2a;
+  --wl-muted: #616966;
+  --wl-line: #d9ded8;
+  --wl-well: #eef0e9;
+  --wl-stage: #f0e5d9;
+  --wl-stage-edge: #e7d6c5;
+  --wl-accent: #bd4c32;
+  --wl-accent-dark: #a44230;
+  --wl-accent-light: #efac92;
+  --wl-sheet: #fffefa;
+  --wl-sheet-edge: #d8d8ce;
+  --wl-sheet-under: #e7e6dc;
+  --wl-leave: #dce9cf;
+  --wl-leave-ink: #3e5c38;
+  --wl-ring: #515954;
+  --wl-ring-light: #d7dbd2;
+  --wl-shadow: #4a392b25;
+  --wl-contact-shadow: #493b343d;
+  --wl-focus: #9e422f;
+  --wl-container: 1240px;
+  --wl-gutter: 48px;
+}
+
+#tna-app .t-worklog-landing { background: var(--wl-paper); color: var(--wl-ink); }
+#tna-app .t-worklog-landing :is(.t-intro-nav, .t-hero, .t-intro-footer, .t-landing-workflow) { width: min(100%, var(--wl-container)); margin-inline: auto; padding-inline: var(--wl-gutter); }
+#tna-app .t-worklog-landing .t-intro-nav { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); min-height: 104px; padding-block: var(--space-lg); border: 0; }
+#tna-app .t-worklog-landing .t-wordmark { display: flex; align-items: center; font-size: 26px; font-weight: 700; color: var(--wl-ink); }
+#tna-app .t-worklog-landing .t-logo { display: grid; place-items: center; width: 40px; height: 40px; background: var(--wl-ink); color: var(--wl-sheet); border-radius: 12px; font-size: 30px; }
+#tna-app .t-worklog-landing .t-brand-sub { display: block; color: var(--wl-muted); font-size: 12px; font-weight: 400; }
+
+#tna-app .t-worklog-landing .t-hero { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); align-items: center; gap: var(--space-lg); min-height: 568px; padding-block: 32px 48px; }
+#tna-app .t-worklog-landing .t-hero-copy { position: relative; z-index: 2; padding-bottom: var(--space-lg); }
+#tna-app .t-worklog-landing .t-hero h1 { margin: 0; min-width: 0; max-width: 9em; font-size: clamp(48px, 5.5vw, 76px); line-height: 1.2; font-weight: 700; letter-spacing: -.055em; color: var(--wl-ink); overflow-wrap: break-word; text-wrap: initial; }
+#tna-app .t-worklog-landing .t-hero-description { margin: var(--space-lg) 0 32px; font-size: 18px; line-height: 1.75; color: var(--wl-muted); }
+#tna-app .t-worklog-landing #demo-login-form { margin: 0; }
+#tna-app .t-worklog-landing .t-landing-start { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 28px; background: var(--wl-ink); color: var(--wl-sheet); border: 1px solid var(--wl-ink); border-radius: 8px; font-size: 16px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: transform 180ms var(--ease-out); }
+#tna-app .t-worklog-landing .t-feature-labels { gap: var(--space-md); margin-top: var(--space-lg); font-size: 12px; color: var(--wl-muted); }
+#tna-app .t-worklog-landing .t-feature-labels span + span { padding-left: var(--space-md); border-left: 1px solid var(--wl-line); }
+#tna-app .t-worklog-landing .notice { max-width: 28em; }
+
+#tna-app .t-workday-scene { position: relative; width: 100%; min-width: 0; height: 472px; perspective: 1200px; isolation: isolate; }
+#tna-app .t-scene-orbit { position: absolute; width: 400px; height: 400px; top: 28px; left: 84px; border: 1px solid var(--wl-stage-edge); border-radius: 50%; transform: rotateX(18deg) rotateY(-15deg); }
+#tna-app .t-scene-orbit::before { content: ''; position: absolute; inset: 30px; background: var(--wl-stage); border-radius: 50%; }
+#tna-app .t-scene-floor { position: absolute; width: 320px; height: 48px; left: 100px; bottom: 40px; border-radius: 50%; background: var(--wl-contact-shadow); filter: blur(25px); transform: rotate(-8deg); }
+#tna-app .t-calendar-object { position: absolute; z-index: 2; width: 392px; height: 288px; left: 34px; top: 112px; transform: rotateX(12deg) rotateY(-17deg) rotateZ(-8deg); transform-style: preserve-3d; transition: transform 600ms var(--ease-out); animation: wl-calendar-arrive 1.2s var(--ease-out) both; }
+#tna-app .t-calendar-sheet { position: absolute; inset: 0; border-radius: 18px; }
+#tna-app .t-calendar-sheet-back { background: var(--wl-accent-dark); transform: translate3d(12px, 16px, -12px); box-shadow: 0 24px 36px var(--wl-shadow); }
+#tna-app .t-calendar-sheet-middle { background: var(--wl-sheet-edge); transform: translate3d(6px, 8px, -6px); }
+#tna-app .t-calendar-face { position: absolute; inset: 0; background: var(--wl-sheet); border-radius: 18px; box-shadow: 0 2px 0 var(--wl-sheet-under); }
+#tna-app .t-calendar-top { display: flex; justify-content: space-between; align-items: center; height: 84px; padding: 20px 24px 8px; border-radius: 18px 18px 0 0; background: var(--wl-accent); color: var(--wl-sheet); }
+#tna-app .t-calendar-top span:first-child { font-size: 28px; font-weight: 700; }
+#tna-app .t-calendar-top span:last-child { font-size: 14px; }
+#tna-app .t-calendar-binding { position: absolute; inset: -17px 62px auto; display: flex; justify-content: space-between; z-index: 3; }
+#tna-app .t-calendar-binding i { width: 14px; height: 42px; border-radius: 10px; background: linear-gradient(90deg, var(--wl-ring), var(--wl-ring-light) 50%, var(--wl-ring)); box-shadow: 2px 3px 3px var(--wl-contact-shadow); }
+#tna-app .t-calendar-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 24px 20px 20px; }
+#tna-app .t-calendar-day { display: grid; justify-items: center; gap: 12px; color: var(--wl-muted); font-size: 13px; }
+#tna-app .t-calendar-day > span:first-child { font-weight: 600; }
+#tna-app .t-calendar-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--wl-well); color: var(--wl-ink); }
+#tna-app .is-leave .t-calendar-mark { background: var(--wl-leave); color: var(--wl-leave-ink); }
+#tna-app .is-leave > span:last-child { color: var(--wl-leave-ink); }
+#tna-app .t-calendar-mark svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#tna-app .t-calendar-bottom { display: flex; justify-content: space-between; margin-inline: 24px; padding-top: 12px; border-top: 1px solid var(--wl-line); color: var(--wl-muted); font-size: 12px; }
+
+#tna-app .t-clock-object { position: absolute; z-index: 3; width: 160px; height: 160px; top: 12px; right: 0; border-radius: 50%; padding: 12px; background: var(--wl-sheet-edge); box-shadow: 7px 10px 0 var(--wl-ring-light), 16px 24px 32px var(--wl-shadow); transform: rotateY(-18deg) rotateZ(10deg); animation: wl-clock-arrive 1.5s var(--ease-out) both; }
+#tna-app .t-clock-dial { position: relative; width: 100%; height: 100%; border-radius: 50%; background: var(--wl-sheet); }
+#tna-app .t-clock-tick { position: absolute; width: 3px; height: 9px; border-radius: 2px; background: var(--wl-muted); }
+#tna-app .tick-12 { left: calc(50% - 1.5px); top: 10px; }
+#tna-app .tick-6 { left: calc(50% - 1.5px); bottom: 10px; }
+#tna-app .tick-3 { right: 13px; top: calc(50% - 4.5px); transform: rotate(90deg); }
+#tna-app .tick-9 { left: 13px; top: calc(50% - 4.5px); transform: rotate(90deg); }
+#tna-app .t-clock-hand { position: absolute; bottom: 50%; left: calc(50% - 3px); width: 6px; border-radius: 5px; transform-origin: 50% 100%; }
+#tna-app .t-clock-hour { height: 29px; background: var(--wl-ink); transform: rotate(-60deg); }
+#tna-app .t-clock-minute { height: 44px; width: 4px; left: calc(50% - 2px); background: var(--wl-accent); transform: rotate(30deg); animation: wl-clock-tick 1.8s var(--ease-out) both; }
+#tna-app .t-clock-pin { position: absolute; width: 12px; height: 12px; top: calc(50% - 6px); left: calc(50% - 6px); background: var(--wl-ink); border-radius: 50%; }
+#tna-app .t-record-object { position: absolute; z-index: 4; bottom: 16px; left: 10px; display: flex; align-items: center; gap: 16px; padding: 20px 24px; border-radius: 12px; background: var(--wl-leave); color: var(--wl-leave-ink); box-shadow: 0 6px 0 var(--wl-ring-light), 0 18px 28px var(--wl-shadow); transform: rotate(-5deg); animation: wl-record-arrive 1.4s var(--ease-out) both; }
+#tna-app .t-record-check { display: grid; place-items: center; width: 32px; height: 32px; border: 1.5px solid currentColor; border-radius: 50%; }
+#tna-app .t-record-check svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#tna-app .t-record-object strong { display: block; font-size: 16px; font-weight: 600; }
+#tna-app .t-record-object small { display: block; margin-top: 2px; font-size: 12px; }
+#tna-app .t-scene-caption { position: absolute; bottom: 0; right: 0; color: var(--wl-muted); font-size: 12px; }
+
+#tna-app .t-worklog-landing .t-landing-workflow { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 2.1fr); align-items: center; gap: 48px; padding-block: 40px; border-top: 1px solid var(--wl-line); }
+#tna-app .t-landing-workflow h2 { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.5; letter-spacing: -.035em; color: var(--wl-ink); }
+#tna-app .t-landing-workflow dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin: 0; }
+#tna-app .t-landing-workflow dt { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--wl-ink); word-break: keep-all; }
+#tna-app .t-landing-workflow dd { margin: 0; font-size: 14px; line-height: 1.6; color: var(--wl-muted); }
+#tna-app .t-worklog-landing .t-intro-footer { padding-block: 28px; color: var(--wl-muted); border-color: var(--wl-line); }
+#tna-app .t-worklog-landing .t-intro-footer > span:first-child { color: var(--wl-ink); font-weight: 600; }
+#tna-app .t-worklog-landing .t-intro-footer-tagline { color: var(--wl-muted); font-weight: 400; }
+#tna-app .t-worklog-landing :is(button, a, input, select):focus-visible { outline: 2px solid var(--wl-focus); outline-offset: 4px; transition: none; }
+#tna-app .t-worklog-landing .t-landing-start:active:enabled { transform: translateY(1px); }
+#tna-app .t-worklog-landing :is(button, input, select):disabled { background: var(--wl-well); color: var(--wl-muted); opacity: .55; cursor: not-allowed; }
+@media (hover: hover) {
+  #tna-app .t-worklog-landing .t-landing-start:hover:enabled { transform: translateY(-3px); }
+  #tna-app .t-workday-scene:hover .t-calendar-object { transform: rotateX(5deg) rotateY(-8deg) rotateZ(-4deg); animation: none; }
+}
+@keyframes wl-calendar-arrive { from { transform: translateY(32px) rotateX(20deg) rotateY(-24deg) rotateZ(-12deg); } to { transform: rotateX(12deg) rotateY(-17deg) rotateZ(-8deg); } }
+@keyframes wl-clock-arrive { from { transform: translateY(-24px) rotateY(-18deg) rotateZ(-10deg); } to { transform: rotateY(-18deg) rotateZ(10deg); } }
+@keyframes wl-clock-tick { from { transform: rotate(-150deg); } to { transform: rotate(30deg); } }
+@keyframes wl-record-arrive { from { transform: translateY(24px) rotate(-12deg); } to { transform: rotate(-5deg); } }
+
+@media (max-width: 1100px) {
+  #tna-app .t-worklog-landing { --wl-gutter: 32px; }
+  #tna-app .t-worklog-landing .t-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #tna-app .t-worklog-landing .t-hero h1 { font-size: 58px; }
+  #tna-app .t-workday-scene { scale: .85; transform-origin: center right; }
+  #tna-app .t-calendar-object { left: 0; }
+  #tna-app .t-scene-orbit { left: 24px; }
+  #tna-app .t-clock-object { right: -12px; }
+}
+@media (max-width: 900px) {
+  #tna-app .t-worklog-landing { --wl-gutter: 24px; }
+  #tna-app .t-worklog-landing .t-intro-nav { min-height: 84px; padding-block: 20px; }
+  #tna-app .t-worklog-landing .t-wordmark { font-size: 22px; }
+  #tna-app .t-worklog-landing .t-brand-sub { font-size: 11px; }
+  #tna-app .t-worklog-landing .t-hero { grid-template-columns: minmax(0, 1fr); gap: 0; min-height: 0; padding-block: 36px 24px; }
+  #tna-app .t-worklog-landing .t-hero-copy { padding: 0; }
+  #tna-app .t-worklog-landing .t-hero h1 { font-size: clamp(44px, 8.2vw, 60px); }
+  #tna-app .t-worklog-landing .t-hero-description { margin-block: 20px 24px; font-size: 16px; }
+  #tna-app .t-worklog-landing .t-feature-labels { margin-top: 20px; }
+  #tna-app .t-workday-scene { width: 480px; height: 440px; margin: -12px 0 -72px; scale: .72; transform-origin: 0 center; left: calc(50% - 173px); }
+  #tna-app .t-clock-object { right: 16px; }
+  #tna-app .t-scene-caption { right: 40px; }
+  #tna-app .t-worklog-landing .t-landing-workflow { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 32px; }
+  #tna-app .t-landing-workflow h2 { font-size: 26px; }
+  #tna-app .t-landing-workflow dl { gap: 16px; }
+  #tna-app .t-landing-workflow dd { font-size: 13px; word-break: keep-all; }
+  #tna-app .t-worklog-landing .t-intro-footer { font-size: 12px; gap: 8px; }
+}
+@media (max-width: 360px) {
+  #tna-app .t-worklog-landing { --wl-gutter: 20px; }
+  #tna-app .t-worklog-landing .t-logo { width: 32px; height: 32px; font-size: 24px; }
+  #tna-app .t-worklog-landing .t-wordmark { gap: 8px; }
+  #tna-app .t-workday-scene { scale: .62; left: calc(50% - 149px); margin-block: -32px -100px; }
+  #tna-app .t-worklog-landing .t-feature-labels { gap: 8px; font-size: 11px; }
+  #tna-app .t-worklog-landing .t-feature-labels span + span { padding-left: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #tna-app .t-worklog-landing *, #tna-app .t-worklog-landing *::before, #tna-app .t-worklog-landing *::after { animation: none; transition: none; }
+  #tna-app .t-workday-scene:hover .t-calendar-object { transform: rotateX(12deg) rotateY(-17deg) rotateZ(-8deg); }
+  #tna-app .t-worklog-landing .t-landing-start:hover:enabled { transform: none; }
+}

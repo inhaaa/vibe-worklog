@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { render, cleanup, fireEvent } from '@testing-library/react';
+import { render, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AuthPages } from './AuthPages';
 import { CsrfContext } from '../ui';
@@ -15,41 +15,36 @@ const html = (name: string, data: Record<string, unknown>) =>
 afterEach(cleanup);
 
 describe('AuthPages', () => {
-  it('사번 로그인과 서버가 제공한 테스트 사원 선택을 같은 정상 폼으로 연결한다', () => {
-    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', { demoAccounts: [
-      { employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' },
-      { employeeNo: '26001', employeeName: '가상 승인자', roles: ['EMPLOYEE', 'APPROVER'], password: 'approver' },
-    ] })}</CsrfContext.Provider>);
-    const employeeNo = view.getByLabelText('사번') as HTMLInputElement;
-    expect(employeeNo.value).toBe('99999');
-    fireEvent.change(view.getByLabelText('테스트 사원 선택'), { target: { value: '26001' } });
-    expect(employeeNo.value).toBe('26001');
-    expect((view.getByLabelText('비밀번호') as HTMLInputElement).value).toBe('approver');
-    const form = view.getByRole('button', { name: '사번으로 로그인' }).closest('form')!;
-    expect(form.getAttribute('action')).toBe('/login');
-    expect(employeeNo.name).toBe('email');
-    expect(form.querySelector<HTMLInputElement>('[name="_csrf"]')!.value).toBe('csrf-value');
-    expect(view.queryByRole('button', { name: /승인자로 입장/ })).toBeNull();
-    expect(view.getByText(/같은 사원의 보유 권한/)).toBeTruthy();
-  });
-  it('서버가 확인한 합성 사원만 선택 목록에 표시한다', () => {
-    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', {
-      demoAccounts: [{ employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'admin' }],
-    })}</CsrfContext.Provider>);
-    expect(view.getAllByRole('option')).toHaveLength(2);
-    expect(view.getByRole('option', { name: '99999 · 담당자' })).toBeTruthy();
-    expect(view.queryByRole('option', { name: /26001/ })).toBeNull();
-  });
-  it('서버가 승인자 진입을 제공하지 않으면 빈 자격의 로그인 폼을 만들지 않는다', () => {
-    const view = render(page('demo', { demoLogin: 'admin', demoPassword: 'admin' }));
-    expect(view.queryByRole('button', { name: /승인자로 입장/ })).toBeNull();
-    expect(view.container.querySelectorAll('form[action="/login"]')).toHaveLength(1);
-  });
   it('공개 데모는 공유 가상 자료와 개인정보 입력 금지를 안내한다', () => {
     const result = html('demo', { publicDemo: true, demoLogin: 'admin', demoPassword: 'admin' });
     expect(result).toContain('모든 방문자가 함께 사용하는 가상 데이터');
     expect(result).toContain('실제 개인정보를 입력하지 마세요');
     expect(result).not.toContain('로컬 데모 계정');
+  });
+  it('메인 화면에서 입력 없이 서버가 제공한 기본 담당자로 로그인한다', () => {
+    const view = render(<CsrfContext.Provider value={csrf}>{page('demo', {
+      demoAccounts: [
+        { employeeNo: '26001', employeeName: '가상 승인자', roles: ['EMPLOYEE', 'APPROVER'], password: 'approver' },
+        { employeeNo: '99999', employeeName: '담당자', roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'], password: 'synthetic-admin' },
+      ],
+    })}</CsrfContext.Provider>);
+    const start = view.getByRole('button', { name: 'WorkLog 시작하기' }) as HTMLButtonElement;
+    const form = start.form!;
+    expect(start.type).toBe('submit');
+    expect(start.disabled).toBe(false);
+    expect(form.getAttribute('action')).toBe('/login');
+    expect(form.method).toBe('post');
+    expect(Object.fromEntries(new FormData(form))).toEqual({ _csrf: 'csrf-value', email: '99999', password: 'synthetic-admin' });
+    expect(view.container.querySelector('input:not([type="hidden"]), select')).toBeNull();
+  });
+  it('기본 담당자가 없으면 다른 사번이나 레거시 자격으로 로그인하지 않는다', () => {
+    const view = render(page('demo', {
+      demoLogin: 'admin', demoPassword: 'admin',
+      demoAccounts: [{ employeeNo: '99999', employeeName: '직원', roles: ['EMPLOYEE'], password: 'synthetic-employee' }],
+    }));
+    expect((view.getByRole('button', { name: 'WorkLog 시작하기' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByText('기본 데모 관리자 계정을 사용할 수 없습니다.')).toBeTruthy();
+    expect(view.container.querySelector('form[action="/login"]')).toBeNull();
   });
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
@@ -81,7 +76,7 @@ describe('AuthPages', () => {
     expect(result).toContain('name="email"');
     expect(result).toContain('value="99999"');
     expect(result).toContain('value="admin"');
-    expect(result).toContain('사번으로 로그인');
+    expect(result).toContain('WorkLog 시작하기');
     expect(result).toContain('로그아웃했습니다');
     expect(result).not.toContain('name="companyCode"');
   });

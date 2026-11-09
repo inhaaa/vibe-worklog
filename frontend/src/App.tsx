@@ -20,6 +20,7 @@ import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigati
 import { getNavigation, getNavigationContext, getWorkspaceMenuRoles, getWorkspaceRoles, selectWorkspaceRole } from './navigation';
 import { Modal } from './components/Modal';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { DemoAccountSwitcher } from './components/DemoAccountSwitcher';
 import './WorkspacePolish.css';
 
 function isTaskUrl(url: URL) {
@@ -103,7 +104,6 @@ function Icon({ name }: { name: string }) {
     settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
     chart: 'M4 4v16h16M8 15v-4M13 15V7M18 15v-6',
     menu: 'M4 6h16M4 12h16M4 18h16',
-    switchAccount: 'M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6M5 15a7 5 0 0 1 14 0M4 19h16m-3-3 3 3-3 3',
     chevron: 'm9 5 7 7-7 7',
   };
   return (
@@ -125,23 +125,26 @@ function Workspace({
   page,
   title,
   children,
+  busy,
 }: {
   data: Record<string, unknown>;
   page: string;
   title: string;
   children: ReactNode;
+  busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const employee = data.workspaceEmployee as
     { employeeName: string; companyName: string } | undefined;
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const roleOptions = getWorkspaceRoles(roles);
+  const demo = data.workspaceDemo === true;
   const [selectedRole, setSelectedRole] = useState(() => {
     const href = getNavigationContext(page, location.pathname, data)?.href;
-    return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value;
+    return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value
+      ?? (demo && roles.includes('ATTENDANCE_ADMIN') ? 'ATTENDANCE_ADMIN' : undefined);
   });
   const activeRole = selectWorkspaceRole(roles, selectedRole);
-  const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
   const headerEmployee = employeeHeader ?? employee;
   const brand = (
@@ -214,11 +217,7 @@ function Workspace({
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
           </span>
-          {demo && (
-            <a className="t-demo-switch" href="/demo" aria-label="다른 테스트 사원 로그인">
-              <Icon name="switchAccount" />
-            </a>
-          )}
+          {demo && <DemoAccountSwitcher busy={busy} currentEmployeeNo={location.pathname.startsWith('/me/') ? employeeHeader?.employeeNo : undefined} />}
           <Form action="/logout">
             <button className="t-btn t-logout">로그아웃</button>
           </Form>
@@ -636,6 +635,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
             data={base.data}
             page={base.page}
             title={titles[base.page] ?? '업무'}
+            busy={busy}
           >
             {content}
           </Workspace>
