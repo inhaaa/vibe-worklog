@@ -69,3 +69,40 @@ textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
   .wl-pagehead h1 { font-size: 20px; }
   .wl-help-button { width: 44px; height: 44px; }
 }
+.wl-help-panel p { margin: 0; }
+.wl-help-panel p + p { margin-top: 6px; }
+
+/* Section header: title (15/700) and total count, section actions on the right. */
+.wl-section { min-width: 0; margin: 0 0 32px; }
+.wl-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: var(--h-ctl); margin: 0 0 10px; }
+.wl-section-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wl-section-title h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.wl-count { color: var(--g600); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.wl-count b { color: var(--brand-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+
+/* Sheet row state: a dot and a word, never color alone. */
+.wl-state { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.wl-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.wl-state[data-state="new"] { color: var(--ok); }
+.wl-state[data-state="modified"] { color: var(--info); }
+.wl-state[data-state="deactivate"] { color: var(--danger); }
+
+/* Query bar on an existing GET form: label/control pairs in a row, [초기화][조회] at the end. */
+.wl-querybar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 20px; padding: 12px 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g50); }
+.wl-querybar > div:not(.wl-querybar-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.wl-querybar label:not(.t-sr-only) { margin: 0; color: var(--g700); font: 600 13px/1.4 var(--font-ui); white-space: nowrap; }
+.wl-querybar :is(.t-input, .t-select) { width: 180px; min-width: 0; margin: 0; }
+.wl-querybar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.wl-querybar .t-btn.wl-query-submit { border-color: var(--g800); background: var(--g800); color: var(--g0); }
+.wl-querybar .t-btn.wl-query-submit:hover:not(:disabled) { border-color: var(--g900); background: var(--g900); }
+.wl-querybar .t-btn.wl-query-reset { border-color: transparent; background: transparent; color: var(--g700); }
+.wl-querybar .t-btn.wl-query-reset:hover:not(:disabled) { border-color: transparent; background: var(--g150); }
+
+@media (max-width: 600px) {
+  .wl-section-actions { width: 100%; margin-left: 0; }
+  .wl-querybar, .wl-querybar > div:not(.wl-querybar-actions) { flex-direction: column; align-items: stretch; }
+  .wl-querybar :is(.t-input, .t-select) { width: 100%; }
+  .wl-querybar-actions { margin-left: 0; }
+  .wl-querybar-actions > * { flex: 1; }
+}
