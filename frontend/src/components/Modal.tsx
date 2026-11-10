@@ -10,9 +10,11 @@ interface ModalProps {
   busy?: boolean;
   className?: string;
   footer?: ReactNode;
+  /** s 440, m 720, l 920, xl 1200(px). 2단계는 s만 스타일을 둔다. 지정하지 않으면 기존 너비. */
+  size?: 's' | 'm' | 'l' | 'xl';
 }
 
-export function Modal({ title, children, onClose, busy = false, className = '', footer }: ModalProps) {
+export function Modal({ title, children, onClose, busy = false, className = '', footer, size }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -59,7 +61,7 @@ export function Modal({ title, children, onClose, busy = false, className = '', 
   }
 
   return createPortal(
-    <dialog ref={dialogRef} className={`t-modal ${className}`.trim()} aria-labelledby={titleId}
+    <dialog ref={dialogRef} className={`t-modal ${className}`.trim()} data-size={size} aria-labelledby={titleId}
       aria-modal="true" aria-busy={busy} onKeyDown={trapFocus}
       onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
       <header className="t-modal-header">

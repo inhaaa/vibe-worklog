@@ -161,4 +161,12 @@ describe('공통 업무 모달', () => {
     modal.unmount();
     expect(document.activeElement).toBe(refreshed.getByRole('heading', { name: '권한 목록' }));
   });
+
+  it('크기를 지정하면 data-size로 노출하고 지정하지 않으면 기존 너비를 쓴다', () => {
+    const { unmount } = render(<Modal title="저장 확인" size="s" onClose={() => {}}>본문</Modal>);
+    expect(screen.getByRole('dialog', { name: '저장 확인' }).getAttribute('data-size')).toBe('s');
+    unmount();
+    render(<Modal title="상세" onClose={() => {}}>본문</Modal>);
+    expect(screen.getByRole('dialog', { name: '상세' }).hasAttribute('data-size')).toBe(false);
+  });
 });
