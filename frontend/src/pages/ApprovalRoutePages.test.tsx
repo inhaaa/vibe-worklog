@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { PageEnvelope } from '../types';
@@ -14,6 +14,13 @@ function page(overrides: Record<string, unknown> = {}): PageEnvelope {
 }
 function form(view: ReturnType<typeof render>) { return view.container.querySelector('form[action="/admin/approval-routes/bulk"]') as HTMLFormElement; }
 function posted(view: ReturnType<typeof render>) { return JSON.parse(String(new FormData(form(view)).get('rows'))) as Record<string, unknown>[]; }
+async function save(view: ReturnType<typeof render>, reason?: string) {
+  fireEvent.click(within(form(view)).getByRole('button', { name: '저장' }));
+  const dialog = await view.findByRole('dialog', { name: '변경 내용 저장' });
+  if (reason !== undefined) fireEvent.change(within(dialog).getByLabelText('일괄 변경 사유'), { target: { value: reason } });
+  fireEvent.click(within(dialog).getByRole('button', { name: /건 저장$/ }));
+  return dialog;
+}
 function response(body: PageEnvelope, status: number) {
   const result = new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/vnd.worklog.page+json' } });
   Object.defineProperty(result, 'url', { value: new URL('/admin/approval-routes/bulk', location.href).href });
@@ -54,7 +61,11 @@ function cellValue(view: ReturnType<typeof render>, label: string) {
   const cell = view.getByLabelText(label);
   return cell instanceof HTMLInputElement || cell instanceof HTMLSelectElement ? cell.value : cell.textContent;
 }
-beforeEach(() => { history.replaceState(null, '', '/admin/approval-routes'); });
+beforeEach(() => {
+  history.replaceState(null, '', '/admin/approval-routes');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value(this: HTMLDialogElement) { this.open = false; } });
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('결재선 React 관리', () => {
@@ -75,8 +86,7 @@ describe('결재선 React 관리', () => {
     fireEvent.click(await view.findByLabelText('결재선 이름 1'), { detail: 1 });
     const editor = await view.findByRole('textbox', { name: '결재선 이름 1' });
     fireEvent.change(editor, { target: { value: '최종 결재 이름' } });
-    fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '이름 변경' } });
-    fireEvent.submit(form(view));
+    await save(view, '이름 변경');
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     const payload = JSON.parse((fetcher.mock.calls[0][1]?.body as URLSearchParams).get('rows')!);
     expect(payload[0]).toMatchObject({ clientRowId: 'row-1', name: '최종 결재 이름' });
@@ -118,7 +128,7 @@ describe('결재선 React 관리', () => {
 
   it('시트 도구·고정 코드·미변경 제외와 버전 재배정 안내를 제공한다', async () => {
     const view = await show(<App initial={page()} />);
-    for (const name of ['조회', '입력', '비활성화', '저장', '취소']) expect(view.getByRole('button', { name })).toBeTruthy();
+    for (const name of ['조회', '행 추가', '비활성화', '저장', '변경 취소']) expect(view.getByRole('button', { name })).toBeTruthy();
     expect(view.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect(view.getByLabelText('결재선 코드 1').getAttribute('aria-readonly')).toBe('true');
     expect(posted(view)).toEqual([]);
@@ -128,7 +138,7 @@ describe('결재선 React 관리', () => {
 
   it('지정 사원과 조직장을 선택하고 새 행·삭제 예정·취소를 처리한다', async () => {
     const view = await show(<App initial={page()} />);
-    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
     await changeCell(view, '결재선 코드 2', 'DIRECT');
     await changeCell(view, '결재선 이름 2', '사원 지정');
     await changeCell(view, '결재 방식 2', 'DIRECT_EMPLOYEE');
@@ -141,14 +151,14 @@ describe('결재선 React 관리', () => {
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(posted(view)[0]).toMatchObject({ operation: 'DEACTIVATE', expectedVersion: 3 });
     expect(view.getByText('비활성 예정')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(posted(view)).toEqual([]);
   });
 
   it('50행 제한과 미저장 이동 확인을 적용한다', async () => {
     const rows = Array.from({ length: 50 }, (_, i) => ({ ...row, id: null, clientRowId: `new-${i}`, operation: 'CREATE', code: `R${i}` }));
     const view = await show(<App initial={page({ sheet: { commandId: 'batch-command', reason: '', rows, latestRows: [], errors: [] } })} />);
-    expect((view.getByRole('button', { name: '입력' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((view.getByRole('button', { name: '행 추가' }) as HTMLButtonElement).disabled).toBe(true);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher);
     fireEvent.click(view.getByRole('button', { name: '내 업무' }));
@@ -163,7 +173,7 @@ describe('결재선 React 관리', () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
     const view = await show(<App initial={page()} />);
     await changeCell(view, '결재선 이름 1', '중복 이름');
-    fireEvent.submit(form(view));
+    await save(view, '검토');
     await waitFor(() => expect(view.getByRole('button', { name: /이름을 확인하세요/ })).toBeTruthy());
     expect(cellValue(view, '결재선 이름 1')).toBe('중복 이름');
     expect(new FormData(form(view)).get('commandId')).toBe('posted-command');
@@ -184,10 +194,9 @@ describe('결재선 React 관리', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = await show(<App initial={page()} />);
     await changeCell(view, '결재선 이름 1', '새 이름');
-    fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '변경 검토' } });
-    const id = new FormData(form(view)).get('commandId');
-    fireEvent.submit(form(view));
+    await save(view, '변경 검토');
     await waitFor(() => expect(view.getByText('결과 확인 필요')).toBeTruthy());
+    const id = (fetcher.mock.calls[0][1]?.body as URLSearchParams).get('commandId');
     expect(view.getByLabelText('결재선 이름 1').getAttribute('aria-disabled')).toBe('false');
     fireEvent.submit(form(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
