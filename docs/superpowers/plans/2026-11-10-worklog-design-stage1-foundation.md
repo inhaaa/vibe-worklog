@@ -1799,3 +1799,14 @@ EOF
 
 - 1단계 결과: 커밋 목록, 테스트 수, 캡처 전후 비교
 - 남은 차이와 한계
+
+---
+
+## 실행 기록 (2026-11-10)
+
+이 계획은 같은 세션에서 차례로 실행했다. 실제 결과와 계획과 달라진 점은 [검증 결과](../../quality/worklog-design-system-20261110.md)에 기록했다.
+
+- Task 1·2의 계약 테스트는 `cssLayers.test.js`, `design/tokens.test.js`로 작성했다. tsconfig에 node 타입이 없기 때문이다.
+- Task 3 뒤에 부품 변형 보호(`:not([class*=" t-"])`) 커밋 `9b8dc2c`를 추가했다.
+- Task 4에서 상단바 버튼 높이(30px, 터치 44px) 규칙을 더했다.
+- Task 4·6의 수동 확인은 `menu-check.mjs`, `help-check.mjs` 헤드리스 확인으로 대신했다.
