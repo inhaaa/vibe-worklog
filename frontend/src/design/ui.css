@@ -106,3 +106,17 @@ textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
   .wl-querybar-actions { margin-left: 0; }
   .wl-querybar-actions > * { flex: 1; }
 }
+
+/* Modal size: stage 2 styles only s (save confirmation). Other sizes, header and footer move in stage 3. */
+.t-modal[data-size="s"] { width: min(440px, calc(100% - 48px)); }
+
+/* Sheet save confirmation. */
+.wl-save-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; }
+.wl-save-reason { display: grid; gap: 6px; }
+.wl-save-reason > label { color: var(--g800); font: 600 13px/1.4 var(--font-ui); }
+.wl-save-reason textarea { width: 100%; resize: vertical; }
+.wl-required::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 4px; border-radius: 50%; background: var(--danger); vertical-align: middle; }
+.wl-save-reason-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--g600); font-size: 12px; line-height: 1.5; }
+.wl-save-reason-meta p { margin: 0; }
+.wl-field-error { color: var(--danger); font-weight: 600; }
+.wl-char-count { flex: none; font-variant-numeric: tabular-nums; }
