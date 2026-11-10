@@ -1,6 +1,8 @@
 /* WorkLog shared controls. Unlayered, so these win over the legacy layer without #tna-app selectors.
-   Layout properties (width, flex, margin) stay with each screen. */
-.t-btn {
+   Layout properties (width, flex, margin) stay with each screen.
+   Plain controls only: a control that also carries a component class (class contains " t-", e.g.
+   "t-btn t-request-period-trigger") keeps its component styling until that component moves to this layer. */
+.t-btn:not([class*=" t-"]) {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-height: var(--h-ctl); height: auto; padding: 0 12px;
   border: 1px solid var(--g300); border-radius: var(--r-ctl);
@@ -8,41 +10,41 @@
   font: 600 13px/1.2 var(--font-ui); letter-spacing: -.01em; text-decoration: none; white-space: nowrap;
   cursor: pointer; transition: background-color 120ms, border-color 120ms;
 }
-.t-btn:hover:not(:disabled) { background: var(--g50); border-color: var(--g400); }
-.t-btn:active:not(:disabled) { background: var(--g100); opacity: 1; }
-.t-btn.primary { background: var(--brand); border-color: var(--brand); color: var(--g0); }
-.t-btn.primary:hover:not(:disabled) { background: var(--brand-hover); border-color: var(--brand-hover); }
-.t-btn:disabled, .t-btn[aria-disabled="true"] { background: var(--g50); border-color: var(--g200); color: var(--g500); cursor: not-allowed; }
-.t-btn svg { width: 16px; height: 16px; flex: none; }
+.t-btn:not([class*=" t-"]):hover:not(:disabled) { background: var(--g50); border-color: var(--g400); }
+.t-btn:not([class*=" t-"]):active:not(:disabled) { background: var(--g100); opacity: 1; }
+.t-btn.primary:not([class*=" t-"]) { background: var(--brand); border-color: var(--brand); color: var(--g0); }
+.t-btn.primary:not([class*=" t-"]):hover:not(:disabled) { background: var(--brand-hover); border-color: var(--brand-hover); }
+.t-btn:not([class*=" t-"]):is(:disabled, [aria-disabled="true"]) { background: var(--g50); border-color: var(--g200); color: var(--g500); cursor: not-allowed; }
+.t-btn:not([class*=" t-"]) svg { width: 16px; height: 16px; flex: none; }
 
-.t-icon-button {
+.t-icon-button:not([class*=" t-"]) {
   display: inline-grid; place-items: center; width: var(--h-ctl); height: var(--h-ctl); padding: 0;
   border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g700); cursor: pointer;
 }
-.t-icon-button:hover { background: var(--g50); border-color: var(--g400); }
-.t-icon-button svg { width: 16px; height: 16px; stroke-width: 1.7; }
+.t-icon-button:not([class*=" t-"]):hover { background: var(--g50); border-color: var(--g400); }
+.t-icon-button:not([class*=" t-"]) svg { width: 16px; height: 16px; stroke-width: 1.7; }
 
-.t-input, .t-select {
+:is(.t-input, .t-select):not([class*=" t-"]) {
   min-height: var(--h-ctl); height: auto; padding: 0 10px;
   border: 1px solid var(--field-line); border-radius: var(--r-ctl);
   background-color: var(--g0); color: var(--g900); box-shadow: none;
   font: 400 13px/1.4 var(--font-ui);
 }
-textarea.t-input { padding: 8px 10px; line-height: 1.55; }
-.t-input::placeholder { color: var(--g600); }
-.t-input:focus, .t-select:focus { border-color: var(--brand); outline: 2px solid var(--brand); outline-offset: 1px; }
-.t-input[aria-invalid="true"], .t-select[aria-invalid="true"] { border-color: var(--danger); }
+textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
+.t-input:not([class*=" t-"])::placeholder { color: var(--g600); }
+:is(.t-input, .t-select):not([class*=" t-"]):focus { border-color: var(--brand); outline: 2px solid var(--brand); outline-offset: 1px; }
+:is(.t-input, .t-select):not([class*=" t-"])[aria-invalid="true"] { border-color: var(--danger); }
 
-.t-tag {
+.t-tag:not([class*=" t-"]) {
   display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px;
   border: 0; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700);
   font: 600 12px/1.2 var(--font-ui); white-space: nowrap;
 }
-.t-tag.blue { background: var(--info-bg); color: var(--info); }
-.t-tag.green { background: var(--ok-bg); color: var(--ok); }
-.t-tag.amber { background: var(--warn-bg); color: var(--warn); }
-.t-tag.red { background: var(--danger-bg); color: var(--danger); }
+.t-tag.blue:not([class*=" t-"]) { background: var(--info-bg); color: var(--info); }
+.t-tag.green:not([class*=" t-"]) { background: var(--ok-bg); color: var(--ok); }
+.t-tag.amber:not([class*=" t-"]) { background: var(--warn-bg); color: var(--warn); }
+.t-tag.red:not([class*=" t-"]) { background: var(--danger-bg); color: var(--danger); }
 
 @media (max-width: 600px) {
-  .t-input, .t-select { font-size: 16px; }
+  :is(.t-input, .t-select):not([class*=" t-"]) { font-size: 16px; }
 }
