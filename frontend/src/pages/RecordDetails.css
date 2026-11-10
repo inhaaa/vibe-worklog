@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · signature: recorded evidence · v2.0.0 */
 /* Hallmark · pre-emit critique: preserve evidence semantics; quiet labels and horizontal rules make long records easier to scan. */
 #tna-app .t-record-detail { min-width:0; padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-paper); }
@@ -18,4 +19,5 @@
   #tna-app .t-record-detail > .panel > h2:first-child { font-size:18px; }
   #tna-app .t-record-detail dl { grid-template-columns:minmax(100px,.75fr) minmax(0,1.25fr); }
   #tna-app .t-record-detail dl > :is(dt,dd) { padding:var(--space-sm); }
+}
 }

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: request ledger · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
 #tna-app .t-request-detail-page { min-width:0; padding:var(--space-lg); border:1px solid var(--t-line); border-radius:var(--t-radius); background:var(--t-paper); color:var(--t-ink); }
@@ -116,4 +117,5 @@
   #tna-app .t-request-detail-page .t-request-detail-values { grid-template-columns:minmax(88px,.8fr) minmax(0,1.6fr); }
   #tna-app .t-request-detail-page .t-request-detail-values dt { border-bottom:1px solid var(--t-line); }
   #tna-app .t-request-detail-page .t-request-detail-values dt:nth-last-child(2) { border-bottom:0; }
+}
 }

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: request ledger · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, join the approval and applicant facts to one full-width request ledger */
 /* Hallmark · answered F7 · Plain form and ledger sections share border rules to keep data aligned, without nested cards. */
@@ -383,4 +384,5 @@
   #tna-app .t-request-steps li { min-width:0; flex-direction:column; gap:var(--space-xs); white-space:normal; text-align:center; word-break:keep-all; }
   #tna-app .t-request-steps li:not(:last-child)::after { display:none; }
   #tna-app .t-correction-events li + li { border-left:0; border-top:1px solid var(--t-line); }
+}
 }

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: charcoal and blue by request · signature: personnel sheet · v2.0.0 */
 /* Open groups keep field labels and values together as the record reflows. */
 #tna-app :is(.t-private-personnel, .t-profile-details) {
@@ -329,4 +330,5 @@
     font-size: 14px;
     content: attr(data-label);
   }
+}
 }
