@@ -5,6 +5,7 @@
 @import 'ag-grid-community/styles/ag-theme-quartz.css' layer(vendor);
 
 .w-sheet { min-width: 0; max-width: 100%; margin: 0 0 16px; }
+.notice + .w-sheet { margin-top: 12px; }
 .w-sheet-find { width: 200px; }
 .w-sheet-pending { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--warn); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .w-sheet-pending::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
