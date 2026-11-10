@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import type { PageEnvelope } from '../types';
@@ -67,7 +67,18 @@ function cellValue(view: ReturnType<typeof render>, label: string) {
   const cell = view.getByLabelText(label);
   return cell instanceof HTMLInputElement || cell instanceof HTMLSelectElement ? cell.value : cell.textContent;
 }
-beforeEach(() => { history.replaceState(null, '', '/admin/organizations?q=개발&page=1'); });
+async function save(view: ReturnType<typeof render>, reason?: string) {
+  fireEvent.click(view.getByRole('button', { name: '저장' }));
+  const dialog = await view.findByRole('dialog', { name: '변경 내용 저장' });
+  if (reason !== undefined) fireEvent.change(within(dialog).getByLabelText('일괄 변경 사유'), { target: { value: reason } });
+  fireEvent.click(within(dialog).getByRole('button', { name: /건 저장$/ }));
+  return dialog;
+}
+beforeEach(() => {
+  history.replaceState(null, '', '/admin/organizations?q=개발&page=1');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value(this: HTMLDialogElement) { this.open = false; } });
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('조직·사원 시트 편집', () => {
@@ -90,8 +101,7 @@ describe('조직·사원 시트 편집', () => {
     fireEvent.click(await view.findByLabelText('조직 이름 1'), { detail: 1 });
     const editor = await view.findByRole('textbox', { name: '조직 이름 1' });
     fireEvent.change(editor, { target: { value: '마지막 입력' } });
-    fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '이름 변경' } });
-    fireEvent.submit(bulkForm(view));
+    await save(view, '이름 변경');
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     const payload = JSON.parse((fetcher.mock.calls[0][1]?.body as URLSearchParams).get('rows')!);
     expect(payload[0]).toMatchObject({ clientRowId: 'row-org', name: '마지막 입력' });
@@ -106,7 +116,7 @@ describe('조직·사원 시트 편집', () => {
 
   it('도구 모음과 고정 코드·사번을 표시하고 미변경 행은 전송하지 않는다', async () => {
     const view = await show();
-    for (const label of ['조회', '입력', '비활성화', '저장', '취소']) expect(view.getByRole('button', { name: label })).toBeTruthy();
+    for (const label of ['조회', '행 추가', '비활성화', '저장', '변경 취소']) expect(view.getByRole('button', { name: label })).toBeTruthy();
     expect(view.getByRole('button', { name: '비활성화' }).title).toBe('미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.');
     expect(view.getByLabelText('조직 코드 1').getAttribute('aria-readonly')).toBe('true');
     expect(postedRows(view)).toEqual([]);
@@ -116,7 +126,7 @@ describe('조직·사원 시트 편집', () => {
 
   it('새 행은 저장 전 추가·제거하며 취소는 조회값으로 복원한다', async () => {
     const view = await show();
-    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
     const code = await changeCell(view, '조직 코드 2', 'HR');
     expect(code.hasAttribute('readonly')).toBe(false);
     await changeCell(view, '조직 이름 2', '인사팀');
@@ -125,7 +135,7 @@ describe('조직·사원 시트 편집', () => {
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.queryByLabelText('조직 코드 2')).toBeNull();
     await changeCell(view, '조직 이름 1', '개발본부');
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(cellValue(view, '조직 이름 1')).toBe('개발팀');
     expect(postedRows(view)).toEqual([]);
   });
@@ -133,7 +143,7 @@ describe('조직·사원 시트 편집', () => {
   it('신규 사번을 비워도 저장하며 기존 사번은 읽기 전용이다', async () => {
     const view = await show(page('employees'));
     expect(view.getByLabelText('사번 1').getAttribute('aria-readonly')).toBe('true');
-    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
     const number = await openCell(view, '사번 2') as HTMLInputElement;
     expect(number.required).toBe(false);
     fireEvent.keyDown(number, { key: 'Enter' });
@@ -151,7 +161,7 @@ describe('조직·사원 시트 편집', () => {
     expect(view.getByText('비활성 예정')).toBeTruthy();
     expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', operation: 'DEACTIVATE', expectedVersion: 3 });
     expect(view.getByText(/이력을 보존하고 비활성화/)).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(view.queryByText('비활성 예정')).toBeNull();
   });
 
@@ -163,7 +173,7 @@ describe('조직·사원 시트 편집', () => {
     await changeCell(view, '조직 이름 1', '개발본부');
     expect(postedRows(view)).toHaveLength(1);
     expect(postedRows(view)[0].name).toBe('개발본부');
-    expect(view.getByText('변경 1행')).toBeTruthy();
+    expect(view.getByText('저장 전 변경 1건')).toBeTruthy();
     expect(view.getByLabelText('조직 이름 1').getAttribute('data-changed')).toBe('true');
     expect(view.container.querySelector('[data-unsaved-changes="true"]')).toBeTruthy();
   });
@@ -185,7 +195,7 @@ describe('조직·사원 시트 편집', () => {
     await waitFor(() => expect(view.getByText('숨은 선택 1행 · 숨은 변경 1행')).toBeTruthy());
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(postedRows(view)[0]).toMatchObject({ id: 'o-1', operation: 'DEACTIVATE' });
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(postedRows(view)).toEqual([]);
     fireEvent.change(view.getByLabelText('조직 편집 시트 현재 페이지 필터'), { target: { value: '' } });
     await waitFor(() => expect(cellValue(view, '조직 이름 1')).toBe('개발팀'));
@@ -195,8 +205,8 @@ describe('조직·사원 시트 편집', () => {
     const view = await show(page('organizations', { organizationSheet: {
       commandId: 'batch-command', reason: '', rows: Array.from({ length: 49 }, (_, i) => ({ clientRowId: `new-${i}`, operation: 'CREATE', code: `N${i}`, name: '새 조직', parentId: null, active: true })), latestRows: [], errors: [],
     } }));
-    fireEvent.click(view.getByRole('button', { name: '입력' }));
-    expect((view.getByRole('button', { name: '입력' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
+    expect((view.getByRole('button', { name: '행 추가' }) as HTMLButtonElement).disabled).toBe(true);
     expect(view.getByText(/한 번에 최대 50행/)).toBeTruthy();
     expect(postedRows(view)).toHaveLength(50);
   });
@@ -233,8 +243,7 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = await show();
     await changeCell(view, '조직 이름 1', '새 이름');
-    fireEvent.change(view.getByLabelText('일괄 변경 사유'), { target: { value: '업무 검토' } });
-    fireEvent.submit(bulkForm(view));
+    await save(view, '업무 검토');
     await waitFor(() => expect(view.getByText('저장 결과 확인 필요')).toBeTruthy());
     const first = (fetcher.mock.calls[0][1]?.body as URLSearchParams).get('commandId');
     fireEvent.submit(bulkForm(view));
@@ -254,7 +263,7 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
     const view = await show(initial);
     await changeCell(view, '조직 이름 1', '중복팀');
-    fireEvent.submit(bulkForm(view));
+    await save(view, '업무 검토');
     await waitFor(() => expect(view.getByRole('button', { name: /조직 코드가 중복됩니다/ })).toBeTruthy());
     expect(view.getByText('비활성 예정')).toBeTruthy();
     expect(cellValue(view, '조직 코드 2')).toBe('NEW');
@@ -302,7 +311,7 @@ describe('조직·사원 시트 편집', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const view = await show();
     await changeCell(view, '조직 이름 1', '저장 중');
-    fireEvent.submit(bulkForm(view));
+    await save(view, '저장 확인');
     fireEvent.click(view.getByRole('link', { name: '내 정보' }));
     expect(confirm).not.toHaveBeenCalled(); expect(fetcher).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(false);
@@ -322,14 +331,14 @@ describe('조직·사원 시트 편집', () => {
     const controls = Array.from(view.container.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('form button,form input,form select,form textarea'));
     const before = controls.map(control => control.disabled);
     const originalPayload = new FormData(bulkForm(view));
-    fireEvent.submit(bulkForm(view));
+    await save(view);
     const locked = controls.every(control => control.disabled);
     fireEvent.click(view.getByLabelText('조직 이름 1'), { detail: 1 });
     expect(view.queryByRole('textbox', { name: '조직 이름 1' })).toBeNull();
     act(() => {
-      (view.getByRole('button', { name: '입력' }) as HTMLButtonElement).click();
+      (view.getByRole('button', { name: '행 추가' }) as HTMLButtonElement).click();
       (view.getByRole('button', { name: '비활성화' }) as HTMLButtonElement).click();
-      (view.getByRole('button', { name: '취소' }) as HTMLButtonElement).click();
+      (view.getByRole('button', { name: '변경 취소' }) as HTMLButtonElement).click();
     });
     await act(async () => failure === '503'
       ? complete(response({ page: 'org/problem', csrf, data: { message: '잠시 후 재시도하세요.' } }, 503))
@@ -394,6 +403,58 @@ describe('조직·사원 시트 편집', () => {
     expect(location.pathname).toBe('/admin/employees');
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(new URL(String(fetcher.mock.calls[2][0]), location.origin).pathname).toBe('/admin/employees');
+  });
+
+  it('저장은 확인 창에서 건수와 사유를 확인한 뒤 시트 폼으로 보내고 창을 닫으면 편집을 유지한다', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetcher);
+    const view = await show();
+    expect(view.container.querySelector('[row-id="row-org"] [col-id="state"]')?.textContent).toBe('');
+    await changeCell(view, '조직 이름 1', '개발본부');
+    expect(view.container.querySelector('[row-id="row-org"] [col-id="state"]')?.textContent).toBe('수정');
+    fireEvent.click(view.getByRole('button', { name: '저장' }));
+    const dialog = await view.findByRole('dialog', { name: '변경 내용 저장' });
+    expect(within(dialog).getByText('수정 1건')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
+    await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+    expect(cellValue(view, '조직 이름 1')).toBe('개발본부');
+    await save(view, '조직 개편');
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const body = fetcher.mock.calls[0][1]?.body as URLSearchParams;
+    expect(body.get('reason')).toBe('조직 개편');
+    expect(JSON.parse(body.get('rows')!)[0]).toMatchObject({ clientRowId: 'row-org', name: '개발본부' });
+    expect(body.get('_csrf')).toBe('csrf');
+    expect(body.get('q')).toBe('개발');
+  });
+
+  it('확인 창을 거치지 않은 제출은 보내지 않고 확인 창을 연다', async () => {
+    const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher);
+    const view = await show();
+    await changeCell(view, '조직 이름 1', '개발본부');
+    fireEvent.submit(bulkForm(view));
+    expect(await view.findByRole('dialog', { name: '변경 내용 저장' })).toBeTruthy();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('사유 422는 확인 창을 다시 열고 사유 칸에 오류와 초점을 둔다', async () => {
+    const failed = page('organizations', { error: '변경 사유를 입력하세요.', organizationSheet: {
+      commandId: 'posted-command', reason: '', rows: [{ ...orgRow, name: '새 이름' }], latestRows: [organization],
+      errors: [{ clientRowId: '', field: 'reason', message: '변경 사유를 입력하세요.' }],
+    } });
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
+    const view = await show();
+    await changeCell(view, '조직 이름 1', '새 이름');
+    await save(view, ' ');
+    const dialog = await waitFor(() => {
+      const element = view.getByRole('dialog', { name: '변경 내용 저장' });
+      expect(within(element).getByText('변경 사유를 입력하세요.')).toBeTruthy();
+      return element;
+    });
+    const reason = within(dialog).getByLabelText('일괄 변경 사유');
+    await waitFor(() => expect(document.activeElement).toBe(reason));
+    expect(reason.getAttribute('aria-invalid')).toBe('true');
+    expect(view.container.querySelector('.t-org-sheet .notice.error')).toBeNull();
+    expect(view.queryByRole('navigation', { name: '조직 편집 시트 오류 위치' })).toBeNull();
   });
 });
 
