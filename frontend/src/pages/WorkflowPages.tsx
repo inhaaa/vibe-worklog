@@ -6,6 +6,7 @@ import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import {
   Form,
   Field,
@@ -187,18 +188,12 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   );
   return (
     <div className="t-request-detail-page">
-      <header className="t-pagehead">
-        <div>
-
-          <h1>신청 상세</h1>
-          <p className="t-muted">신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)</p>
-        </div>
-        <div className="t-request-detail-backlinks">
+      <PageHeader title="신청 상세" help="신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)"
+        actions={<div className="t-request-detail-backlinks">
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
-        </div>
-      </header>
+        </div>} />
       <div className="t-request-detail-document">
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
@@ -353,7 +348,7 @@ function Correction({ model: m }: { model: CorrectionModel }) {
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <header className="t-pagehead"><div><h1>출퇴근·실제 휴게 정정 신청</h1><p className="t-muted">확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다.</p></div></header>
+      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다." />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -1291,7 +1286,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/history':
       content = (
         <>
-          <header className="t-pagehead"><div><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각과 실제 근로를 확인하세요." />
           {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">

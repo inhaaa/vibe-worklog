@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { PageProps } from '../types';
 import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 interface Profile {
@@ -187,13 +188,7 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
   ];
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-
-          <h1>내 정보</h1>
-          <p className="t-muted">현재 계정과 업무 배정 정보를 확인하세요.</p>
-        </div>
-      </header>
+      <PageHeader title="내 정보" help="현재 계정과 업무 배정 정보를 확인하세요." />
       {details && <PersonalDetailsTabs model={details} identity={{ employeeName: p.employeeName, joinedOn: p.joinedOn, birthDate }} />}
       <section className="panel t-profile-details" aria-label="본인 정보">
         <div className="t-personal-panel-heading"><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>
@@ -213,13 +208,7 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
 function AccessListPage({ model: m }: { model: AccessList }) {
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-
-          <h1>권한 관리</h1>
-          <p className="t-muted">계정별 역할을 확인하고 기존 관리 화면에서 변경하세요.</p>
-        </div>
-      </header>
+      <PageHeader title="권한 관리" help="계정별 역할을 확인하고 기존 관리 화면에서 변경하세요." />
       <section className="panel">
         <Form action="/admin/access" method="get" className="search-form">
           <div><Field label="사번·이름 검색" name="q" value={m.q} maxLength={120} /></div>
@@ -256,12 +245,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
   const values = { month: m.month, organizationId: m.organizationId, employeeId: m.employeeId, q: m.q };
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-          <h1>회사 근무현황</h1>
-          <p className="t-muted">사원을 선택해 해당 월의 일별 근무 결과를 확인하세요.</p>
-        </div>
-      </header>
+      <PageHeader title="회사 근무현황" help="사원을 선택해 해당 월의 일별 근무 결과를 확인하세요." />
       <section className="panel">
         <Form
           action="/company/attendance"
@@ -345,12 +329,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
 function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-          <h1>회사 신청 현황</h1>
-          <p className="t-muted">조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
-        </div>
-      </header>
+      <PageHeader title="회사 신청 현황" help="조회연도의 회사 신청 유형과 처리 상태를 확인하세요." />
       <section className="panel">
         <Form action="/company/requests" method="get" className="admin-form">
           <Field label="조회연도 (서울)" name="year" type="number" value={m.year} min={1} max={9999} required />
