@@ -1,3 +1,7 @@
+/* Hallmark · shape: app screen · genre: modern-minimal · theme: WorkLog charcoal and blue · redesign: restyle · signature: monthly ledger · v2.0.0 */
+/* Hallmark · critique: keep the month readable at a glance, with leave as the only filled event. */
+#tna-app .t-main:has(.t-attendance-calendar) { background: var(--t-surface); }
+
 #tna-app .t-attendance-calendar {
   display: grid;
   gap: var(--space-md);
@@ -24,17 +28,31 @@
   gap: var(--space-2xs);
   min-width: 5rem;
   margin: 0 auto 0 0;
-  font-size: clamp(1.6rem, 3.5vw, 2.15rem);
+  font-size: var(--text-2xl);
   line-height: 1.05;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: break-word;
+  text-wrap: balance;
 }
 
-#tna-app .t-attendance-month span { color: var(--t-accent-ink); font-size: 13px; }
+#tna-app .t-attendance-month span { color: var(--t-muted); font-size: 13px; }
 #tna-app .t-attendance-board .t-month-navigation { gap: var(--space-2xs); }
 #tna-app .t-attendance-board .t-attendance-jump { margin: 0; }
 #tna-app .t-attendance-jump .t-input { flex: 0 1 auto; width: 9.5rem; min-width: 0; }
 #tna-app .t-attendance-board .t-calendar-legend { padding: 0 0 var(--space-xs); gap: var(--space-xs) var(--space-md); }
+#tna-app .t-attendance-board [data-calendar-marker] {
+  inline-size: 12px;
+  block-size: 0;
+  border-block-start: 1px solid var(--t-muted);
+}
+#tna-app .t-attendance-board [data-calendar-marker="unconfirmed"] { border-block-start-style: dashed; }
+#tna-app .t-attendance-board [data-calendar-marker="leave"] {
+  block-size: 9px;
+  border: 1px solid var(--t-green);
+  border-radius: 2px;
+  background: var(--t-green-soft);
+}
 #tna-app .t-attendance-hint { margin-inline-start: auto; }
 
 #tna-app .t-attendance-board .t-weekdays {
@@ -43,26 +61,31 @@
   font-weight: 650;
   padding: var(--space-xs) 0;
 }
+#tna-app .t-attendance-board .t-weekdays span:nth-child(7) { color: var(--t-muted); }
 
-#tna-app .t-attendance-board .t-month-grid { gap: var(--space-2xs); }
+#tna-app .t-attendance-board .t-month-grid { gap: 0; border-block-start: 1px solid var(--t-line); }
 #tna-app .t-attendance-slot { position: relative; min-width: 0; display: grid; }
 
 #tna-app .t-attendance-board .t-day {
   min-height: 5.8rem;
   height: 100%;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--t-label);
+  border: 0;
+  border-inline-end: 1px solid var(--t-line);
+  border-block-end: 1px solid var(--t-line);
+  border-radius: 0;
+  background: var(--t-paper);
   padding: var(--space-2xs) var(--space-xs) var(--space-xs);
   text-decoration: none;
 }
 
-#tna-app .t-attendance-board .t-day.outside { background: var(--t-canvas); opacity: .55; }
-#tna-app .t-attendance-board .t-day.weekend:not(.selected) { background: var(--t-canvas); }
-#tna-app .t-attendance-board .t-day.selected { background: var(--t-blue-soft); border-color: var(--t-blue); }
-#tna-app .t-attendance-board .t-day:hover:not(.selected) { background: var(--t-blue-soft); }
-#tna-app .t-attendance-board .t-day:focus-visible { outline-offset: -3px; }
+#tna-app .t-attendance-board .t-day:is(.outside, .weekend, .selected) { background: var(--t-paper); }
+#tna-app .t-attendance-board .t-day.selected { box-shadow: inset 0 0 0 1px var(--t-ink); }
+#tna-app .t-attendance-board .t-day:hover:not(.selected) { background: var(--t-surface); }
+#tna-app .t-attendance-board .t-day:focus-visible { outline: 2px solid var(--t-ink); outline-offset: -3px; }
+#tna-app .t-attendance-board .t-attendance-slot:nth-child(7n) > .t-day,
+#tna-app .t-attendance-board .t-day.outside:nth-child(7n) { border-inline-end: 0; }
 #tna-app .t-attendance-board .t-day-number { width: 26px; height: 26px; font-size: 13px; font-weight: 750; }
+#tna-app .t-attendance-board .t-day.today .t-day-number { background: var(--t-ink); }
 
 #tna-app .t-attendance-board .t-day-event {
   padding-inline: var(--space-2xs);
@@ -72,8 +95,14 @@
 }
 
 #tna-app .t-attendance-board .t-attendance-plan {
-  color: var(--t-accent-ink);
-  border-inline-start: 2px solid var(--t-accent-border);
+  color: var(--t-ink);
+  border-inline-start: 1px solid var(--t-muted);
+}
+
+#tna-app .t-attendance-board .t-day .t-day-event.warning:not(.leave) {
+  background: transparent;
+  color: var(--t-muted);
+  border-inline-start: 1px dashed var(--t-muted);
 }
 
 #tna-app .t-attendance-slot .t-attendance-more {
@@ -89,8 +118,8 @@
 }
 
 #tna-app .t-attendance-slot .t-attendance-more:is(:hover, :focus-visible, [aria-expanded=true]) {
-  background: var(--t-paper);
-  color: var(--t-blue);
+  background: var(--t-surface);
+  color: var(--t-ink);
 }
 
 #tna-app .t-attendance-request-menu {
@@ -98,10 +127,11 @@
   z-index: 8;
   inset-block-start: 32px;
   inset-inline-start: 0;
-  width: min(17rem, calc(100vw - 32px));
+  inline-size: 17rem;
+  max-inline-size: calc(100dvi - 2 * var(--space-md));
   padding: var(--space-xs);
   background: var(--t-paper);
-  border: 1px solid var(--t-accent-border);
+  border: 1px solid var(--t-line);
   border-radius: var(--t-radius);
   box-shadow: var(--t-shadow);
   text-align: start;
@@ -131,8 +161,11 @@
   text-decoration: none;
 }
 
-#tna-app .t-attendance-request-option svg { width: 18px; height: 18px; flex: none; color: var(--t-accent-ink); }
-#tna-app a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--t-blue-soft); }
+#tna-app .t-attendance-request-option svg { width: 18px; height: 18px; flex: none; color: var(--t-muted); }
+#tna-app a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--t-surface); }
+#tna-app .t-attendance-board .t-day:not(.outside):active,
+#tna-app .t-attendance-slot .t-attendance-more:active,
+#tna-app a.t-attendance-request-option:active { box-shadow: inset 0 0 0 1px var(--t-muted); }
 #tna-app .t-attendance-request-option[aria-disabled] { color: var(--t-muted); font-weight: 500; }
 #tna-app .t-attendance-request-option small { display: block; font-size: 12px; }
 
@@ -161,9 +194,11 @@
   margin: 0;
 }
 
-#tna-app .t-attendance-facts > div { padding: var(--space-sm); background: var(--t-blue-soft); border-radius: 8px; }
-#tna-app .t-attendance-facts dt { color: var(--t-accent-ink); font-size: 12px; }
+#tna-app .t-attendance-facts > div { padding: var(--space-xs) 0; border-block-start: 1px solid var(--t-line); }
+#tna-app .t-attendance-facts dt { color: var(--t-muted); font-size: 12px; }
 #tna-app .t-attendance-facts dd { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+#tna-app .t-attendance-detail .t-tag:not([data-effective-leave]) { background: var(--t-surface); color: var(--t-ink); }
+#tna-app .t-attendance-detail .t-tag[data-effective-leave] { background: var(--t-green-soft); color: var(--t-green); }
 #tna-app .t-attendance-detail-body { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-xl); }
 #tna-app .t-attendance-detail-body > div { flex: 1 1 13rem; min-width: 0; }
 #tna-app .t-attendance-detail-actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
@@ -180,18 +215,17 @@
 @container (max-width: 720px) {
   #tna-app .t-attendance-board { padding: var(--space-xs); }
   #tna-app .t-attendance-hint { margin-inline-start: 0; }
-  #tna-app .t-attendance-board .t-day { min-height: 6.35rem; padding: var(--space-2xs) var(--space-2xs) 34px; }
-  #tna-app .t-attendance-slot .t-attendance-more { inset-block: auto 0; inset-inline: 0; width: 100%; min-height: 34px; }
+  #tna-app .t-attendance-board .t-day { min-height: 6.35rem; padding: var(--space-2xs) var(--space-2xs) 36px; }
+  #tna-app .t-attendance-slot .t-attendance-more { inset-block: auto 0; inset-inline: 0; width: 100%; min-height: 36px; }
   #tna-app .t-attendance-board .t-day-event { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   #tna-app .t-attendance-calendar .t-attendance-request-menu {
     position: fixed;
     inset: auto var(--space-sm) max(var(--space-sm), env(safe-area-inset-bottom)) auto;
-    width: min(17rem, calc(100vw - 24px));
+    max-inline-size: calc(100dvi - 2 * var(--space-sm));
   }
 }
 
 @container (max-width: 460px) {
-  #tna-app .t-attendance-board .t-month-grid { gap: var(--space-3xs); }
   #tna-app .t-attendance-board .t-day { padding-inline: var(--space-3xs); }
   #tna-app .t-attendance-board .t-day-event { padding-inline: 0; font-size: 11px; }
   #tna-app .t-attendance-facts { grid-template-columns: minmax(0, 1fr); }
