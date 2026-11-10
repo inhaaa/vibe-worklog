@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 const legacy = [
   'src/WorkspacePolish.css', 'src/ThemeSwitcher.css',
   'src/components/EmployeeWorkspace.css', 'src/components/Modal.css',
-  'src/components/WorkspaceNavigation.css', 'src/components/worklog-sheet.css',
+  'src/components/WorkspaceNavigation.css',
   'src/pages/ApprovalWorkspace.css', 'src/pages/DemoAccess.css', 'src/pages/PersonalDetails.css',
   'src/pages/RecordDetails.css', 'src/pages/RequestDetail.css', 'src/pages/RequestWorkspace.css',
   'src/pages/ScheduleCalendar.css', 'src/pages/WorkspaceHome.css',
@@ -33,6 +33,14 @@ describe('CSS cascade layers', () => {
     const css = readFileSync('src/components/worklog-sheet.css', 'utf8');
     expect(css).toContain("@import 'ag-grid-community/styles/ag-grid.css' layer(vendor);");
     expect(css).toContain("@import 'ag-grid-community/styles/ag-theme-quartz.css' layer(vendor);");
+  });
+
+  it('keeps the shared sheet in the design layer above legacy rules', () => {
+    const css = code('src/components/worklog-sheet.css');
+    expect(css.startsWith('@layer vendor, legacy;')).toBe(true);
+    expect(body(css)).not.toMatch(/^@layer legacy/);
+    expect(css).not.toContain('#tna-app');
+    expect(css).not.toContain('!important');
   });
 
   it('imports legacy tokens and base rules into the legacy layer', () => {

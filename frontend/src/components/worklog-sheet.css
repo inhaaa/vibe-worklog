@@ -1,167 +1,123 @@
+/* WorkLog shared sheet. AG Grid base CSS stays in the vendor layer; these rules are unlayered and win over legacy
+   without #tna-app. Spec: docs/superpowers/specs/2026-11-10-worklog-design-system-design.md 7.5 */
 @layer vendor, legacy;
 @import 'ag-grid-community/styles/ag-grid.css' layer(vendor);
 @import 'ag-grid-community/styles/ag-theme-quartz.css' layer(vendor);
-@layer legacy {
 
-.w-sheet {
-  min-width: 0;
-  max-width: 100%;
-  margin-block: 16px;
-}
-
-.w-sheet-toolbar, .w-sheet-footer {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-}
-
-.w-sheet-toolbar { margin-bottom: 10px; }
-.w-sheet-footer { justify-content: space-between; margin-top: 10px; }
-.w-sheet-note { margin: 8px 0; color: #607089; font-size: 12px; }
-.w-sheet-errors { margin-block: 10px; padding: 10px 14px; border: 1px solid #efb7bb; border-radius: 8px; color: #8a1c24; background: #fff4f4; }
-.w-sheet-errors ul { margin: 6px 0 0; padding-left: 20px; }
-#tna-app .w-sheet-errors button { border: 0; padding: 2px 0; min-height: 28px; background: transparent !important; color: #8a1c24; text-align: left; text-decoration: underline; }
+.w-sheet { min-width: 0; max-width: 100%; margin: 0 0 16px; }
+.w-sheet-find { width: 200px; }
+.w-sheet-pending { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; color: var(--warn); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.w-sheet-pending::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.w-sheet-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.w-sheet-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--g200); }
 
 .w-sheet-grid.ag-theme-quartz {
-  --ag-font-family: system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+  --ag-font-family: var(--font-ui);
   --ag-font-size: 13px;
-  --ag-grid-size: 5px;
-  --ag-row-height: 40px;
-  --ag-header-height: 40px;
-  --ag-background-color: #fff;
-  --ag-foreground-color: #17253b;
-  --ag-header-background-color: #f6f8fc;
-  --ag-header-foreground-color: #52627c;
-  --ag-border-color: #dce3ec;
-  --ag-row-border-color: #e6ebf2;
-  --ag-odd-row-background-color: #fff;
-  --ag-row-hover-color: #f4f7fd;
-  --ag-selected-row-background-color: #eaf1ff;
-  --ag-range-selection-border-color: #2f6fec;
-  --ag-input-focus-border-color: #2f6fec;
-  --ag-input-focus-box-shadow: 0 0 0 2px #2f6fec26;
-  --ag-checkbox-checked-color: #2f6fec;
-  --ag-wrapper-border-radius: 8px;
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  line-height: normal;
+  --ag-grid-size: 4px;
+  --ag-row-height: 38px;
+  --ag-header-height: 36px;
+  --ag-cell-horizontal-padding: 12px;
+  --ag-background-color: var(--g0);
+  --ag-foreground-color: var(--g900);
+  --ag-data-color: var(--g900);
+  --ag-header-background-color: var(--g50);
+  --ag-header-foreground-color: var(--g700);
+  --ag-header-cell-hover-background-color: var(--g100);
+  --ag-border-color: var(--g200);
+  --ag-row-border-color: var(--g150);
+  --ag-cell-horizontal-border: solid var(--g150);
+  --ag-header-column-separator-display: block;
+  --ag-header-column-separator-color: var(--g200);
+  --ag-header-column-separator-height: 100%;
+  --ag-header-column-resize-handle-display: none;
+  --ag-odd-row-background-color: var(--g0);
+  --ag-row-hover-color: #fbfbfc;
+  --ag-selected-row-background-color: var(--brand-tint);
+  --ag-range-selection-border-color: var(--brand);
+  --ag-input-focus-border-color: var(--brand);
+  --ag-input-focus-box-shadow: none;
+  --ag-checkbox-checked-color: var(--brand);
+  --ag-wrapper-border-radius: 0;
+  --ag-icon-size: 14px;
+  width: 100%; min-width: 0; overflow: hidden; line-height: normal;
 }
+.w-sheet-grid .ag-root-wrapper { border: 0; border-top: 2px solid var(--g800); border-bottom: 1px solid var(--g200); border-radius: 0; }
 
+/* Header: 13/600 g700 on g50. Icons stay quiet until hover, focus, sort or filter. */
 .w-sheet-grid .ag-header-cell { font-weight: 600; }
-.w-sheet-grid .ag-header-cell-label { justify-content: center; flex-direction: row; }
-.w-sheet-grid .ag-header-cell-text { text-align: center; white-space: nowrap; }
-.w-sheet-grid .ag-cell { display: flex; align-items: center; line-height: 1.45; white-space: nowrap; }
+.w-sheet-grid .ag-header-cell-text { white-space: nowrap; }
+.w-sheet-grid .ag-header-cell.w-sheet-center .ag-header-cell-label { justify-content: center; }
+.w-sheet-grid .ag-header-cell.w-sheet-number .ag-header-cell-label { flex-direction: row-reverse; }
+.w-sheet-grid .ag-header-cell :is(.ag-header-cell-filter-button, .ag-header-cell-menu-button, .ag-sort-indicator-icon) { opacity: .4; }
+.w-sheet-grid .ag-header-cell:is(:hover, :focus-within, .ag-header-cell-filtered, .ag-header-cell-sorted-asc, .ag-header-cell-sorted-desc) :is(.ag-header-cell-filter-button, .ag-header-cell-menu-button, .ag-sort-indicator-icon) { opacity: 1; }
+
+/* Cells: text left, numbers right, dates/checks/states centered (alignment class comes from WorklogSheet). */
+.w-sheet-grid .ag-cell { display: flex; align-items: center; line-height: 1.45; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .w-sheet-grid .ag-cell-wrapper { min-width: 0; width: 100%; }
 .w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.w-sheet-grid .ag-cell a { text-underline-offset: 3px; }
-.w-sheet-grid .w-sheet-left { justify-content: flex-start; text-align: left; }
-.w-sheet-grid .w-sheet-number { justify-content: flex-end; text-align: right; }
-.w-sheet-grid .w-sheet-center { justify-content: center; text-align: center; }
-.w-sheet-content { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.w-sheet-grid .w-sheet-number .w-sheet-content { text-align: right; }
-#tna-app .w-sheet-grid .w-sheet-content :is(div, p, small, strong, .t-code-help, .t-head-status) {
-  display: inline;
-  white-space: nowrap;
-  margin-block: 0;
-}
-#tna-app .w-sheet-grid .w-sheet-content :is(small:not(:first-child), p + p) { margin-inline-start: 6px; }
-#tna-app .w-sheet-grid .w-sheet-content .t-tag { white-space: nowrap; }
-#tna-app .w-sheet-grid .w-sheet-content .t-sheet-links { display: inline-flex; max-width: 100%; flex-wrap: nowrap; gap: 6px; vertical-align: middle; }
-#tna-app .w-sheet-grid .t-sheet-links > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#tna-app .w-sheet-grid .t-sheet-links > a { flex-shrink: 0; white-space: nowrap; }
-.w-sheet-grid .w-sheet-readonly { background: #f8fafc; color: #607089; }
-.w-sheet-grid .w-sheet-row-new .ag-cell { background: #f1fbf5; }
-.w-sheet-grid .w-sheet-row-changed .ag-cell { background: #fffbed; }
-.w-sheet-grid .w-sheet-row-inactive .ag-cell { background: #f4f5f7; color: #607089; }
-.w-sheet-grid .w-sheet-cell-error { box-shadow: inset 0 0 0 2px #c83c47; background: #fff4f4; }
-.w-sheet-grid .ag-row-selected .ag-cell,
-.w-sheet-grid .w-sheet-row-selected .ag-cell { background: var(--ag-selected-row-background-color); }
-.w-sheet-grid .ag-cell-focus:not(.ag-cell-range-selected) { border-color: #2f6fec; }
-.w-sheet-value { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-sheet-grid .ag-cell.w-sheet-left { justify-content: flex-start; text-align: left; }
+.w-sheet-grid .ag-cell.w-sheet-number { justify-content: flex-end; text-align: right; }
+.w-sheet-grid .ag-cell.w-sheet-center { justify-content: center; text-align: center; }
+.w-sheet-content, .w-sheet-value { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-sheet-grid .ag-cell a { color: var(--link); text-underline-offset: 3px; }
+.w-sheet-grid .w-sheet-content :is(div, p, small, strong, .t-code-help, .t-head-status) { display: inline; white-space: nowrap; margin-block: 0; }
+.w-sheet-grid .w-sheet-content :is(small:not(:first-child), p + p) { margin-inline-start: 6px; }
+.w-sheet-grid .w-sheet-content small { color: var(--g600); font-size: 12px; }
+.w-sheet-grid .w-sheet-content .t-sheet-links { display: inline-flex; max-width: 100%; flex-wrap: nowrap; gap: 6px; vertical-align: middle; font-size: 13px; }
+.w-sheet-grid .t-sheet-links > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--g700); }
+.w-sheet-grid .t-sheet-links > a { flex-shrink: 0; white-space: nowrap; }
+.w-sheet-grid .w-sheet-readonly { color: var(--g600); }
 .w-sheet-editable { cursor: text; }
-.w-sheet-grid .ag-cell-inline-editing { padding: 0; border: 2px solid #2f6fec; background: #fff; }
+
+/* Row and cell state. */
+.w-sheet-grid .ag-row-selected .ag-cell { background: var(--ag-selected-row-background-color); }
+.w-sheet-grid .w-sheet-row-new .ag-cell.ag-column-first { box-shadow: inset 3px 0 0 var(--ok); }
+.w-sheet-grid .w-sheet-row-inactive .ag-cell.ag-column-first { box-shadow: inset 3px 0 0 var(--danger); }
+.w-sheet-grid .w-sheet-row-inactive .ag-cell:not([col-id="__select"], [col-id="state"]) { color: var(--g600); text-decoration: line-through; }
+.w-sheet-grid .ag-cell.w-sheet-cell-changed::before { content: ""; position: absolute; top: 0; left: 0; border-top: 7px solid var(--info); border-right: 7px solid transparent; pointer-events: none; }
+.w-sheet-grid .ag-cell:has(.w-sheet-editable):hover:not(.ag-cell-inline-editing, .w-sheet-cell-error) { box-shadow: inset 0 0 0 1px var(--g300); }
+.w-sheet-grid .ag-cell.w-sheet-cell-error { box-shadow: inset 0 0 0 1.5px var(--danger); background: var(--danger-bg); }
+.w-sheet-grid .ag-cell-focus:not(.ag-cell-range-selected) { border-color: var(--brand); }
+.w-sheet-grid .ag-cell-inline-editing { padding: 0; border: 2px solid var(--brand); border-radius: 0; background: var(--g0); box-shadow: none; }
 .w-sheet-grid .ag-cell-edit-wrapper { width: 100%; height: 100%; }
 
-#tna-app .w-sheet-grid input:not([type=checkbox]),
-#tna-app .w-sheet-grid select,
-#tna-app .w-sheet-grid textarea {
-  width: 100%;
-  min-width: 0;
-  min-height: 28px;
-  height: 100%;
-  margin: 0;
-  padding: 4px 8px;
-  border: 1px solid #c8d2e2;
-  border-radius: 4px;
-  background: #fff;
-  color: #17253b;
-  font-size: 13px;
-  line-height: normal;
+/* Controls inside cells (inline editor, page-rendered checkboxes) and AG Grid popup buttons. */
+.w-sheet-grid .ag-cell :is(input:not([type=checkbox]), select, textarea) {
+  width: 100%; min-width: 0; height: 100%; min-height: 0; margin: 0; padding: 0 10px;
+  border: 0; border-radius: 0; background: var(--g0); color: var(--g900); box-shadow: none; outline: 0;
+  font: 400 13px/1.4 var(--font-ui); text-align: inherit;
 }
+.w-sheet-grid input[type=checkbox] { width: 16px; min-width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--brand); }
+.w-sheet-grid button { min-height: 28px; margin: 0; padding: 4px 8px; border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800); box-shadow: none; font: 600 12.5px/1.2 var(--font-ui); }
+.w-sheet-grid :is(input, select, textarea, button, a):focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 
-#tna-app .w-sheet-grid input:focus,
-#tna-app .w-sheet-grid select:focus,
-#tna-app .w-sheet-grid textarea:focus {
-  border-color: #2f6fec;
-  outline: 0;
-  box-shadow: 0 0 0 2px #2f6fec26;
+/* Error line under the grid and footer. */
+.w-sheet-errors { display: grid; gap: 2px; margin-top: 10px; padding: 8px 12px; border-radius: var(--r-pop); background: var(--danger-bg); }
+.w-sheet-error {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; width: 100%; min-height: 0; margin: 0; padding: 3px 0;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--danger);
+  font: 600 13px/1.5 var(--font-ui); text-align: left; cursor: pointer;
 }
+.w-sheet-error-jump { text-decoration: underline; text-underline-offset: 3px; }
+.w-sheet-error:focus-visible { outline: 2px solid var(--danger); outline-offset: 2px; }
+.w-sheet-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 12px; color: var(--g700); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.w-sheet-counts { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.w-sheet-pager { margin-left: auto; }
+.w-sheet-pager :is(nav, .pagination) { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; padding: 0; }
+.w-sheet-pager a { display: inline-grid; place-items: center; min-width: 30px; min-height: 30px; padding: 0 10px; border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.w-sheet-pager a:hover { border-color: var(--g400); background: var(--g50); }
+.w-sheet-pager span { padding: 0 6px; color: var(--g700); font-weight: 600; }
 
-#tna-app .w-sheet-grid input[readonly],
-#tna-app .w-sheet-grid input:disabled,
-#tna-app .w-sheet-grid select:disabled {
-  background: #f8fafc;
-  border-color: transparent;
-  color: #607089;
+@media (max-width: 600px), (pointer: coarse) {
+  .w-sheet-pager a, .w-sheet-error { min-height: 44px; }
+  .w-sheet-pager a { min-width: 44px; }
 }
-
-#tna-app .w-sheet-grid [data-changed=true]:not(:disabled):not([readonly]) {
-  background: #f0f5ff;
-  border-color: #8ba8ef;
-}
-
-#tna-app .w-sheet-grid input[type=checkbox] {
-  width: 16px;
-  min-width: 16px;
-  min-height: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
-}
-
-#tna-app .w-sheet-grid .w-sheet-editor {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  outline: 0;
-  background: #fff;
-  text-align: inherit;
-}
-
-/* The existing app button selector is highly specific; isolate its reset to grid controls. */
-#tna-app .w-sheet-grid button {
-  min-height: 28px;
-  margin: 0;
-  padding: 4px 8px;
-  border-radius: 4px !important;
-  border-color: #c8d2e2 !important;
-  background: #fff !important;
-  color: #234fa3;
-  font-size: 12px;
-  line-height: normal;
-}
-
 @media (max-width: 600px) {
-  .w-sheet-toolbar { align-items: flex-start; }
-  .w-sheet-grid { --ag-font-size: 12px; }
-  #tna-app .t-org-sheet .t-sheet-toolbar .t-btn {
-    white-space: nowrap;
-    min-width: max-content;
-    flex: 1 0 auto;
-  }
-}
+  .w-sheet .wl-section-actions { width: 100%; }
+  .w-sheet-find { flex: 1 1 100%; width: auto; }
+  .w-sheet-tools { width: 100%; }
+  .w-sheet-tools .t-btn { flex: 1 0 auto; }
+  .w-sheet-divider { display: none; }
+  .w-sheet-pager { margin-left: 0; }
 }
