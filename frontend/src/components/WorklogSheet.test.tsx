@@ -16,34 +16,39 @@ function resizeViewport(width: number) {
 afterEach(() => { cleanup(); resizeViewport(initialViewportWidth); });
 
 describe('WorklogSheet 공통 업무 그리드', () => {
-  it('숫자·숫자 편집값은 우측, 짧은 식별값은 중앙, 네 어절·문장·표시 라벨은 좌측 정렬한다', async () => {
-    const data = [{ id: 'a', count: 0, code: '001', short: '인사 운영 팀', long: '연차 신청 담당자 검토', sentence: '확인이 필요합니다.', state: 'PENDING' }];
+  it('글자는 왼쪽, 숫자는 오른쪽, 날짜·시각·체크는 가운데로 두고 머리도 같은 정렬을 쓴다', async () => {
+    const data = [{ id: 'a', count: 0, code: '001', name: '인사 운영 팀', note: '확인이 필요합니다.', date: '2026-10-01', time: '09:00', period: '2026-11-01 ~ 2026-11-03', active: true }];
     const view = render(<WorklogSheet label="정렬 기준" rows={data} getRowId={row => row.id} columns={[
       { field: 'count', headerName: '수량' },
       { field: 'code', headerName: '식별 코드' },
-      { field: 'short', headerName: '짧은 값' },
-      { field: 'long', headerName: '긴 값' },
-      { field: 'sentence', headerName: '문장' },
-      { field: 'state', headerName: '상태', valueFormatter: () => '연차 신청 담당자 검토' },
+      { field: 'name', headerName: '이름' },
+      { field: 'note', headerName: '메모' },
+      { field: 'date', headerName: '날짜' },
+      { field: 'time', headerName: '시각' },
+      { field: 'period', headerName: '기간' },
+      { field: 'active', headerName: '활성', cellClass: 'w-sheet-center' },
       sheetEditorColumn<typeof data[number]>({ colId: 'quantity', headerName: '입력 수량' }, () => ({ label: '수량 입력', value: '12.5', type: 'number', onChange: () => {} })),
+      sheetEditorColumn<typeof data[number]>({ colId: 'joined', headerName: '입사일' }, () => ({ label: '입사일 입력', value: '', type: 'date', onChange: () => {} })),
     ]} />);
     await view.findByRole('grid', { name: '정렬 기준' });
+    const expected = { 'w-sheet-number': ['count', 'quantity'], 'w-sheet-center': ['date', 'time', 'period', 'active', 'joined'], 'w-sheet-left': ['code', 'name', 'note'] };
     await waitFor(() => {
-      for (const id of ['count', 'quantity']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-number`)).toBeTruthy();
-      for (const id of ['code', 'short']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-center`)).toBeTruthy();
-      for (const id of ['long', 'sentence', 'state']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-left`)).toBeTruthy();
+      for (const [alignment, ids] of Object.entries(expected)) for (const id of ids) {
+        expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"]`)?.classList.contains(alignment)).toBe(true);
+        expect(view.container.querySelector(`.ag-header-cell[col-id="${id}"]`)?.classList.contains(alignment)).toBe(true);
+      }
     });
   });
 
-  it('값이 바뀌면 이전 정렬을 제거하고 새 표시값으로 다시 정렬한다', async () => {
+  it('값이 바뀌면 이전 정렬을 지우고 새 값으로 다시 정렬한다', async () => {
     const props = { label: '정렬 갱신', getRowId: (row: Row) => row.id, columns: [{ field: 'name' as const, headerName: '이름' }] };
-    const view = render(<WorklogSheet {...props} rows={[{ id: 'a', name: '연차 신청 담당자 검토' }]} />);
+    const view = render(<WorklogSheet {...props} rows={[{ id: 'a', name: '09:00' }]} />);
     const cell = () => view.container.querySelector('[row-id="a"] [col-id="name"]');
-    await waitFor(() => expect(cell()?.classList.contains('w-sheet-left')).toBe(true));
+    await waitFor(() => expect(cell()?.classList.contains('w-sheet-center')).toBe(true));
     view.rerender(<WorklogSheet {...props} rows={[{ id: 'a', name: '완료' }]} />);
     await waitFor(() => {
-      expect(cell()?.classList.contains('w-sheet-center')).toBe(true);
-      expect(cell()?.classList.contains('w-sheet-left')).toBe(false);
+      expect(cell()?.classList.contains('w-sheet-left')).toBe(true);
+      expect(cell()?.classList.contains('w-sheet-center')).toBe(false);
     });
   });
 
@@ -53,9 +58,8 @@ describe('WorklogSheet 공통 업무 그리드', () => {
     ]} />);
     const link = (await view.findAllByRole('link', { name: '상세 보기' }))[0];
     expect(link.getAttribute('href')).toBe('/requests/fixture');
-    const content = link.closest('.w-sheet-content');
-    expect(content?.classList.contains('w-sheet-left')).toBe(true);
-    expect(content?.getAttribute('title')).toBe('휴가 일정 변경 사유 상세 보기');
+    expect(link.closest('.w-sheet-content')?.getAttribute('title')).toBe('휴가 일정 변경 사유 상세 보기');
+    expect(link.closest('.ag-cell')?.classList.contains('w-sheet-left')).toBe(true);
   });
 
   it('호출부의 줄바꿈·자동 높이 요청보다 공통 한 줄 표시를 우선하고 원문은 보존한다', async () => {
@@ -75,8 +79,8 @@ describe('WorklogSheet 공통 업무 그리드', () => {
       sheetColumn<Row>({ colId: 'warning', headerName: '주의', valueGetter: () => '대기' }, () => <><Warning reason="후속 승인 담당자 지정 필요" /><a href="/requests/fixture">상세</a></>),
     ]} />);
     const content = (await view.findAllByRole('link', { name: '상세' }))[0].closest('.w-sheet-content');
-    expect(content?.classList.contains('w-sheet-left')).toBe(true);
     expect(content?.getAttribute('title')).toBe('후속 승인 담당자 지정 필요 상세');
+    expect(content?.closest('.ag-cell')?.classList.contains('w-sheet-left')).toBe(true);
   });
 
   it('작은 화면은 선택 열만 고정하고 데스크톱으로 돌아오면 식별 열 고정을 복원한다', async () => {

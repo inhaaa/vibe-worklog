@@ -3,7 +3,7 @@ import type { ReactNode, Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import type { CellClassParams, ColDef, GridApi, ICellRendererParams } from 'ag-grid-community';
+import type { CellClassParams, ColDef, GridApi, HeaderClassParams, ICellRendererParams } from 'ag-grid-community';
 import { SheetCellEditor, SheetEditorFields, validateSheetField } from './SheetCellEditor';
 import type { SheetEditorField } from './SheetCellEditor';
 export type { SheetEditorField } from './SheetCellEditor';
@@ -11,10 +11,6 @@ export type { SheetEditorField } from './SheetCellEditor';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface SheetContext<T> { index: Map<string, number>; getRowId: (row: T) => string; errors: SheetFieldError[] }
-function textAlignment(text: string) {
-  const value = text.trim();
-  return /[\r\n]/.test(text) || /[.!?。！？]$/.test(value) || value.split(/\s+/).length >= 4 ? 'w-sheet-left' : 'w-sheet-center';
-}
 function renderedText(element: HTMLElement) {
   const parts: string[] = [];
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
@@ -22,12 +18,28 @@ function renderedText(element: HTMLElement) {
   while ((node = walker.nextNode())) parts.push(node.textContent ?? '');
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
-function numericCell<T>(params: CellClassParams<T>) {
-  const cellClass = typeof params.colDef.cellClass === 'function' ? params.colDef.cellClass(params) : params.colDef.cellClass;
+type Alignment = 'w-sheet-number' | 'w-sheet-center' | 'w-sheet-left';
+/** ISO 날짜·월·기간·시각으로 시작하는 짧은 값. 날짜로 시작해도 25자를 넘는 문장은 글자로 본다. */
+const DATE_LIKE = /^(\d{4}-\d{2}(-\d{2})?|\d{1,2}:\d{2})(\D|$)/;
+/** 글자는 왼쪽, 숫자는 오른쪽, 날짜·시각·체크·상태는 가운데. 머리 칸도 같은 규칙을 쓴다. */
+function alignment<T>(colDef: ColDef<T>, value: unknown, text: string, field?: SheetEditorField, params?: CellClassParams<T>): Alignment {
+  const cellClass = typeof colDef.cellClass === 'function' ? (params ? colDef.cellClass(params) : undefined) : colDef.cellClass;
   const classes = Array.isArray(cellClass) ? cellClass : cellClass?.split(/\s+/) ?? [];
-  const types = Array.isArray(params.colDef.type) ? params.colDef.type : [params.colDef.type];
-  return typeof params.value === 'number' || fieldFor(params.colDef, params.data, params.context)?.type === 'number'
-    || classes.includes('w-sheet-number') || types.includes('numericColumn');
+  const types = Array.isArray(colDef.type) ? colDef.type : [colDef.type];
+  if (typeof value === 'number' || field?.type === 'number' || classes.includes('w-sheet-number') || types.includes('numericColumn')) return 'w-sheet-number';
+  const shown = text.trim();
+  if (classes.includes('w-sheet-center') || field?.type === 'date' || (shown.length <= 25 && DATE_LIKE.test(shown))) return 'w-sheet-center';
+  return 'w-sheet-left';
+}
+function cellAlignment<T>(params: CellClassParams<T>) {
+  return alignment(params.colDef, params.value, cellText(params), fieldFor(params.colDef, params.data, params.context), params);
+}
+function headerAlignment<T>({ colDef, column, api, context }: HeaderClassParams<T>) {
+  const definition = colDef as ColDef<T>;
+  const node = api.getDisplayedRowAtIndex(0);
+  if (!node?.data || !column) return alignment(definition, undefined, '');
+  const text = String(api.getCellValue({ rowNode: node, colKey: column, useFormatter: true }) ?? '');
+  return alignment(definition, api.getCellValue({ rowNode: node, colKey: column }), text, fieldFor(definition, node.data, context));
 }
 function cellText<T>(params: CellClassParams<T>) {
   return String(params.api.getCellValue({ rowNode: params.node, colKey: params.column, useFormatter: true }) ?? '');
@@ -44,7 +56,7 @@ function RenderCell<T>({ data, context, render }: ICellRendererParams<T> & {
   if (!data) return null;
   const sheet = context as SheetContext<T>;
   const content = render(data, sheet.index.get(sheet.getRowId(data)) ?? 0);
-  return <span ref={element} className={`w-sheet-content ${textAlignment(text)}`} title={text || undefined}>{content}</span>;
+  return <span ref={element} className="w-sheet-content" title={text || undefined}>{content}</span>;
 }
 
 /** Keep the renderer component stable while page-owned controlled inputs receive fresh props. */
@@ -305,10 +317,10 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
     <div className="ag-theme-quartz w-sheet-grid" style={{ height: Math.min(480, Math.max(152, rows.length * rowHeight + 64)) }}>
       <SheetEditorFields.Provider value={editorFields}>
       <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...viewportColumns]}
-        defaultColDef={{ ...defaults, cellClassRules: {
-          'w-sheet-number': params => numericCell(params),
-          'w-sheet-left': params => !numericCell(params) && textAlignment(cellText(params)) === 'w-sheet-left',
-          'w-sheet-center': params => !numericCell(params) && textAlignment(cellText(params)) === 'w-sheet-center',
+        defaultColDef={{ ...defaults, headerClass: (params: HeaderClassParams<T>) => headerAlignment(params), cellClassRules: {
+          'w-sheet-number': params => cellAlignment(params) === 'w-sheet-number',
+          'w-sheet-left': params => cellAlignment(params) === 'w-sheet-left',
+          'w-sheet-center': params => cellAlignment(params) === 'w-sheet-center',
           'w-sheet-cell-error': params => Boolean(params.data && (params.context as SheetContext<T>).errors.some(error => error.clientRowId === getRowId(params.data!) && error.field === params.column.getColId())),
         } }} context={context} getRowId={stableRowId} rowHeight={rowHeight} headerHeight={40}
         rowSelection={selectedIds ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: false,
@@ -337,7 +349,8 @@ export function WorklogSheet<T>({ label, rows, columns, getRowId, rowHeight = 40
             cell.querySelector<HTMLElement>('input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a,button:not(:disabled)')?.focus();
           }
         }}
-        onFirstDataRendered={() => {
+        onFirstDataRendered={event => {
+          event.api.refreshHeader();
           updateVisible();
           if (errors.length) focusCell(errors[0].clientRowId, errors[0].field);
         }}
