@@ -24,6 +24,7 @@ import { DemoAccountSwitcher } from './components/DemoAccountSwitcher';
 import './WorkspacePolish.css';
 import './design/tokens.css';
 import './design/ui.css';
+import './design/shell.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
