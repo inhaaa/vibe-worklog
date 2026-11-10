@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ko" data-theme="charcoal" data-density="default">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorkLog 디자인 시안 v1</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --g0:#fff;--g50:#f8f9fa;--g100:#f2f4f6;--g150:#eceef1;--g200:#e3e6ea;--g300:#d0d5db;--g400:#adb5bf;--g500:#8a939e;--g600:#6a737e;--g700:#4d5662;--g800:#323a45;--g900:#1a1f27;
+  --brand:#252c37;--brand-hover:#151a22;--brand-tint:#f0f2f5;--brand-tint-2:#dfe3e9;--brand-ink:#252c37;
+  --ok:#0b7a4b;--ok-bg:#e8f5ee;--warn:#9a5800;--warn-bg:#fff3de;--danger:#cf3348;--danger-bg:#fdecee;--info:#2a62e0;--info-bg:#ebf1fe;
+  --ev-work:#edf1fb;--ev-work-ink:#33449a;--ev-off:#fdf0ea;--ev-off-ink:#a8461b;--ev-leave:#e6f4ec;--ev-leave-ink:#0b6b42;--ev-wait:#fff6e5;--ev-wait-ink:#875000;--ev-wait-line:#e5ad52;
+  --h-ctl:34px;--h-row:38px;--h-head:36px;--pad:28px;--r-ctl:4px;--r-pop:6px;--r-modal:10px;
+}
+[data-theme=blue]{--brand:#2356d4;--brand-hover:#1a45b4;--brand-tint:#eef3fd;--brand-tint-2:#d9e5fb;--brand-ink:#1c49b6}
+[data-density=compact]{--h-ctl:30px;--h-row:32px;--h-head:32px;--pad:20px}
+*{box-sizing:border-box}
+body{margin:0;background:#e9ebee;color:var(--g900);font:400 14px/1.5 var(--font);letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.board-head{position:relative;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 28px;background:#fff;border-bottom:1px solid var(--g200)}
+.board-head b{font-size:15px}.board-head span{font-size:12px;color:var(--g500);margin-left:8px}
+.seg{display:inline-flex;border:1px solid var(--g300);border-radius:var(--r-ctl);overflow:hidden}
+.seg button{height:30px;padding:0 12px;border:0;border-left:1px solid var(--g300);background:#fff;font:500 13px var(--font);color:var(--g700);cursor:pointer}
+.seg button:first-child{border-left:0}.seg button[aria-pressed=true]{background:var(--g800);color:#fff}
+.toggles{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--g600)}
+.frame{max-width:1440px;margin:28px auto;padding:0 28px}
+.frame-label{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;font-size:13px;font-weight:600;color:var(--g700)}
+.frame-label em{font-style:normal;font-weight:500;color:var(--g500)}
+.window{background:#fff;border-radius:8px;box-shadow:0 1px 2px rgba(20,25,35,.06),0 0 0 1px rgba(20,25,35,.06);overflow:hidden}
+
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:760px}
+.sb{border-right:1px solid var(--g200);display:flex;flex-direction:column;padding-bottom:14px}
+.sb-brand{height:56px;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--g150)}
+.logo{width:26px;height:26px;border-radius:6px;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:14px;letter-spacing:-.04em}
+.sb-brand b{font-size:16px;font-weight:800;letter-spacing:-.03em}
+.sb-brand small{margin-left:auto;font-size:11px;font-weight:600;color:var(--g600);border:1px solid var(--g300);border-radius:3px;padding:0 5px;line-height:18px}
+.sb-org{display:flex;align-items:center;gap:10px;margin:12px 12px 6px;padding:8px 10px;border:1px solid var(--g200);border-radius:6px}
+.sb-org div{min-width:0;flex:1}.sb-org b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-org span{font-size:12px;color:var(--g500)}
+.sb-group{padding:14px 20px 4px;font-size:12px;font-weight:600;color:var(--g500)}
+.sb-item{height:34px;display:flex;align-items:center;gap:10px;margin:1px 10px;padding:0 10px;border-radius:5px;color:var(--g700);font-size:14px;font-weight:500;text-decoration:none}
+.sb-item:hover{background:var(--g100)}
+.sb-item .chev{margin-left:auto;color:var(--g400);width:14px;height:14px}
+.sb-sub{margin:0 10px 2px 29px;border-left:1px solid var(--g200);padding-left:4px}
+.sb-sub .sb-item{height:32px;margin:1px 0;font-size:13.5px;color:var(--g600)}
+.sb-item.on{background:var(--brand-tint);color:var(--brand-ink);font-weight:700}
+.sb-foot{margin-top:auto;padding:12px 20px 0;border-top:1px solid var(--g150);font-size:12px;color:var(--g500);line-height:1.6}
+
+.main{display:flex;flex-direction:column;min-width:0}
+.tb{height:56px;display:flex;align-items:center;gap:12px;padding:0 var(--pad);border-bottom:1px solid var(--g150)}
+.crumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--g500)}
+.crumb svg{width:12px;height:12px;color:var(--g400)}.crumb b{color:var(--g800);font-weight:600}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.mini-sel{height:30px;display:inline-flex;align-items:center;gap:6px;padding:0 8px 0 10px;border:1px solid var(--g200);border-radius:var(--r-ctl);font-size:12.5px;color:var(--g700);background:#fff}
+.mini-sel em{font-style:normal;color:var(--g500)}.mini-sel svg{width:13px;height:13px;color:var(--g500)}
+.vr{width:1px;height:20px;background:var(--g200);margin:0 4px}
+.me{display:flex;align-items:center;gap:8px;font-size:13px}.me b{font-weight:600}.me span{color:var(--g500);font-size:12px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--brand-tint-2);color:var(--brand-ink);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.content{padding:22px var(--pad) 28px}
+
+.ph{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.ph h1{margin:0;font-size:22px;font-weight:700;letter-spacing:-.025em;display:flex;align-items:center;gap:6px}
+.ph h1 .help{color:var(--g400);width:17px;height:17px}
+.ph-actions{display:flex;align-items:center;gap:6px}
+
+.btn{height:var(--h-ctl);display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 12px;border:1px solid var(--g300);border-radius:var(--r-ctl);background:#fff;color:var(--g800);font:600 13px/1 var(--font);letter-spacing:-.01em;white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--g50);border-color:var(--g400)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}.btn.primary:hover{background:var(--brand-hover)}
+.btn.dark{background:var(--g800);border-color:var(--g800);color:#fff}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--g700)}.btn.ghost:hover{background:var(--g100)}
+.btn.icon{width:var(--h-ctl);padding:0}
+.btn.danger{color:var(--danger)}
+.btn:disabled{background:var(--g50);border-color:var(--g200);color:var(--g400);cursor:not-allowed}
+.btn.sm{height:28px;padding:0 9px;font-size:12.5px}
+
+.in,.sel,.date{height:var(--h-ctl);display:inline-flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--g300);border-radius:var(--r-ctl);background:#fff;font:400 13px var(--font);color:var(--g900)}
+.in::placeholder{color:var(--g400)}.in:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint-2)}
+.sel,.date{justify-content:space-between}.sel svg,.date svg{color:var(--g500);width:15px;height:15px}
+.ph-text{color:var(--g400)}
+.focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint-2)}
+.err-field{border-color:var(--danger)}
+
+.qbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:12px 14px 12px 18px;background:var(--g50);border:1px solid var(--g200);border-radius:var(--r-pop)}
+.qf{display:flex;align-items:center;gap:10px}.qf>label{font-size:13px;font-weight:600;color:var(--g700);white-space:nowrap}
+.qbar .act{margin-left:auto;display:flex;gap:6px}
+
+.sh{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 10px}
+.sh h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.02em;display:flex;align-items:baseline;gap:8px}
+.sh h2 small{font-size:13px;font-weight:500;color:var(--g500)}.sh h2 small b{color:var(--brand-ink);font-weight:700}
+.sh-actions{display:flex;align-items:center;gap:6px}
+.dirty-note{display:inline-flex;align-items:center;gap:6px;margin-right:6px;font-size:12.5px;font-weight:600;color:var(--warn)}
+.dirty-note i{width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.gap{width:1px;height:18px;background:var(--g200);margin:0 4px}
+
+.gwrap{border-top:2px solid var(--g800);border-bottom:1px solid var(--g200);overflow:auto}
+table.grid{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;font-variant-numeric:tabular-nums}
+.grid th{height:var(--h-head);padding:0 12px;background:var(--g50);color:var(--g700);font-weight:600;text-align:left;white-space:nowrap;border-bottom:1px solid var(--g200);border-right:1px solid var(--g150);position:relative}
+.grid th:last-child,.grid td:last-child{border-right:0}
+.grid th .tools{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;gap:2px;color:var(--g400)}
+.grid th .tools svg{width:14px;height:14px}
+.grid th.sorted{color:var(--g900)}.grid th.sorted .tools{color:var(--g800)}
+.grid td{height:var(--h-row);padding:0 12px;border-bottom:1px solid var(--g150);border-right:1px solid var(--g150);white-space:nowrap;color:var(--g900);position:relative}
+.grid tbody tr:hover td{background:#fbfbfc}
+.grid .c{text-align:center}.grid .r{text-align:right}
+.grid td.ro{color:var(--g600)}
+.grid input[type=checkbox]{width:15px;height:15px;margin:0;vertical-align:middle;accent-color:var(--brand)}
+.grid tr.picked td{background:var(--brand-tint)}
+.grid tr.new td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.grid tr.del td{color:var(--g500);text-decoration:line-through;text-decoration-color:var(--g400)}
+.grid tr.del td:first-child,.grid tr.del td.nostrike{text-decoration:none}
+.grid tr.del td:first-child{box-shadow:inset 3px 0 0 var(--danger)}
+.grid td.dirty::before{content:"";position:absolute;top:0;left:0;border-style:solid;border-width:7px 7px 0 0;border-color:var(--info) transparent transparent transparent}
+.grid td.err{box-shadow:inset 0 0 0 1.5px var(--danger);background:var(--danger-bg)!important}
+.grid td.edit{padding:0;box-shadow:inset 0 0 0 2px var(--brand);background:#fff!important}
+.grid td.edit span{display:flex;align-items:center;height:100%;padding:0 11px}
+.grid td.edit span::after{content:"";width:1px;height:16px;background:var(--g900);margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.cellsel{display:flex;align-items:center;justify-content:space-between;gap:6px}.cellsel svg{width:14px;height:14px;color:var(--g400)}
+.code{font-feature-settings:"tnum";letter-spacing:0;color:var(--g700)}
+.link{color:var(--brand-ink);font-weight:600;text-decoration:none;font-size:12.5px;margin-left:8px}
+[data-theme=charcoal] .link{color:var(--info)}
+.muted{color:var(--g500)}
+
+.chip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap}
+.chip svg{width:12px;height:12px;stroke-width:2.2}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}.chip.warn{background:var(--warn-bg);color:var(--warn)}.chip.danger{background:var(--danger-bg);color:var(--danger)}.chip.info{background:var(--info-bg);color:var(--info)}.chip.neutral{background:var(--g100);color:var(--g700)}.chip.brand{background:var(--brand-tint);color:var(--brand-ink)}
+.state{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700}
+.state::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.state.new{color:var(--ok)}.state.mod{color:var(--info)}.state.del{color:var(--danger)}.state.same{color:var(--g400);font-weight:500}
+
+.gfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px 0;font-size:13px;color:var(--g600);font-variant-numeric:tabular-nums}
+.gfoot b{color:var(--g900);font-weight:600}
+.gmsg{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;border-radius:var(--r-pop);background:var(--danger-bg);color:var(--danger);font-size:13px;font-weight:500}
+.gmsg a{color:inherit;font-weight:700}
+.pager{display:flex;align-items:center;gap:2px}
+.pager button{min-width:28px;height:28px;border:1px solid transparent;border-radius:4px;background:none;font:500 13px var(--font);color:var(--g600);display:grid;place-items:center;cursor:pointer}
+.pager button.on{border-color:var(--g300);background:#fff;color:var(--g900);font-weight:700}
+.pager svg{width:14px;height:14px}
+
+.ctx{display:flex;align-items:center;flex-wrap:wrap;gap:12px 14px;padding:10px 14px;border:1px solid var(--g200);border-radius:var(--r-pop);margin-bottom:18px;font-size:13px;color:var(--g700)}
+.ctx b{font-size:14px;color:var(--g900);font-weight:700}
+.ctx .sep{width:1px;height:14px;background:var(--g200)}
+.ctx dl{display:flex;gap:16px;margin:0}.ctx dt{display:inline;color:var(--g500);margin-right:6px}.ctx dd{display:inline;margin:0;color:var(--g800);font-weight:500}
+
+.sum{display:flex;flex-wrap:wrap;align-items:center;gap:6px 0;padding:10px 6px;background:var(--g50);border-radius:var(--r-pop);font-size:13px;color:var(--g700);margin-bottom:16px}
+.sum>span{display:inline-flex;align-items:center;gap:6px;padding:0 14px;border-left:1px solid var(--g200)}.sum>span:first-child{border-left:0}
+.sum b{font-weight:700;color:var(--g900);font-variant-numeric:tabular-nums}.sum .w b{color:var(--warn)}.sum .d b{color:var(--danger)}
+.sum svg{width:15px;height:15px;color:var(--g500)}
+.sum a{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 8px;border:1px solid var(--g300);border-radius:4px;background:#fff;color:var(--g900);font-weight:600;text-decoration:none}
+.sum a svg{width:13px;height:13px}
+
+.calwrap{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:24px;align-items:start}
+.calbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.monthnav{display:flex;align-items:center;gap:4px}.monthnav strong{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 6px;font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--g600)}
+.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:10px;height:10px;border-radius:2px}
+.cal{border-top:2px solid var(--g800);border-bottom:1px solid var(--g200)}
+.cal-head{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--g50);border-bottom:1px solid var(--g200)}
+.cal-head div{height:32px;display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--g700)}
+.cal-head .sat{color:#2f5bd3}.cal-head .sun{color:var(--danger)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));position:relative}
+.day{min-height:98px;padding:6px 6px 8px;border-right:1px solid var(--g150);border-bottom:1px solid var(--g150);position:relative;min-width:0}
+.day:nth-child(7n){border-right:0}
+.day:nth-last-child(-n+7){border-bottom:0}
+.dn{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 5px;border-radius:12px;font-size:12.5px;font-weight:700;color:var(--g800);font-variant-numeric:tabular-nums}
+.day.sat .dn{color:#2f5bd3}.day.sun .dn{color:var(--danger)}
+.day.out{background:#fcfcfd}.day.out .dn{color:var(--g400);font-weight:500}
+.day.today .dn{background:var(--brand);color:#fff}
+.day.pick{background:var(--brand-tint);box-shadow:inset 0 0 0 1.5px var(--brand)}
+.day .more{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:4px;display:grid;place-items:center;color:var(--g500);opacity:0}
+.day:hover .more,.day.pick .more{opacity:1;background:#fff}
+.day .more svg{width:14px;height:14px}
+.ev{display:flex;align-items:center;gap:4px;height:22px;margin-top:4px;padding:0 6px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;font-variant-numeric:tabular-nums}
+.ev svg{width:12px;height:12px;stroke-width:2.1}
+.ev.work{background:var(--ev-work);color:var(--ev-work-ink)}
+.ev.off{background:var(--ev-off);color:var(--ev-off-ink)}
+.ev.leave{background:var(--ev-leave);color:var(--ev-leave-ink)}
+.ev.wait{background:var(--ev-wait);color:var(--ev-wait-ink);box-shadow:inset 0 0 0 1px var(--ev-wait-line)}
+.ev.unk{background:#fff;color:var(--g600);box-shadow:inset 0 0 0 1px var(--g300);border:0;background-image:repeating-linear-gradient(135deg,transparent 0 5px,var(--g100) 5px 6px)}
+.ev.dim{opacity:.55}
+.legend .l-work{background:var(--ev-work);box-shadow:inset 0 0 0 1px #c9d3f3}.legend .l-off{background:var(--ev-off);box-shadow:inset 0 0 0 1px #f2c9b4}.legend .l-leave{background:var(--ev-leave);box-shadow:inset 0 0 0 1px #b6dfc8}.legend .l-wait{background:var(--ev-wait);box-shadow:inset 0 0 0 1px var(--ev-wait-line)}.legend .l-unk{background:#fff;box-shadow:inset 0 0 0 1px var(--g400)}
+
+.pop{position:absolute;z-index:4;width:232px;background:#fff;border:1px solid var(--g200);border-radius:var(--r-pop);box-shadow:0 12px 32px rgba(18,24,36,.16),0 2px 6px rgba(18,24,36,.06);padding:6px}
+.pop-h{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 8px 8px;margin-bottom:4px;border-bottom:1px solid var(--g150)}
+.pop-h b{font-size:14px;font-weight:700}.pop-h span{display:block;font-size:11.5px;color:var(--g500);font-weight:500}
+.pop-h button{width:26px;height:26px;border:0;background:none;border-radius:4px;color:var(--g500);display:grid;place-items:center}
+.opt{display:flex;align-items:flex-start;gap:9px;padding:8px;border-radius:4px;color:var(--g800);text-decoration:none;font-size:13px;font-weight:600}
+.opt:hover{background:var(--g100)}.opt svg{margin-top:2px;color:var(--g500)}
+.opt small{display:block;font-size:11.5px;font-weight:500;color:var(--g500)}
+.opt[aria-disabled=true]{color:var(--g400)}.opt[aria-disabled=true] svg{color:var(--g300)}
+
+.side h3{margin:0 0 4px;font-size:14px;font-weight:700}
+.side .period{font-size:12px;color:var(--g500);margin-bottom:12px}
+.kv{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--g150);font-size:13px;color:var(--g700)}
+.kv b{color:var(--g900);font-weight:700;font-variant-numeric:tabular-nums}
+.kv i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:7px}
+.bar{height:6px;border-radius:3px;background:var(--g150);overflow:hidden;margin:10px 0 6px}.bar span{display:block;height:100%;background:var(--brand)}
+.side-block{padding:16px;border:1px solid var(--g200);border-radius:var(--r-pop);margin-bottom:12px}
+.big{font-size:24px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.big small{font-size:13px;font-weight:600;color:var(--g500);margin-left:2px}
+
+.stage{position:relative;padding:36px 32px 40px;background:#5b6370;display:flex;flex-wrap:wrap;gap:28px;justify-content:center;align-items:flex-start;border-radius:8px}
+.stage::before{content:"";position:absolute;inset:0;border-radius:8px;background:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 38px)}
+.modal{position:relative;width:920px;max-width:100%;background:#fff;border-radius:var(--r-modal);box-shadow:0 24px 64px rgba(10,14,22,.32),0 2px 8px rgba(10,14,22,.12);display:flex;flex-direction:column;overflow:hidden}
+.modal.s{width:440px}
+.m-head{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 24px;border-bottom:1px solid var(--g200)}
+.m-head h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em}
+.m-head .tools{display:flex;gap:2px}
+.m-head .tools button{width:32px;height:32px;border:0;background:none;border-radius:4px;color:var(--g600);display:grid;place-items:center;cursor:pointer}
+.m-head .tools button:hover{background:var(--g100)}
+.m-body{padding:4px 24px 22px}
+.m-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px 12px 24px;border-top:1px solid var(--g200)}
+.m-foot .left{font-size:12px;color:var(--g500);display:flex;align-items:center;gap:6px}
+.m-foot .right{display:flex;gap:6px}
+.req-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--danger)}
+.msec{display:flex;align-items:center;justify-content:space-between;margin:20px 0 8px}
+.msec h4{margin:0;font-size:14.5px;font-weight:700;letter-spacing:-.02em}
+.msec .aside{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--g600)}
+.stamps{display:inline-grid;grid-auto-flow:column;border:1px solid var(--g300);border-radius:4px;overflow:hidden}
+.stamp{width:128px;border-left:1px solid var(--g300);text-align:center}.stamp:first-child{border-left:0}
+.stamp .role{height:26px;display:grid;place-items:center;background:var(--g50);border-bottom:1px solid var(--g300);font-size:12px;font-weight:600;color:var(--g700)}
+.stamp .who{padding:9px 6px 6px}.stamp .who b{display:block;font-size:14px;font-weight:700}.stamp .who span{font-size:11.5px;color:var(--g500)}
+.stamp .st{height:28px;display:grid;place-items:center;border-top:1px dashed var(--g200)}
+.approval{display:flex;align-items:stretch;gap:16px}
+.approval .note{flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0 4px;font-size:12.5px;color:var(--g600)}
+.approval .note b{font-size:13px;color:var(--g900)}
+table.ft{width:100%;border-collapse:collapse;border-top:2px solid var(--g800);font-size:13px;font-variant-numeric:tabular-nums}
+.ft th{width:116px;padding:0 14px;background:var(--g50);color:var(--g700);font-weight:600;text-align:left;border-bottom:1px solid var(--g200);white-space:nowrap}
+.ft td{height:calc(var(--h-ctl) + 12px);padding:6px 12px;border-bottom:1px solid var(--g200);color:var(--g900)}
+.ft th .req-dot{margin-left:4px;vertical-align:3px}
+.ft .row{display:flex;align-items:center;gap:8px}
+.ft textarea{width:100%;min-height:76px;resize:vertical;padding:8px 10px;border:1px solid var(--g300);border-radius:var(--r-ctl);font:400 13px/1.55 var(--font);color:var(--g900)}
+.ft textarea::placeholder{color:var(--g400)}
+.counter{display:block;text-align:right;font-size:11.5px;color:var(--g500);margin-top:4px}
+.calc{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:4px;background:var(--g100);font-weight:600}
+.calc em{font-style:normal;color:var(--g500);font-weight:500}
+.notice{display:flex;align-items:flex-start;gap:8px;margin-top:14px;padding:10px 12px;border-radius:var(--r-pop);background:var(--g50);font-size:12.5px;color:var(--g700)}
+.notice svg{margin-top:1px;color:var(--g500)}
+.field-err{display:block;margin-top:4px;font-size:12px;color:var(--danger);font-weight:500}
+.lbl{display:block;font-size:13px;font-weight:600;color:var(--g700);margin-bottom:6px}
+.counts{display:flex;gap:6px;margin-bottom:14px}
+.side-stack{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:28px;width:100%}
+
+.kit{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--g200)}
+.kit>div{background:#fff;padding:18px 20px}
+.kit h5{margin:0 0 12px;font-size:12px;font-weight:600;color:var(--g500)}
+.row-wrap{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.sw{height:34px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.type div{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--g150);padding:5px 0}
+.type small{font-size:11.5px;color:var(--g500)}
+.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;font-size:13px}
+.info-grid dt{font-size:12px;color:var(--g500)}.info-grid dd{margin:2px 0 0;font-weight:600}
+.callout{max-width:1440px;margin:-6px auto 0;padding:0 28px;font-size:12.5px;color:var(--g600)}
+.callout ul{margin:6px 0 0;padding-left:18px;columns:2;column-gap:40px}.callout li{margin:2px 0}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10.5 9-7 9 7V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20.5v-.5a6 6 0 0 1 6-6h1a6 6 0 0 1 6 6v.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20.5V20a6 6 0 0 0-3.5-5.5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></symbol>
+  <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M5 21h14M6 17h12v-2.5a2 2 0 0 0-2-2h-2.2l-.6-3.3a3 3 0 1 0-2.4 0l-.6 3.3H8a2 2 0 0 0-2 2z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 21.5s7.5-3.6 7.5-9.5V5.5L12 3 4.5 5.5V12c0 5.9 7.5 9.5 7.5 9.5z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 16v-4.5M12 8.2h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 16.8h.01"/></symbol>
+  <symbol id="i-brief" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 20.5H5.5A1.5 1.5 0 0 1 4 19V5a1.5 1.5 0 0 1 1.5-1.5H9M15.5 16.5 20 12l-4.5-4.5M20 12H9"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7.5 12h9M10.5 18h3"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M8 5v14M4.5 8.5 8 5l3.5 3.5M16 19V5M12.5 15.5 16 19l3.5-3.5"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M18 7l-.8 12.1a2 2 0 0 1-2 1.9H8.8a2 2 0 0 1-2-1.9L6 7"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.4M12 16.8h.01"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-2h12v2"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11.5l-2 4 2 4H5"/></symbol>
+  <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M15.5 4.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></symbol>
+</svg>
+
+<header class="board-head">
+  <div><b>WorkLog 디자인 시안 v1</b><span>합성 자료 · 방향 확인용 · 실제 코드 미적용</span></div>
+  <div class="toggles">
+    <span>테마</span>
+    <div class="seg" data-attr="data-theme"><button aria-pressed="true" data-v="charcoal">차콜</button><button aria-pressed="false" data-v="blue">블루</button></div>
+    <span>밀도</span>
+    <div class="seg" data-attr="data-density"><button aria-pressed="true" data-v="default">기본</button><button aria-pressed="false" data-v="compact">촘촘</button></div>
+  </div>
+</header>
+
+<!-- 01 -->
+<section class="frame">
+  <h2 class="frame-label">01 · 공통 시트 화면 <em>조직 관리 · 사원 관리 · 코드 · 결재선 · 권한에 같은 틀 적용</em></h2>
+  <div class="window app">
+    <aside class="sb">
+      <div class="sb-brand"><span class="logo">W</span><b>WorkLog</b><small>데모</small></div>
+      <div class="sb-org"><div><b>합성 디자인 검증회사</b><span>관리자 · 결재 담당</span></div><svg class="i" style="color:var(--g400);width:14px"><use href="#i-down"/></svg></div>
+      <div class="sb-group">내 업무</div>
+      <a class="sb-item"><svg class="i"><use href="#i-home"/></svg>홈</a>
+      <a class="sb-item"><svg class="i"><use href="#i-brief"/></svg>근태관리<svg class="i chev"><use href="#i-right"/></svg></a>
+      <a class="sb-item"><svg class="i"><use href="#i-file"/></svg>휴가·신청<svg class="i chev"><use href="#i-right"/></svg></a>
+      <div class="sb-group">결재</div>
+      <a class="sb-item"><svg class="i"><use href="#i-stamp"/></svg>결재함<span class="chip warn" style="margin-left:auto;height:19px;padding:0 6px;font-size:11px">2</span></a>
+      <div class="sb-group">인사·조직</div>
+      <a class="sb-item"><svg class="i"><use href="#i-users"/></svg>조직·사원<svg class="i chev" style="transform:rotate(90deg)"><use href="#i-right"/></svg></a>
+      <div class="sb-sub">
+        <a class="sb-item on">조직 관리</a>
+        <a class="sb-item">사원 관리</a>
+        <a class="sb-item">조직장 배정</a>
+        <a class="sb-item">조직도</a>
+      </div>
+      <a class="sb-item"><svg class="i"><use href="#i-shield"/></svg>계정·권한<svg class="i chev"><use href="#i-right"/></svg></a>
+      <div class="sb-group">설정</div>
+      <a class="sb-item"><svg class="i"><use href="#i-sliders"/></svg>업무 기준<svg class="i chev"><use href="#i-right"/></svg></a>
+      <div class="sb-foot">로컬 데모 워크스페이스<br>Asia/Seoul 기준</div>
+    </aside>
+    <div class="main">
+      <div class="tb">
+        <nav class="crumb">인사·조직<svg class="i"><use href="#i-right"/></svg>조직·사원<svg class="i"><use href="#i-right"/></svg><b>조직 관리</b></nav>
+        <div class="tb-right">
+          <span class="mini-sel"><em>테마</em>차콜<svg class="i"><use href="#i-down"/></svg></span>
+          <span class="mini-sel"><em>권한</em>담당자<svg class="i"><use href="#i-down"/></svg></span>
+          <span class="vr"></span>
+          <span class="me"><span class="avatar">김</span><span><b>김하늘</b><br><span>합성 디자인 검증회사</span></span></span>
+          <button class="btn ghost icon" aria-label="로그아웃"><svg class="i"><use href="#i-logout"/></svg></button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="ph">
+          <h1>조직 관리<svg class="i help" aria-label="도움말"><use href="#i-help"/></svg></h1>
+          <div class="ph-actions"><button class="btn"><svg class="i"><use href="#i-tree"/></svg>조직도</button></div>
+        </div>
+        <form class="qbar" onsubmit="return false">
+          <div class="qf"><label>조직</label><input class="in" style="width:240px" placeholder="코드 또는 이름"></div>
+          <div class="qf"><label>상태</label><span class="sel" style="width:120px">전체<svg class="i"><use href="#i-down"/></svg></span></div>
+          <div class="act"><button class="btn ghost" type="button"><svg class="i"><use href="#i-undo"/></svg>초기화</button><button class="btn dark" type="button"><svg class="i"><use href="#i-search"/></svg>조회</button></div>
+        </form>
+
+        <div class="sh">
+          <h2>조직 목록<small>총 <b>8</b>건</small></h2>
+          <div class="sh-actions">
+            <span class="dirty-note"><i></i>저장 전 변경 3건</span>
+            <button class="btn"><svg class="i"><use href="#i-plus"/></svg>행 추가</button>
+            <button class="btn"><svg class="i"><use href="#i-trash"/></svg>비활성화</button>
+            <span class="gap"></span>
+            <button class="btn ghost">변경 취소</button>
+            <button class="btn primary">저장</button>
+          </div>
+        </div>
+        <div class="gwrap">
+          <table class="grid">
+            <thead><tr>
+              <th class="c" style="width:44px"><input type="checkbox" aria-label="전체 선택"></th>
+              <th class="c" style="width:76px">상태</th>
+              <th style="width:150px">조직 코드</th>
+              <th class="sorted">조직 이름<span class="tools"><svg class="i"><use href="#i-up"/></svg></span></th>
+              <th style="width:190px">상위 조직<span class="tools"><svg class="i"><use href="#i-filter"/></svg></span></th>
+              <th style="width:230px">조직장</th>
+              <th class="c" style="width:64px">활성</th>
+              <th class="c" style="width:112px">최종 변경</th>
+            </tr></thead>
+            <tbody>
+              <tr><td class="c"><input type="checkbox"></td><td class="c"></td><td class="code ro">DEMO-DEV</td><td>가상 개발팀</td><td><span class="cellsel">없음<svg class="i"><use href="#i-down"/></svg></span></td><td>박서준<a class="link">변경</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-11-02</td></tr>
+              <tr><td class="c"><input type="checkbox"></td><td class="c"></td><td class="code ro">DEMO-FIN</td><td>가상 재무팀</td><td><span class="cellsel">없음<svg class="i"><use href="#i-down"/></svg></span></td><td>이도윤<a class="link">변경</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-10-30</td></tr>
+              <tr><td class="c"><input type="checkbox"></td><td class="c"></td><td class="code ro">DEMO-HR</td><td>가상 인사팀</td><td><span class="cellsel">없음<svg class="i"><use href="#i-down"/></svg></span></td><td>최유나<a class="link">변경</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-10-30</td></tr>
+              <tr class="picked"><td class="c"><input type="checkbox" checked></td><td class="c"><span class="state mod">수정</span></td><td class="code ro">DEMO-OPS</td><td class="dirty">가상 운영지원팀</td><td><span class="cellsel">없음<svg class="i"><use href="#i-down"/></svg></span></td><td><span class="muted">미배정</span><a class="link">배정</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-10-28</td></tr>
+              <tr class="del"><td class="c"><input type="checkbox"></td><td class="c nostrike"><span class="state del">비활성 예정</span></td><td class="code">DEMO-QA</td><td>가상 품질팀</td><td>가상 개발팀</td><td>김하늘</td><td class="c nostrike"><input type="checkbox" disabled></td><td class="c">2026-09-14</td></tr>
+              <tr><td class="c"><input type="checkbox"></td><td class="c"></td><td class="code ro">DEMO-SALES</td><td>가상 영업팀</td><td><span class="cellsel">없음<svg class="i"><use href="#i-down"/></svg></span></td><td><span class="muted">미배정</span><a class="link">배정</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-10-21</td></tr>
+              <tr><td class="c"><input type="checkbox"></td><td class="c"></td><td class="code ro">DEMO-CS</td><td>가상 고객지원팀</td><td><span class="cellsel">가상 영업팀<svg class="i"><use href="#i-down"/></svg></span></td><td>한지우<a class="link">변경</a></td><td class="c"><input type="checkbox" checked></td><td class="c ro">2026-10-21</td></tr>
+              <tr class="new"><td class="c"><input type="checkbox"></td><td class="c"><span class="state new">신규</span></td><td class="err"><span class="muted">코드 입력</span></td><td class="edit"><span>가상 디자인팀</span></td><td><span class="cellsel">가상 개발팀<svg class="i"><use href="#i-down"/></svg></span></td><td class="muted">저장 후 배정</td><td class="c"><input type="checkbox" checked></td><td class="c ro">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="gmsg"><svg class="i"><use href="#i-alert"/></svg>8행 · 조직 코드: 필수 입력입니다. <a href="#">해당 칸으로 이동</a></div>
+        <div class="gfoot">
+          <span>표시 <b>8</b> / 8행 <span class="muted">·</span> 선택 <b>1</b> <span class="muted">·</span> 변경 <b>3</b></span>
+          <div class="pager"><button aria-label="이전"><svg class="i"><use href="#i-left"/></svg></button><button class="on">1</button><button>2</button><button>3</button><button aria-label="다음"><svg class="i"><use href="#i-right"/></svg></button><span class="muted" style="margin-left:10px;font-size:12.5px">페이지당 50행</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="callout"><ul>
+  <li>설명 문장 대신 제목 옆 도움말(?)로 정리하고, 화면 첫 줄은 제목과 화면 단위 동작만 둡니다.</li>
+  <li>조회 조건은 회색 조건 바 하나로 모으고 [조회]는 오른쪽 끝에 고정합니다.</li>
+  <li>시트 머리줄: 제목·건수 왼쪽, 편집 동작 오른쪽. 채움 버튼은 [저장] 하나만 씁니다.</li>
+  <li>변경 칸은 왼쪽 위 삼각 표시, 신규·비활성 행은 왼쪽 띠, 오류는 칸 테두리와 하단 이동 안내로 구분합니다.</li>
+  <li>글자는 왼쪽, 숫자·날짜는 가운데/오른쪽 정렬. 2px 윗선과 1px 칸선으로 문서형 표를 통일합니다.</li>
+  <li>일괄 변경 사유는 [저장]을 누를 때 작은 확인 모달에서 받습니다 (02 오른쪽).</li>
+</ul></div>
+
+<!-- 02 -->
+<section class="frame">
+  <h2 class="frame-label">02 · 공통 모달 <em>L 920 문서형 · S 440 확인형 · 날짜 메뉴(팝오버)</em></h2>
+  <div class="stage">
+    <div class="modal" role="dialog" aria-label="근태 신청">
+      <div class="m-head"><h3>근태 신청</h3><div class="tools"><button aria-label="닫기"><svg class="i" style="width:18px;height:18px"><use href="#i-x"/></svg></button></div></div>
+      <div class="m-body">
+        <div class="msec"><h4>결재선</h4><div class="aside"><span class="chip neutral">제품개발팀 조직장 결재</span></div></div>
+        <div class="approval">
+          <div class="stamps">
+            <div class="stamp"><div class="role">기안</div><div class="who"><b>김하늘</b><span>제품개발팀 · 선임</span></div><div class="st"><span class="chip neutral">작성 중</span></div></div>
+            <div class="stamp"><div class="role">결재</div><div class="who"><b>박서준</b><span>제품개발팀 · 조직장</span></div><div class="st"><span class="chip warn">대기</span></div></div>
+          </div>
+          <div class="note"><b>1단계 지정 승인</b>신청하면 박서준님에게 바로 결재 요청이 갑니다. 본인 결재는 할 수 없습니다.</div>
+        </div>
+
+        <div class="msec"><h4>신청자</h4></div>
+        <table class="ft"><tr><th>신청일자</th><td>2026-11-10</td><th>소속</th><td>제품개발팀</td><th>사번</th><td>24001</td><th>성명</th><td>김하늘</td></tr></table>
+
+        <div class="msec"><h4>신청 내용</h4><div class="aside">잔여 연차 <b style="color:var(--g900)">9일</b> → 신청 후 <b style="color:var(--brand-ink)">7일</b></div></div>
+        <table class="ft">
+          <tr><th>신청 유형<span class="req-dot"></span></th><td><span class="sel" style="width:200px">종일 연차<svg class="i"><use href="#i-down"/></svg></span></td><th>사용 연차<span class="req-dot"></span></th><td><span class="sel" style="width:260px">2026 기본 연차 · 잔여 9일<svg class="i"><use href="#i-down"/></svg></span></td></tr>
+          <tr><th>기간<span class="req-dot"></span></th><td colspan="3"><div class="row"><span class="date" style="width:156px">2026-11-25<svg class="i"><use href="#i-cal"/></svg></span><span class="muted">~</span><span class="date focus" style="width:156px">2026-11-26<svg class="i"><use href="#i-cal"/></svg></span><span class="calc"><em>사용</em>2일</span><span class="muted" style="font-size:12px">주말·휴일은 자동 제외</span></div></td></tr>
+          <tr><th style="vertical-align:top;padding-top:12px">신청 사유<span class="req-dot"></span></th><td colspan="3"><textarea placeholder="예: 가족 행사"></textarea><span class="counter">0 / 500</span></td></tr>
+        </table>
+        <div class="notice"><svg class="i"><use href="#i-info"/></svg>승인 전에는 검토 중으로 표시되고, 승인되면 잔여 연차에서 차감됩니다.</div>
+      </div>
+      <div class="m-foot"><span class="left"><span class="req-dot"></span>필수 입력</span><div class="right"><button class="btn">취소</button><button class="btn primary">신청</button></div></div>
+    </div>
+
+    <div class="side-stack">
+      <div class="modal s" role="dialog" aria-label="변경 내용 저장">
+        <div class="m-head"><h3>변경 내용 저장</h3><div class="tools"><button aria-label="닫기"><svg class="i" style="width:18px;height:18px"><use href="#i-x"/></svg></button></div></div>
+        <div class="m-body" style="padding-top:18px">
+          <div class="counts"><span class="chip ok">신규 1</span><span class="chip info">수정 1</span><span class="chip danger">비활성화 1</span></div>
+          <label class="lbl">변경 사유<span class="req-dot" style="margin-left:4px;vertical-align:3px"></span></label>
+          <textarea class="in" style="width:100%;height:84px;padding:8px 10px;resize:none;border-color:var(--danger)"></textarea>
+          <span class="field-err">변경 사유를 입력해 주세요.</span>
+          <p style="margin:12px 0 0;font-size:12.5px;color:var(--g600)">저장한 내용은 변경 이력에 사유와 함께 남습니다.</p>
+        </div>
+        <div class="m-foot" style="justify-content:flex-end"><div class="right"><button class="btn">취소</button><button class="btn primary">3건 저장</button></div></div>
+      </div>
+      <div style="position:relative">
+        <div class="pop" style="position:relative;left:0;top:0">
+          <div class="pop-h"><div><b>11월 12일 (목)</b><span>날짜별 신청</span></div><button aria-label="닫기"><svg class="i"><use href="#i-x"/></svg></button></div>
+          <a class="opt" href="#"><svg class="i"><use href="#i-file"/></svg><span>종일 연차</span></a>
+          <span class="opt" aria-disabled="true"><svg class="i"><use href="#i-clock"/></svg><span>출퇴근·휴게 정정<small>미래 날짜는 정정할 수 없습니다.</small></span></span>
+          <div style="height:1px;background:var(--g150);margin:4px 2px"></div>
+          <a class="opt" href="#"><svg class="i"><use href="#i-cal"/></svg><span>일정 상세 보기</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="callout"><ul>
+  <li>모달 크기는 S 440 · M 720 · L 920 · XL 1200 네 가지. 머리 56px, 본문 24px 여백, 하단 고정 버튼.</li>
+  <li>하단 오른쪽에 [취소] [주 동작] 순서. 주 동작 문구는 동사로 구체적으로 ("3건 저장", "신청").</li>
+  <li>결재선은 결재란(기안·결재) 형식으로, 신청자·신청 내용은 왼쪽 회색 항목명 표로 통일합니다.</li>
+  <li>필수 항목은 빨간 테두리 대신 항목명 옆 점으로 표시하고, 오류일 때만 테두리와 문구를 씁니다.</li>
+  <li>모바일(≤600px)에서는 아래에서 올라오는 전체 화면 시트로 바뀌고 표는 항목명 위·값 아래로 쌓입니다.</li>
+  <li>날짜 메뉴는 지원하는 신청만 보여 주고, 막힌 항목은 이유를 함께 표시합니다.</li>
+</ul></div>
+
+<!-- 03 -->
+<section class="frame">
+  <h2 class="frame-label">03 · 공통 화면 틀 <em>근무 일정 · 사원 맥락 줄 + 요약 줄 + 본문 + 오른쪽 요약</em></h2>
+  <div class="window app">
+    <aside class="sb">
+      <div class="sb-brand"><span class="logo">W</span><b>WorkLog</b><small>데모</small></div>
+      <div class="sb-org"><div><b>합성 디자인 검증회사</b><span>직원</span></div><svg class="i" style="color:var(--g400);width:14px"><use href="#i-down"/></svg></div>
+      <div class="sb-group">내 업무</div>
+      <a class="sb-item"><svg class="i"><use href="#i-home"/></svg>홈</a>
+      <a class="sb-item"><svg class="i"><use href="#i-users"/></svg>인사정보<svg class="i chev"><use href="#i-right"/></svg></a>
+      <a class="sb-item"><svg class="i"><use href="#i-brief"/></svg>근태관리<svg class="i chev" style="transform:rotate(90deg)"><use href="#i-right"/></svg></a>
+      <div class="sb-sub">
+        <a class="sb-item">출퇴근 기록</a>
+        <a class="sb-item on">근무 일정</a>
+        <a class="sb-item">근로시간</a>
+      </div>
+      <a class="sb-item"><svg class="i"><use href="#i-file"/></svg>휴가·신청<svg class="i chev"><use href="#i-right"/></svg></a>
+      <div class="sb-foot">로컬 데모 워크스페이스<br>Asia/Seoul 기준</div>
+    </aside>
+    <div class="main">
+      <div class="tb">
+        <nav class="crumb">내 업무<svg class="i"><use href="#i-right"/></svg>근태관리<svg class="i"><use href="#i-right"/></svg><b>근무 일정</b></nav>
+        <div class="tb-right">
+          <span class="mini-sel"><em>테마</em>차콜<svg class="i"><use href="#i-down"/></svg></span>
+          <span class="mini-sel"><em>권한</em>직원<svg class="i"><use href="#i-down"/></svg></span>
+          <span class="vr"></span>
+          <span class="me"><span class="avatar">김</span><span><b>김하늘</b><br><span>합성 디자인 검증회사</span></span></span>
+          <button class="btn ghost icon" aria-label="로그아웃"><svg class="i"><use href="#i-logout"/></svg></button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="ctx">
+          <span class="avatar" style="width:34px;height:34px">김</span><b>김하늘</b><span class="chip ok">재직</span>
+          <span class="sep"></span>
+          <dl><div><dt>사번</dt><dd>24001</dd></div><div><dt>소속</dt><dd>제품개발팀</dd></div><div><dt>직급·직책</dt><dd>선임 · 팀원</dd></div><div><dt>직무</dt><dd>프로덕트 개발</dd></div><div><dt>입사일</dt><dd>2024-03-04</dd></div></dl>
+        </div>
+        <div class="ph">
+          <h1>근무 일정<svg class="i help" aria-label="도움말"><use href="#i-help"/></svg></h1>
+          <div class="ph-actions">
+            <span class="date" style="width:132px">2026-11<svg class="i"><use href="#i-cal"/></svg></span>
+            <button class="btn primary"><svg class="i"><use href="#i-plus"/></svg>근태 신청</button>
+            <button class="btn icon" aria-label="새로 고침"><svg class="i"><use href="#i-refresh"/></svg></button>
+          </div>
+        </div>
+        <div class="sum">
+          <span><svg class="i"><use href="#i-brief"/></svg>예정 근무 <b>20일 · 160:00</b></span>
+          <span>승인 연차 <b>1일</b></span>
+          <span class="w">검토 중 <b>1건</b></span>
+          <span class="d">확인 필요 <b>1일</b></span>
+          <span>잔여 연차 <a href="#">9일<svg class="i"><use href="#i-right"/></svg></a></span>
+        </div>
+        <div class="calwrap">
+          <div>
+            <div class="calbar">
+              <div class="monthnav"><button class="btn icon sm" aria-label="이전 달"><svg class="i"><use href="#i-left"/></svg></button><strong>2026년 11월</strong><button class="btn icon sm" aria-label="다음 달"><svg class="i"><use href="#i-right"/></svg></button><button class="btn sm" style="margin-left:6px">오늘</button></div>
+              <div class="legend"><span><i class="l-work"></i>예정 근무</span><span><i class="l-off"></i>비근로일·휴일</span><span><i class="l-leave"></i>승인 연차</span><span><i class="l-wait"></i>검토 중</span><span><i class="l-unk"></i>미배정·미확인</span></div>
+            </div>
+            <div class="cal">
+              <div class="cal-head"><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div class="sat">토</div><div class="sun">일</div></div>
+              <div class="cal-grid" id="cal"></div>
+            </div>
+          </div>
+          <aside class="side">
+            <div class="side-block">
+              <h3>주간 근무</h3><div class="period">11.09 (월) – 11.15 (일)</div>
+              <div class="big">32:00<small>/ 40:00 예정</small></div>
+              <div class="bar"><span style="width:80%"></span></div>
+              <div class="kv"><span><i style="background:var(--ev-work-ink)"></i>예정 근무</span><b>4일</b></div>
+              <div class="kv"><span><i style="background:var(--ev-leave-ink)"></i>승인 연차</span><b>1일</b></div>
+              <div class="kv" style="border-bottom:0"><span><i style="background:var(--ev-off-ink)"></i>비근로일</span><b>2일</b></div>
+            </div>
+            <div class="side-block">
+              <h3>처리할 일</h3>
+              <div class="kv"><span>11/17 종일 연차</span><span class="chip warn">검토 중</span></div>
+              <div class="kv" style="border-bottom:0"><span>11/19 근무 미배정</span><span class="chip neutral">담당자 확인</span></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="callout"><ul>
+  <li>큰 인사 카드 대신 한 줄짜리 사원 맥락 줄을 내 업무 화면 공통 머리로 씁니다.</li>
+  <li>요약 줄은 그 화면 자료로 계산되는 값만 보여 주고, 다음 동작(잔여 연차 →)과 연결합니다.</li>
+  <li>달력 막대는 종류별 색 + 아이콘 + 문구를 함께 써서 색만으로 구분하지 않게 합니다.</li>
+  <li>날짜의 ⋯ 버튼은 마우스를 올리거나 선택한 날짜에만 보이게 해 화면 잡음을 줄입니다.</li>
+</ul></div>
+
+<!-- 04 -->
+<section class="frame" style="margin-bottom:60px">
+  <h2 class="frame-label">04 · 기본 요소 <em>토큰과 컴포넌트</em></h2>
+  <div class="window kit">
+    <div><h5>버튼 · 높이 34 / 촘촘 30 / 모바일 44</h5>
+      <div class="row-wrap"><button class="btn primary">저장</button><button class="btn dark"><svg class="i"><use href="#i-search"/></svg>조회</button><button class="btn">행 추가</button><button class="btn ghost">취소</button></div>
+      <div class="row-wrap" style="margin-top:8px"><button class="btn danger"><svg class="i"><use href="#i-trash"/></svg>비활성화</button><button class="btn icon" aria-label="다운로드"><svg class="i"><use href="#i-download"/></svg></button><button class="btn" disabled>비활성</button></div>
+    </div>
+    <div><h5>입력</h5>
+      <div style="display:grid;gap:8px"><input class="in" placeholder="코드 또는 이름" style="width:100%"><span class="date" style="width:100%">2026-11-25<svg class="i"><use href="#i-cal"/></svg></span><span class="sel err-field" style="width:100%"><span class="ph-text">선택하세요</span><svg class="i"><use href="#i-down"/></svg></span><span class="field-err" style="margin-top:-4px">신청 유형을 선택해 주세요.</span></div>
+    </div>
+    <div><h5>상태 표시</h5>
+      <div class="row-wrap"><span class="chip ok"><svg class="i"><use href="#i-check"/></svg>승인</span><span class="chip warn"><svg class="i"><use href="#i-hourglass"/></svg>검토 중</span><span class="chip danger">반려</span><span class="chip neutral">취소</span><span class="chip info">수정</span><span class="chip brand">기본</span></div>
+      <div class="row-wrap" style="margin-top:12px"><span class="state new">신규</span><span class="state mod">수정</span><span class="state del">비활성 예정</span><span class="state same">저장됨</span></div>
+    </div>
+    <div><h5>읽기 전용 정보</h5>
+      <dl class="info-grid" style="margin:0"><div><dt>사번</dt><dd>24001</dd></div><div><dt>입사일</dt><dd>2024-03-04</dd></div><div><dt>소속</dt><dd>제품개발팀</dd></div><div><dt>근무</dt><dd>기본 09:00–18:00</dd></div></dl>
+    </div>
+    <div><h5>색 · 차콜 테마 기준</h5>
+      <div class="swatches"><div class="sw" style="background:var(--brand)"></div><div class="sw" style="background:var(--g800)"></div><div class="sw" style="background:var(--g500)"></div><div class="sw" style="background:var(--g200)"></div><div class="sw" style="background:var(--g50)"></div><div class="sw" style="background:var(--ok)"></div><div class="sw" style="background:var(--warn)"></div><div class="sw" style="background:var(--danger)"></div><div class="sw" style="background:var(--info)"></div><div class="sw" style="background:var(--brand-tint)"></div></div>
+    </div>
+    <div><h5>글자 · Pretendard</h5>
+      <div class="type"><div><span style="font-size:22px;font-weight:700;letter-spacing:-.025em">화면 제목</span><small>22 / 700</small></div><div><span style="font-size:18px;font-weight:700">모달 제목</span><small>18 / 700</small></div><div><span style="font-size:15px;font-weight:700">구역 제목</span><small>15 / 700</small></div><div><span style="font-size:14px">본문</span><small>14 / 400</small></div><div><span style="font-size:13px">표·항목명</span><small>13 / 400·600</small></div><div><span style="font-size:12px;color:var(--g500)">보조 정보</span><small>12 / 500</small></div></div>
+    </div>
+    <div><h5>모서리 · 그림자</h5>
+      <div class="row-wrap" style="gap:12px"><div style="width:56px;height:40px;border:1px solid var(--g300);border-radius:4px;display:grid;place-items:center;font-size:12px">4</div><div style="width:56px;height:40px;border:1px solid var(--g300);border-radius:6px;display:grid;place-items:center;font-size:12px">6</div><div style="width:56px;height:40px;border-radius:10px;box-shadow:0 8px 24px rgba(10,14,22,.16);display:grid;place-items:center;font-size:12px">10</div></div>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--g500)">입력·버튼·칸 4 · 조건 바·팝오버 6 · 모달 10</p>
+    </div>
+    <div><h5>간격</h5>
+      <div class="row-wrap" style="align-items:flex-end;gap:10px"><div style="width:4px;height:4px;background:var(--g800)"></div><div style="width:8px;height:8px;background:var(--g800)"></div><div style="width:12px;height:12px;background:var(--g800)"></div><div style="width:16px;height:16px;background:var(--g800)"></div><div style="width:24px;height:24px;background:var(--g800)"></div><div style="width:32px;height:32px;background:var(--g800)"></div></div>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--g500)">4 · 8 · 12 · 16 · 24 · 32 단계만 사용</p>
+    </div>
+  </div>
+</section>
+
+<script>
+document.querySelectorAll('.seg').forEach(function(seg){
+  seg.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    document.documentElement.setAttribute(seg.dataset.attr,b.dataset.v);
+    seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});
+    document.querySelectorAll('.mini-sel').forEach(function(m){ if(m.textContent.indexOf('테마')===0){ m.childNodes[1].textContent = document.documentElement.dataset.theme==='blue'?'블루':'차콜'; } });
+  });
+});
+(function(){
+  var cal=document.getElementById('cal');
+  var ic=function(n){return '<svg class="i"><use href="#i-'+n+'"/></svg>'};
+  var work='<div class="ev work">'+ic('clock')+'09:00–18:00</div>';
+  var off='<div class="ev off">'+ic('flag')+'소정 비근로일</div>';
+  var cells=[];
+  for(var d=26;d<=31;d++) cells.push({n:d,out:true});
+  for(var n=1;n<=30;n++) cells.push({n:n});
+  for(var e=1;e<=6;e++) cells.push({n:e,out:true});
+  cells.forEach(function(c,i){
+    var col=i%7, cls='day'+(c.out?' out':'')+(col===5?' sat':'')+(col===6?' sun':'');
+    var body='';
+    if(!c.out){
+      if(col>=5) body=off; else body=work;
+      if(c.n===12) body='<div class="ev work dim">'+ic('clock')+'09:00–18:00</div><div class="ev leave">'+ic('check')+'연차 승인</div>';
+      if(c.n===15) body=off+'<div class="ev off">'+ic('flag')+'확인된 휴일</div>';
+      if(c.n===17) body=work+'<div class="ev wait">'+ic('hourglass')+'연차 검토 중</div>';
+      if(c.n===19) body='<div class="ev unk">근무 미배정</div><div class="ev unk">휴일 미확인</div>';
+      if(c.n===10) cls+=' today';
+      if(c.n===18) cls+=' pick';
+    }
+    var more=c.out?'':'<span class="more">'+ic('more')+'</span>';
+    cal.insertAdjacentHTML('beforeend','<div class="'+cls+'"><span class="dn">'+c.n+'</span>'+more+body+'</div>');
+  });
+  var pick=cal.querySelector('.pick');
+  var pop=document.createElement('div');
+  pop.className='pop';
+  pop.innerHTML='<div class="pop-h"><div><b>11월 18일 (수)</b><span>날짜별 신청</span></div><button aria-label="닫기">'+ic('x')+'</button></div><a class="opt" href="#">'+ic('file')+'<span>종일 연차</span></a><span class="opt" aria-disabled="true">'+ic('clock')+'<span>출퇴근·휴게 정정<small>미래 날짜는 정정할 수 없습니다.</small></span></span><div style="height:1px;background:var(--g150);margin:4px 2px"></div><a class="opt" href="#">'+ic('cal')+'<span>일정 상세 보기</span></a>';
+  pick.appendChild(pop);
+  pop.style.left='calc(100% - 26px)';pop.style.top='30px';
+})();
+</script>
+</body>
+</html>
