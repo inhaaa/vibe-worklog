@@ -31,7 +31,7 @@ async function show(page: string, data: Record<string, unknown>) {
   }, csrf: { token: 'csrf', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' } }} />);
   await waitFor(() => {
     for (const sheet of view.container.querySelectorAll('.w-sheet'))
-      expect(sheet.querySelector('[row-id]')).not.toBeNull();
+      expect(sheet.querySelector('[row-id], .ag-overlay-no-rows-center')).not.toBeNull();
   });
   return view;
 }

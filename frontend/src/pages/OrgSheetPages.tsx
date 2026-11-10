@@ -263,7 +263,27 @@ function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations })
     const summary = <><a href={queryHref('/company/organizations', { organizationId: organization.id, q: m.q, page: 0 })} aria-current={organization.id === m.organizationId ? 'true' : undefined}>{organization.code} · {organization.name}</a>{!organization.active && <span className="t-tag gray">비활성</span>}<HeadStatus name={organization.headEmployeeName} eligible={organization.headEligible} approverEligible={organization.headApproverEligible} /></>;
     return <li key={organization.id}>{nested.length ? <details open><summary>{summary}</summary><ul>{nested.map(node)}</ul></details> : <div className="t-org-leaf">{summary}</div>}</li>;
   }
-  return <div className="t-company-organizations"><PageHeader title="조직도" help="현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요." /><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p><div className="t-org-layout"><section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section><section className="t-card"><h2>{m.selectedOrganization ? `${m.selectedOrganization.name} 직원` : '조직별 직원'}</h2>{m.selectedOrganization ? <><div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div><p className="t-subtle">선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p><form action="/company/organizations" method="get" className="t-toolbar"><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><div><Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} /></div><button className="t-btn primary">조회</button></form>{m.employees.length ? <WorklogSheet label="선택 조직 직원" rows={m.employees} columns={columns} getRowId={employee => employee.id} /> : <p className="notice">조회된 직원이 없습니다.</p>}<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav></> : <p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p>}</section></div></div>;
+  return <div className="t-company-organizations">
+    <PageHeader title="조직도" help={<>
+      <p>현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요.</p>
+      <p>선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p>
+    </>} />
+    <p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p>
+    <div className="t-org-layout">
+      <section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section>
+      <section className="wl-section">{m.selectedOrganization ? <>
+        <div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div>
+        <form action="/company/organizations" method="get" className="wl-querybar">
+          <input type="hidden" name="organizationId" value={m.organizationId ?? ''} />
+          <Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} />
+          <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
+        </form>
+        <WorklogSheet label="선택 조직 직원" title={`${m.selectedOrganization.name} 직원`} rows={m.employees} columns={columns} getRowId={employee => employee.id}
+          emptyMessage="조회된 직원이 없습니다."
+          pagination={<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav>} />
+      </> : <><h2>조직별 직원</h2><p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p></>}</section>
+    </div>
+  </div>;
 }
 
 export function OrgSheetPages({ page, data, busy }: PageProps): ReactNode {
