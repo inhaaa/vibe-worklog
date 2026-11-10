@@ -4,6 +4,7 @@ import type { PageProps } from '../types';
 import { ErrorNotice, Form, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
 type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD';
 interface Route {
@@ -223,14 +224,8 @@ function RouteSheet({ model: m, error }: {
     }),
   ];
   return <section className="t-org-sheet t-approval-routes" data-unsaved-changes={String(unsaved)}>
-    <header className="t-pagehead">
-      <div>
-
-        <h1>결재선 관리</h1>
-        <p className="t-muted">한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요.</p>
-      </div>
-      <a className="t-btn" href="/admin/approval-route-assignments">사원·조직별 배정</a>
-    </header>
+    <PageHeader title="결재선 관리" help="한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요."
+      actions={<a className="t-btn" href="/admin/approval-route-assignments">사원·조직별 배정</a>} />
     <section className="t-card">
       <form action="/admin/approval-routes" method="get" className="t-toolbar" role="search" aria-label="결재선 검색">
         <label htmlFor="route-q">결재선 검색</label>
@@ -368,14 +363,8 @@ function RouteAssignments({ model: m, error }: {
     sheetColumn<Assignment>({ field: 'reason', headerName: '사유', minWidth: 220, flex: 1 }, assignment => assignment.reason),
   ];
   return <section className="t-approval-assignments" data-unsaved-changes={String(dirty)}>
-    <header className="t-pagehead">
-      <div>
-
-        <h1>결재선 배정</h1>
-        <p className="t-muted">사원 또는 조직에 적용할 1단계 결재선 버전을 지정하세요.</p>
-      </div>
-      <a className="t-btn" href="/admin/approval-routes">결재선 관리</a>
-    </header>
+    <PageHeader title="결재선 배정" help="사원 또는 조직에 적용할 1단계 결재선 버전을 지정하세요."
+      actions={<a className="t-btn" href="/admin/approval-routes">결재선 관리</a>} />
     <ErrorNotice message={error} />
     <section className="t-card">
       <form

@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import {
   Check,
   ErrorNotice,
@@ -156,13 +157,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
   const selected = m.selectedEmployee;
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-
-          <h1>직원 목록</h1>
-          <p className="t-muted">조직과 재직 정보를 한곳에서.</p>
-        </div>
-      </header>
+      <PageHeader title="직원 목록" help="조직과 재직 정보를 한곳에서." />
       <div className="t-grid-3" aria-label="현재 페이지 직원 현황">
         <section className="t-card">
           <p className="t-metric-label">현재 페이지 직원</p>
