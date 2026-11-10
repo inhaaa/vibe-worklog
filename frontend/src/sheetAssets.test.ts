@@ -31,6 +31,8 @@ describe('시트 스타일의 CSP 자산 계약', () => {
     expect(String(app.source)).toContain('.t-request-dialog');
     expect(String(sheet.source)).toContain('.ag-theme-quartz');
     expect(String(sheet.source)).toContain('--ag-row-height:40px');
+    expect(String(app.source)).toMatch(/@layer legacy\s*\{/);
+    expect(String(sheet.source)).toMatch(/@layer vendor\s*\{/);
     expect(String(app.source) + String(sheet.source)).not.toMatch(/url\(["']?data:/);
   });
 

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · scope: component · theme: WorkLog shared tokens · signature: explicit test employee switch · v2.0.0 */
 /* Hallmark · pre-emit critique: preserve shared controls and native modal keyboard behavior. */
 #tna-app .t-demo-account-trigger { flex: none; }
@@ -10,4 +11,5 @@
 @media (max-width: 680px) {
   #tna-app .t-profile:has(.t-demo-account-trigger) .t-profile-copy { max-width: 10rem; }
   #tna-app .t-profile:has(.t-demo-account-trigger) .t-profile-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 }

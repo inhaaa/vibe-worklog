@@ -1,3 +1,4 @@
+@layer legacy {
 #tna-app .t-work-home {
   min-inline-size: 0;
   container: work-home / inline-size;
@@ -363,4 +364,5 @@
 @container work-home (max-width: 390px) {
   #tna-app .t-work-home-recent a { grid-template-columns: minmax(0, 1fr) auto; }
   #tna-app .t-work-home-request-icon { display: none; }
+}
 }

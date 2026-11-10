@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: workday stage · genre: modern-minimal · theme: WorkLog custom, existing wordmark and face · redesign: full · job: try · hero: dimensional calendar and direct demo entry · nav: wordmark · footer: product signature · signature: a working week in motion · posture: full palette · v2.0.0 */
 /* Hallmark · pre-emit critique: P5 H5 E4 S4 R5 V5 · weakest: S, make one visible action enter the demo. */
 /* Hallmark · waive 47c · user explicitly requested physical calendar and time objects · WorkLog uses dimensional attendance objects, not imitation application windows. */
@@ -148,4 +149,5 @@
   #tna-app .t-worklog-landing *, #tna-app .t-worklog-landing *::before, #tna-app .t-worklog-landing *::after { animation: none; transition: none; }
   #tna-app .t-workday-scene:hover .t-calendar-object { transform: rotateX(12deg) rotateY(-17deg) rotateZ(-8deg); }
   #tna-app .t-worklog-landing .t-landing-start:hover:enabled { transform: none; }
+}
 }

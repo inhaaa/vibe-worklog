@@ -1,3 +1,5 @@
+@layer vendor, legacy;
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract noon, charcoal and blue by request · redesign: full · nav: preserved workspace · signature: workforce ledger · states: existing · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve existing page geometry while eliminating decorative palette and repeated surfaces */
 :root { color-scheme: light; font-family:var(--font-body); color: var(--t-ink); background: var(--t-paper); line-height: 1.6; }
@@ -590,4 +592,5 @@ body.workspace-body { background: var(--t-canvas); }
     #tna-app .t-annual-context, #tna-app .t-annual-correction { grid-template-columns: minmax(0,1fr); }
     #tna-app .t-annual-compose-form input, #tna-app .t-annual-compose-form textarea, #tna-app .t-annual-compose-form select { max-width: 100%; font-size: 16px; }
     #tna-app .t-annual-metrics strong { font-size: 20px; }
+}
 }

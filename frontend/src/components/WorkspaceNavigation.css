@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: employee record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
 #tna-app .t-sidebar nav.t-workspace-navigation { display: block; }
@@ -34,4 +35,5 @@
 #tna-app .t-location-breadcrumbs a:focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; }
 @media (max-width: 680px) {
   #tna-app .t-location-breadcrumbs { flex: 1; font-size: 13px; }
+}
 }

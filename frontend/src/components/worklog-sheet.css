@@ -1,7 +1,9 @@
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: charcoal and blue by request · signature: readable workforce ledger · scope: app · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · preserve grid controls and distinguish labels, values and selection through shared surfaces */
-@import 'ag-grid-community/styles/ag-grid.css';
-@import 'ag-grid-community/styles/ag-theme-quartz.css';
+@layer vendor, legacy;
+@import 'ag-grid-community/styles/ag-grid.css' layer(vendor);
+@import 'ag-grid-community/styles/ag-theme-quartz.css' layer(vendor);
+@layer legacy {
 
 .w-sheet {
   min-width: 0;
@@ -166,3 +168,5 @@
 }
 
 #tna-app .w-sheet-grid :is(input, select, textarea, button, a):focus-visible { outline: 2px solid var(--t-focus); outline-offset: -2px; }
+
+}
