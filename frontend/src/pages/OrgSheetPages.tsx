@@ -118,7 +118,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
   function headCell(row: Row) {
     if (!row.id) return '저장 후 배정';
     const head = m.organizationHeadsById?.[row.id];
-    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} /><a href={queryHref('/admin/organization-heads', { organizationId: row.id })}>조직장 배정</a></>;
+    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} />{' '}<a href={queryHref('/admin/organization-heads', { organizationId: row.id })}>조직장 배정</a></>;
   }
   function employeeCell(row: Row, previous: Employee | Organization | undefined) {
     if (!row.id) return '저장 후 배정';

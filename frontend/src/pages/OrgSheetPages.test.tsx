@@ -483,3 +483,11 @@ describe('조직장·조직도', () => {
     expect(main.textContent).toContain('조직장 미배정'); expect(main.textContent).toContain('재지정 필요'); expect(main.textContent).toContain('조회된 직원이 없습니다.');
   });
 });
+
+describe('조직장 칸 표시', () => {
+  it('상태 문구와 배정 링크 사이를 띄운다', async () => {
+    const view = await show();
+    const cell = view.container.querySelector('.ag-row [col-id="organizationHead"]');
+    expect(cell?.textContent).toBe('조직장 미배정 조직장 배정');
+  });
+});
