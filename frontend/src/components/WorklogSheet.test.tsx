@@ -323,6 +323,19 @@ describe('WorklogSheet 공통 업무 그리드', () => {
     expect(cell('d').classList.contains('w-sheet-cell-changed')).toBe(false);
   });
 
+  it('짧은 시트는 내용 높이에 맞추고 긴 시트는 480px 안에서 스크롤한다', async () => {
+    const short = render(<WorklogSheet label="짧은 시트" rows={rows} columns={columns} getRowId={row => row.id} />);
+    await short.findByRole('grid', { name: '짧은 시트' });
+    expect(short.container.querySelector<HTMLElement>('.w-sheet-grid')!.style.height).toBe('');
+    expect(short.container.querySelector('.ag-root.ag-layout-auto-height')).toBeTruthy();
+    cleanup();
+    const many = Array.from({ length: 20 }, (_, index) => ({ id: `r-${index}`, name: `행 ${index}` }));
+    const long = render(<WorklogSheet label="긴 시트" rows={many} columns={columns} getRowId={row => row.id} />);
+    await long.findByRole('grid', { name: '긴 시트' });
+    expect(long.container.querySelector<HTMLElement>('.w-sheet-grid')!.style.height).toBe('480px');
+    expect(long.container.querySelector('.ag-root.ag-layout-normal')).toBeTruthy();
+  });
+
   it('600px 미만 화면은 터치용 44px 행을 쓴다', async () => {
     resizeViewport(390);
     const view = render(<WorklogSheet label="모바일 행" rows={rows} columns={columns} getRowId={row => row.id} />);

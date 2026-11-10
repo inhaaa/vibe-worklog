@@ -187,6 +187,8 @@ export function WorklogSheet<T>({ label, title, count, actions, pagination, rows
     return () => window.removeEventListener('resize', resize);
   }, []);
   const height = rowHeight ?? (narrowViewport ? 44 : 38);
+  // 머리 37 + 윗·아랫선 3 + 가로 스크롤 16. 이 안에 들어오면 내용 높이에 맞추고(스크롤 막대는 필요할 때만), 넘치면 480px에서 스크롤한다.
+  const autoHeight = rows.length * height + 56 <= 480;
   const viewportColumns = columns.map(column => ({ ...column, wrapText: false, autoHeight: false,
     ...(narrowViewport ? { pinned: null, wrapHeaderText: true, autoHeaderHeight: true } : {}),
   }));
@@ -323,7 +325,7 @@ export function WorklogSheet<T>({ label, title, count, actions, pagination, rows
       {changedIds && changedIds.size > 0 && <span className="w-sheet-pending">저장 전 변경 {changedIds.size}건</span>}
       {actions}
     </>} />
-    <div className="ag-theme-quartz w-sheet-grid" style={{ height: Math.min(480, Math.max(150, rows.length * height + (narrowViewport ? 56 : 40))) }}>
+    <div className="ag-theme-quartz w-sheet-grid" style={autoHeight ? undefined : { height: 480 }}>
       <SheetEditorFields.Provider value={editorFields}>
       <AgGridReact<T> theme="legacy" rowData={rows} columnDefs={[...selection, ...viewportColumns]}
         defaultColDef={{ ...defaults, headerClass: (params: HeaderClassParams<T>) => headerAlignment(params), cellClassRules: {
@@ -335,7 +337,7 @@ export function WorklogSheet<T>({ label, title, count, actions, pagination, rows
             return operation !== 'CREATE' && operation !== 'DEACTIVATE' && Boolean(fieldFor(params.colDef, params.data, params.context)?.changed);
           },
           'w-sheet-cell-error': params => Boolean(params.data && (params.context as SheetContext<T>).errors.some(error => error.clientRowId === getRowId(params.data!) && error.field === params.column.getColId())),
-        } }} context={context} getRowId={stableRowId} rowHeight={height} headerHeight={36}
+        } }} context={context} getRowId={stableRowId} rowHeight={height} headerHeight={36} domLayout={autoHeight ? 'autoHeight' : 'normal'}
         rowSelection={selectedIds ? { mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: false,
           isRowSelectable: node => Boolean(node.data && (!isRowSelectable || isRowSelectable(node.data))),
         } : undefined}

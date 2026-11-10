@@ -18,6 +18,7 @@
   --ag-grid-size: 4px;
   --ag-row-height: 38px;
   --ag-header-height: 36px;
+  --ag-auto-height-min-body-height: 112px;
   --ag-cell-horizontal-padding: 12px;
   --ag-background-color: var(--g0);
   --ag-foreground-color: var(--g900);
@@ -44,6 +45,10 @@
   width: 100%; min-width: 0; overflow: hidden; line-height: normal;
 }
 .w-sheet-grid .ag-root-wrapper { border: 0; border-top: 2px solid var(--g800); border-bottom: 1px solid var(--g200); border-radius: 0; }
+/* Overlay scrollbars (macOS, touch, headless) would cover the last row of a fitted sheet: give the horizontal bar its own line
+   when columns overflow, and no line when they do not. */
+.w-sheet-grid .ag-body-horizontal-scroll.ag-scrollbar-invisible { position: static; }
+.w-sheet-grid .ag-body-horizontal-scroll.ag-scrollbar-invisible.ag-invisible { display: none; }
 
 /* Header: 13/600 g700 on g50. Icons stay quiet until hover, focus, sort or filter. */
 .w-sheet-grid .ag-header-cell { font-weight: 600; }
