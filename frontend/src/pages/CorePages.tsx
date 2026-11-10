@@ -418,15 +418,15 @@ function Schedule({ data }: PageProps) {
           </div>
           <div className="t-calendar-legend">
             <span>
-              <i className="blue" aria-hidden="true" />
+              <span data-calendar-marker="plan" aria-hidden="true" />
               예정 근무
             </span>
             <span>
-              <i className="amber" aria-hidden="true" />
+              <span data-calendar-marker="unconfirmed" aria-hidden="true" />
               휴일 정보 미확인
             </span>
             <span>
-              <i className="green" aria-hidden="true" />
+              <span data-calendar-marker="leave" aria-hidden="true" />
               승인 연차
             </span>
             <span className="t-attendance-hint">날짜 우클릭 또는 ⋯로 신청</span>
@@ -538,7 +538,7 @@ function Schedule({ data }: PageProps) {
               {selected.requests.length ? selected.requests.map(item => (
                 <div className="t-listrow" key={item.request.id}>
                   <a href={`/requests/${item.request.id}`}>{item.kindLabel}</a>
-                  <span className={`t-tag ${item.tone}`}>{item.statusLabel}</span>
+                  <span className={`t-tag ${item.tone}`} data-effective-leave={item.effectiveLeave || undefined}>{item.statusLabel}</span>
                 </div>
               )) : <p className="t-muted">이 날짜에 조회된 본인 대상 신청이 없습니다.</p>}
             </div>
