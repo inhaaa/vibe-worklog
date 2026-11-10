@@ -4,6 +4,7 @@ import type { PageProps } from '../types';
 import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 interface Profile {
@@ -208,34 +209,34 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
 function AccessListPage({ model: m }: { model: AccessList }) {
   return (
     <>
-      <PageHeader title="권한 관리" help="계정별 역할을 확인하고 기존 관리 화면에서 변경하세요." />
-      <section className="panel">
-        <Form action="/admin/access" method="get" className="search-form">
-          <div><Field label="사번·이름 검색" name="q" value={m.q} maxLength={120} /></div>
-          <button type="submit">조회</button>
-        </Form>
-        <p className="hint">
-          공통은 필수 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여하며 함께 보유할 수 있습니다.
-        </p>
-        {m.accessRows.length === 0 ? <p>조회된 계정이 없습니다.</p> : (
-          <WorklogSheet
-            label="계정별 권한"
-            rows={m.accessRows}
-            getRowId={(row) => row.employeeId}
-            scope="page"
-            columns={[
-              { field: 'employeeNo', headerName: '사번', pinned: 'left', minWidth: 120 },
-              { field: 'employeeName', headerName: '이름', minWidth: 130 },
-              { colId: 'roles', headerName: '역할·기능', valueGetter: ({ data }) => data && formatRoles(data.roles), minWidth: 250 },
-              { colId: 'active', headerName: '계정 상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 120 },
-              sheetColumn<AccessList['accessRows'][number]>(
-                { colId: 'manage', headerName: '관리', sortable: false, filter: false, minWidth: 120 },
-                (row) => <a href={`/admin/employees/${row.employeeId}/access`} aria-label={`${row.employeeName} 권한 관리`}>권한 관리</a>,
-              ),
-            ]}
-          />
-        )}
-        <Pagination path="/admin/access" values={{ q: m.q }} page={m.page} hasNext={m.hasNext} />
+      <PageHeader title="권한 관리" help={<>
+        <p>계정별 역할을 확인하고 기존 관리 화면에서 변경하세요.</p>
+        <p>공통은 필수 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여하며 함께 보유할 수 있습니다.</p>
+      </>} />
+      <Form action="/admin/access" method="get" className="wl-querybar">
+        <Field label="사번·이름 검색" name="q" value={m.q} maxLength={120} />
+        <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
+      </Form>
+      <section className="wl-section">
+        <WorklogSheet
+          label="계정별 권한"
+          title="계정 목록"
+          rows={m.accessRows}
+          getRowId={(row) => row.employeeId}
+          scope="page"
+          emptyMessage="조회된 계정이 없습니다."
+          pagination={<Pagination path="/admin/access" values={{ q: m.q }} page={m.page} hasNext={m.hasNext} />}
+          columns={[
+            { field: 'employeeNo', headerName: '사번', pinned: 'left', minWidth: 120 },
+            { field: 'employeeName', headerName: '이름', minWidth: 130 },
+            { colId: 'roles', headerName: '역할·기능', valueGetter: ({ data }) => data && formatRoles(data.roles), minWidth: 250 },
+            { colId: 'active', headerName: '계정 상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 120 },
+            sheetColumn<AccessList['accessRows'][number]>(
+              { colId: 'manage', headerName: '관리', sortable: false, filter: false, minWidth: 120 },
+              (row) => <a href={`/admin/employees/${row.employeeId}/access`} aria-label={`${row.employeeName} 권한 관리`}>권한 관리</a>,
+            ),
+          ]}
+        />
       </section>
     </>
   );
@@ -245,62 +246,60 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
   const values = { month: m.month, organizationId: m.organizationId, employeeId: m.employeeId, q: m.q };
   return (
     <>
-      <PageHeader title="회사 근무현황" help="사원을 선택해 해당 월의 일별 근무 결과를 확인하세요." />
-      <section className="panel">
-        <Form
-          action="/company/attendance"
-          method="get"
-          className="admin-form"
-          onChange={(event) => {
-            const name = event.target.getAttribute('name');
-            if (name === 'organizationId' || name === 'q') setEmployeeId('');
-          }}
-        >
-          <input type="hidden" name="employeeId" value={employeeId} />
-          <Field label="기준 월 (서울)" name="month" type="month" value={m.month} required />
-          <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
-          <Field label="사번·이름 검색" name="q" value={m.q} maxLength={100} />
-          <div className="actions"><button type="submit">조회</button></div>
-        </Form>
-        <p className="hint">
-          조직은 서울 기준 오늘의 소속으로 조회합니다. 조회 기준 (서울): {fmtDateTime(m.asOf)}
-        </p>
-        <h2>대상 사원</h2>
-        {m.employees.length === 0 ? <p>조회할 사원이 없습니다.</p> : (
-          <WorklogSheet
-            label="회사 현황 대상 사원"
-            rows={m.employees}
-            getRowId={(employee) => employee.id}
-            scope="page"
-            columns={[
-              sheetColumn<Employee>(
-                { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
-                (employee) => <a
-                  href={queryHref('/company/attendance', { ...values, employeeId: employee.id, page: m.page })}
-                  aria-current={m.selectedEmployee?.id === employee.id ? 'true' : undefined}
-                >{employee.employeeNo} · {employee.employeeName}</a>,
-              ),
-              { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 160 },
-            ]}
-          />
-        )}
-        <Pagination path="/company/attendance" values={values} page={m.page} hasNext={m.hasNext} />
+      <PageHeader title="회사 근무현황" help={<>
+        <p>사원을 선택해 해당 월의 일별 근무 결과를 확인하세요.</p>
+        <p>조직은 서울 기준 오늘의 소속으로 조회합니다.</p>
+        <p>선택 사원의 검토용 결과입니다. 미확정·오래된 결과는 0시간으로 처리하지 않습니다.</p>
+      </>} />
+      <Form
+        action="/company/attendance"
+        method="get"
+        className="wl-querybar"
+        onChange={(event) => {
+          const name = event.target.getAttribute('name');
+          if (name === 'organizationId' || name === 'q') setEmployeeId('');
+        }}
+      >
+        <input type="hidden" name="employeeId" value={employeeId} />
+        <Field label="기준 월 (서울)" name="month" type="month" value={m.month} required />
+        <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
+        <Field label="사번·이름 검색" name="q" value={m.q} maxLength={100} />
+        <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
+      </Form>
+      <p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p>
+      <section className="wl-section">
+        <WorklogSheet
+          label="회사 현황 대상 사원"
+          title="대상 사원"
+          rows={m.employees}
+          getRowId={(employee) => employee.id}
+          scope="page"
+          emptyMessage="조회할 사원이 없습니다."
+          pagination={<Pagination path="/company/attendance" values={values} page={m.page} hasNext={m.hasNext} />}
+          columns={[
+            sheetColumn<Employee>(
+              { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
+              (employee) => <a
+                href={queryHref('/company/attendance', { ...values, employeeId: employee.id, page: m.page })}
+                aria-current={m.selectedEmployee?.id === employee.id ? 'true' : undefined}
+              >{employee.employeeNo} · {employee.employeeName}</a>,
+            ),
+            { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 160 },
+          ]}
+        />
       </section>
-      <section className="panel" aria-labelledby="company-days-title">
-        <h2 id="company-days-title">
-          {m.selectedEmployee ? `${m.selectedEmployee.employeeName} · ${m.month} 일별 현황` : '일별 현황'}
-        </h2>
-        <p className="hint">
-          선택 사원의 검토용 결과입니다. 미확정·오래된 결과는 0시간으로 처리하지 않습니다.
-        </p>
-        {!m.selectedEmployee ? (
+      <section className="wl-section">
+        {!m.selectedEmployee ? <>
+          <SectionHeader title="일별 현황" />
           <p>사원을 선택하면 해당 월의 일별 현황을 볼 수 있습니다.</p>
-        ) : m.days.length === 0 ? <p>조회된 일별 현황이 없습니다.</p> : (
+        </> : (
           <WorklogSheet
             label="사원 일별 근무현황"
+            title={`${m.selectedEmployee.employeeName} · ${m.month} 일별 현황`}
             rows={m.days}
             getRowId={(day) => day.workDate}
             scope="all"
+            emptyMessage="조회된 일별 현황이 없습니다."
             columns={[
               { colId: 'workDate', headerName: '근무일', valueGetter: ({ data }) => data && fmtDate(data.workDate), minWidth: 140, pinned: 'left' },
               { colId: 'status', headerName: '상태·최신성', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${data.current ? '최신' : '미산정·재집계 필요'}`, minWidth: 250 },
@@ -329,45 +328,45 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
 function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
   return (
     <>
-      <PageHeader title="회사 신청 현황" help="조회연도의 회사 신청 유형과 처리 상태를 확인하세요." />
-      <section className="panel">
-        <Form action="/company/requests" method="get" className="admin-form">
-          <Field label="조회연도 (서울)" name="year" type="number" value={m.year} min={1} max={9999} required />
-          <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
-          <SelectField label="신청 상태" name="status" value={m.status}>
-            <option value="">전체 상태</option>
-            {['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN'].map((status) => (
-              <option key={status} value={status}>{statuses[status]}</option>
-            ))}
-          </SelectField>
-          <div className="actions"><button type="submit">조회</button></div>
-        </Form>
-        <p className="hint">
-          조직은 서울 기준 오늘의 소속입니다. 신청일량은 조회연도에 포함된 일량이며 취소 신청은
-          원신청을 기준으로 합니다. 조회 기준 (서울): {fmtDateTime(m.asOf)}
-        </p>
-        {m.requests.length === 0 ? <p>조회된 신청이 없습니다.</p> : (
-          <WorklogSheet
-            label="회사 신청 목록"
-            rows={m.requests}
-            getRowId={(request) => request.id}
-            scope="page"
-            columns={[
-              { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
-              { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
-              { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
-              { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
-              { field: 'quantityDays', headerName: '조회연도 신청일량 (DAY)', minWidth: 220, cellClass: 'w-sheet-number' },
-              { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
-              { colId: 'submittedAt', headerName: '제출 시각 (서울)', valueGetter: ({ data }) => data && fmtDateTime(data.submittedAt), minWidth: 240 },
-            ]}
-          />
-        )}
-        <Pagination
-          path="/company/requests"
-          values={{ year: m.year, organizationId: m.organizationId, status: m.status }}
-          page={m.page}
-          hasNext={m.hasNext}
+      <PageHeader title="회사 신청 현황" help={<>
+        <p>조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
+        <p>조직은 서울 기준 오늘의 소속입니다. 신청일량은 조회연도에 포함된 일량이며 취소 신청은 원신청을 기준으로 합니다.</p>
+      </>} />
+      <Form action="/company/requests" method="get" className="wl-querybar">
+        <Field label="조회연도 (서울)" name="year" type="number" value={m.year} min={1} max={9999} required />
+        <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
+        <SelectField label="신청 상태" name="status" value={m.status}>
+          <option value="">전체 상태</option>
+          {['PENDING', 'APPROVED', 'REJECTED', 'WITHDRAWN'].map((status) => (
+            <option key={status} value={status}>{statuses[status]}</option>
+          ))}
+        </SelectField>
+        <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
+      </Form>
+      <p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p>
+      <section className="wl-section">
+        <WorklogSheet
+          label="회사 신청 목록"
+          title="신청 목록"
+          rows={m.requests}
+          getRowId={(request) => request.id}
+          scope="page"
+          emptyMessage="조회된 신청이 없습니다."
+          pagination={<Pagination
+            path="/company/requests"
+            values={{ year: m.year, organizationId: m.organizationId, status: m.status }}
+            page={m.page}
+            hasNext={m.hasNext}
+          />}
+          columns={[
+            { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
+            { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
+            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
+            { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
+            { field: 'quantityDays', headerName: '조회연도 신청일량 (DAY)', minWidth: 220, cellClass: 'w-sheet-number' },
+            { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
+            { colId: 'submittedAt', headerName: '제출 시각 (서울)', valueGetter: ({ data }) => data && fmtDateTime(data.submittedAt), minWidth: 240 },
+          ]}
         />
       </section>
     </>
