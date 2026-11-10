@@ -20,6 +20,13 @@
 - 배포 파일 SHA256: `d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717`.
 - 원본 자산을 수정하지 않았다. 2026-10-26 React 전환 이후 소스 대조 이력으로만 보존하며 신규 JAR에서는 실행 파일을 제외하고 실제 화면에서 로드하지 않는다.
 
+## Pretendard 글꼴
+
+- 버전: Pretendard 1.3.9 (npm `pretendard`, 정확한 버전 고정).
+- 사용 파일: `dist/web/variable/pretendardvariable-dynamic-subset.css`와 같은 폴더의 `woff2-dynamic-subset/*.woff2` 92개. 빌드가 `/react/`에 같은 출처 파일로 내보낸다. CDN·`data:` URL을 쓰지 않는다.
+- 라이선스: SIL Open Font License 1.1. Copyright (c) 2021 Kil Hyung-jin, with Reserved Font Name Pretendard. [전문](LICENSES/Pretendard-OFL-1.1.txt)을 보존하고 빌드 결과의 `/react/THIRD_PARTY_LICENSES.txt`에도 포함한다.
+- 글꼴 파일을 수정하거나 단독 판매하지 않는다. 결정 근거는 [ADR-0006](docs/adr/0006-worklog-design-layer.md)을 따른다.
+
 ## React 프론트엔드
 
 - 런타임: React19.3.1·ReactDOM19.3.1·Scheduler0.28.0, MIT. 세 패키지의 설치 LICENSE는 동일하며 [전문](LICENSES/react-MIT.txt)을 보존한다. 빌드 결과에도 `/react/THIRD_PARTY_LICENSES.txt`로 포함한다.

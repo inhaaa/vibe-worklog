@@ -22,6 +22,7 @@ import { Modal } from './components/Modal';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { DemoAccountSwitcher } from './components/DemoAccountSwitcher';
 import './WorkspacePolish.css';
+import './design/tokens.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)

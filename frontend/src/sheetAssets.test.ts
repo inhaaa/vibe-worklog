@@ -33,6 +33,10 @@ describe('시트 스타일의 CSP 자산 계약', () => {
     expect(String(sheet.source)).toContain('--ag-row-height:40px');
     expect(String(app.source)).toMatch(/@layer legacy\s*\{/);
     expect(String(sheet.source)).toMatch(/@layer vendor\s*\{/);
+    expect(String(app.source)).toContain('Pretendard Variable');
+    const fonts = output.filter(asset => asset.fileName.includes('PretendardVariable.subset') && asset.fileName.endsWith('.woff2'));
+    expect(fonts.length).toBeGreaterThan(80);
+    expect(String(app.source)).toContain(`/react/${fonts[0].fileName}`);
     expect(String(app.source) + String(sheet.source)).not.toMatch(/url\(["']?data:/);
   });
 
