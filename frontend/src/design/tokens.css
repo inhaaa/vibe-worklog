@@ -1,0 +1,42 @@
+/* WorkLog design tokens: the single source for colour, type and size.
+   Legacy --t-* names alias these values until stage 5 removes them. */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+
+:root {
+  --font-ui: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --g0: #ffffff; --g50: #f8f9fa; --g100: #f2f4f6; --g150: #eceef1; --g200: #e3e6ea; --g300: #d0d5db;
+  --g400: #adb5bf; --g500: #8a939e; --g600: #6a737e; --g700: #4d5662; --g800: #323a45; --g900: #1a1f27;
+  --field-line: var(--g500);
+  --brand: #252c37; --brand-hover: #151a22; --brand-tint: #f0f2f5; --brand-tint-2: #dfe3e9; --brand-ink: #252c37;
+  --link: #2a62e0;
+  --ok: #0b7a4b; --ok-bg: #e8f5ee; --warn: #9a5800; --warn-bg: #fff3de;
+  --danger: #cf3348; --danger-bg: #fdecee; --info: #2a62e0; --info-bg: #ebf1fe;
+  --ev-work: #edf1fb; --ev-work-ink: #33449a; --ev-off: #fdf0ea; --ev-off-ink: #a8461b;
+  --ev-leave: #e6f4ec; --ev-leave-ink: #0b6b42; --ev-wait: #fff6e5; --ev-wait-ink: #875000; --ev-wait-line: #e5ad52;
+  --h-ctl: 34px; --h-row: 38px; --h-head: 36px; --page-pad: 28px;
+  --r-ctl: 4px; --r-pop: 6px; --r-modal: 10px;
+  --shadow-pop: 0 12px 32px rgba(18, 24, 36, .16), 0 2px 6px rgba(18, 24, 36, .06);
+  --shadow-modal: 0 24px 64px rgba(10, 14, 22, .32), 0 2px 8px rgba(10, 14, 22, .12);
+
+  /* Legacy aliases */
+  --font-body: var(--font-ui); --font-display: var(--font-ui);
+  --t-ink: var(--g900); --t-muted: var(--g600); --t-paper: var(--g0);
+  --t-canvas: var(--g50); --t-surface: var(--g50); --t-section: var(--g50); --t-label: var(--g50);
+  --t-line: var(--g200); --t-field-border: var(--field-line); --t-disabled: var(--g100);
+  --t-blue: var(--brand); --t-blue-hover: var(--brand-hover); --t-blue-soft: var(--brand-tint); --t-focus: var(--brand);
+  --t-accent-border: var(--brand-tint-2); --t-accent-ink: var(--brand-ink);
+  --t-green: var(--ok); --t-green-soft: var(--ok-bg); --t-amber: var(--warn); --t-amber-soft: var(--warn-bg);
+  --t-danger: var(--danger); --t-danger-soft: var(--danger-bg);
+  --t-overlay: rgba(26, 31, 39, .48); --t-shadow: var(--shadow-modal);
+  --t-radius: var(--r-pop); --radius-card: var(--r-pop); --radius-input: var(--r-ctl);
+  --t-nav: var(--g0); --t-nav-ink: var(--g800); --t-nav-muted: var(--g600); --t-nav-rule: var(--g200);
+  --t-nav-hover: var(--g100); --t-nav-selected: var(--brand-tint); --t-nav-focus: var(--brand);
+  --t-nav-work: var(--g600); --t-nav-approval: var(--g600); --t-nav-people: var(--g600); --t-nav-operations: var(--g600);
+}
+:root[data-theme="blue"] {
+  --brand: #2356d4; --brand-hover: #1a45b4; --brand-tint: #eef3fd; --brand-tint-2: #d9e5fb; --brand-ink: #1c49b6;
+  --link: #1c49b6;
+}
+@media (max-width: 600px), (pointer: coarse) {
+  :root { --h-ctl: 44px; --h-row: 44px; --page-pad: 16px; }
+}
