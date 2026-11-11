@@ -32,8 +32,8 @@ export function WorkspaceNavigation({ roles, page, data, pathname = location.pat
   return (
     <nav className="t-workspace-navigation" aria-label="업무 메뉴">
       <div className="t-navigation-tools">
-        <button type="button" onClick={expandAll}>모두 펼치기</button>
-        <button type="button" onClick={() => setOpen([])}>모두 접기</button>
+        <button type="button" aria-label="모두 펼치기" title="모두 펼치기" onClick={expandAll}><NavigationIcon path="m7 15 5 5 5-5M7 9l5-5 5 5" className="t-navigation-tool-icon" /></button>
+        <button type="button" aria-label="모두 접기" title="모두 접기" onClick={() => setOpen([])}><NavigationIcon path="m7 20 5-5 5 5M7 4l5 5 5-5" className="t-navigation-tool-icon" /></button>
       </div>
       {groups.map(group => (
         <div key={group.id} className="t-navigation-group" data-workspace-group={group.id}>

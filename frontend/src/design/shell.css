@@ -100,9 +100,10 @@
 .t-app-shell[data-sidebar-collapsed="true"] .t-topbar .t-brand-sub { display: none; }
 .t-navigation-tools { display: flex; justify-content: flex-end; gap: 2px; padding: 0 0 4px; }
 .t-navigation-tools button {
-  min-height: 26px; padding: 0 8px; border: 0; border-radius: var(--r-ctl); background: transparent;
-  color: var(--g600); font: 500 12px/1 var(--font-ui); cursor: pointer;
+  display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0;
+  border-radius: var(--r-ctl); background: transparent; color: var(--g600); cursor: pointer;
 }
+.t-navigation-tool-icon { width: 16px; height: 16px; }
 .t-navigation-tools button:hover { background: var(--g100); color: var(--g900); }
 
 @media (max-width: 960px) {
