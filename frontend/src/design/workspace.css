@@ -39,3 +39,145 @@
   .wl-context-facts { width: 100%; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--g150); border-left: 0; }
   .t-employee-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Summary line: g50, items split by vertical lines, warn/danger only for values that need attention. */
+.wl-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; margin: 0 0 16px; padding: 10px 6px; border-radius: var(--r-pop); background: var(--g50); color: var(--g700); font-size: 13px; }
+.wl-summary > div { display: flex; align-items: baseline; gap: 6px; padding: 0 14px; border-left: 1px solid var(--g200); }
+.wl-summary > div:first-child { border-left: 0; }
+.wl-summary dd { margin: 0; color: var(--g900); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-summary [data-tone="warn"] dd { color: var(--warn); }
+.wl-summary [data-tone="danger"] dd { color: var(--danger); }
+.wl-month-jump { display: flex; align-items: center; gap: 6px; margin: 0; }
+.wl-month-jump .t-input { width: 150px; }
+
+/* Calendar frame: calendar and the 264px side panel from 1200px, stacked below that. */
+.t-main:has(.t-attendance-calendar) { background: var(--g0); }
+.t-attendance-calendar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
+.t-attendance-board { margin: 0; padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.t-attendance-board .t-calendar-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 10px; padding: 0; }
+.t-attendance-board .t-attendance-month { display: block; min-width: 0; margin: 0; color: var(--g900); font: 700 16px/1.3 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.t-attendance-board .t-attendance-month span { color: inherit; font-size: inherit; }
+.t-attendance-board .t-month-navigation { display: flex; align-items: center; gap: 4px; }
+.t-attendance-board .t-month-navigation .t-icon-button { width: 28px; min-width: 28px; height: 28px; min-height: 28px; }
+.t-attendance-board .t-month-navigation .t-btn { height: 28px; min-height: 28px; padding: 0 10px; }
+.t-attendance-board .t-calendar-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0 0 0 auto; padding: 0; color: var(--g600); font-size: 12px; }
+.t-attendance-board .t-calendar-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.t-attendance-board .t-attendance-hint { margin: 0; color: var(--g600); }
+.wl-legend-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--g100); }
+.wl-legend-swatch[data-kind="work"] { background: var(--ev-work); box-shadow: inset 0 0 0 1px var(--ev-work-ink); }
+.wl-legend-swatch[data-kind="off"] { background: var(--ev-off); box-shadow: inset 0 0 0 1px var(--ev-off-ink); }
+.wl-legend-swatch[data-kind="leave"] { background: var(--ev-leave); box-shadow: inset 0 0 0 1px var(--ev-leave-ink); }
+.wl-legend-swatch[data-kind="wait"] { background: var(--ev-wait); box-shadow: inset 0 0 0 1px var(--ev-wait-line); }
+.wl-legend-swatch[data-kind="unknown"] { background: repeating-linear-gradient(135deg, var(--g0) 0 3px, var(--g200) 3px 4px); box-shadow: inset 0 0 0 1px var(--g300); }
+
+/* Month grid: 2px top line, g50 weekday head (Sat blue, Sun red), 98px day cells. */
+.t-attendance-board .t-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin: 0; padding: 0; border-top: 2px solid var(--g800); border-bottom: 1px solid var(--g200); background: var(--g50); }
+.t-attendance-board .t-weekdays span { display: grid; place-items: center; height: 32px; color: var(--g700); font-size: 12.5px; font-weight: 600; }
+.t-attendance-board .t-weekdays span:nth-child(6) { color: var(--info); }
+.t-attendance-board .t-weekdays span:nth-child(7) { color: var(--danger); }
+.t-attendance-board .t-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border: 0; border-bottom: 1px solid var(--g200); }
+.t-attendance-slot { position: relative; display: grid; min-width: 0; }
+.t-attendance-board .t-day {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 0; min-height: 98px; height: 100%; margin: 0; padding: 6px 6px 8px;
+  border: 0; border-right: 1px solid var(--g150); border-bottom: 1px solid var(--g150); border-radius: 0;
+  background: var(--g0); color: var(--g900); box-shadow: none; text-decoration: none;
+}
+.t-attendance-board .t-day.outside { background: #fcfcfd; }
+.t-attendance-board :is(.t-attendance-slot:nth-child(7n) > .t-day, .t-day.outside:nth-child(7n)) { border-right: 0; }
+.t-attendance-board .t-day:hover:not(.selected, .outside) { background: var(--g50); }
+.t-attendance-board .t-day.selected { background: var(--brand-tint); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.t-attendance-board .t-day:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.t-attendance-board .t-day-number { display: inline-grid; place-items: center; align-self: flex-start; width: 24px; height: 24px; border-radius: 50%; background: transparent; color: var(--g900); font: 600 12.5px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+.t-attendance-board .t-day[data-weekend="sat"] .t-day-number { color: var(--info); }
+.t-attendance-board .t-day[data-weekend="sun"] .t-day-number { color: var(--danger); }
+.t-attendance-board .t-day.today .t-day-number { background: var(--brand); color: var(--g0); }
+
+/* Bars: 22px, 12/600, color + icon + words per kind. Unassigned/unconfirmed are white and hatched. */
+.t-attendance-board .t-day-event {
+  display: flex; align-items: center; gap: 4px; min-width: 0; height: 22px; margin: 0; padding: 0 6px; overflow: hidden;
+  border: 0; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700); box-shadow: none;
+  font: 600 12px/22px var(--font-ui); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.t-attendance-board .t-day-event svg { flex: none; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.t-attendance-board .t-day-event[data-kind="work"] { background: var(--ev-work); color: var(--ev-work-ink); }
+.t-attendance-board .t-day-event[data-kind="off"] { background: var(--ev-off); color: var(--ev-off-ink); }
+.t-attendance-board .t-day-event[data-kind="leave"] { background: var(--ev-leave); color: var(--ev-leave-ink); }
+.t-attendance-board .t-day-event[data-kind="wait"] { background: var(--ev-wait); color: var(--ev-wait-ink); box-shadow: inset 0 0 0 1px var(--ev-wait-line); }
+.t-attendance-board .t-day-event[data-kind="unknown"] { background: repeating-linear-gradient(135deg, var(--g0) 0 5px, var(--g100) 5px 6px); color: var(--g600); box-shadow: inset 0 0 0 1px var(--g300); }
+
+/* ⋯ request button: visible on hover, keyboard focus and the selected day; always on touch. */
+.t-attendance-slot .t-attendance-more {
+  position: absolute; z-index: 2; inset: 5px 5px auto auto; display: grid; place-items: center; width: 24px; min-width: 24px; height: 24px; min-height: 24px; padding: 0;
+  border: 0; border-radius: var(--r-ctl); background: var(--g0); color: var(--g600); box-shadow: none; opacity: 0; cursor: pointer;
+}
+.t-attendance-slot .t-attendance-more svg { width: 14px; height: 14px; }
+.t-attendance-slot:is(:hover, :focus-within) .t-attendance-more, .t-attendance-slot:has(.t-day.selected) .t-attendance-more, .t-attendance-more[aria-expanded="true"] { opacity: 1; }
+.t-attendance-slot .t-attendance-more:hover { background: var(--g100); color: var(--g900); }
+@media (pointer: coarse) { .t-attendance-slot .t-attendance-more { opacity: 1; } }
+
+/* Date menu (spec 7.9): 232px popover, date head with close, 34px items with icon, words and the blocked reason. */
+@media (min-width: 601px) {
+  .t-attendance-request-menu { position: absolute; z-index: 8; inset: 32px auto auto 0; width: 232px; max-width: calc(100vw - 32px); }
+  .t-attendance-slot:is(:nth-child(7n+5), :nth-child(7n+6), :nth-child(7n)) .t-attendance-request-menu { inset: 32px 0 auto auto; }
+  .t-attendance-slot:nth-last-child(-n + 14) .t-attendance-request-menu { top: auto; bottom: 32px; }
+  .t-attendance-detail > header .t-attendance-request-menu { inset: calc(100% + 4px) 0 auto auto; }
+}
+.t-attendance-request-menu { padding: 4px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); box-shadow: var(--shadow-pop); text-align: start; }
+.t-attendance-request-menu header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 0 0 4px; padding: 8px 8px 6px; border-bottom: 1px solid var(--g150); }
+.t-attendance-request-menu header span { display: block; color: var(--g600); font-size: 12px; }
+.t-attendance-request-menu time { color: var(--g900); font: 700 14px/1.4 var(--font-ui); font-variant-numeric: tabular-nums; }
+.t-attendance-request-menu header .t-icon-button { width: 28px; height: 28px; border: 0; }
+.t-attendance-request-option { display: flex; align-items: flex-start; gap: 8px; min-height: 34px; padding: 8px; border-radius: var(--r-ctl); color: var(--g900); font: 500 13px/1.4 var(--font-ui); text-decoration: none; }
+.t-attendance-request-option svg { flex: none; width: 16px; height: 16px; margin-top: 1px; fill: none; stroke: var(--g600); stroke-width: 1.7; }
+.t-attendance-request-option > span { display: grid; gap: 2px; }
+.t-attendance-request-option small { color: var(--g600); font-size: 12px; }
+.t-attendance-request-option[aria-disabled="true"] { color: var(--g600); }
+a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50); }
+
+/* Side panel: 주간 근무, 처리할 일. */
+.wl-side { display: grid; gap: 12px; min-width: 0; }
+.wl-side-block { padding: 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); }
+.wl-side-block h3 { margin: 0 0 4px; color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+.wl-side-period { margin: 0 0 12px; color: var(--g600); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wl-side-big { margin: 0 0 10px; color: var(--g900); font: 700 24px/1.2 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.wl-side-big small { margin-left: 4px; color: var(--g600); font-size: 13px; font-weight: 600; }
+.wl-side-facts { margin: 0; }
+.wl-side-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--g150); font-size: 13px; }
+.wl-side-facts > div:last-child { border-bottom: 0; }
+.wl-side-facts dt { display: flex; align-items: center; gap: 6px; color: var(--g700); }
+.wl-side-facts dt::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--g300); }
+.wl-side-facts [data-kind="work"] dt::before { background: var(--ev-work-ink); }
+.wl-side-facts [data-kind="leave"] dt::before { background: var(--ev-leave-ink); }
+.wl-side-facts [data-kind="off"] dt::before { background: var(--ev-off-ink); }
+.wl-side-facts dd { margin: 0; color: var(--g900); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-side-list { margin: 0; padding: 0; list-style: none; }
+.wl-side-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--g150); font-size: 13px; }
+.wl-side-list li:last-child { border-bottom: 0; }
+.wl-side-list a { min-width: 0; color: var(--g900); text-decoration: none; font-variant-numeric: tabular-nums; }
+.wl-side-list a:hover { text-decoration: underline; }
+.wl-side-more { margin: 6px 0 0; color: var(--g600); font-size: 12px; }
+
+/* Selected day detail: a flat section under the calendar. */
+.t-attendance-detail { position: relative; margin: 0; padding: 20px 0 0; border: 0; border-top: 1px solid var(--g200); border-radius: 0; background: transparent; box-shadow: none; }
+.t-attendance-detail > header { position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px; margin: 0 0 12px; padding: 0; }
+.t-attendance-detail > header .t-context { margin: 0; color: var(--g600); font-size: 12px; }
+.t-attendance-detail > header h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); font-variant-numeric: tabular-nums; }
+.t-attendance-detail .wl-info-grid { margin: 0 0 16px; }
+.t-attendance-detail-body { display: flex; flex-wrap: wrap; gap: 12px 32px; margin: 0 0 12px; }
+.t-attendance-detail-body > div { flex: 1 1 13rem; min-width: 0; }
+.t-attendance-detail-body h3 { margin: 0 0 6px; color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
+.t-attendance-detail .t-listrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--g150); font-size: 13px; }
+.t-attendance-detail :is(.t-subtle, .t-muted) { margin: 0; color: var(--g600); font-size: 12.5px; }
+.t-attendance-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+
+@media (min-width: 1200px) {
+  .t-attendance-calendar { grid-template-columns: minmax(0, 1fr) 264px; align-items: start; }
+  .t-attendance-calendar > .t-attendance-detail { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .wl-summary > div { padding: 0 10px; }
+  .t-attendance-board .t-calendar-legend { margin-left: 0; }
+  .t-attendance-board .t-day { min-height: 64px; padding: 4px 2px 6px; }
+  .t-attendance-board .t-day-event { justify-content: center; height: 8px; padding: 0; font-size: 0; }
+  .t-attendance-board .t-day-event svg { display: none; }
+}

@@ -1,4 +1,6 @@
 import type { PageProps } from '../types';
+import type { ReactNode } from 'react';
+import { dayClass, formatMinutes, pendingRequests, tally, weekOf } from './scheduleSummary';
 import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
@@ -311,6 +313,24 @@ function calendarRequestRestriction(kind: typeof calendarRequestKinds[number]['k
   return null;
 }
 
+const barIcons = {
+  work: 'M12 7v5l3 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
+  off: 'M5 21V4m0 0h11l-2 4 2 4H5',
+  leave: 'm5 12 4 4 10-10',
+  wait: 'M7 3h10M7 21h10M8 3c0 5 8 6 8 9s-8 4-8 9M16 3c0 5-8 6-8 9',
+} as const;
+type BarKind = keyof typeof barIcons | 'unknown' | 'other';
+/** 캘린더 막대: 종류별 색·아이콘·문구(설계 7.11). 클래스와 문구는 기존 계약을 그대로 쓴다. */
+function Bar({ kind, className = '', children }: { kind: BarKind; className?: string; children: ReactNode }) {
+  const icon = kind in barIcons ? barIcons[kind as keyof typeof barIcons] : null;
+  return <span className={`t-day-event ${className}`.trim()} data-kind={kind}>
+    {icon && <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={icon} /></svg>}
+    {children}
+  </span>;
+}
+const shortDate = (date: string) =>
+  `${date.slice(5, 7)}.${date.slice(8, 10)} (${weekdays[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7]})`;
+
 function Schedule({ data }: PageProps) {
   const calendar = data.workspaceCalendar as Calendar;
   const selected = calendar.selectedDay;
@@ -321,6 +341,23 @@ function Schedule({ data }: PageProps) {
   const menu = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement>(null);
   const today = calendar.days.find(entry => entry.today)?.snapshot.workDate ?? seoulCalendarToday();
+  const sideId = useId();
+  const summary = tally(calendar.days);
+  const pending = pendingRequests(calendar.days);
+  const week = weekOf(calendar.days, calendar.selectedDate);
+  const weekTally = tally(week.days);
+  const todo = [
+    ...pending.map(({ item, date }) => ({ key: `request-${item.request.id}`, date, label: item.kindLabel, state: item.statusLabel, tone: 'amber', href: `/requests/${item.request.id}` })),
+    ...calendar.days.filter(entry => dayClass(entry) === 'unknown').map(entry => ({
+      key: `day-${entry.snapshot.workDate}`, date: entry.snapshot.workDate, label: entry.snapshot.schedule ? '캘린더 미확인' : '근무 미배정',
+      state: '담당자 확인', tone: '', href: `/me/schedule?month=${calendar.month}&date=${entry.snapshot.workDate}`,
+    })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const planKind = (entry: WorkspaceDay): BarKind => {
+    const schedule = entry.snapshot.schedule;
+    if (!schedule) return 'unknown';
+    return !schedule.workday || ['HOLIDAY', 'NON_WORKDAY'].includes(entry.snapshot.dayKind) ? 'off' : 'work';
+  };
 
   function openMenu(date: string, trigger: HTMLElement, detail = false) {
     opener.current = trigger;
@@ -379,53 +416,43 @@ function Schedule({ data }: PageProps) {
 
   return (
     <>
-      <PageHeader title="근태 캘린더" help="배정된 근무와 신청 상태를 확인하고 날짜에서 바로 신청하세요." />
+      <PageHeader title="근태 캘린더" help="배정된 근무와 신청 상태를 확인하고 날짜에서 바로 신청하세요." actions={<>
+        <Form method="get" action="/me/schedule" className="wl-month-jump">
+          <label className="t-sr-only" htmlFor="workspace-month">조회 월</label>
+          <input className="t-input" id="workspace-month" type="month" name="month"
+            defaultValue={calendar.month} min="0001-01" max="9999-12" required />
+          <button className="t-btn" type="submit">월 조회</button>
+        </Form>
+        <a className="t-btn primary" href={`/me/requests/new?${new URLSearchParams({ year })}`}>근태 신청</a>
+      </>} />
+      <dl className="wl-summary" aria-label={`${year}년 ${Number(month)}월 요약`}>
+        <div><dt>예정 근무</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
+        <div><dt>승인 연차</dt><dd>{summary.leaveDays}일</dd></div>
+        <div data-tone={pending.length ? 'warn' : undefined}><dt>검토 중</dt><dd>{pending.length}건</dd></div>
+        <div data-tone={summary.unknownDays ? 'danger' : undefined}><dt>확인 필요</dt><dd>{summary.unknownDays}일</dd></div>
+      </dl>
       <div className="t-attendance-calendar">
         <section className="t-card t-calendar-card t-attendance-board" aria-label="월별 근무 일정">
           <div className="t-calendar-toolbar">
             <h2 className="t-attendance-month"><span>{year}년</span>{' '}{Number(month)}월</h2>
             <div className="t-month-navigation" aria-label="표시 월 이동">
               {calendar.previousMonth && (
-                <a
-                  className="t-icon-button"
-                  href={`/me/schedule?month=${calendar.previousMonth}`}
-                  aria-label="이전 달"
-                >
+                <a className="t-icon-button" href={`/me/schedule?month=${calendar.previousMonth}`} aria-label="이전 달">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
                 </a>
               )}
               <a className="t-btn secondary" href="/me/schedule">오늘</a>
               {calendar.nextMonth && (
-                <a
-                  className="t-icon-button"
-                  href={`/me/schedule?month=${calendar.nextMonth}`}
-                  aria-label="다음 달"
-                >
+                <a className="t-icon-button" href={`/me/schedule?month=${calendar.nextMonth}`} aria-label="다음 달">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
                 </a>
               )}
             </div>
-            <Form method="get" action="/me/schedule" className="t-toolbar t-attendance-jump">
-              <label className="t-sr-only" htmlFor="workspace-month">조회 월</label>
-              <input className="t-input" id="workspace-month" type="month" name="month"
-                defaultValue={calendar.month} min="0001-01" max="9999-12" required />
-              <button className="t-btn secondary" type="submit">월 조회</button>
-            </Form>
-          </div>
-          <div className="t-calendar-legend">
-            <span>
-              <span data-calendar-marker="plan" aria-hidden="true" />
-              예정 근무
-            </span>
-            <span>
-              <span data-calendar-marker="unconfirmed" aria-hidden="true" />
-              휴일 정보 미확인
-            </span>
-            <span>
-              <span data-calendar-marker="leave" aria-hidden="true" />
-              승인 연차
-            </span>
-            <span className="t-attendance-hint">날짜 우클릭 또는 ⋯로 신청</span>
+            <div className="t-calendar-legend">
+              {([['work', '예정 근무'], ['off', '비근로일·휴일'], ['leave', '승인 연차'], ['wait', '검토 중'], ['unknown', '미배정·미확인']] as const)
+                .map(([kind, label]) => <span key={kind}><i className="wl-legend-swatch" data-kind={kind} aria-hidden="true" />{label}</span>)}
+              <span className="t-attendance-hint">날짜 우클릭 또는 ⋯로 신청</span>
+            </div>
           </div>
           <div className="t-weekdays" aria-hidden="true">
             {weekdays.map((day) => (
@@ -438,7 +465,8 @@ function Schedule({ data }: PageProps) {
             ))}
             {calendar.days.map((entry) => {
               const date = entry.snapshot.workDate;
-              const weekend = [0, 6].includes(new Date(`${date}T00:00:00Z`).getUTCDay());
+              const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+              const weekend = weekday === 0 || weekday === 6;
               return (
                 <div className="t-attendance-slot" key={date} onContextMenu={event => {
                   if (menu.current?.contains(event.target as Node)) return;
@@ -447,6 +475,7 @@ function Schedule({ data }: PageProps) {
                 }}>
                   <a
                     className={['t-day', entry.selected && 'selected', entry.today && 'today', weekend && 'weekend'].filter(Boolean).join(' ')}
+                    data-weekend={weekday === 6 ? 'sat' : weekday === 0 ? 'sun' : undefined}
                     href={`/me/schedule?month=${calendar.month}&date=${date}`}
                     aria-current={entry.today ? 'date' : undefined}
                     aria-label={`${date} · ${entry.scheduleText}${entry.selected ? ' · 선택한 날짜' : ''}`}
@@ -458,18 +487,18 @@ function Schedule({ data }: PageProps) {
                     }}
                   >
                     <time className="t-day-number" dateTime={date}>{Number(date.slice(-2))}</time>
-                    <span className="t-day-event t-attendance-plan">
+                    <Bar kind={planKind(entry)} className="t-attendance-plan">
                       {entry.snapshot.schedule == null ? '미배정' : entry.scheduleText}
-                    </span>
-                    {entry.snapshot.dayKind === 'UNCONFIRMED' && <span className="t-day-event warning">미확인</span>}
-                    {entry.snapshot.dayKind === 'HOLIDAY' && <span className="t-day-event">확인된 휴일</span>}
+                    </Bar>
+                    {entry.snapshot.dayKind === 'UNCONFIRMED' && <Bar kind="unknown" className="warning">미확인</Bar>}
+                    {entry.snapshot.dayKind === 'HOLIDAY' && <Bar kind="off">확인된 휴일</Bar>}
                     {entry.requests.slice(0, 2).map(item => (
-                      <span key={item.request.id}
-                        className={`t-day-event ${item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'warning' : ''}`}>
+                      <Bar key={item.request.id} kind={item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'wait' : 'other'}
+                        className={item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'warning' : ''}>
                         {item.kindLabel} · {item.statusLabel}
-                      </span>
+                      </Bar>
                     ))}
-                    {entry.requests.length > 2 && <span className="t-day-event">+{entry.requests.length - 2}건, 날짜 상세</span>}
+                    {entry.requests.length > 2 && <Bar kind="other">+{entry.requests.length - 2}건, 날짜 상세</Bar>}
                   </a>
                   <button type="button" className="t-icon-button t-attendance-more"
                     aria-label={`${date} 신청 메뉴`} aria-expanded={requestDate === date && !request?.detail}
@@ -492,6 +521,34 @@ function Schedule({ data }: PageProps) {
             신청 전체는 날짜 상세에서 확인하세요.
           </p>
         </section>
+        {(todo.length > 0 || weekTally.workDays + weekTally.leaveDays + weekTally.offDays > 0) && (
+          <aside className="wl-side" aria-label="주간 근무와 처리할 일">
+            {weekTally.workDays + weekTally.leaveDays + weekTally.offDays > 0 && (
+              <section className="wl-side-block" aria-labelledby={`${sideId}-week`}>
+                <h3 id={`${sideId}-week`}>주간 근무</h3>
+                <p className="wl-side-period">{shortDate(week.from)} – {shortDate(week.to)}{week.partial && ' · 이번 달 날짜만'}</p>
+                <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>예정</small></p>
+                <dl className="wl-side-facts">
+                  <div data-kind="work"><dt>예정 근무</dt><dd>{weekTally.workDays}일</dd></div>
+                  <div data-kind="leave"><dt>승인 연차</dt><dd>{weekTally.leaveDays}일</dd></div>
+                  <div data-kind="off"><dt>비근로일·휴일</dt><dd>{weekTally.offDays}일</dd></div>
+                  {weekTally.unknownDays > 0 && <div data-kind="unknown"><dt>확인 필요</dt><dd>{weekTally.unknownDays}일</dd></div>}
+                </dl>
+              </section>
+            )}
+            {todo.length > 0 && (
+              <section className="wl-side-block" aria-labelledby={`${sideId}-todo`}>
+                <h3 id={`${sideId}-todo`}>처리할 일</h3>
+                <ul className="wl-side-list">
+                  {todo.slice(0, 6).map(item => (
+                    <li key={item.key}><a href={item.href}>{shortDate(item.date)} {item.label}</a><span className={`t-tag ${item.tone}`.trim()}>{item.state}</span></li>
+                  ))}
+                </ul>
+                {todo.length > 6 && <p className="wl-side-more">외 {todo.length - 6}건</p>}
+              </section>
+            )}
+          </aside>
+        )}
         <section className="t-card t-day-detail t-attendance-detail" aria-label="선택한 날짜 상세">
           <header>
             <div>
@@ -506,7 +563,7 @@ function Schedule({ data }: PageProps) {
               }}>이 날짜로 신청</button>
             {request?.detail && requestMenu(request.date)}
           </header>
-          <dl className="t-attendance-facts">
+          <dl className="wl-info-grid">
             <div>
               <dt>근무 일정</dt>
               <dd>{selected.scheduleText}</dd>
