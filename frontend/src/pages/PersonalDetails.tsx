@@ -1,4 +1,4 @@
-import { useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Field, Form, SelectField, TextAreaField, FormTable } from '../ui';
 import './PersonalDetails.css';
 
@@ -24,15 +24,7 @@ export interface PersonalDetailsModel {
 }
 interface Identity { employeeName: string; joinedOn: string; birthDate?: string | null }
 const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'] as const;
-const wideSheet = '(min-width: 70rem)';
 
-function subscribeToSheetWidth(notify: () => void) {
-  const media = window.matchMedia?.(wideSheet);
-  media?.addEventListener('change', notify);
-  return () => media?.removeEventListener('change', notify);
-}
-
-function sheetIsWide() { return window.matchMedia?.(wideSheet).matches ?? false; }
 
 const kinds = ['FAMILY', 'EDUCATION', 'QUALIFICATION', 'LANGUAGE'];
 const choices: Record<string, string> = {
@@ -58,7 +50,7 @@ const tabIcons = {
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
-  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
+  return <dl className="wl-info-grid">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
 }
 function InfoGroup({ title, icon, values }: { title: string; icon: keyof typeof sheetIcons; values: [string, string | number | null | undefined][] }) {
   const titleId = useId();
@@ -79,12 +71,11 @@ function EmptyDetails({ title }: { title: string }) {
 
 export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDetailsModel; identity: Identity }) {
   const [tab, setTab] = useState(0), id = useId(), buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const vertical = useSyncExternalStore(subscribeToSheetWidth, sheetIsWide, () => false);
   const f = m.form;
   function move(event: React.KeyboardEvent, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight' || (vertical && event.key === 'ArrowDown')) next = (index + 1) % tabs.length;
-    else if (event.key === 'ArrowLeft' || (vertical && event.key === 'ArrowUp')) next = (index + tabs.length - 1) % tabs.length;
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = tabs.length - 1;
     else return;
@@ -95,7 +86,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
     <div className="t-personnel-index">
       <p className="t-personnel-index-title">인사기록</p>
-      <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목" aria-orientation={vertical ? 'vertical' : 'horizontal'}>
+      <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목" aria-orientation="horizontal">
         {tabs.map((label, index) => (
           <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
             aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}

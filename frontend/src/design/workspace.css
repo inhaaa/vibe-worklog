@@ -181,3 +181,43 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
   .t-attendance-board .t-day-event { justify-content: center; height: 8px; padding: 0; font-size: 0; }
   .t-attendance-board .t-day-event svg { display: none; }
 }
+
+/* 내 정보 (T4): underline tabs, info grids under a 2px line, document tables. */
+.t-private-personnel { display: block; margin: 0 0 24px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.t-personnel-index { display: block; margin: 0 0 16px; padding: 0; border: 0; background: transparent; }
+.t-personnel-index-title { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.t-personnel-tabs { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; border-bottom: 1px solid var(--g200); }
+.t-personnel-tabs .t-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; height: auto; margin: 0 0 -1px; padding: 0 14px;
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--g600); box-shadow: none; font: 600 13px/1.2 var(--font-ui);
+}
+.t-personnel-tabs .t-btn:hover:not(:disabled) { border-color: transparent; border-bottom-color: var(--g300); background: transparent; color: var(--g900); }
+.t-personnel-tabs .t-btn[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--g900); }
+.t-personnel-tab-icon { width: 15px; height: 15px; }
+.t-personnel-tabpanel { padding: 0; border: 0; background: transparent; }
+.t-personnel-tabpanel:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+.t-personal-panel-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin: 0 0 12px; padding: 0; border: 0; }
+.t-personal-panel-heading h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-personal-panel-heading p { margin: 2px 0 0; color: var(--g600); font-size: 12.5px; }
+.t-personal-count { color: var(--g600); font-size: 13px; }
+.t-personal-groups { display: grid; gap: 20px; }
+.t-personal-group { margin: 0; padding: 0; border: 0; }
+.t-personal-group h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
+.t-personal-group-icon { display: inline-grid; place-items: center; width: auto; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--g600); }
+.t-personal-group-icon svg { width: 15px; height: 15px; }
+.t-personal-group .wl-info-grid, .t-profile-details .wl-info-grid { padding: 12px 0 0; border-top: 2px solid var(--g800); }
+.wl-info-grid dd[data-empty] { color: var(--g600); font-weight: 500; }
+.t-personal-privacy { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; padding: 10px 12px; border: 0; border-radius: var(--r-pop); background: var(--g50); color: var(--g700); font-size: 12.5px; }
+.t-personal-privacy svg { flex: none; width: 16px; height: 16px; color: var(--g500); }
+.t-personal-empty { padding: 24px 12px; border: 0; background: transparent; color: var(--g600); font-size: 13px; text-align: center; }
+.t-personal-empty > span { display: none; }
+.t-profile-details { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.t-profile-asof { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; }
+.t-profile-footnote { margin: 12px 0 0; color: var(--g600); font-size: 12.5px; }
+
+/* Raw document tables in T4 screens; phones keep the legacy card layout. */
+@media (min-width: 601px) {
+  :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) table { width: 100%; border-collapse: collapse; border-top: 2px solid var(--g800); font-size: 13px; font-variant-numeric: tabular-nums; }
+  :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) th { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--g200); background: var(--g50); color: var(--g700); font-weight: 600; text-align: left; white-space: nowrap; }
+  :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) td { padding: 9px 12px; border-bottom: 1px solid var(--g150); color: var(--g900); vertical-align: top; }
+}
