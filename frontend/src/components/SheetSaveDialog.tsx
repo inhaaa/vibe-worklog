@@ -31,7 +31,7 @@ export function SheetSaveDialog({ formId, label, reason, error, counts, busy = f
     </ul>
     <div className="wl-save-reason">
       <label className="wl-required" htmlFor={`${id}-reason`}>{label}</label>
-      <textarea id={`${id}-reason`} className="t-input" form={formId} name="reason" value={reason} rows={4} maxLength={500} required
+      <textarea id={`${id}-reason`} className="t-input" form={formId} name="reason" value={reason} rows={4} maxLength={500} required disabled={busy}
         aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-error ${id}-count` : `${id}-count`}
         data-error-focus={error ? 'true' : undefined} onChange={event => onReasonChange(event.target.value)} />
       <div className="wl-save-reason-meta">

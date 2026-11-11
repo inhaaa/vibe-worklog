@@ -49,9 +49,10 @@ describe('SheetSaveDialog 저장 확인 창', () => {
     expect(document.getElementById(reason.getAttribute('aria-describedby')!.split(' ')[0])?.textContent).toBe('변경 사유를 입력하세요.');
   });
 
-  it('처리 중에는 취소·저장·닫기를 막고 취소는 창을 닫는다', () => {
+  it('처리 중에는 사유 변경·취소·저장·닫기를 막고 취소는 창을 닫는다', () => {
     const { unmount } = render(<Harness onSubmit={() => {}} busy />);
     const dialog = screen.getByRole('dialog', { name: '변경 내용 저장' });
+    expect((within(dialog).getByLabelText('일괄 변경 사유') as HTMLTextAreaElement).disabled).toBe(true);
     for (const name of ['취소', '3건 저장', '닫기']) expect((within(dialog).getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
     unmount();
     render(<Harness onSubmit={() => {}} />);
