@@ -27,9 +27,15 @@ export function WorkspaceNavigation({ roles, page, data, pathname = location.pat
   const prefix = useId();
   useEffect(() => { setOpen(previous => [...new Set([...previous, ...ancestors])]); }, [current]);
   const toggle = (id: string) => setOpen(previous => previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]);
+  const groups = getNavigation(roles);
+  const expandAll = () => setOpen(groups.flatMap(group => [group.id, ...group.children.map(section => section.id)]));
   return (
     <nav className="t-workspace-navigation" aria-label="업무 메뉴">
-      {getNavigation(roles).map(group => (
+      <div className="t-navigation-tools">
+        <button type="button" aria-label="모두 펼치기" title="모두 펼치기" onClick={expandAll}><NavigationIcon path="m7 15 5 5 5-5M7 9l5-5 5 5" className="t-navigation-tool-icon" /></button>
+        <button type="button" aria-label="모두 접기" title="모두 접기" onClick={() => setOpen([])}><NavigationIcon path="m7 20 5-5 5 5M7 4l5 5 5-5" className="t-navigation-tool-icon" /></button>
+      </div>
+      {groups.map(group => (
         <div key={group.id} className="t-navigation-group" data-workspace-group={group.id}>
           <button className="t-nav-item t-navigation-toggle t-navigation-major" type="button" data-active={context?.groupId === group.id} aria-expanded={open.includes(group.id)} aria-controls={`${prefix}-${group.id}`} onClick={() => toggle(group.id)}>
             <span className="t-navigation-icon"><NavigationIcon path={groupIcons[group.id]} className="t-navigation-group-icon" /></span>

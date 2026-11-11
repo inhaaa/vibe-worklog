@@ -140,6 +140,7 @@ function Workspace({
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const employee = data.workspaceEmployee as
     { employeeName: string; companyName: string } | undefined;
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
@@ -169,7 +170,7 @@ function Workspace({
     return () => document.removeEventListener('keydown', close);
   }, []);
   return (
-    <div className="t-app-shell" data-menu-open={String(open)}>
+    <div className="t-app-shell" data-menu-open={String(open)} data-sidebar-collapsed={String(collapsed)}>
       <a className="t-skip-link" href="#workspace-content" onClick={event => { event.preventDefault(); document.getElementById('workspace-content')?.focus(); }}>본문으로 건너뛰기</a>
       <aside className="t-sidebar" id="workspace-menu" aria-label="주 메뉴">
         {brand}
@@ -203,6 +204,16 @@ function Workspace({
             aria-controls="workspace-menu"
             aria-expanded={open}
             onClick={() => setOpen(!open)}
+          >
+            <Icon name="menu" />
+          </button>
+          <button
+            type="button"
+            className="t-sidebar-toggle"
+            aria-label={collapsed ? '사이드 메뉴 열기' : '사이드 메뉴 닫기'}
+            aria-controls="workspace-menu"
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed(!collapsed)}
           >
             <Icon name="menu" />
           </button>

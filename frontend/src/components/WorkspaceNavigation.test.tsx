@@ -45,6 +45,17 @@ describe('업무 트리', () => {
     expect(screen.getByRole('link', { name: '출퇴근 기록' }).getAttribute('aria-current')).toBe('page');
   });
 
+  it('모두 펼치기와 모두 접기로 전체 묶음을 한 번에 연다', () => {
+    render(<WorkspaceNavigation roles={['EMPLOYEE', 'ATTENDANCE_ADMIN']} page="workspace/profile" pathname="/me/profile" />);
+    const toggles = () => screen.getAllByRole('button').filter(button => button.hasAttribute('aria-expanded'));
+    fireEvent.click(screen.getByRole('button', { name: '모두 펼치기' }));
+    expect(toggles().every(button => button.getAttribute('aria-expanded') === 'true')).toBe(true);
+    expect(screen.getByRole('link', { name: '근태 집계·Excel' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '모두 접기' }));
+    expect(toggles().every(button => button.getAttribute('aria-expanded') === 'false')).toBe(true);
+    expect(screen.queryByRole('link', { name: '내 정보' })).toBeNull();
+  });
+
   it('묶음을 접고 펼칠 수 있고 화면 이동 시 현재 조상을 다시 연다', () => {
     const view = render(<WorkspaceNavigation roles={['EMPLOYEE']} page="workspace/profile" pathname="/me/profile" />);
     fireEvent.click(screen.getByRole('button', { name: '내 업무' }));
