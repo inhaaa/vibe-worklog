@@ -1,6 +1,6 @@
 import type { PageProps } from '../types';
 import { useEffect, useRef, useState } from 'react';
-import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDateTime } from '../ui';
+import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDateTime, FormTable } from '../ui';
 import { employmentStatusName } from '../components/EmployeeHeader';
 import { PageHeader } from '../components/PageHeader';
 import { PersonalDetailsEditor, PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
@@ -97,23 +97,23 @@ function PersonnelEditor({ model: m, error, busy }: { model: PersonnelModel; err
       <input type="hidden" name="expectedVersion" value={version} /><input type="hidden" name="commandId" value={command} />
       <input type="hidden" name="photoAction" value={photoAction} /><input type="hidden" name="photoData" value={photoData} />
       <fieldset disabled={busy}>
-        <section className="t-card t-personnel-section"><div className="t-section-heading"><span className="t-section-number">01</span><div><h2>기본 인사정보</h2><p>등록된 정보는 사원 헤더에 표시됩니다. 필수 항목 외에는 비워둘 수 있습니다.</p></div></div>
-          <div className="t-personnel-fields">
-            <div><Field label="생년월일" name="birthDate" type="date" value={f.birthDate} max={m.today} /></div>
-            <div><Field label="직급" name="gradeName" value={f.gradeName} maxLength={120} placeholder="예: 선임" /></div>
-            <div><Field label="직책" name="positionName" value={f.positionName} maxLength={120} placeholder="예: 팀장" /></div>
-            <div><Field label="직무" name="jobName" value={f.jobName} maxLength={120} placeholder="예: 제품 개발" /></div>
-          </div>
+        <section className="wl-section t-personnel-section"><h2>기본 인사정보</h2><p className="hint">등록된 정보는 사원 헤더에 표시됩니다. 필수 항목 외에는 비워둘 수 있습니다.</p>
+          <FormTable columns={2}>
+            <Field label="생년월일" name="birthDate" type="date" value={f.birthDate} max={m.today} />
+            <Field label="직급" name="gradeName" value={f.gradeName} maxLength={120} placeholder="예: 선임" />
+            <Field label="직책" name="positionName" value={f.positionName} maxLength={120} placeholder="예: 팀장" />
+            <Field label="직무" name="jobName" value={f.jobName} maxLength={120} placeholder="예: 제품 개발" />
+          </FormTable>
         </section>
-        <section className="t-card t-personnel-section"><div className="t-section-heading"><span className="t-section-number">02</span><div><h2>재직 상태</h2><p>적용일부터 표시됩니다. 계정 활성 여부와 근무·결재 권한은 각각 관리합니다.</p></div></div>
-          <div className="t-personnel-fields"><div><SelectField label="재직 상태" name="employmentStatus" value={f.employmentStatus} required>{['UNKNOWN', 'WORKING', 'ON_LEAVE', 'SUSPENDED'].map(status => <option key={status} value={status}>{employmentStatusName(status)}</option>)}</SelectField></div>
-          <div><Field label="상태 적용일" name="effectiveFrom" type="date" value={f.effectiveFrom} min={m.today} required /></div></div>
+        <section className="wl-section t-personnel-section"><h2>재직 상태</h2><p className="hint">적용일부터 표시됩니다. 계정 활성 여부와 근무·결재 권한은 각각 관리합니다.</p>
+          <FormTable columns={2}><SelectField label="재직 상태" name="employmentStatus" value={f.employmentStatus} required>{['UNKNOWN', 'WORKING', 'ON_LEAVE', 'SUSPENDED'].map(status => <option key={status} value={status}>{employmentStatusName(status)}</option>)}</SelectField>
+          <Field label="상태 적용일" name="effectiveFrom" type="date" value={f.effectiveFrom} min={m.today} required /></FormTable>
         </section>
-        <section className="t-card t-personnel-section"><div className="t-section-heading"><span className="t-section-number">03</span><div><h2>사원사진</h2><p>PNG·JPG, 최대 128KB. 사진이 없으면 이름의 첫 글자를 표시합니다.</p></div></div>
+        <section className="wl-section t-personnel-section"><h2>사원사진</h2><p className="hint">PNG·JPG, 최대 128KB. 사진이 없으면 이름의 첫 글자를 표시합니다.</p>
           <div className="t-photo-upload"><div className="t-photo-upload-icon" aria-hidden="true">↑</div><div><label htmlFor="personnel-photo">사원사진 선택</label><input ref={file} id="personnel-photo" type="file" accept="image/png,image/jpeg" disabled={busy} onChange={event => choosePhoto(event.target.files?.[0])} /><p className="t-muted">{reading ? '사진을 읽고 있습니다.' : photoName || (photoAction === 'CLEAR' ? '저장하면 사진이 지워집니다.' : photoAction === 'REPLACE' ? '선택한 사진이 저장됩니다.' : '사진은 저장 후 헤더에서 확인할 수 있습니다.')}</p></div><button type="button" className="t-btn" onClick={clearPhoto} disabled={busy}>등록된 사진 지우기</button></div>
           <ErrorNotice message={photoError} />
         </section>
-        <section className="t-card t-personnel-section"><div className="t-section-heading"><span className="t-section-number">04</span><div><h2>변경 기록</h2><p>변경 사유와 처리 이력을 남깁니다.</p></div></div><TextAreaField label="변경 사유" name="reason" value={f.reason} rows={3} maxLength={500} required /></section>
+        <section className="wl-section t-personnel-section"><h2>변경 기록</h2><p className="hint">변경 사유와 처리 이력을 남깁니다.</p><FormTable><TextAreaField label="변경 사유" name="reason" value={f.reason} rows={3} maxLength={500} required /></FormTable></section>
       </fieldset>
       {conflict && <section className="t-personnel-conflict" aria-label="최신 인사정보 비교"><h2>다른 변경이 반영되었습니다</h2><p>입력은 유지했습니다. 최신 저장 정보와 비교한 뒤 다시 저장하세요.</p>
         {m.currentForm && <dl>{([['생년월일', 'birthDate'], ['직급', 'gradeName'], ['직책', 'positionName'], ['직무', 'jobName'], ['상태 적용일', 'effectiveFrom']] as const).map(([label, key]) => <div key={key}><dt>{label}</dt><dd>{m.currentForm![key] || '미등록'}</dd></div>)}<div><dt>재직 상태</dt><dd>{employmentStatusName(m.currentForm.employmentStatus)}</dd></div></dl>}
