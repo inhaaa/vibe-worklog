@@ -27,6 +27,7 @@ import './design/ui.css';
 import './design/shell.css';
 import './design/request.css';
 import './design/workspace.css';
+import './design/screens.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
