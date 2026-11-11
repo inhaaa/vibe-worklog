@@ -66,6 +66,22 @@ describe('신청 공통 모달 통합', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('여는 화면의 지연 effect가 실행되기 전에 X로 닫아도 초점을 신청 버튼으로 돌려준다', async () => {
+    // 여는 커밋 도중 X를 눌러, 여는 커밋의 passive effect가 닫기 처리 뒤에 실행되는 순서를 매번 만든다.
+    let opened = 0;
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable:true, value:function(this:HTMLDialogElement) {
+      this.open = true; opened += 1; this.querySelector<HTMLButtonElement>('.t-modal-close')!.click();
+    } });
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(response(envelope(compose),'/me/requests/new?year=2026')));
+    render(<App initial={envelope()} />);
+    const trigger = screen.getByRole('button',{name:'신청'});
+    trigger.focus(); fireEvent.click(trigger);
+    await waitFor(() => expect(opened).toBe(1));
+    await waitFor(() => expect(location.pathname+location.search).toBe('/me/requests?year=2026'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('자체 미리보기 요청 중 공통 X·닫기·Esc를 잠그고 응답 뒤 해제한다', async () => {
     let resolve!: (value:Response) => void;
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(envelope(compose),'/me/requests/new?year=2026'))
