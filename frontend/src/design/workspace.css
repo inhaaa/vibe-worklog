@@ -221,6 +221,9 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
   :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) table { width: 100%; border-collapse: collapse; border-top: 2px solid var(--g800); font-size: 13px; font-variant-numeric: tabular-nums; }
   :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) th { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--g200); background: var(--g50); color: var(--g700); font-weight: 600; text-align: left; white-space: nowrap; }
   :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) td { padding: 9px 12px; border-bottom: 1px solid var(--g150); color: var(--g900); vertical-align: top; }
+  .t-request-board td :is(span, small, p, a) { font-size: 13px; line-height: 1.5; }
+  .t-request-board td small, .t-request-board .t-request-reason { color: var(--g600); font-size: 12.5px; }
+  .t-request-board .t-request-title { font-weight: 600; }
 }
 
 /* 내 근태현황 (T4): one metrics strip, a summary line for the balance basis, flat sections. */
