@@ -56,7 +56,7 @@ function AccountDialog({ currentEmployeeNo, busy, onClose }: {
   }, [attempt, currentEmployeeNo]);
   const selected = accounts?.find(account => account.employeeNo === employeeNo);
   const canSwitch = Boolean(selected && selected.employeeNo !== currentEmployeeNo);
-  return <Modal title="사번 변경" onClose={onClose} busy={busy} className="t-demo-account-modal">
+  return <Modal title="사번 변경" size="s" onClose={onClose} busy={busy} className="t-demo-account-modal">
     <p>다른 테스트 사원으로 로그인합니다. 선택한 사원의 보유 권한으로 업무를 확인할 수 있습니다.</p>
     {error ? <>
       <p className="notice error" role="alert">{error}</p>

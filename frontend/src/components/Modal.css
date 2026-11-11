@@ -1,37 +1,55 @@
-@layer legacy {
-/* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: employee record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
-.t-modal { width: min(1100px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--t-line); border-radius: 16px; background: var(--t-paper); color: var(--t-ink); box-shadow: var(--t-shadow); overflow: hidden; box-sizing: border-box; }
+/* WorkLog shared modal (spec 7.7). Unlayered: wins over legacy without #tna-app.
+   Sizes s 440 · m 720 · l 920 (default) · xl 1200. Phones get a bottom sheet. */
+.t-modal {
+  width: min(920px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px);
+  margin: auto; padding: 0; overflow: hidden; box-sizing: border-box;
+  border: 0; border-radius: var(--r-modal); background: var(--g0); color: var(--g900);
+  box-shadow: var(--shadow-modal); font-family: var(--font-ui);
+}
+.t-modal[data-size="s"] { width: min(440px, calc(100% - 48px)); }
+.t-modal[data-size="m"] { width: min(720px, calc(100% - 48px)); }
+.t-modal[data-size="xl"] { width: min(1200px, calc(100% - 48px)); }
 .t-modal[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
-.t-modal::backdrop { background: var(--t-overlay); }
-.t-modal .t-modal-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--t-line); background: var(--t-paper); }
-.t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { min-width: 0; margin: 0; color: var(--t-ink); font-size: 20px; line-height: 1.5; font-weight: 600; overflow-wrap: break-word; }
-.t-modal .t-modal-close, #tna-app .t-modal .t-modal-close { display: grid; place-items: center; flex: none; width: 44px; min-width: 44px; min-height: 44px; padding: var(--space-xs); border: 0; border-radius: 6px; background: none; color: var(--t-muted); }
-.t-modal .t-modal-close svg, #tna-app .t-modal .t-modal-close svg { width: 20px; height: 20px; }
-.t-modal .t-modal-close:hover:not(:disabled), #tna-app .t-modal .t-modal-close:hover:not(:disabled) { background: var(--t-surface); color: var(--t-ink); }
-.t-modal .t-modal-close:active:not(:disabled), #tna-app .t-modal .t-modal-close:active:not(:disabled) { background: var(--t-blue-soft); }
-.t-modal .t-modal-body { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 28px; scroll-padding-block: var(--space-md); }
-.t-modal .t-modal-footer { display: flex; justify-content: flex-end; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--t-line); background: var(--t-paper); }
-.t-modal .t-modal-dismiss, #tna-app .t-modal .t-modal-dismiss { min-width: 88px; min-height: 44px; padding: var(--space-xs) 20px; border: 1px solid var(--t-field-border); border-radius: 6px; background: var(--t-paper); color: var(--t-ink); font-size: 14px; }
-.t-modal .t-modal-dismiss:hover:not(:disabled) { background: var(--t-surface); }
-.t-modal .t-modal-dismiss:active:not(:disabled) { background: var(--t-blue-soft); }
-.t-modal :is(.t-modal-close, .t-modal-dismiss):disabled { color: var(--t-muted); background: var(--t-disabled); cursor: wait; }
-.t-modal :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; }
-@media (max-width: 680px) {
-  .t-modal { width: calc(100% - 24px); max-height: calc(100dvh - 24px); border-radius: var(--t-radius); }
-  .t-modal .t-modal-header { gap: var(--space-sm); padding: var(--space-sm) var(--space-md); }
-  .t-modal .t-modal-title, #tna-app .t-modal .t-modal-title { font-size: 18px; }
-  .t-modal .t-modal-body { padding: 20px var(--space-md); }
-  .t-modal .t-modal-footer { padding: var(--space-sm) var(--space-md) max(var(--space-sm), env(safe-area-inset-bottom)); }
-}
+.t-modal::backdrop { background: rgba(18, 24, 36, .44); }
 
-.t-modal .t-modal-body { background: var(--t-paper); }
-.t-modal .t-modal-footer { background: var(--t-surface); }
-#tna-app .t-modal :is(.panel, .t-card) { border: 0; border-radius: 0; padding: var(--space-lg) 0; background: transparent; }
-#tna-app .t-modal :is(.panel, .t-card) + :is(.panel, .t-card) { border-top: 1px solid var(--t-line); }
-#tna-app .t-modal .admin-form { padding: var(--space-lg) 0; background: transparent; border-top: 1px solid var(--t-line); }
-#tna-app .t-modal .admin-form .actions { margin-bottom: 0; padding-top: var(--space-md); border-top: 1px solid var(--t-line); }
-@media (max-width: 680px) {
-  #tna-app .t-modal .admin-form { padding: var(--space-md) 0; }
+.t-modal-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; padding: 0 12px 0 24px; border-bottom: 1px solid var(--g200); background: var(--g0);
 }
+.t-modal-title { min-width: 0; margin: 0; color: var(--g900); font: 700 18px/1.4 var(--font-ui); letter-spacing: -.025em; overflow-wrap: anywhere; }
+.t-modal-title:focus { outline: none; }
+.t-modal-close {
+  display: grid; place-items: center; flex: none; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0;
+  border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--g600); box-shadow: none; cursor: pointer;
+}
+.t-modal-close:hover:not(:disabled) { background: var(--g100); color: var(--g900); }
+.t-modal-close:disabled { color: var(--g400); cursor: wait; }
+.t-modal-close svg { width: 18px; height: 18px; }
+.t-modal-body { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px; background: var(--g0); }
+.t-modal-footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px;
+  padding: 12px 16px 12px 24px; border-top: 1px solid var(--g200); background: var(--g0);
+}
+/* Left side of a footer or action row: required mark and other notes. */
+.wl-modal-note { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: var(--g600); font-size: 12px; }
+.wl-modal-note .wl-required::after { margin-left: 0; }
+.t-modal :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Content inside a modal: cards and legacy forms become flat sections; page titles stay below the modal title. */
+.t-modal-body :is(.panel, .t-card) { padding: 20px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.t-modal-body :is(.panel, .t-card) + :is(.panel, .t-card) { border-top: 1px solid var(--g200); }
+.t-modal-body .admin-form { padding: 20px 0; border-top: 1px solid var(--g200); background: transparent; }
+.t-modal-body .admin-form .actions { margin-bottom: 0; padding-top: 16px; border-top: 1px solid var(--g200); }
+.t-modal-body .wl-pagehead { margin-bottom: 12px; }
+.t-modal-body .wl-pagehead h1 { font-size: 18px; }
+
+@media (max-width: 600px), (pointer: coarse) {
+  .t-modal-close { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .t-modal, .t-modal[data-size] { width: 100%; max-width: 100%; max-height: calc(100dvh - 16px); margin: auto 0 0; border-radius: 12px 12px 0 0; }
+  .t-modal-header { padding: 0 4px 0 16px; }
+  .t-modal-body { padding: 16px; }
+  .t-modal-footer { padding: 10px 16px max(10px, env(safe-area-inset-bottom)); }
+  .t-modal-footer > .t-btn { flex: 1 0 auto; }
 }
