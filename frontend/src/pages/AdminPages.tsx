@@ -7,6 +7,8 @@ import {
   ErrorNotice,
   Field,
   Form,
+  FormRow,
+  FormTable,
   SelectField,
   TextAreaField,
   fmtDate,
@@ -85,32 +87,31 @@ function EmployeeFields({ form, editing = false }: { form: EmployeeForm; editing
   return (
     <>
       <CommandFields form={form} />
-      <Field
-        id="employee-number"
-        label="사번"
-        name="employeeNo"
-        value={form.employeeNo}
-        maxLength={40}
-        readOnly={editing}
-        required={!editing}
-        aria-describedby="employee-number-help"
-      />
-      <p id="employee-number-help" className="hint">
-        {editing
-          ? '등록한 사번은 변경할 수 없습니다.'
-          : '등록 후 변경하거나 다른 사원에게 재사용할 수 없습니다.'}
-      </p>
-      <Field
-        id="employee-name"
-        label="이름"
-        name="displayName"
-        value={form.displayName}
-        maxLength={120}
-        required
-      />
-      <fieldset className="form-row">
-        <legend>재직 기간</legend>
-        <div>
+      <FormTable>
+        <Field
+          id="employee-number"
+          label="사번"
+          name="employeeNo"
+          value={form.employeeNo}
+          maxLength={40}
+          readOnly={editing}
+          required={!editing}
+          aria-describedby="employee-number-help"
+        />
+        <p id="employee-number-help" className="hint">
+          {editing
+            ? '등록한 사번은 변경할 수 없습니다.'
+            : '등록 후 변경하거나 다른 사원에게 재사용할 수 없습니다.'}
+        </p>
+        <Field
+          id="employee-name"
+          label="이름"
+          name="displayName"
+          value={form.displayName}
+          maxLength={120}
+          required
+        />
+        <FormRow label="재직 기간" required>
           <Field
             id="employee-joined"
             label="입사일"
@@ -119,8 +120,6 @@ function EmployeeFields({ form, editing = false }: { form: EmployeeForm; editing
             value={form.joinedOn ?? ''}
             required
           />
-        </div>
-        <div>
           <Field
             id="employee-left"
             label="마지막 재직일 (선택)"
@@ -129,18 +128,18 @@ function EmployeeFields({ form, editing = false }: { form: EmployeeForm; editing
             value={form.leftOn ?? ''}
             aria-describedby="employee-left-help"
           />
-        </div>
-      </fieldset>
-      <p id="employee-left-help" className="hint">
-        마지막 재직일 당일까지 재직으로 처리합니다. 미정이면 비워 두세요.
-      </p>
-      <Check name="active" label="활성 사원" checked={form.active} />
-      {editing && (
-        <p className="hint">
-          재직일이나 활성 상태를 변경하면 연결된 계정의 기존 로그인이 종료됩니다.
+        </FormRow>
+        <p id="employee-left-help" className="hint">
+          마지막 재직일 당일까지 재직으로 처리합니다. 미정이면 비워 두세요.
         </p>
-      )}
-      <Reason id="employee-reason" form={form} label={editing ? '변경 사유' : '등록 사유'} />
+        <FormRow label="상태"><Check name="active" label="활성 사원" checked={form.active} /></FormRow>
+        {editing && (
+          <p className="hint">
+            재직일이나 활성 상태를 변경하면 연결된 계정의 기존 로그인이 종료됩니다.
+          </p>
+        )}
+        <Reason id="employee-reason" form={form} label={editing ? '변경 사유' : '등록 사유'} />
+      </FormTable>
     </>
   );
 }
@@ -355,28 +354,24 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
   const employeePath = `/admin/employees/${m.employee.id}`;
   return (
     <div className="t-legacy-page admin-shell">
-      <a href="/admin/employees">사원 목록으로</a>
-
-      <h1>{m.employee.displayName}</h1>
-      <p><a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a></p>
-      <p>
-        <a href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
-      </p>
+      <PageHeader title={m.employee.displayName} actions={<>
+        <a className="t-btn" href="/admin/employees">사원 목록으로</a>
+        <a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a>
+        <a className="t-btn" href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
+        <a className="t-btn" href={`${employeePath}/schedule`}>고정 근무 템플릿 배정</a>
+      </>} />
       <ErrorNotice message={m.error} />
-      <p>
-        <a href={`${employeePath}/schedule`}>고정 근무 템플릿 배정</a>
-      </p>
-      <section className="panel" aria-labelledby="employee-change-title">
+      <section className="wl-section" aria-labelledby="employee-change-title">
         <h2 id="employee-change-title">기본정보·재직 변경</h2>
-        <Form action={`${employeePath}/changes`} method="post" className="admin-form">
+        <Form action={`${employeePath}/changes`} method="post" className="wl-form">
           <EmployeeFields form={m.form} editing />
-          <div className="actions">
-            <button type="submit">사원 정보 저장</button>
-            <a href={employeePath}>입력 취소</a>
+          <div className="wl-form-actions">
+            <a className="t-btn" href={employeePath}>입력 취소</a>
+            <button type="submit" className="t-btn primary">사원 정보 저장</button>
           </div>
         </Form>
       </section>
-      <section className="panel" aria-labelledby="assignment-history-title">
+      <section className="wl-section" aria-labelledby="assignment-history-title">
         <h2 id="assignment-history-title">소속 이력</h2>
         <p className="hint">
           시작일은 포함하고 종료일은 포함하지 않습니다. 종료일에 새 소속이 시작됩니다.
@@ -401,49 +396,51 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
           />
         )}
       </section>
-      <section className="panel" aria-labelledby="assignment-create-title">
+      <section className="wl-section" aria-labelledby="assignment-create-title">
         <h2 id="assignment-create-title">소속 등록·이동</h2>
         <p className="hint" id="assignment-date-help">
           적용일은 오늘부터 선택할 수 있으며 입사일부터 마지막 재직일까지여야 합니다. 기존 이력이
           있으면 마지막 시작일보다 늦은 날만 선택할 수 있습니다. 과거 이력 수정·같은 날 재배정·예약
           취소는 제공하지 않습니다.
         </p>
-        <Form action={`${employeePath}/assignments`} method="post" className="admin-form">
+        <Form action={`${employeePath}/assignments`} method="post" className="wl-form">
           <CommandFields form={m.assignmentForm} />
-          <SelectField
-            id="assignment-organization"
-            label="새 소속 조직"
-            name="organizationId"
-            value={m.assignmentForm.organizationId ?? ''}
-            required
-            aria-describedby="assignment-organization-help"
-          >
-            <option value="">조직을 선택하세요</option>
-            {m.options
-              .filter((option) => option.active)
-              .map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-          </SelectField>
-          <p className="hint" id="assignment-organization-help">
-            활성 조직만 선택할 수 있습니다. 조직이 없으면{' '}
-            <a href="/admin/organizations">조직 관리</a>에서 등록해 주세요.
-          </p>
-          <Field
-            id="assignment-from"
-            label="적용 시작일"
-            name="validFrom"
-            type="date"
-            value={m.assignmentForm.validFrom ?? ''}
-            required
-            aria-describedby="assignment-date-help"
-          />
-          <Reason id="assignment-reason" form={m.assignmentForm} label="소속 등록·이동 사유" />
-          <p className="hint">기존 소속 이력은 보존됩니다.</p>
-          <div className="actions">
-            <button type="submit">소속 등록·이동</button>
+          <FormTable>
+            <SelectField
+              id="assignment-organization"
+              label="새 소속 조직"
+              name="organizationId"
+              value={m.assignmentForm.organizationId ?? ''}
+              required
+              aria-describedby="assignment-organization-help"
+            >
+              <option value="">조직을 선택하세요</option>
+              {m.options
+                .filter((option) => option.active)
+                .map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+            </SelectField>
+            <p className="hint" id="assignment-organization-help">
+              활성 조직만 선택할 수 있습니다. 조직이 없으면{' '}
+              <a href="/admin/organizations">조직 관리</a>에서 등록해 주세요.
+            </p>
+            <Field
+              id="assignment-from"
+              label="적용 시작일"
+              name="validFrom"
+              type="date"
+              value={m.assignmentForm.validFrom ?? ''}
+              required
+              aria-describedby="assignment-date-help"
+            />
+            <Reason id="assignment-reason" form={m.assignmentForm} label="소속 등록·이동 사유" />
+            <p className="hint">기존 소속 이력은 보존됩니다.</p>
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">소속 등록·이동</button>
           </div>
         </Form>
       </section>
@@ -463,6 +460,7 @@ function OrganizationFields({
   return (
     <>
       <CommandFields form={form} />
+      <FormTable>
       <Field
         id="organization-code"
         label="조직 코드"
@@ -512,7 +510,7 @@ function OrganizationFields({
           없습니다.
         </p>
       )}
-      <Check label="활성 조직" name="active" checked={form.active} />
+      <FormRow label="상태"><Check label="활성 조직" name="active" checked={form.active} /></FormRow>
       {organizationId && (
         <p className="hint">
           활성 하위 조직이나 오늘·미래의 소속이 남아 있으면 비활성화할 수 없습니다.
@@ -523,6 +521,7 @@ function OrganizationFields({
         form={form}
         label={organizationId ? '변경 사유' : '등록 사유'}
       />
+      </FormTable>
     </>
   );
 }
@@ -603,21 +602,19 @@ function OrganizationPage({ model: m }: { model: OrganizationModel }) {
   const path = `/admin/organizations/${m.organization.id}`;
   return (
     <div className="t-legacy-page admin-shell">
-      <a href="/admin/organizations">조직 목록으로</a>
-
-      <h1>{m.organization.name}</h1>
-      <section className="panel" aria-labelledby="organization-change-title">
+      <PageHeader title={m.organization.name} actions={<a className="t-btn" href="/admin/organizations">조직 목록으로</a>} />
+      <section className="wl-section" aria-labelledby="organization-change-title">
         <h2 id="organization-change-title">조직 정보 변경</h2>
         <ErrorNotice message={m.error} />
-        <Form action={`${path}/changes`} method="post" className="admin-form">
+        <Form action={`${path}/changes`} method="post" className="wl-form">
           <OrganizationFields
             form={m.form}
             options={m.options}
             organizationId={m.organization.id}
           />
-          <div className="actions">
-            <button type="submit">조직 정보 저장</button>
-            <a href={path}>입력 취소</a>
+          <div className="wl-form-actions">
+            <a className="t-btn" href={path}>입력 취소</a>
+            <button type="submit" className="t-btn primary">조직 정보 저장</button>
           </div>
         </Form>
       </section>
@@ -632,9 +629,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('invited');
   return (
     <div className="t-legacy-page admin-shell">
-      <a href={path}>사원 상세로</a>
-
-      <h1>{m.employee.displayName}</h1>
+      <PageHeader title={m.employee.displayName} actions={<a className="t-btn" href={path}>사원 상세로</a>} />
       <ErrorNotice message={m.error} />
       {invited && (
         <p className="notice" role="status">
@@ -646,7 +641,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           현재 재직 중인 활성 사원만 초대·역할 변경·승인자 배정을 할 수 있습니다.
         </p>
       )}
-      <section className="panel" aria-labelledby="account-title">
+      <section className="wl-section" aria-labelledby="account-title">
         <h2 id="account-title">로그인 계정</h2>
         {account ? (
           <>
@@ -677,21 +672,23 @@ function AccessPage({ model: m }: { model: AccessModel }) {
                 초대 전달 채널이 준비되지 않았습니다. 로컬 모의 경로에서만 검증할 수 있습니다.
               </p>
             )}
-            <Form action={`${path}/invitations`} method="post" className="admin-form">
+            <Form action={`${path}/invitations`} method="post" className="wl-form">
               <CommandFields form={m.invitationForm} />
-              <Field
-                id="invitation-email"
-                label="초대 이메일"
-                name="email"
-                type="email"
-                maxLength={254}
-                value={m.invitationForm.email}
-                readOnly={Boolean(account)}
-                required
-              />
-              <Reason id="invitation-reason" form={m.invitationForm} label="초대 사유" />
-              <div className="actions">
-                <button type="submit" disabled={!m.localDelivery}>
+              <FormTable>
+                <Field
+                  id="invitation-email"
+                  label="초대 이메일"
+                  name="email"
+                  type="email"
+                  maxLength={254}
+                  value={m.invitationForm.email}
+                  readOnly={Boolean(account)}
+                  required
+                />
+                <Reason id="invitation-reason" form={m.invitationForm} label="초대 사유" />
+              </FormTable>
+              <div className="wl-form-actions">
+                <button type="submit" className="t-btn primary" disabled={!m.localDelivery}>
                   초대 발급
                 </button>
               </div>
@@ -699,7 +696,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           </>
         )}
       </section>
-      <section className="panel" aria-labelledby="roles-title">
+      <section className="wl-section" aria-labelledby="roles-title">
         <h2 id="roles-title">역할</h2>
         <p className="hint">
           공통은 기본 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여합니다. 대표는 회사
@@ -709,39 +706,43 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           <p>초대 수락 후 활성 계정의 역할을 변경할 수 있습니다.</p>
         )}
         {m.eligibleEmployee && account?.active && account.credentialSet && (
-          <Form action={`${path}/roles`} method="post" className="admin-form">
+          <Form action={`${path}/roles`} method="post" className="wl-form">
             <CommandFields form={m.rolesForm} />
             <Hidden name="roles" value="EMPLOYEE" />
-            <p>공통 (EMPLOYEE) · 필수</p>
-            <Check
-              name="roles"
-              label="승인자 (APPROVER)"
-              value="APPROVER"
-              checked={m.rolesForm.roles?.includes('APPROVER') ?? false}
-            />
-            <Check
-              name="roles"
-              label="근태 담당자 (ATTENDANCE_ADMIN)"
-              value="ATTENDANCE_ADMIN"
-              checked={m.rolesForm.roles?.includes('ATTENDANCE_ADMIN') ?? false}
-            />
-            <Check
-              name="roles"
-              label="대표 (COMPANY_REPRESENTATIVE)"
-              value="COMPANY_REPRESENTATIVE"
-              checked={m.rolesForm.roles?.includes('COMPANY_REPRESENTATIVE') ?? false}
-            />
-            <p className="hint">
-              마지막 유효 담당자는 다른 담당자를 연결하기 전 회수할 수 없습니다.
-            </p>
-            <Reason id="roles-reason" form={m.rolesForm} label="역할 변경 사유" />
-            <div className="actions">
-              <button type="submit">역할 저장</button>
+            <FormTable>
+              <FormRow label="역할">
+                <p>공통 (EMPLOYEE) · 필수</p>
+                <Check
+                  name="roles"
+                  label="승인자 (APPROVER)"
+                  value="APPROVER"
+                  checked={m.rolesForm.roles?.includes('APPROVER') ?? false}
+                />
+                <Check
+                  name="roles"
+                  label="근태 담당자 (ATTENDANCE_ADMIN)"
+                  value="ATTENDANCE_ADMIN"
+                  checked={m.rolesForm.roles?.includes('ATTENDANCE_ADMIN') ?? false}
+                />
+                <Check
+                  name="roles"
+                  label="대표 (COMPANY_REPRESENTATIVE)"
+                  value="COMPANY_REPRESENTATIVE"
+                  checked={m.rolesForm.roles?.includes('COMPANY_REPRESENTATIVE') ?? false}
+                />
+              </FormRow>
+              <p className="hint">
+                마지막 유효 담당자는 다른 담당자를 연결하기 전 회수할 수 없습니다.
+              </p>
+              <Reason id="roles-reason" form={m.rolesForm} label="역할 변경 사유" />
+            </FormTable>
+            <div className="wl-form-actions">
+              <button type="submit" className="t-btn primary">역할 저장</button>
             </div>
           </Form>
         )}
       </section>
-      <section className="panel" aria-labelledby="approver-title">
+      <section className="wl-section" aria-labelledby="approver-title">
         <h2 id="approver-title">지정 승인자</h2>
         <p className="notice">
           {m.currentAssignment
@@ -753,50 +754,53 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           이동하지 않습니다. 미래 예약·신청 재할당은 후속입니다.
         </p>
         {m.eligibleEmployee && (
-          <Form action="/admin/approver-assignments" method="post" className="admin-form">
+          <Form action="/admin/approver-assignments" method="post" className="wl-form">
             <Hidden name="employeeId" value={m.employee.id} />
             <CommandFields form={m.approverForm} />
-            <SelectField
-              id="approver-id"
-              label="새 승인자"
-              name="approverEmployeeId"
-              value={m.approverForm.approverEmployeeId ?? ''}
-            >
-              <option value="">승인자 없음 (명시 해제)</option>
-              {m.selectedApproverMissing && (
-                <option value={m.approverForm.approverEmployeeId ?? ''}>
-                  현재 선택값 (재지정 필요)
-                </option>
-              )}
-              {m.candidates
-                .filter((candidate) => candidate.id !== m.employee.id)
-                .map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.displayName}
+            <FormTable>
+              <SelectField
+                id="approver-id"
+                label="새 승인자"
+                name="approverEmployeeId"
+                value={m.approverForm.approverEmployeeId ?? ''}
+              >
+                <option value="">승인자 없음 (명시 해제)</option>
+                {m.selectedApproverMissing && (
+                  <option value={m.approverForm.approverEmployeeId ?? ''}>
+                    현재 선택값 (재지정 필요)
                   </option>
-                ))}
-            </SelectField>
-            <Field
-              id="approver-from"
-              label="적용일"
-              name="validFrom"
-              type="date"
-              readOnly
-              required
-              value={m.approverForm.validFrom}
-            />
-            <p className="hint">
-              오늘 즉시 지정·교체·해제만 지원합니다. 당일 변경 전 관계도 이력으로 보존합니다.
-            </p>
-            <Reason id="approver-reason" form={m.approverForm} label="승인자 변경 사유" />
-            <div className="actions">
-              <button type="submit">승인자 저장</button>
-              <a href={`${path}/access`}>최신 내용 다시 조회</a>
+                )}
+                {m.candidates
+                  .filter((candidate) => candidate.id !== m.employee.id)
+                  .map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.displayName}
+                    </option>
+                  ))}
+              </SelectField>
+              <Field
+                id="approver-from"
+                label="적용일"
+                name="validFrom"
+                type="date"
+                readOnly
+                required
+                value={m.approverForm.validFrom}
+              />
+              <p className="hint">
+                오늘 즉시 지정·교체·해제만 지원합니다. 당일 변경 전 관계도 이력으로 보존합니다.
+              </p>
+              <Reason id="approver-reason" form={m.approverForm} label="승인자 변경 사유" />
+            </FormTable>
+            <div className="wl-form-actions">
+              <a className="t-btn" href={`${path}/access`}>최신 내용 다시 조회</a>
+              <button type="submit" className="t-btn primary">승인자 저장</button>
             </div>
           </Form>
         )}
         {m.assignments.length > 0 && (
           <WorklogSheet
+            title="승인자 배정 이력"
             label="승인자 배정 이력"
             rows={m.assignments}
             getRowId={(assignment) => assignment.id}
@@ -829,104 +833,110 @@ function ScheduleFields({
   return (
     <>
       <CommandFields form={form} />
-      <Field
-        id="template-code"
-        label="템플릿 코드"
-        name="code"
-        maxLength={40}
-        value={form.code}
-        readOnly={Boolean(template)}
-        required
-      />
-      <Field
-        id="template-name"
-        label="이름"
-        name="name"
-        maxLength={120}
-        value={form.name}
-        readOnly={Boolean(template)}
-        required
-      />
-      <Field
-        id="valid-from"
-        label="버전 사용 시작일"
-        name="validFrom"
-        type="date"
-        value={form.validFrom}
-        min={today}
-        required
-      />
-      <p className="hint">
-        당일 시작·종료하는 하루 한 구간입니다. 예정 휴게는 실제 휴게 증거가 아닙니다. 복수 휴게는
-        12:00-13:00,15:00-15:10처럼 입력하세요.
-      </p>
-      <div className="table-scroll" role="region" aria-label="요일별 근무와 예정 휴게" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">요일</th>
-              <th scope="col">근로일</th>
-              <th scope="col">시작</th>
-              <th scope="col">종료</th>
-              <th scope="col">예정 휴게</th>
-            </tr>
-          </thead>
-          <tbody>
-            {form.days.map((day, index) => (
-              <tr key={day.weekday}>
-                <td>
-                  {weekdays[day.weekday - 1]}
-                  <Hidden name={`days[${index}].weekday`} value={day.weekday} />
-                </td>
-                <td>
-                  <Hidden name={`_days[${index}].workday`} value="on" />
-                  <input
-                    type="checkbox"
-                    name={`days[${index}].workday`}
-                    value="true"
-                    defaultChecked={day.workday}
-                    aria-label={`${weekdays[day.weekday - 1]}요일 근로일`}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    name={`days[${index}].startTime`}
-                    defaultValue={day.startTime}
-                    placeholder="09:00"
-                    maxLength={12}
-                    aria-label={`${weekdays[day.weekday - 1]}요일 시작`}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    name={`days[${index}].endTime`}
-                    defaultValue={day.endTime}
-                    placeholder="18:00"
-                    maxLength={12}
-                    aria-label={`${weekdays[day.weekday - 1]}요일 종료`}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    name={`days[${index}].breaks`}
-                    defaultValue={day.breaks}
-                    maxLength={1000}
-                    aria-label={`${weekdays[day.weekday - 1]}요일 예정 휴게`}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <FormTable>
+        <Field
+          id="template-code"
+          label="템플릿 코드"
+          name="code"
+          maxLength={40}
+          value={form.code}
+          readOnly={Boolean(template)}
+          required
+        />
+        <Field
+          id="template-name"
+          label="이름"
+          name="name"
+          maxLength={120}
+          value={form.name}
+          readOnly={Boolean(template)}
+          required
+        />
+        <Field
+          id="valid-from"
+          label="버전 사용 시작일"
+          name="validFrom"
+          type="date"
+          value={form.validFrom}
+          min={today}
+          required
+        />
+        <p className="hint">
+          당일 시작·종료하는 하루 한 구간입니다. 예정 휴게는 실제 휴게 증거가 아닙니다. 복수 휴게는
+          12:00-13:00,15:00-15:10처럼 입력하세요.
+        </p>
+        <FormRow label="요일별 근무">
+          <div className="table-scroll" role="region" aria-label="요일별 근무와 예정 휴게" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">요일</th>
+                  <th scope="col">근로일</th>
+                  <th scope="col">시작</th>
+                  <th scope="col">종료</th>
+                  <th scope="col">예정 휴게</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.days.map((day, index) => (
+                  <tr key={day.weekday}>
+                    <td>
+                      {weekdays[day.weekday - 1]}
+                      <Hidden name={`days[${index}].weekday`} value={day.weekday} />
+                    </td>
+                    <td>
+                      <Hidden name={`_days[${index}].workday`} value="on" />
+                      <input
+                        type="checkbox"
+                        name={`days[${index}].workday`}
+                        value="true"
+                        defaultChecked={day.workday}
+                        aria-label={`${weekdays[day.weekday - 1]}요일 근로일`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        name={`days[${index}].startTime`}
+                        defaultValue={day.startTime}
+                        placeholder="09:00"
+                        maxLength={12}
+                        aria-label={`${weekdays[day.weekday - 1]}요일 시작`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        name={`days[${index}].endTime`}
+                        defaultValue={day.endTime}
+                        placeholder="18:00"
+                        maxLength={12}
+                        aria-label={`${weekdays[day.weekday - 1]}요일 종료`}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        name={`days[${index}].breaks`}
+                        defaultValue={day.breaks}
+                        maxLength={1000}
+                        aria-label={`${weekdays[day.weekday - 1]}요일 예정 휴게`}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </FormRow>
+        <Reason id="schedule-reason" form={form} label="등록·변경 사유" />
+        <p className="hint">
+          비근로일은 시각·휴게를 모두 비우세요. 법정 휴게·근로시간 적합성을 자동 보증하지 않습니다.
+        </p>
+      </FormTable>
+      <div className="wl-form-actions">
+        <button type="submit" className="t-btn primary">불변 버전 저장</button>
       </div>
-      <Reason id="schedule-reason" form={form} label="등록·변경 사유" />
-      <p className="hint">
-        비근로일은 시각·휴게를 모두 비우세요. 법정 휴게·근로시간 적합성을 자동 보증하지 않습니다.
-      </p>
-      <button type="submit">불변 버전 저장</button>
     </>
   );
 }
@@ -954,7 +964,7 @@ function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
       </section>
       <section className="panel">
         <h2>새 템플릿</h2>
-        <Form action="/admin/schedules" method="post" className="admin-form">
+        <Form action="/admin/schedules" method="post" className="wl-form">
           <ScheduleFields form={m.form} today={m.today} />
         </Form>
       </section>
@@ -965,11 +975,9 @@ function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
 function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
   return (
     <div className="t-legacy-page admin-shell">
+      <PageHeader title={m.template.name} help="근무 시간 기준: Asia/Seoul (서울)" actions={<a className="t-btn" href="/admin/schedules">템플릿 목록</a>} />
       <ErrorNotice message={m.error} />
-      <a href="/admin/schedules">템플릿 목록</a>
-      <h1>{m.template.name}</h1>
-      <p>근무 시간 기준: Asia/Seoul (서울)</p>
-      <section className="panel">
+      <section className="wl-section">
         <h2>불변 버전 이력</h2>
         {m.versions.map((version) => (
           <article key={version.id}>
@@ -993,13 +1001,13 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
           </article>
         ))}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>새 버전 추가</h2>
-        <p>기존 버전과 배정은 유지합니다. 사원별 새 적용일 배정이 필요합니다.</p>
+        <p className="hint">기존 버전과 배정은 유지합니다. 사원별 새 적용일 배정이 필요합니다.</p>
         <Form
           action={`/admin/schedules/${m.template.id}/versions`}
           method="post"
-          className="admin-form"
+          className="wl-form"
         >
           <ScheduleFields form={m.form} today={m.today} template={m.template} />
         </Form>
@@ -1011,10 +1019,9 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
 function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }) {
   return (
     <div className="t-legacy-page admin-shell">
+      <PageHeader title={`${m.employee.displayName} · 근무 배정`} actions={<a className="t-btn" href={`/admin/employees/${m.employee.id}`}>사원 상세</a>} />
       <ErrorNotice message={m.error} />
-      <a href={`/admin/employees/${m.employee.id}`}>사원 상세</a>
-      <h1>{m.employee.displayName} · 근무 배정</h1>
-      <section className="panel">
+      <section className="wl-section">
         <h2>배정 이력</h2>
         {m.assignments.length === 0 ? (
           <p>배정이 없습니다. 일정 누락 날짜를 정상 근로일로 간주하지 않습니다.</p>
@@ -1034,44 +1041,48 @@ function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }
           />
         )}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>적용일 배정</h2>
-        <p>
+        <p className="hint">
           오늘 이후의 재직 기간 안에서 마지막 시작일보다 늦은 날을 선택하세요. 과거 정정·같은 날
           교체·예약 취소는 이번 단위에서 제공하지 않습니다.
         </p>
         <Form
           action={`/admin/employees/${m.employee.id}/schedule`}
           method="post"
-          className="admin-form"
+          className="wl-form"
         >
           <CommandFields form={m.form} />
-          <SelectField
-            id="schedule-version"
-            label="템플릿 버전"
-            name="scheduleVersionId"
-            value={m.form.scheduleVersionId ?? ''}
-            required
-          >
-            <option value="">선택하세요</option>
-            {m.versions.map((version) => (
-              <option key={version.id} value={version.id}>
-                {m.templateNames[version.templateId]} / v{version.revision} /{' '}
-                {fmtDate(version.validFrom)}
-              </option>
-            ))}
-          </SelectField>
-          <Field
-            id="schedule-assignment-from"
-            label="적용 시작일"
-            name="validFrom"
-            type="date"
-            min={m.today}
-            value={m.form.validFrom}
-            required
-          />
-          <Reason id="schedule-assignment-reason" form={m.form} label="배정 사유" />
-          <button type="submit">근무 배정 저장</button>
+          <FormTable>
+            <SelectField
+              id="schedule-version"
+              label="템플릿 버전"
+              name="scheduleVersionId"
+              value={m.form.scheduleVersionId ?? ''}
+              required
+            >
+              <option value="">선택하세요</option>
+              {m.versions.map((version) => (
+                <option key={version.id} value={version.id}>
+                  {m.templateNames[version.templateId]} / v{version.revision} /{' '}
+                  {fmtDate(version.validFrom)}
+                </option>
+              ))}
+            </SelectField>
+            <Field
+              id="schedule-assignment-from"
+              label="적용 시작일"
+              name="validFrom"
+              type="date"
+              min={m.today}
+              value={m.form.validFrom}
+              required
+            />
+            <Reason id="schedule-assignment-reason" form={m.form} label="배정 사유" />
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">근무 배정 저장</button>
+          </div>
         </Form>
       </section>
     </div>
