@@ -1,6 +1,6 @@
 # 문서형 화면·업무 화면 추가 통합 검증
 
-기준일: 2026-11-11, Asia/Seoul. `main`의 `5ed6be0` 이후 추가 작업을 확인해 Claude의 `16c102a..a65111c91218669b9d3a7d49d98380f9cde46eb3` 26개 완료 커밋을 별도 일반 제품·공개 작업트리에 통합했다. 공개 기준은 `cc796c5`이며 이 문서 작성 시점에는 새 공개 배포를 실행하지 않았다.
+기준일: 2026-11-11, Asia/Seoul. `main`의 `5ed6be0` 이후 추가 작업을 확인해 Claude의 `16c102a..a65111c91218669b9d3a7d49d98380f9cde46eb3` 26개 완료 커밋을 별도 일반 제품·공개 작업트리에 통합했다. 통합 검증 당시 공개 기준은 `cc796c5`였으며 새 공개 배포는 아직 실행하지 않았다. 이후 `main`의 `7eb2bb0`을 공개 보안과 통합한 `58f8159`의 [실제 배포 결과](public-design-followup-deploy-20261111.md)를 별도로 기록했다.
 
 ## 범위와 보존
 
@@ -26,8 +26,8 @@
 
 ## 현재 한계와 증거
 
-새 이미지 배포·공개 화면 검증은 아직 완료로 표시하지 않는다. 배포 전 main·공개 통합본의 자동 테스트는 위와 같이 완료했다. 새 장시간 부하·전체 취약점 검사·실고객 운영 검증은 이번 범위가 아니다. Vite의 500KB 초과 번들 경고가 남는다.
+위 수치는 배포 전 main·공개 통합본의 자동 테스트 결과다. 이후 완료한 새 이미지 배포·실제 PC 화면 검증과 모바일·계산 근거 모달의 미검증 범위는 [최종 배포 보고서](public-design-followup-deploy-20261111.md)를 따른다. 새 장시간 부하·전체 취약점 검사·실고객 운영 검증은 이번 범위가 아니다. Vite의 500KB 초과 번들 경고가 남는다.
 
 일반·공개 작업트리는 Git 제외 `target/main-followup-20261111`, `target/public-followup-20261111`에 있으며 각각 `target/frontend-*-20261111.log`에 검증 로그를 보관한다. 공개 작업트리의 `target/followup-review-{red,green}-20261111.log`는 회귀 실패 재현과 수정 검증이다. 배포 도구와 공개 HTTP 증거는 `target/public-followup-ops-20261111`, `target/public-followup-http-20261111`에 보관한다.
 
-실제 배포 결과는 [공개 데모 후속 배포](../development/worklog-public-updates.md)에 별도로 기록한다.
+실제 배포 결과는 [최종 배포 보고서](public-design-followup-deploy-20261111.md)와 [공개 데모 후속 배포](../development/worklog-public-updates.md)에 별도로 기록한다.
