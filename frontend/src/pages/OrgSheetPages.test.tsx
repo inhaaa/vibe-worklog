@@ -239,13 +239,22 @@ describe('조직·사원 시트 편집', () => {
   });
 
   it('불명확한503 재전송은 같은 명령을 유지하고 편집하면 새 명령을 발급한다', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ page: 'org/problem', csrf, data: { message: '저장 결과 확인 필요' } }, 503));
+    let finishSave!: (result: Response) => void;
+    const failed = response({ page: 'org/problem', csrf, data: { message: '저장 결과 확인 필요' } }, 503);
+    const fetcher = vi.fn<typeof fetch>()
+      .mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }))
+      .mockResolvedValue(failed);
     vi.stubGlobal('fetch', fetcher);
     const view = await show();
     await changeCell(view, '조직 이름 1', '새 이름');
     await save(view, '업무 검토');
-    await waitFor(() => expect(view.getByText('저장 결과 확인 필요')).toBeTruthy());
     const first = (fetcher.mock.calls[0][1]?.body as URLSearchParams).get('commandId');
+    const reason = view.getByLabelText('일괄 변경 사유') as HTMLTextAreaElement;
+    expect(reason.disabled).toBe(true);
+    await act(async () => finishSave(failed.clone()));
+    await waitFor(() => expect(view.getByText('저장 결과 확인 필요')).toBeTruthy());
+    expect(reason.disabled).toBe(false);
+    expect(reason.value).toBe('업무 검토');
     fireEvent.submit(bulkForm(view));
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect((fetcher.mock.calls[1][1]?.body as URLSearchParams).get('commandId')).toBe(first);
