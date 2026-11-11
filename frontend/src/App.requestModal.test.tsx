@@ -131,4 +131,27 @@ describe('신청 공통 모달 통합', () => {
     expect(document.activeElement).toBe(error);
     expect(new URL(String(fetcher.mock.calls[1][0])).searchParams.get('mode')).toBe('MODAL');
   });
+
+  it('결재 처리 상세를 목록 위 모달로 열고 문서형 결재 폼을 보여 준 뒤 초점을 되돌린다', async () => {
+    const row = { id:'request-9', targetEmployeeName:'합성 직원', kind:'LEAVE_DAY', fromDate:'2026-11-05', toDate:'2026-11-06', quantityDays:2, status:'PENDING', effectStatus:'NONE', version:4, reason:'합성 휴가', approverName:'합성 조직장', originalRequestId:null };
+    const detail: PageEnvelope = { page:'request/detail', csrf, data:{ ...shared, request:row, detail:{ days:[], history:[], correction:null }, canDecide:true, pageCommand:'decision-command' } };
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(detail,'/requests/request-9'));
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={envelope(null,{requests:[row]})} />);
+    const trigger = screen.getByRole('link',{name:'종일 연차 상세'});
+    trigger.focus(); fireEvent.click(trigger);
+    const dialog = await screen.findByRole('dialog',{name:'신청 상세'});
+    expect(document.activeElement).toBe(within(dialog).getByRole('heading',{name:'신청 상세',level:2}));
+    const steps = within(within(dialog).getByRole('list',{name:'결재란'})).getAllByRole('listitem');
+    expect(steps.map(step => step.querySelector('strong')?.textContent)).toEqual(['합성 직원','합성 조직장']);
+    for (const name of ['승인 검토','반려 검토']) {
+      const form = within(dialog).getByRole('form',{name});
+      expect(form.querySelector('textarea[name="reason"]')?.closest('.wl-form-row')).toBeTruthy();
+    }
+    expect(within(dialog).getAllByRole('button',{name:'닫기'})).toHaveLength(2);
+    fireEvent(dialog,new Event('cancel',{cancelable:true}));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });

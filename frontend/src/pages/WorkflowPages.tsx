@@ -7,8 +7,12 @@ import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { ApprovalStamps } from '../components/ApprovalStamps';
+import { Notice } from '../components/Notice';
 import {
   Form,
+  FormRow,
+  FormTable,
   Field,
   Check,
   SelectField,
@@ -186,6 +190,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
       {hidden('commandId', m.pageCommand)}
     </>
   );
+  const approvalTone = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
   return (
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)"
@@ -195,9 +200,16 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
         </div>} />
       <div className="t-request-detail-document">
+        <section className="t-card wl-detail-approval" aria-labelledby="request-record-approval-title">
+          <h2 id="request-record-approval-title">결재 진행</h2>
+          <ApprovalStamps steps={[
+            { role: '기안', name: r.targetEmployeeName, detail: d.routeSnapshot?.organizationName, state: '제출' },
+            { role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone },
+          ]} />
+        </section>
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
-          <dl className="t-request-detail-values">
+          <dl className="wl-form-table">
             <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
             <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
             <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
@@ -222,7 +234,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
             <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
           </div>
-          {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
+          {r.kind === 'CANCEL_LEAVE' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
           {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
         </section>
       </div>
@@ -236,16 +248,16 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           </section>}
           {d.correction && <section className="t-card">
             <h2>요청한 정정</h2>
-            <dl className="t-request-detail-values">
+            <dl className="wl-form-table">
               <dt>출근</dt><dd>출근 {correctionAction(d.correction.inAction)}{d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`}</dd>
               <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
               <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
             </dl>
-            <p className="t-request-detail-notice">원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</p>
+            <Notice>원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</Notice>
           </section>}
           {d.attendancePolicy && <section className="t-card t-request-route">
             <h2>제출 당시 근태정책</h2>
-            <dl className="t-request-detail-values">
+            <dl className="wl-form-table">
               <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
               <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
               <dt>단위</dt><dd>{label(d.attendancePolicy.unit, { DAY: '종일(DAY)', HOUR: '시간(HOUR)', NONE: '해당 없음' })}</dd>
@@ -273,66 +285,72 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             {!hasActions && <p className="t-request-detail-empty">현재 가능한 결정·변경이 없습니다.</p>}
             {m.canDecide && (
               <>
-                <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form t-request-detail-form t-request-decision-approve" aria-label="승인 검토">
+                <Form action={`/requests/${r.id}/approve`} method="post" className="wl-form wl-decision-form" aria-label="승인 검토">
                   <h3>승인</h3>
                   <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
                   {versionFields}
-                  <Reason label="승인 검토 사유" />
-                  <button className="t-btn primary">승인하기</button>
+                  <FormTable><Reason label="승인 검토 사유" /></FormTable>
+                  <div className="wl-form-actions"><button className="t-btn primary">승인하기</button></div>
                 </Form>
-                <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form t-request-detail-form t-request-decision-reject" aria-label="반려 검토">
+                <Form action={`/requests/${r.id}/reject`} method="post" className="wl-form wl-decision-form" aria-label="반려 검토">
                   <h3>반려</h3>
                   <p>보완이 필요한 내용을 사유로 남겨 주세요.</p>
                   {versionFields}
-                  <Reason label="반려 사유" />
-                  <button className="t-btn secondary">반려하기</button>
+                  <FormTable><Reason label="반려 사유" /></FormTable>
+                  <div className="wl-form-actions"><button className="t-btn secondary">반려하기</button></div>
                 </Form>
               </>
             )}
             {m.canWithdraw && (
-              <Form action={`/requests/${r.id}/withdraw`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/requests/${r.id}/withdraw`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
-                <Reason label="철회 사유" />
-                <button className="t-btn secondary">대기 신청 철회</button>
+                <FormTable><Reason label="철회 사유" /></FormTable>
+                <div className="wl-form-actions"><button className="t-btn secondary">대기 신청 철회</button></div>
               </Form>
             )}
             {m.canCancel && (
-              <Form action={`/requests/${r.id}/cancellations`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/requests/${r.id}/cancellations`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
-                <Reason label="취소 요청 사유" />
-                <p>
-                  예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
-                  필요합니다.
-                </p>
-                <button className="t-btn secondary">취소 심사 요청</button>
+                <FormTable>
+                  <Reason label="취소 요청 사유" />
+                  <p>
+                    예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
+                    필요합니다.
+                  </p>
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn secondary">취소 심사 요청</button></div>
               </Form>
             )}
             {m.admin && r.status === 'PENDING' && (
-              <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="wl-form wl-decision-form">
                 <h3>대기 건 명시 재할당</h3>
                 {versionFields}
-                <SelectField label="새 승인자" name="approverEmployeeId" required>
-                  {(m.candidates ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.displayName}
-                    </option>
-                  ))}
-                </SelectField>
-                <Reason label="재할당 사유" />
-                <button className="t-btn">재할당 저장</button>
+                <FormTable>
+                  <SelectField label="새 승인자" name="approverEmployeeId" required>
+                    {(m.candidates ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.displayName}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <Reason label="재할당 사유" />
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn">재할당 저장</button></div>
               </Form>
             )}
             {m.canCancelException && (
               <Form
                 action={`/admin/requests/${r.id}/cancellation-exceptions`}
                 method="post"
-                className="admin-form t-request-detail-form"
+                className="wl-form wl-decision-form"
               >
                 <h3>과거·퇴사자 예외 취소</h3>
                 {versionFields}
-                <Reason label="검토 근거와 예외 취소 사유" />
-                <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
-                <button className="t-btn">예외 취소 심사 요청</button>
+                <FormTable>
+                  <Reason label="검토 근거와 예외 취소 사유" />
+                  <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn">예외 취소 심사 요청</button></div>
               </Form>
             )}
           </section>
@@ -354,8 +372,9 @@ function Correction({ model: m }: { model: CorrectionModel }) {
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
         </p>
       )}
-      <section className="t-card t-correction-source" aria-label="현재 원천 기록">
-        <div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">01</span><div><h2>현재 원천 기록</h2><p>{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p></div></div>
+      <section className="wl-section t-correction-source" aria-label="현재 원천 기록">
+        <h2>현재 원천 기록</h2>
+        <p className="hint">{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p>
         <ul className="t-correction-events">
           {m.day.events.map((e) => (
             <li key={e.id}>
@@ -364,72 +383,59 @@ function Correction({ model: m }: { model: CorrectionModel }) {
           ))}
           {!m.day.events.length && <li>조회된 원천 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</li>}
         </ul>
-        <p className="t-muted">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
+        <p className="hint">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
       </section>
-        <Form
-          action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
-          method="post"
-          className="t-correction-form"
-          onChange={() => setDirty(true)}
-          data-unsaved-changes={String(dirty)}
-        >
-          {hidden('targetEmployeeId', f.targetEmployeeId)}
-          {hidden('workDate', f.workDate)}
-          {hidden('baseInputRevision', f.baseInputRevision)}
-          {hidden('sourceFingerprint', f.sourceFingerprint)}
-          {hidden('commandId', f.commandId)}
-          {hidden('exceptional', m.exceptional)}
-          {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
-          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">02</span><div><h2>출퇴근 변경</h2><p>유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p></div></div>
-          <div className="t-correction-fields"><div className="t-request-field">
-          <SelectField label="출근 변경" name="inAction" value={f.inAction}>
-            {m.actions.map((a) => (
-              <option key={a} value={a}>
-                {actionName(a)}
-              </option>
-            ))}
-          </SelectField>
-          </div><div className="t-request-field"><Field
-            label="제안 출근 시각 (서울)"
-            name="requestedInAt"
-            type="datetime-local"
-            step="0.001"
-            value={f.requestedInAt}
-          />
-          </div><div className="t-request-field"><SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
-            {m.actions.map((a) => (
-              <option key={a} value={a}>
-                {actionName(a)}
-              </option>
-            ))}
-          </SelectField>
-          </div><div className="t-request-field"><Field
-            label="제안 퇴근 시각 (서울)"
-            name="requestedOutAt"
-            type="datetime-local"
-            step="0.001"
-            value={f.requestedOutAt}
-          />
-          </div></div><p className="t-muted">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p></section>
-          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">03</span><div><h2>실제 근로·휴게와 사유</h2><p>실제 확인한 근거를 기준으로 작성해 주세요.</p></div></div>
-          <Check
-            name="presenceAsWork"
-            label="제안 구간의 실제 근로를 확인했습니다"
-            checked={f.presenceAsWork}
-          />
-          <Check
-            name="breaksConfirmed"
-            label="실제 휴게를 확인했습니다 (없으면 아래 비움)"
-            checked={f.breaksConfirmed}
-          />
-          <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
-          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><div className="t-request-field"><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></div></details>
-          <div className="t-request-field"><Reason label="정정 사유와 사실 근거" value={f.reason} /></div>
-          <p className="hint">
-            민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
-          </p>
-          </section><div className="t-correction-submit"><span>작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
-        </Form>
+      <Form
+        action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
+        method="post"
+        className="wl-form t-correction-form"
+        onChange={() => setDirty(true)}
+        data-unsaved-changes={String(dirty)}
+      >
+        {hidden('targetEmployeeId', f.targetEmployeeId)}
+        {hidden('workDate', f.workDate)}
+        {hidden('baseInputRevision', f.baseInputRevision)}
+        {hidden('sourceFingerprint', f.sourceFingerprint)}
+        {hidden('commandId', f.commandId)}
+        {hidden('exceptional', m.exceptional)}
+        {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
+        <section className="wl-section">
+          <h2>출퇴근 변경</h2>
+          <p className="hint">유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p>
+          <FormTable columns={2}>
+            <SelectField label="출근 변경" name="inAction" value={f.inAction}>
+              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+            </SelectField>
+            <Field label="제안 출근 시각 (서울)" name="requestedInAt" type="datetime-local" step="0.001" value={f.requestedInAt} />
+            <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
+              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+            </SelectField>
+            <Field label="제안 퇴근 시각 (서울)" name="requestedOutAt" type="datetime-local" step="0.001" value={f.requestedOutAt} />
+          </FormTable>
+          <p className="hint">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p>
+        </section>
+        <section className="wl-section">
+          <h2>실제 근로·휴게와 사유</h2>
+          <p className="hint">실제 확인한 근거를 기준으로 작성해 주세요.</p>
+          <FormTable>
+            <FormRow label="실제 확인">
+              <Check name="presenceAsWork" label="제안 구간의 실제 근로를 확인했습니다" checked={f.presenceAsWork} />
+              <Check name="breaksConfirmed" label="실제 휴게를 확인했습니다 (없으면 아래 비움)" checked={f.breaksConfirmed} />
+            </FormRow>
+            <FormRow label="휴게 구간">
+              <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
+            </FormRow>
+          </FormTable>
+          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><FormTable><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></FormTable></details>
+          <FormTable>
+            <Reason label="정정 사유와 사실 근거" value={f.reason} />
+            <p className="hint">
+              민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
+            </p>
+          </FormTable>
+        </section>
+        <div className="wl-form-actions"><span className="wl-modal-note">작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
+      </Form>
     </div>
   );
 }

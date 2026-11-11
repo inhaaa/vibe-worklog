@@ -40,6 +40,7 @@
 .t-modal-body :is(.panel, .t-card) + :is(.panel, .t-card) { border-top: 1px solid var(--g200); }
 .t-modal-body .admin-form { padding: 20px 0; border-top: 1px solid var(--g200); background: transparent; }
 .t-modal-body .admin-form .actions { margin-bottom: 0; padding-top: 16px; border-top: 1px solid var(--g200); }
+.t-modal-body .t-legacy-page { padding-inline: 0; }
 .t-modal-body .wl-pagehead { margin-bottom: 12px; }
 .t-modal-body .wl-pagehead h1 { font-size: 18px; }
 

@@ -145,3 +145,69 @@ button.t-request-period-trigger {
   .wl-compose-actions > .t-btn { flex: 1 0 auto; }
   .t-modal-body .wl-compose-actions { bottom: -16px; margin-bottom: -16px; padding-bottom: max(28px, calc(12px + env(safe-area-inset-bottom))); }
 }
+
+/* Request detail and approval processing. One column in the L modal; legacy two-column grids and cards are switched off. */
+.t-request-detail-page { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--g900); }
+.t-request-detail-page :is(.t-request-detail-document, .t-request-detail-columns, .t-request-detail-main, .t-request-detail-side) { display: block; margin: 0; }
+.t-request-detail-page .t-card { margin: 0; padding: 20px 0; border: 0; border-top: 1px solid var(--g200); border-radius: 0; background: transparent; box-shadow: none; }
+.t-request-detail-page .t-request-detail-document > .t-card:first-child { padding-top: 4px; border-top: 0; }
+.t-request-detail-page h2 { margin: 0 0 10px; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-request-detail-page h3 { margin: 0 0 4px; color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+.t-request-detail-page p { line-height: 1.6; }
+.t-request-detail-page :is(.hint, .t-muted) { color: var(--g600); font-size: 12.5px; line-height: 1.6; }
+.t-request-detail-page .t-card > .hint { margin: 8px 0 0; }
+.t-request-detail-page .wl-form-table { margin-bottom: 0; }
+.t-request-detail-backlinks { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-btn:is(.t-request-detail-back, .t-request-detail-original) {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-ctl); padding: 0 12px;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800); box-shadow: none;
+  font: 600 13px/1.2 var(--font-ui); text-decoration: none; white-space: nowrap;
+}
+.t-btn:is(.t-request-detail-back, .t-request-detail-original):hover { border-color: var(--g400); background: var(--g50); }
+.t-request-detail-original { margin-top: 12px; }
+.t-request-detail-summary-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.t-request-detail-summary-head h2 { margin: 0; }
+.t-request-detail-summary-head .t-request-detail-person { margin: 2px 0 0; color: var(--g700); font-size: 13px; font-weight: 600; }
+.t-request-detail-status { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border: 0; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700); font: 600 12.5px/1 var(--font-ui); }
+.t-request-detail-status[data-status="PENDING"] { background: var(--warn-bg); color: var(--warn); }
+.t-request-detail-status[data-status="APPROVED"] { background: var(--ok-bg); color: var(--ok); }
+.t-request-detail-status[data-status="REJECTED"] { background: var(--danger-bg); color: var(--danger); }
+.t-request-detail-effect { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 10px 0 12px; padding: 0; color: var(--g700); font-size: 13px; }
+.t-request-detail-effect strong { color: var(--g900); font-weight: 600; }
+.t-request-detail-effect > span { margin-left: auto; color: var(--g600); font-size: 12px; }
+.t-request-detail-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 20px; padding: 12px 0 0; border-top: 1px solid var(--g150); }
+.t-request-detail-fact h3 { margin: 0 0 2px; color: var(--g600); font: 500 12px/1.5 var(--font-ui); }
+.t-request-detail-fact p { margin: 0; color: var(--g900); font: 600 14px/1.55 var(--font-ui); overflow-wrap: anywhere; }
+.t-request-detail-fact .t-muted { font-size: 12px; font-weight: 400; }
+.t-request-detail-dates { display: flex; flex-wrap: wrap; gap: 4px 6px; font-variant-numeric: tabular-nums; }
+.t-request-detail-quantity { color: var(--brand-ink); font-size: 13px; font-weight: 700; }
+.t-request-detail-reason { white-space: pre-wrap; }
+.t-request-detail-days { margin: 0; padding: 0; border: 0; list-style: none; }
+.t-request-detail-days li { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--g150); font-size: 13px; font-variant-numeric: tabular-nums; }
+.t-request-detail-days strong { color: var(--brand-ink); font-weight: 600; }
+.t-request-detail-section-head { display: flex; align-items: baseline; gap: 8px; }
+.t-request-detail-section-head h2 { margin-bottom: 0; }
+.t-request-detail-timeline { margin: 10px 0 0; padding: 0; list-style: none; }
+.t-request-detail-timeline li { padding: 10px 0; border-top: 1px solid var(--g150); }
+.t-request-detail-event { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.t-request-detail-event strong { font-size: 13px; font-weight: 700; }
+.t-request-detail-event time { color: var(--g600); font-size: 12px; font-variant-numeric: tabular-nums; }
+.t-request-detail-transition { margin: 2px 0 0; color: var(--g700); font-size: 12.5px; }
+.t-request-detail-timeline .t-request-detail-reason { margin: 4px 0 0; font-size: 13px; }
+.t-request-detail-empty { margin: 8px 0 0; padding: 0; background: transparent; color: var(--g600); font-size: 13px; }
+.t-request-decision-guide { margin: 0 0 4px; color: var(--g600); font-size: 12.5px; }
+.wl-decision-form { margin: 16px 0 0; padding: 16px 0 0; border-top: 1px solid var(--g150); }
+.wl-decision-form > p { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; }
+@media (max-width: 600px) {
+  .t-request-detail-overview { grid-template-columns: minmax(0, 1fr); }
+  .t-request-detail-effect > span { width: 100%; margin-left: 0; }
+}
+
+/* Correction request (request/correction). */
+.t-correction-workspace { min-width: 0; color: var(--g900); }
+.t-correction-events { display: grid; margin: 0 0 8px; padding: 0; border-top: 2px solid var(--g800); list-style: none; }
+.t-correction-events li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--g200); font-size: 13px; }
+.t-correction-events strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.t-correction-advanced { margin: 0 0 16px; }
+.t-correction-advanced summary { color: var(--g700); font-size: 13px; font-weight: 600; cursor: pointer; }
+.t-correction-advanced[open] .wl-form-table { margin-top: 8px; }
