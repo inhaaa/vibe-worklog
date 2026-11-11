@@ -1170,14 +1170,10 @@ function NetworksPage({ model: m }: { model: NetworksModel }) {
 function CalendarPage({ model: m }: { model: CalendarModel }) {
   return (
     <div className="t-legacy-page admin-shell">
+      <PageHeader title="휴일 캘린더" help="담당자가 근거를 확인한 날짜만 명시합니다. 미등록 날짜는 미확인입니다. 요일만으로 법정 휴일을 추정하지 않습니다."
+        actions={<a className="t-btn" href="/admin/networks">허용 네트워크</a>} />
       <ErrorNotice message={m.error} />
-      <h1>휴일 캘린더</h1>
-      <p>
-        담당자가 근거를 확인한 날짜만 명시합니다. 미등록 날짜는 미확인입니다. 요일만으로 법정 휴일을
-        추정하지 않습니다.
-      </p>
-      <a href="/admin/networks">허용 네트워크</a>
-      <section className="panel">
+      <section className="wl-section">
         <h2>불변 버전</h2>
         {m.calendars.length === 0 && <p>등록된 캘린더 버전이 없습니다.</p>}
         <ul>
@@ -1189,57 +1185,31 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>검토한 기간 등록</h2>
-        <p>
+        <p className="hint">
           아래 기간 전체를 일반일로 등록하고 예외 날짜를 지정합니다. 기존 기간과 중첩할 수 없습니다.
         </p>
-        <Form action="/admin/calendar/versions" method="post" className="admin-form">
+        <Form action="/admin/calendar/versions" method="post" className="wl-form">
           <Hidden name="commandId" value={m.form.commandId} />
-          <Field
-            id="calendar-from"
-            label="시작일 (포함)"
-            name="from"
-            type="date"
-            value={m.form.from}
-            required
-          />
-          <Field
-            id="calendar-to"
-            label="종료일 (포함)"
-            name="to"
-            type="date"
-            value={m.form.to}
-            required
-          />
-          <TextAreaField
-            id="calendar-basis"
-            label="기간 전체의 검토 근거"
-            name="basis"
-            value={m.form.basis}
-            maxLength={500}
-            required
-          />
-          <Check
-            name="reviewed"
-            label="기간의 일반일·비근로일·휴일 근거를 모두 검토했습니다"
-            checked={m.form.reviewed}
-            required
-          />
-          <TextAreaField
-            id="calendar-exceptions"
-            label="예외 날짜 (한 줄에 날짜|종류|이름|근거)"
-            name="exceptions"
-            rows={5}
-            value={m.form.exceptions}
-            placeholder="2026-12-25|HOLIDAY|공휴일|확인한 공식 근거"
-          />
-          <p className="hint">
-            종류: WORKDAY(일반일), NON_WORKDAY(명시 비근로일), HOLIDAY(근거 있는 휴일). 주간
-            템플릿의 비근로일은 별도로 유지됩니다.
-          </p>
-          <Reason id="calendar-reason" form={m.form} label="등록 사유" />
-          <button type="submit">캘린더 버전 저장</button>
+          <FormTable>
+            <Field id="calendar-from" label="시작일 (포함)" name="from" type="date" value={m.form.from} required />
+            <Field id="calendar-to" label="종료일 (포함)" name="to" type="date" value={m.form.to} required />
+            <TextAreaField id="calendar-basis" label="기간 전체의 검토 근거" name="basis" value={m.form.basis} maxLength={500} required />
+            <FormRow label="검토 확인" required>
+              <Check name="reviewed" label="기간의 일반일·비근로일·휴일 근거를 모두 검토했습니다" checked={m.form.reviewed} required />
+            </FormRow>
+            <TextAreaField id="calendar-exceptions" label="예외 날짜 (한 줄에 날짜|종류|이름|근거)" name="exceptions" rows={5}
+              value={m.form.exceptions} placeholder="2026-12-25|HOLIDAY|공휴일|확인한 공식 근거" />
+            <p className="hint">
+              종류: WORKDAY(일반일), NON_WORKDAY(명시 비근로일), HOLIDAY(근거 있는 휴일). 주간
+              템플릿의 비근로일은 별도로 유지됩니다.
+            </p>
+            <Reason id="calendar-reason" form={m.form} label="등록 사유" />
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">캘린더 버전 저장</button>
+          </div>
         </Form>
       </section>
     </div>
