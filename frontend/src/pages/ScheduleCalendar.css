@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: WorkLog charcoal and blue · redesign: restyle · signature: monthly ledger · v2.0.0 */
 /* Hallmark · critique: keep the month readable at a glance, with leave as the only filled event. */
 #tna-app .t-main:has(.t-attendance-calendar) { background: var(--t-surface); }
@@ -234,4 +235,5 @@
 @media (pointer: coarse) {
   #tna-app .t-attendance-slot .t-attendance-more { min-height: 44px; }
   #tna-app .t-attendance-board .t-day { padding-block-end: 44px; }
+}
 }

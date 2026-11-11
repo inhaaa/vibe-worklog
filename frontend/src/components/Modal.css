@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · nav: preserved workspace · signature: employee record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, preserve familiar workflow and replace ornamental panels with clear rows */
 .t-modal { width: min(1100px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0; border: 1px solid var(--t-line); border-radius: 16px; background: var(--t-paper); color: var(--t-ink); box-shadow: var(--t-shadow); overflow: hidden; box-sizing: border-box; }
@@ -32,4 +33,5 @@
 #tna-app .t-modal .admin-form .actions { margin-bottom: 0; padding-top: var(--space-md); border-top: 1px solid var(--t-line); }
 @media (max-width: 680px) {
   #tna-app .t-modal .admin-form { padding: var(--space-md) 0; }
+}
 }

@@ -1,0 +1,122 @@
+/* WorkLog shared controls. Unlayered, so these win over the legacy layer without #tna-app selectors.
+   Layout properties (width, flex, margin) stay with each screen.
+   Plain controls only: a control that also carries a component class (class contains " t-", e.g.
+   "t-btn t-request-period-trigger") keeps its component styling until that component moves to this layer. */
+.t-btn:not([class*=" t-"]) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: var(--h-ctl); height: auto; padding: 0 12px;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl);
+  background: var(--g0); color: var(--g800); box-shadow: none;
+  font: 600 13px/1.2 var(--font-ui); letter-spacing: -.01em; text-decoration: none; white-space: nowrap;
+  cursor: pointer; transition: background-color 120ms, border-color 120ms;
+}
+.t-btn:not([class*=" t-"]):hover:not(:disabled) { background: var(--g50); border-color: var(--g400); }
+.t-btn:not([class*=" t-"]):active:not(:disabled) { background: var(--g100); opacity: 1; }
+.t-btn.primary:not([class*=" t-"]) { background: var(--brand); border-color: var(--brand); color: var(--g0); }
+.t-btn.primary:not([class*=" t-"]):hover:not(:disabled) { background: var(--brand-hover); border-color: var(--brand-hover); }
+.t-btn:not([class*=" t-"]):is(:disabled, [aria-disabled="true"]) { background: var(--g50); border-color: var(--g200); color: var(--g500); cursor: not-allowed; }
+.t-btn:not([class*=" t-"]) svg { width: 16px; height: 16px; flex: none; }
+
+.t-icon-button:not([class*=" t-"]) {
+  display: inline-grid; place-items: center; width: var(--h-ctl); height: var(--h-ctl); padding: 0;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g700); cursor: pointer;
+}
+.t-icon-button:not([class*=" t-"]):hover { background: var(--g50); border-color: var(--g400); }
+.t-icon-button:not([class*=" t-"]) svg { width: 16px; height: 16px; stroke-width: 1.7; }
+
+:is(.t-input, .t-select):not([class*=" t-"]) {
+  min-height: var(--h-ctl); height: auto; padding: 0 10px;
+  border: 1px solid var(--field-line); border-radius: var(--r-ctl);
+  background-color: var(--g0); color: var(--g900); box-shadow: none;
+  font: 400 13px/1.4 var(--font-ui);
+}
+textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
+.t-input:not([class*=" t-"])::placeholder { color: var(--g600); }
+:is(.t-input, .t-select):not([class*=" t-"]):focus { border-color: var(--brand); outline: 2px solid var(--brand); outline-offset: 1px; }
+:is(.t-input, .t-select):not([class*=" t-"])[aria-invalid="true"] { border-color: var(--danger); }
+
+.t-tag:not([class*=" t-"]) {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 0 7px;
+  border: 0; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700);
+  font: 600 12px/1.2 var(--font-ui); white-space: nowrap;
+}
+.t-tag.blue:not([class*=" t-"]) { background: var(--info-bg); color: var(--info); }
+.t-tag.green:not([class*=" t-"]) { background: var(--ok-bg); color: var(--ok); }
+.t-tag.amber:not([class*=" t-"]) { background: var(--warn-bg); color: var(--warn); }
+.t-tag.red:not([class*=" t-"]) { background: var(--danger-bg); color: var(--danger); }
+
+@media (max-width: 600px) {
+  :is(.t-input, .t-select):not([class*=" t-"]) { font-size: 16px; }
+}
+
+/* Page header: title, optional help (?) popover, screen-level actions. */
+.wl-pagehead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; margin: 0 0 16px; }
+.wl-pagehead-title { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.wl-pagehead h1 { margin: 0; color: var(--g900); font: 700 22px/1.35 var(--font-ui); letter-spacing: -.025em; }
+.wl-pagehead-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wl-help-button {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--g500); cursor: pointer;
+}
+.wl-help-button:hover, .wl-help-button[aria-expanded="true"] { background: var(--g100); color: var(--g800); }
+.wl-help-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.wl-help-panel {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(360px, calc(100vw - 32px));
+  padding: 12px 14px; border: 1px solid var(--g200); border-radius: var(--r-pop);
+  background: var(--g0); box-shadow: var(--shadow-pop); color: var(--g700); font: 400 13px/1.6 var(--font-ui);
+}
+@media (max-width: 600px) {
+  .wl-pagehead h1 { font-size: 20px; }
+  .wl-help-button { width: 44px; height: 44px; }
+}
+.wl-help-panel p { margin: 0; }
+.wl-help-panel p + p { margin-top: 6px; }
+
+/* Section header: title (15/700) and total count, section actions on the right. */
+.wl-section { min-width: 0; margin: 0 0 32px; }
+.wl-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: var(--h-ctl); margin: 0 0 10px; }
+.wl-section-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wl-section-title h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.wl-count { color: var(--g600); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.wl-count b { color: var(--brand-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-section-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+
+/* Sheet row state: a dot and a word, never color alone. */
+.wl-state { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.wl-state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.wl-state[data-state="new"] { color: var(--ok); }
+.wl-state[data-state="modified"] { color: var(--info); }
+.wl-state[data-state="deactivate"] { color: var(--danger); }
+
+/* Query bar on an existing GET form: label/control pairs in a row, [초기화][조회] at the end. */
+.wl-querybar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 20px; padding: 12px 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g50); }
+.wl-querybar > div:not(.wl-querybar-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.wl-querybar label:not(.t-sr-only) { margin: 0; color: var(--g700); font: 600 13px/1.4 var(--font-ui); white-space: nowrap; }
+.wl-querybar :is(.t-input, .t-select) { flex: none; width: 200px; min-width: 0; margin: 0; }
+.wl-querybar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.wl-querybar .t-btn.wl-query-submit { border-color: var(--g800); background: var(--g800); color: var(--g0); }
+.wl-querybar .t-btn.wl-query-submit:hover:not(:disabled) { border-color: var(--g900); background: var(--g900); }
+.wl-querybar .t-btn.wl-query-reset { border-color: transparent; background: transparent; color: var(--g700); }
+.wl-querybar .t-btn.wl-query-reset:hover:not(:disabled) { border-color: transparent; background: var(--g150); }
+
+@media (max-width: 600px) {
+  .wl-section-actions { width: 100%; margin-left: 0; }
+  .wl-querybar, .wl-querybar > div:not(.wl-querybar-actions) { flex-direction: column; align-items: stretch; }
+  .wl-querybar :is(.t-input, .t-select) { width: 100%; }
+  .wl-querybar-actions { margin-left: 0; }
+  .wl-querybar-actions > * { flex: 1; }
+}
+
+/* Modal size: stage 2 styles only s (save confirmation). Other sizes, header and footer move in stage 3. */
+.t-modal[data-size="s"] { width: min(440px, calc(100% - 48px)); }
+
+/* Sheet save confirmation. */
+.wl-save-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; }
+.wl-save-reason { display: grid; gap: 6px; }
+.wl-save-reason > label { color: var(--g800); font: 600 13px/1.4 var(--font-ui); }
+.wl-save-reason textarea { width: 100%; resize: vertical; }
+.wl-required::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 4px; border-radius: 50%; background: var(--danger); vertical-align: middle; }
+.wl-save-reason-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--g600); font-size: 12px; line-height: 1.5; }
+.wl-save-reason-meta p { margin: 0; }
+.wl-field-error { color: var(--danger); font-weight: 600; }
+.wl-char-count { flex: none; font-variant-numeric: tabular-nums; }

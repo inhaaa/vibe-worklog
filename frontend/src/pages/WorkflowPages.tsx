@@ -6,6 +6,7 @@ import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import {
   Form,
   Field,
@@ -107,7 +108,7 @@ function storedIntervals(value: string | null): string {
   }
 }
 
-function RequestRows({ requests }: { requests: RequestView[] }) {
+function RequestRows({ requests, pagination }: { requests: RequestView[]; pagination?: React.ReactNode }) {
   const columns = [
     sheetColumn<RequestView>({ field: 'targetEmployeeName', headerName: '대상', minWidth: 170, pinned: 'left' }, request => request.targetEmployeeName),
     sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170 }, request => <a href={`/requests/${request.id}`}>{request.kind}</a>),
@@ -115,7 +116,7 @@ function RequestRows({ requests }: { requests: RequestView[] }) {
     sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${data.status} / ${data.effectStatus}` : '' }, request => `${request.status} / ${request.effectStatus}`),
     sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.approverName),
   ];
-  return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." />;
+  return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." pagination={pagination} />;
 }
 function Mine({ model: m }: { model: MineModel }) {
   const f = m.form;
@@ -187,18 +188,12 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   );
   return (
     <div className="t-request-detail-page">
-      <header className="t-pagehead">
-        <div>
-
-          <h1>신청 상세</h1>
-          <p className="t-muted">신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)</p>
-        </div>
-        <div className="t-request-detail-backlinks">
+      <PageHeader title="신청 상세" help="신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)"
+        actions={<div className="t-request-detail-backlinks">
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
-        </div>
-      </header>
+        </div>} />
       <div className="t-request-detail-document">
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
@@ -353,7 +348,7 @@ function Correction({ model: m }: { model: CorrectionModel }) {
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <header className="t-pagehead"><div><h1>출퇴근·실제 휴게 정정 신청</h1><p className="t-muted">확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다.</p></div></header>
+      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다." />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -521,11 +516,12 @@ function Ledger({ model: m }: { model: LedgerModel }) {
   ];
   return (
     <>
-      <h1>연차 원장</h1>
-      <p><a href={`/admin/leave-balances/buckets/${m.bucketId}/attributions`}>귀속연도 관리</a> · 분류는 원장 금액을 변경하지 않습니다.</p>
-      <section className="panel">
+      <PageHeader title="연차 원장" help={<>
+        <p>분류는 원장 금액을 변경하지 않습니다.</p>
         <p>추가한 이력은 덮어쓰지 않습니다. 사용·복원은 원효력을 참조합니다.</p>
-        <WorklogSheet label="연차 원장" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
+      </>} actions={<a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucketId}/attributions`}>귀속연도 관리</a>} />
+      <section className="wl-section">
+        <WorklogSheet label="연차 원장" title="원장 이력" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
       </section>
       <section className="panel">
         <h2>증감 조정</h2>
@@ -593,15 +589,11 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <h1>일·주·월 근로시간 검토</h1>
-      <p>
-        법정 적합성·급여 확정 자료가 아닌 검토용 결과입니다. 미확정은0시간으로 바꾸지 않으며, 확인된
-        부분합과 구분합니다.
-      </p>
+      <PageHeader title="일·주·월 근로시간 검토" help="법정 적합성·급여 확정 자료가 아닌 검토용 결과입니다. 미확정은0시간으로 바꾸지 않으며, 확인된 부분합과 구분합니다." />
       <Form
         action={m.admin ? '/admin/attendance' : '/me/worktime'}
         method="get"
-        className="admin-form"
+        className="wl-querybar"
       >
         <Field label="기준 월 (서울)" name="month" type="month" value={view.month} required />
         {m.admin && (
@@ -609,7 +601,7 @@ function Month({ model: m }: { model: MonthModel }) {
             <EmployeeOptions employees={m.employees} />
           </SelectField>
         )}
-        <button>조회</button>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
       <section className="panel">
         <h2>월 요약</h2>
@@ -625,9 +617,8 @@ function Month({ model: m }: { model: MonthModel }) {
           자동 확정하지 않습니다.
         </p>
       </section>
-      <section className="panel">
-        <h2>일 결과</h2>
-        <WorklogSheet label="일별 계산 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
+      <section className="wl-section">
+        <WorklogSheet label="일별 계산 결과" title="일 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
       <section className="panel">
         <h2>월 경계를 포함한 주간 참고량</h2>
@@ -1049,35 +1040,25 @@ function Audit({ model: m }: { model: AuditModel }) {
   ];
   return (
     <>
-      <h1>고객사 감사 이력</h1>
-      <p>
-        열람 자체를 감사합니다. 현재 담당자 권한으로 소속 고객사의 감사만 확인합니다. 시각 기준은
-        Asia/Seoul (UTC+09:00)입니다.
-      </p>
-      <p>
-        이전·다음은 조회 시점 원장 기준이며 전체 원장의 고정 스냅샷을 보장하지 않습니다. 동일
-        시각에는 감사 ID로 순서를 구분합니다.
-      </p>
-      <section className="panel">
-        <h2>조회된 기록 {m.audits.length}건 (최대50건)</h2>
-        {m.audits.length === 0 && (
-          <p>이 범위에 감사 기록이 없습니다. 최신 목록에서 다시 확인할 수 있습니다.</p>
-        )}
-        <WorklogSheet label="고객사 감사 목록" rows={m.audits} columns={columns} getRowId={row => row.id} />
-        <nav aria-label="감사 페이지">
-          {m.page.previousCursor && (
-            <a href={`/admin/audit?after=${m.page.previousCursor}`}>이전 페이지 (더 최근)</a>
-          )}{' '}
-          <a href="/admin/audit">최신 목록</a>{' '}
-          {m.page.nextCursor && (
-            <a href={`/admin/audit?before=${m.page.nextCursor}`}>다음 페이지 (더 과거)</a>
-          )}
-        </nav>
+      <PageHeader title="고객사 감사 이력" help={<>
+        <p>열람 자체를 감사합니다. 현재 담당자 권한으로 소속 고객사의 감사만 확인합니다. 시각 기준은 Asia/Seoul (UTC+09:00)입니다.</p>
+        <p>이전·다음은 조회 시점 원장 기준이며 전체 원장의 고정 스냅샷을 보장하지 않습니다. 동일 시각에는 감사 ID로 순서를 구분합니다.</p>
+        <p>한 번에 최대 50건을 표시합니다.</p>
+        <p>비밀번호·토큰·이메일·IP와 저장 JSON 원문은 제공하지 않습니다. 상세에서는 제한된 전후 업무 요약을 확인할 수 있습니다.</p>
+      </>} />
+      <section className="wl-section">
+        <WorklogSheet label="고객사 감사 목록" title="조회된 기록" rows={m.audits} columns={columns} getRowId={row => row.id}
+          emptyMessage="이 범위에 감사 기록이 없습니다. 최신 목록에서 다시 확인할 수 있습니다."
+          pagination={<nav aria-label="감사 페이지">
+            {m.page.previousCursor && (
+              <a href={`/admin/audit?after=${m.page.previousCursor}`}>이전 페이지 (더 최근)</a>
+            )}{' '}
+            <a href="/admin/audit">최신 목록</a>{' '}
+            {m.page.nextCursor && (
+              <a href={`/admin/audit?before=${m.page.nextCursor}`}>다음 페이지 (더 과거)</a>
+            )}
+          </nav>} />
       </section>
-      <p>
-        비밀번호·토큰·이메일·IP와 저장 JSON 원문은 제공하지 않습니다. 상세에서는 제한된 전후 업무
-        요약을 확인할 수 있습니다.
-      </p>
     </>
   );
 }
@@ -1246,11 +1227,10 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       const m = data as unknown as ListModel;
       content = m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
         <>
-          <h1>{m.title}</h1>
-          <section className="panel">
-            <RequestRows requests={m.requests} />
+          <PageHeader title={m.title} />
+          <section className="wl-section">
+            <RequestRows requests={m.requests} pagination={m.page !== undefined && <nav className="actions pagination" aria-label="결재 페이지"><span>{m.page + 1}페이지</span>{m.page > 0 && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page - 1}`}>이전</a>}{m.hasNext && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page + 1}`}>다음</a>}</nav>} />
           </section>
-          {m.page !== undefined && <nav className="actions pagination" aria-label="결재 페이지"><span>{m.page + 1}페이지</span>{m.page > 0 && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page - 1}`}>이전</a>}{m.hasNext && <a href={`${m.completed ? '/approvals/completed' : '/approvals'}?page=${m.page + 1}`}>다음</a>}</nav>}
         </>
       );
       break;
@@ -1291,7 +1271,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/history':
       content = (
         <>
-          <header className="t-pagehead"><div><h1>출퇴근 기록</h1><p className="t-muted">출퇴근 시각과 실제 근로를 확인하세요.</p></div></header>
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각과 실제 근로를 확인하세요." />
           {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
@@ -1299,7 +1279,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
               <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
             </Form>)}</div>
           </section>}
-          <Form action="/me/attendance" method="get" className="t-attendance-filter search-form">
+          <Form action="/me/attendance" method="get" className="wl-querybar">
             <Field
               label="기준일"
               name="date"
@@ -1307,8 +1287,10 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
               value={(data as unknown as ClockModel).day.workDate}
               required
             />
-            <button className="t-btn">조회</button>
-            <a className="t-btn" href="/me/attendance">오늘</a>
+            <div className="wl-querybar-actions">
+              <a className="t-btn wl-query-reset" href="/me/attendance">오늘</a>
+              <button className="t-btn wl-query-submit" type="submit">조회</button>
+            </div>
           </Form>
           <AttendanceRecord data={data} />
         </>

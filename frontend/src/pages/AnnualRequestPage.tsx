@@ -6,6 +6,7 @@ import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
+import { PageHeader } from '../components/PageHeader';
 import { RequestPeriodSheet, requestPeriodIssue } from '../components/RequestPeriodSheet';
 import './RequestWorkspace.css';
 
@@ -324,7 +325,7 @@ function Annual({ model: m, submitting }: { model: AnnualModel; submitting: bool
     ['확인된 등록 기초·조정',a.registeredDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.registeredDays} DAY`,a.attributionPartial?'귀속 확인 자료의 부분합':'자동 발생량·연초 잔여가 아님'],
     ['귀속연도 원장 잔액',a.attributedBalanceDays==null?(a.unknownBucketCount?'귀속 미확인':'등록 자료 없음'):`${a.attributedBalanceDays} DAY`,'확인 묶음의 현재 잔액 · 연말 잔여 아님'],
   ];
-  return <section className="t-annual-page"><header className="t-pagehead"><div><h1>내 근태현황·신청</h1><p className="t-muted">대상 휴가일·근무일 기준 {a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.</p></div><a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a></header>
+  return <section className="t-annual-page"><PageHeader title="내 근태현황·신청" help={`대상 휴가일·근무일 기준 ${a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.`} actions={<a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a>} />
     <p className="t-muted">기준 시각 {fmtDateTime(a.asOf)} (서울) · 목록 필터와 무관한 연도 전체 등록 자료 기준입니다.</p>
     {missing&&<p className="notice">선택 연도의 등록 자료가 없습니다. 연간 전체 사용량이나 자동 발생량이 0이라고 확정할 수 없습니다.</p>}
     {a.createdId&&<section className="t-request-success" role="status" aria-label="신청 접수 결과"><span className="t-request-success-icon" aria-hidden="true">✓</span><div><h2>신청을 접수했습니다.</h2><p>승인 결과는 신청 상세에서 확인할 수 있어요.</p>{a.outsideYear&&<p>신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></p>}</div><a className="t-btn" href={`/requests/${a.createdId}`}>생성한 신청 상세 </a></section>}
@@ -379,7 +380,8 @@ function AttributionManagement({model:m,error}:{model:AttributionView;error?:str
   useUnload(dirty);
   const change=()=>{setDirty(true);setCommand(crypto.randomUUID());};
   return <section className="t-annual-page">
-    <header className="t-pagehead"><div><h1>기초 묶음 귀속연도</h1><p>{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p></div><a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a></header>
+    <PageHeader title="기초 묶음 귀속연도" actions={<a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a>} />
+    <p className="t-muted">{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p>
     <p className="notice">묶음 전체가 단일 귀속연도라는 근거가 있을 때만 확정하세요. 혼합된 묶음은 미분류로 유지합니다. 분류는 기초·사용·복원 원장을 바꾸지 않습니다.</p>
     <section className="t-card"><h2>귀속 분류 등록</h2>
       {error&&<p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}

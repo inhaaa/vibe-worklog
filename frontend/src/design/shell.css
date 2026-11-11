@@ -1,0 +1,107 @@
+/* WorkLog workspace shell: light sidebar, 56px top bar, centred main area. Markup lives in App.tsx and WorkspaceNavigation.tsx. */
+.t-app-shell {
+  display: grid; grid-template-columns: 232px minmax(0, 1fr); grid-template-rows: 56px 1fr;
+  grid-template-areas: "side top" "side main"; min-height: 100vh;
+  background: var(--g0); color: var(--g900); font-size: 14px;
+}
+.t-sidebar {
+  grid-area: side; position: sticky; top: 0; display: flex; flex-direction: column; height: 100vh; overflow-y: auto;
+  padding: 0 0 14px; border-right: 1px solid var(--g200); background: var(--g0); color: var(--g800);
+  scrollbar-color: var(--g300) var(--g0);
+}
+.t-sidebar .t-brand-button {
+  display: flex; align-items: center; gap: 10px; flex: none; height: 56px; margin: 0; padding: 0 18px;
+  border-bottom: 1px solid var(--g150); color: var(--g900); text-decoration: none;
+}
+.t-logo {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-pop);
+  background: var(--brand); color: var(--g0); font: 800 14px/1 var(--font-ui); letter-spacing: -.04em;
+}
+.t-brand-button > span:last-child { display: flex; flex-direction: column; font: 800 16px/1.15 var(--font-ui); letter-spacing: -.03em; }
+.t-brand-sub { color: var(--g600); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.t-workspace-name {
+  display: flex; align-items: center; gap: 10px; margin: 12px 12px 6px; padding: 8px 10px;
+  border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0);
+  color: var(--g900); font-size: 13px; font-weight: 600; overflow-wrap: anywhere;
+}
+.t-workspace-icon {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: var(--r-ctl);
+  background: var(--g100); color: var(--g700); font-size: 12px; font-weight: 700;
+}
+.t-workspace-name small { display: block; margin-top: 2px; color: var(--g600); font-size: 12px; font-weight: 500; }
+
+.t-workspace-navigation { display: block; padding: 4px 10px; }
+.t-navigation-group { padding: 2px 0; }
+.t-workspace-navigation .t-nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; margin: 1px 0; padding: 0 10px;
+  border: 0; border-radius: 5px; background: transparent; color: var(--g700);
+  font: 500 14px/1.3 var(--font-ui); text-align: left; text-decoration: none; cursor: pointer;
+}
+.t-workspace-navigation .t-nav-item:hover:not([aria-current="page"]) { background: var(--g100); }
+.t-navigation-icon { display: grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 0; background: none; color: var(--g600); }
+.t-navigation-group-icon { width: 16px; height: 16px; }
+.t-workspace-navigation .t-navigation-major[data-active="true"] { background: transparent; color: var(--g900); font-weight: 700; }
+.t-navigation-chevron { flex: none; width: 14px; height: 14px; margin-left: auto; color: var(--g500); transition: transform 120ms; }
+.t-navigation-toggle[aria-expanded="true"] .t-navigation-chevron { transform: rotate(90deg); }
+.t-navigation-sections { margin: 0 0 4px 19px; padding-left: 6px; border-left: 1px solid var(--g200); }
+.t-workspace-navigation .t-navigation-section { min-height: 32px; color: var(--g600); font-size: 13px; font-weight: 600; }
+.t-workspace-navigation .t-navigation-section[data-active="true"] { color: var(--g900); }
+.t-navigation-links { margin: 0 0 4px; padding: 0; list-style: none; }
+.t-workspace-navigation .t-navigation-link { min-height: 32px; padding-left: 12px; color: var(--g700); font-size: 13.5px; }
+.t-workspace-navigation .t-navigation-link[aria-current="page"] { background: var(--brand-tint); color: var(--brand-ink); font-weight: 700; }
+
+.t-sidebar-bottom { margin-top: auto; padding: 12px 20px 0; border-top: 1px solid var(--g150); color: var(--g600); font-size: 12px; line-height: 1.6; }
+.t-sidebar-bottom p { margin: 2px 0 0; font-size: 12px; }
+.t-sidebar-bottom .t-demo-label { color: var(--g800); font-weight: 700; }
+.t-sidebar-bottom a { color: var(--link); }
+
+.t-topbar {
+  grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; padding: 0 var(--page-pad); border-bottom: 1px solid var(--g150); background: var(--g0);
+}
+.t-breadcrumb { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--g600); font-size: 13px; }
+.t-topbar .t-brand-button { display: none; }
+.t-location-breadcrumbs ol { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0; padding: 0; list-style: none; }
+.t-location-breadcrumbs li { display: flex; align-items: center; gap: 6px; }
+.t-location-breadcrumbs li + li::before { content: "›"; color: var(--g500); }
+.t-location-breadcrumbs a { color: var(--g600); text-decoration: none; }
+.t-location-breadcrumbs a:hover { color: var(--g900); text-decoration: underline; }
+.t-location-breadcrumbs [aria-current="page"] { color: var(--g900); font-weight: 600; }
+.t-profile { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; font-size: 12.5px; }
+.t-theme-picker, .t-role-picker { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--g600); font-size: 12px; white-space: nowrap; }
+.t-theme-picker select, .t-role-picker select {
+  min-height: 30px; padding: 0 26px 0 8px; border: 1px solid var(--field-line); border-radius: var(--r-ctl);
+  background-color: var(--g0); color: var(--g800); font: 500 12.5px var(--font-ui);
+}
+.t-profile-copy { max-width: 180px; color: var(--g900); font-size: 13px; font-weight: 600; line-height: 1.3; text-align: right; text-decoration: none; overflow-wrap: anywhere; }
+.t-profile-copy small { display: block; color: var(--g600); font-size: 12px; font-weight: 500; }
+.t-topbar .t-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 30px; height: auto; padding: 0 10px;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800);
+  box-shadow: none; font: 600 12.5px/1.2 var(--font-ui); white-space: nowrap;
+}
+.t-topbar .t-btn:hover:not(:disabled) { background: var(--g50); border-color: var(--g400); }
+.t-main { grid-area: main; width: 100%; max-width: var(--container, 1440px); min-width: 0; margin: 0 auto; padding: 22px var(--page-pad) 40px; }
+.t-mobile-menu { display: none; }
+
+@media (max-width: 960px) {
+  .t-app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "top" "main"; }
+  .t-app-shell[data-menu-open="true"] { grid-template-areas: "top" "side" "main"; }
+  .t-sidebar { display: none; position: static; height: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--g200); }
+  .t-app-shell[data-menu-open="true"] .t-sidebar { display: flex; }
+  .t-sidebar .t-brand-button { display: none; }
+  .t-topbar { flex-wrap: wrap; padding-block: 6px; }
+  .t-topbar .t-brand-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--g900); font-weight: 800; text-decoration: none; }
+  .t-topbar .t-brand-sub { display: none; }
+  .t-mobile-menu {
+    display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0;
+    border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--g800);
+  }
+}
+@media (max-width: 600px), (pointer: coarse) {
+  .t-topbar .t-btn, .t-theme-picker select, .t-role-picker select { min-height: 44px; }
+}
+@media (max-width: 680px) {
+  .t-theme-picker > span, .t-role-picker > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .t-profile-copy small { display: none; }
+}

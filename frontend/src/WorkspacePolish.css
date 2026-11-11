@@ -2,8 +2,10 @@
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · weakest: V, let aligned records and fine rules replace coloured boxes */
 /* Hallmark · answered F7 · WorkLog form, filter and toolbar controls deliberately share dimensions for predictable data entry; records use borderless rows. */
 /* Hallmark · finish-review: subagent · ship · 1 finding · 1 resolved · mobile step labels wrap at word boundaries · gap: none */
-@import url('./tokens.css');
-@import url('./base.css');
+@layer vendor, legacy;
+@import url('./tokens.css') layer(legacy);
+@import url('./base.css') layer(legacy);
+@layer legacy {
 #tna-app { color: var(--t-ink); background: var(--t-paper); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
 #tna-app .t-app-shell { grid-template-columns: 232px minmax(0, 1fr); background: var(--t-paper); }
 #tna-app .t-sidebar {
@@ -192,4 +194,6 @@
   #tna-app .t-record-table td { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 var(--space-xs); padding: var(--space-sm); border: 0; white-space: normal; overflow-wrap: anywhere; }
   #tna-app .t-record-table td::before { content: attr(data-label); grid-column: 1; grid-row: 1; color: var(--t-accent-ink); font-weight: 500; word-break: keep-all; }
   #tna-app .t-record-table td > * { grid-column: 2; min-width: 0; }
+}
+
 }

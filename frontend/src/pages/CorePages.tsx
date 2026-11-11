@@ -4,6 +4,7 @@ import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
 import './ScheduleCalendar.css';
 
 interface RequestItem {
@@ -378,12 +379,7 @@ function Schedule({ data }: PageProps) {
 
   return (
     <>
-      <header className="t-pagehead">
-        <div>
-          <h1>근태 캘린더</h1>
-          <p className="t-muted">배정된 근무와 신청 상태를 확인하고 날짜에서 바로 신청하세요.</p>
-        </div>
-      </header>
+      <PageHeader title="근태 캘린더" help="배정된 근무와 신청 상태를 확인하고 날짜에서 바로 신청하세요." />
       <div className="t-attendance-calendar">
         <section className="t-card t-calendar-card t-attendance-board" aria-label="월별 근무 일정">
           <div className="t-calendar-toolbar">

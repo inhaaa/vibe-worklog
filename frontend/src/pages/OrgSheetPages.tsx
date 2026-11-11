@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
+import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
+import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
 
 type Operation = 'CREATE' | 'UPDATE' | 'DEACTIVATE';
@@ -46,18 +49,21 @@ function queryHref(path: string, values: Record<string, string | number | null |
   for (const [key, value] of Object.entries(values)) if (value != null) params.set(key, String(value));
   return `${path}?${params}`;
 }
-function SheetPage({ model: m, organization }: { model: SheetPageModel; organization: boolean }) {
+function SheetPage({ model: m, organization, busy = false }: { model: SheetPageModel; organization: boolean; busy?: boolean }) {
   const model = (organization ? m.organizationSheet : m.employeeSheet)!;
   const [rows, setRows] = useState(model.rows);
   const [reason, setReason] = useState(model.reason);
   const [commandId, setCommandId] = useState(model.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
+  const [confirming, setConfirming] = useState(() => (model.errors ?? []).some(error => error.field === 'reason'));
+  const formId = useId();
   const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(row => [row.id, row])), [model.latestRows]);
   const dirty = rows.filter(row => changed(row, row.id ? latest.get(row.id) : undefined, organization));
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
   const unsaved = dirty.length > 0 || reason.length > 0;
+  const reasonError = errors.find(error => error.field === 'reason')?.message;
   const path = organization ? '/admin/organizations' : '/admin/employees';
   const title = organization ? '조직 관리' : '사원 관리';
   const label = organization ? '조직' : '사원';
@@ -111,13 +117,19 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
     };
   }
   function submit(event: FormEvent) {
-    if (!sheet.current?.validate()) { event.preventDefault(); return; }
-    if (dirty.length < 1 || dirty.length > 50 || conflicts.length) event.preventDefault();
+    if (!sheet.current?.validate() || dirty.length < 1 || dirty.length > 50 || conflicts.length) { event.preventDefault(); return; }
+    // 확인 창 밖에서 들어온 제출(저장 버튼·Enter)은 보내지 않고 확인 창을 연다. 창의 저장 버튼이 form 속성으로 이 폼을 다시 제출한다.
+    if (!confirming) { event.preventDefault(); setConfirming(true); }
+  }
+  function changeReason(value: string) {
+    setReason(value);
+    setErrors(current => current.filter(error => error.field !== 'reason'));
+    renew();
   }
   function headCell(row: Row) {
     if (!row.id) return '저장 후 배정';
     const head = m.organizationHeadsById?.[row.id];
-    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} /><a href={queryHref('/admin/organization-heads', { organizationId: row.id })}>조직장 배정</a></>;
+    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} />{' '}<a href={queryHref('/admin/organization-heads', { organizationId: row.id })}>조직장 배정</a></>;
   }
   function employeeCell(row: Row, previous: Employee | Organization | undefined) {
     if (!row.id) return '저장 후 배정';
@@ -135,6 +147,7 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
   const columns = [
+    sheetStateColumn<Row>(row => sheetStateOf(row, changed(row, row.id ? latest.get(row.id) : undefined, organization))),
     sheetEditorColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left' },
       (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: organization })),
     sheetEditorColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180 },
@@ -152,42 +165,41 @@ function SheetPage({ model: m, organization }: { model: SheetPageModel; organiza
       sheetColumn<Row>({ colId: 'assignments', headerName: '현재 소속·배정', minWidth: 270, flex: 1, valueGetter: ({ data }) => data?.id ? m.employeeContext?.[data.id]?.organizationName ?? m.employeeOrganizations?.[data.id] ?? '' : '' }, row => employeeCell(row, row.id ? latest.get(row.id) : undefined)),
     ]),
     sheetColumn<Row>({ colId: 'active', field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
-    sheetColumn<Row>({ colId: 'state', headerName: '변경 상태', minWidth: 120, valueGetter: ({ data }) => data ? data.operation === 'DEACTIVATE' ? '비활성 예정' : data.operation === 'CREATE' ? '신규' : changed(data, data.id ? latest.get(data.id) : undefined, organization) ? '수정' : '저장됨' : '' }, row => {
-      const modified = changed(row, row.id ? latest.get(row.id) : undefined, organization);
-      return <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : modified ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : row.operation === 'CREATE' ? '신규' : modified ? '수정' : '저장됨'}</span>;
-    }),
   ];
   return <section className="t-org-sheet" data-unsaved-changes={String(unsaved)}>
-    <header className="t-pagehead"><div><h1>{title}</h1><p className="t-muted">여러 행을 편집하고 한 번에 저장하세요.</p></div><a className="t-btn" href="/company/organizations">조직도</a></header>
-    <section className="t-card">
-      <form action={path} method="get" className="t-toolbar" role="search" aria-label={`${label} 검색`}>
+    <PageHeader title={title} help={<>
+      <p>여러 행을 편집하고 한 번에 저장하세요.</p>
+      <p id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
+      {!organization && <p>신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
+    </>} actions={<a className="t-btn" href="/company/organizations">조직도</a>} />
+    <section className="wl-section">
+      <form action={path} method="get" className="wl-querybar" role="search" aria-label={`${label} 검색`}>
         <label htmlFor="sheet-q">{label} 검색</label><input id="sheet-q" className="t-input" name="q" type="search" defaultValue={m.q} maxLength={120} placeholder={organization ? '코드 또는 이름' : '사번 또는 이름'} />
         {!organization && <><label className="t-sr-only" htmlFor="sheet-org">현재 소속</label><select id="sheet-org" className="t-select" name="organizationId" defaultValue={m.organizationId ?? ''}><option value="">전체 소속</option>{m.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><label className="t-sr-only" htmlFor="sheet-status">활성 상태</label><select id="sheet-status" className="t-select" name="status" defaultValue={m.status ?? 'all'}><option value="all">전체 상태</option><option value="active">활성</option><option value="inactive">비활성</option></select></>}
-        <button className="t-btn primary" type="submit">조회</button><a className="t-btn" href={path}>전체 보기</a>
+        <div className="wl-querybar-actions"><a className="t-btn wl-query-reset" href={path}>초기화</a><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </form>
-      <Form action={`${path}/bulk`} onSubmit={submit} className="t-sheet-form">
+      <Form id={formId} action={`${path}/bulk`} onSubmit={submit} className="t-sheet-form">
         <input type="hidden" name="commandId" value={commandId} /><input type="hidden" name="rows" value={JSON.stringify(dirty.map(row => serialize(row, organization)))} />
         <input type="hidden" name="q" value={m.q} /><input type="hidden" name="page" value={m.page} />
         {!organization && <><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><input type="hidden" name="status" value={m.status ?? 'all'} /></>}
-        <div className="t-sheet-toolbar" role="group" aria-label={`${label} 시트 편집`}>
-          <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">입력</button>
-          <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
-          <button className="t-btn primary" type="submit" disabled={dirty.length < 1 || dirty.length > 50 || conflicts.length > 0} title={conflicts.length ? '최신값을 비교하고 확인하세요.' : dirty.length ? '변경 행을 함께 저장합니다.' : '변경한 행이 없습니다.'}>저장</button>
-          <button className="t-btn" type="button" onClick={cancel} disabled={!unsaved}>취소</button>
-          <span className="t-tag blue" role="status">변경 {dirty.length}행</span>
-        </div>
-        <p className="t-subtle" id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
-        {!organization && <p className="t-subtle">신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
-        {(m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
-        <WorklogSheet ref={sheet} label={`${label} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
+        {!reasonError && (m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
+        <WorklogSheet ref={sheet} label={`${label} 편집 시트`} title={`${label} 목록`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected}
-          selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} />
-        {rows.length === 0 && <p className="t-muted">조회된 {label}이 없습니다. 입력 버튼으로 새 행을 추가하세요.</p>}
+          selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
+          emptyMessage={`조회된 ${label}이 없습니다. 행 추가 버튼으로 새 행을 추가하세요.`}
+          actions={<div className="w-sheet-tools" role="group" aria-label={`${label} 시트 편집`}>
+            <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">행 추가</button>
+            <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
+            <span className="w-sheet-divider" aria-hidden="true" />
+            <button className="t-btn" type="button" onClick={cancel} disabled={!unsaved}>변경 취소</button>
+            <button className="t-btn primary" type="submit" disabled={dirty.length < 1 || dirty.length > 50 || conflicts.length > 0} title={conflicts.length ? '최신값을 비교하고 확인하세요.' : dirty.length ? '변경 행을 함께 저장합니다.' : '변경한 행이 없습니다.'}>저장</button>
+          </div>}
+          pagination={<nav className="actions pagination" aria-label={`${label} 페이지`}><span>{m.page + 1}페이지 · 조회 {model.latestRows.length}행</span>{m.page > 0 && <a href={queryHref(path, { ...values, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref(path, { ...values, page: m.page + 1 })}>다음</a>}</nav>} />
         {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
-        <div className="t-sheet-reason"><label htmlFor="sheet-reason">일괄 변경 사유</label><textarea id="sheet-reason" name="reason" value={reason} maxLength={500} rows={2} required onChange={event => { setReason(event.target.value); renew(); }} /><p className="t-subtle">변경한 모든 행에 적용됩니다. 500자 이내로 입력하고 불필요한 개인정보는 적지 마세요.</p></div>
       </Form>
-      <nav className="actions pagination" aria-label={`${label} 페이지`}><span>{m.page + 1}페이지 · 조회 {model.latestRows.length}행</span>{m.page > 0 && <a href={queryHref(path, { ...values, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref(path, { ...values, page: m.page + 1 })}>다음</a>}</nav>
     </section>
+    {confirming && <SheetSaveDialog formId={formId} label="일괄 변경 사유" reason={reason} error={reasonError} counts={sheetChangeCounts(dirty)}
+      busy={busy} onReasonChange={changeReason} onClose={() => setConfirming(false)} />}
   </section>;
 }
 
@@ -225,7 +237,7 @@ function OrganizationHeadsPage({ model: m, error }: { model: OrganizationHeads; 
     sheetColumn<Head>({ field: 'reason', headerName: '사유', minWidth: 220, flex: 1 }, head => head.reason),
   ];
   return <div className="t-organization-heads">
-    <header className="t-pagehead"><div><h1>조직장 배정</h1><p className="t-muted">조직별 한 명을 지정하고 적용일별 이력을 보존합니다.</p></div><a className="t-btn" href="/company/organizations">조직도</a></header>
+    <PageHeader title="조직장 배정" help="조직별 한 명을 지정하고 적용일별 이력을 보존합니다." actions={<a className="t-btn" href="/company/organizations">조직도</a>} />
     <section className="t-card"><form action="/admin/organization-heads" method="get" className="t-toolbar"><div><SelectField label="배정할 조직" name="organizationId" value={m.organizationId}><option value="">조직을 선택하세요</option>{m.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.code} · {organization.name}{organization.active ? '' : ' (비활성)'}</option>)}</SelectField></div><button className="t-btn primary" type="submit">조회</button></form><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p></section>
     <ErrorNotice message={error} />
     {selected ? <>
@@ -251,13 +263,33 @@ function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations })
     const summary = <><a href={queryHref('/company/organizations', { organizationId: organization.id, q: m.q, page: 0 })} aria-current={organization.id === m.organizationId ? 'true' : undefined}>{organization.code} · {organization.name}</a>{!organization.active && <span className="t-tag gray">비활성</span>}<HeadStatus name={organization.headEmployeeName} eligible={organization.headEligible} approverEligible={organization.headApproverEligible} /></>;
     return <li key={organization.id}>{nested.length ? <details open><summary>{summary}</summary><ul>{nested.map(node)}</ul></details> : <div className="t-org-leaf">{summary}</div>}</li>;
   }
-  return <div className="t-company-organizations"><header className="t-pagehead"><div><h1>조직도</h1><p className="t-muted">현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요.</p></div></header><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p><div className="t-org-layout"><section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section><section className="t-card"><h2>{m.selectedOrganization ? `${m.selectedOrganization.name} 직원` : '조직별 직원'}</h2>{m.selectedOrganization ? <><div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div><p className="t-subtle">선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p><form action="/company/organizations" method="get" className="t-toolbar"><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><div><Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} /></div><button className="t-btn primary">조회</button></form>{m.employees.length ? <WorklogSheet label="선택 조직 직원" rows={m.employees} columns={columns} getRowId={employee => employee.id} /> : <p className="notice">조회된 직원이 없습니다.</p>}<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav></> : <p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p>}</section></div></div>;
+  return <div className="t-company-organizations">
+    <PageHeader title="조직도" help={<>
+      <p>현재 조직과 조직장을 확인하고 조직별 직원을 조회하세요.</p>
+      <p>선택 조직의 오늘 유효 소속 · 검색 결과의 현재 페이지 최대 50명입니다. 하위 조직은 포함하지 않습니다.</p>
+    </>} />
+    <p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)} · 유효 소속일 {fmtDate(m.today)}</p>
+    <div className="t-org-layout">
+      <section className="t-card"><h2>조직 계층</h2><p className="t-subtle">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section>
+      <section className="wl-section">{m.selectedOrganization ? <>
+        <div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div>
+        <form action="/company/organizations" method="get" className="wl-querybar">
+          <input type="hidden" name="organizationId" value={m.organizationId ?? ''} />
+          <Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} />
+          <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
+        </form>
+        <WorklogSheet label="선택 조직 직원" title={`${m.selectedOrganization.name} 직원`} rows={m.employees} columns={columns} getRowId={employee => employee.id}
+          emptyMessage="조회된 직원이 없습니다."
+          pagination={<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav>} />
+      </> : <><h2>조직별 직원</h2><p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p></>}</section>
+    </div>
+  </div>;
 }
 
-export function OrgSheetPages({ page, data }: PageProps): ReactNode {
+export function OrgSheetPages({ page, data, busy }: PageProps): ReactNode {
   const m = data as unknown as SheetPageModel;
-  if (page === 'org/organizations' && m.organizationSheet) return <SheetPage model={m} organization />;
-  if (page === 'org/employees' && m.employeeSheet) return <SheetPage model={m} organization={false} />;
+  if (page === 'org/organizations' && m.organizationSheet) return <SheetPage model={m} organization busy={busy} />;
+  if (page === 'org/employees' && m.employeeSheet) return <SheetPage model={m} organization={false} busy={busy} />;
   if (page === 'org/organization-heads') return <OrganizationHeadsPage model={data.organizationHeads as OrganizationHeads} error={data.error as string | null | undefined} />;
   if (page === 'company/organizations') return <CompanyOrganizationsPage model={data.companyOrganizations as CompanyOrganizations} />;
   return null;

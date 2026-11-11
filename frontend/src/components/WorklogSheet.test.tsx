@@ -16,34 +16,39 @@ function resizeViewport(width: number) {
 afterEach(() => { cleanup(); resizeViewport(initialViewportWidth); });
 
 describe('WorklogSheet 공통 업무 그리드', () => {
-  it('숫자·숫자 편집값은 우측, 짧은 식별값은 중앙, 네 어절·문장·표시 라벨은 좌측 정렬한다', async () => {
-    const data = [{ id: 'a', count: 0, code: '001', short: '인사 운영 팀', long: '연차 신청 담당자 검토', sentence: '확인이 필요합니다.', state: 'PENDING' }];
+  it('글자는 왼쪽, 숫자는 오른쪽, 날짜·시각·체크는 가운데로 두고 머리도 같은 정렬을 쓴다', async () => {
+    const data = [{ id: 'a', count: 0, code: '001', name: '인사 운영 팀', note: '확인이 필요합니다.', date: '2026-10-01', time: '09:00', period: '2026-11-01 ~ 2026-11-03', active: true }];
     const view = render(<WorklogSheet label="정렬 기준" rows={data} getRowId={row => row.id} columns={[
       { field: 'count', headerName: '수량' },
       { field: 'code', headerName: '식별 코드' },
-      { field: 'short', headerName: '짧은 값' },
-      { field: 'long', headerName: '긴 값' },
-      { field: 'sentence', headerName: '문장' },
-      { field: 'state', headerName: '상태', valueFormatter: () => '연차 신청 담당자 검토' },
+      { field: 'name', headerName: '이름' },
+      { field: 'note', headerName: '메모' },
+      { field: 'date', headerName: '날짜' },
+      { field: 'time', headerName: '시각' },
+      { field: 'period', headerName: '기간' },
+      { field: 'active', headerName: '활성', cellClass: 'w-sheet-center' },
       sheetEditorColumn<typeof data[number]>({ colId: 'quantity', headerName: '입력 수량' }, () => ({ label: '수량 입력', value: '12.5', type: 'number', onChange: () => {} })),
+      sheetEditorColumn<typeof data[number]>({ colId: 'joined', headerName: '입사일' }, () => ({ label: '입사일 입력', value: '', type: 'date', onChange: () => {} })),
     ]} />);
     await view.findByRole('grid', { name: '정렬 기준' });
+    const expected = { 'w-sheet-number': ['count', 'quantity'], 'w-sheet-center': ['date', 'time', 'period', 'active', 'joined'], 'w-sheet-left': ['code', 'name', 'note'] };
     await waitFor(() => {
-      for (const id of ['count', 'quantity']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-number`)).toBeTruthy();
-      for (const id of ['code', 'short']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-center`)).toBeTruthy();
-      for (const id of ['long', 'sentence', 'state']) expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"].w-sheet-left`)).toBeTruthy();
+      for (const [alignment, ids] of Object.entries(expected)) for (const id of ids) {
+        expect(view.container.querySelector(`[row-id="a"] [col-id="${id}"]`)?.classList.contains(alignment)).toBe(true);
+        expect(view.container.querySelector(`.ag-header-cell[col-id="${id}"]`)?.classList.contains(alignment)).toBe(true);
+      }
     });
   });
 
-  it('값이 바뀌면 이전 정렬을 제거하고 새 표시값으로 다시 정렬한다', async () => {
+  it('값이 바뀌면 이전 정렬을 지우고 새 값으로 다시 정렬한다', async () => {
     const props = { label: '정렬 갱신', getRowId: (row: Row) => row.id, columns: [{ field: 'name' as const, headerName: '이름' }] };
-    const view = render(<WorklogSheet {...props} rows={[{ id: 'a', name: '연차 신청 담당자 검토' }]} />);
+    const view = render(<WorklogSheet {...props} rows={[{ id: 'a', name: '09:00' }]} />);
     const cell = () => view.container.querySelector('[row-id="a"] [col-id="name"]');
-    await waitFor(() => expect(cell()?.classList.contains('w-sheet-left')).toBe(true));
+    await waitFor(() => expect(cell()?.classList.contains('w-sheet-center')).toBe(true));
     view.rerender(<WorklogSheet {...props} rows={[{ id: 'a', name: '완료' }]} />);
     await waitFor(() => {
-      expect(cell()?.classList.contains('w-sheet-center')).toBe(true);
-      expect(cell()?.classList.contains('w-sheet-left')).toBe(false);
+      expect(cell()?.classList.contains('w-sheet-left')).toBe(true);
+      expect(cell()?.classList.contains('w-sheet-center')).toBe(false);
     });
   });
 
@@ -53,9 +58,8 @@ describe('WorklogSheet 공통 업무 그리드', () => {
     ]} />);
     const link = (await view.findAllByRole('link', { name: '상세 보기' }))[0];
     expect(link.getAttribute('href')).toBe('/requests/fixture');
-    const content = link.closest('.w-sheet-content');
-    expect(content?.classList.contains('w-sheet-left')).toBe(true);
-    expect(content?.getAttribute('title')).toBe('휴가 일정 변경 사유 상세 보기');
+    expect(link.closest('.w-sheet-content')?.getAttribute('title')).toBe('휴가 일정 변경 사유 상세 보기');
+    expect(link.closest('.ag-cell')?.classList.contains('w-sheet-left')).toBe(true);
   });
 
   it('호출부의 줄바꿈·자동 높이 요청보다 공통 한 줄 표시를 우선하고 원문은 보존한다', async () => {
@@ -66,7 +70,7 @@ describe('WorklogSheet 공통 업무 그리드', () => {
     const cell = view.container.querySelector('[row-id="a"] [col-id="name"]');
     expect(cell?.classList.contains('ag-cell-wrap-text')).toBe(false);
     expect(cell?.textContent).toBe(note);
-    expect((cell?.closest('.ag-row') as HTMLElement).style.height).toBe('40px');
+    expect((cell?.closest('.ag-row') as HTMLElement).style.height).toBe('38px');
   });
 
   it('별도 컴포넌트가 출력한 경고 문구도 정렬과 전체 내용 확인에 포함한다', async () => {
@@ -75,8 +79,8 @@ describe('WorklogSheet 공통 업무 그리드', () => {
       sheetColumn<Row>({ colId: 'warning', headerName: '주의', valueGetter: () => '대기' }, () => <><Warning reason="후속 승인 담당자 지정 필요" /><a href="/requests/fixture">상세</a></>),
     ]} />);
     const content = (await view.findAllByRole('link', { name: '상세' }))[0].closest('.w-sheet-content');
-    expect(content?.classList.contains('w-sheet-left')).toBe(true);
     expect(content?.getAttribute('title')).toBe('후속 승인 담당자 지정 필요 상세');
+    expect(content?.closest('.ag-cell')?.classList.contains('w-sheet-left')).toBe(true);
   });
 
   it('작은 화면은 선택 열만 고정하고 데스크톱으로 돌아오면 식별 열 고정을 복원한다', async () => {
@@ -260,5 +264,82 @@ describe('WorklogSheet 공통 업무 그리드', () => {
         }
       }
     }
+  });
+
+  it('제목·총 건수·찾기·편집 동작을 머리에, 페이지 이동을 하단에 둔다', async () => {
+    const view = render(<WorklogSheet label="사원 목록" title="사원" rows={rows} columns={columns} getRowId={row => row.id}
+      actions={<button type="button">행 추가</button>} pagination={<nav aria-label="사원 페이지"><a href="?page=1">다음</a></nav>} />);
+    await view.findByRole('grid', { name: '사원 목록' });
+    const region = view.getByRole('region', { name: '사원 목록' });
+    const head = region.querySelector<HTMLElement>('.wl-section-head')!;
+    expect(within(head).getByRole('heading', { level: 2, name: '사원' })).toBeTruthy();
+    expect(head.textContent).toContain('총 2건');
+    expect(within(head).getByLabelText('사원 목록 현재 페이지 필터')).toBeTruthy();
+    expect(within(head).getByRole('button', { name: '행 추가' })).toBeTruthy();
+    const footer = region.querySelector<HTMLElement>('.w-sheet-footer')!;
+    expect(within(footer).getByRole('link', { name: '다음' })).toBeTruthy();
+    expect(head.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('제목이 없으면 바깥 제목과 겹치지 않게 건수만 표시한다', async () => {
+    const view = render(<WorklogSheet label="소속 이력" rows={rows} columns={columns} getRowId={row => row.id} count={7} />);
+    await view.findByRole('grid', { name: '소속 이력' });
+    const head = view.container.querySelector('.wl-section-head')!;
+    expect(head.querySelector('h2')).toBeNull();
+    expect(head.textContent).toContain('총 7건');
+  });
+
+  it('저장 전 변경 건수를 머리에 알린다', async () => {
+    const view = render(<WorklogSheet label="사원 편집" rows={rows} columns={columns} getRowId={row => row.id} changedIds={new Set(['b'])} />);
+    await view.findByRole('grid', { name: '사원 편집' });
+    expect(view.container.querySelector('.wl-section-head')?.textContent).toContain('저장 전 변경 1건');
+  });
+
+  it('오류는 시트 아래에 행·열·메시지와 이동 동작으로 두고 행이 없는 오류는 화면에 맡긴다', async () => {
+    const view = render(<WorklogSheet label="사원 편집" rows={rows} columns={columns} getRowId={row => row.id}
+      errors={[{ clientRowId: 'b', field: 'name', message: '이름 확인' }, { clientRowId: '', field: 'reason', message: '사유 필요' }]} />);
+    const grid = await view.findByRole('grid', { name: '사원 편집' });
+    const errors = view.getByRole('navigation', { name: '사원 편집 오류 위치' });
+    expect(within(errors).getByRole('button', { name: '1행 · 이름: 이름 확인 해당 칸으로 이동' })).toBeTruthy();
+    expect(within(errors).queryByText(/사유 필요/)).toBeNull();
+    expect(grid.compareDocumentPosition(errors) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('신규·비활성 예정 행과 수정한 칸을 표시한다', async () => {
+    interface Edit { id: string; name: string; operation: 'CREATE' | 'UPDATE' | 'DEACTIVATE' }
+    const data: Edit[] = [{ id: 'n', name: '새 행', operation: 'CREATE' }, { id: 'u', name: '바뀐 값', operation: 'UPDATE' }, { id: 'd', name: '끝난 행', operation: 'DEACTIVATE' }];
+    const view = render(<WorklogSheet label="행 상태" rows={data} getRowId={row => row.id} columns={[
+      sheetEditorColumn<Edit>({ colId: 'name', headerName: '이름' }, row => ({ label: `이름 ${row.id}`, value: row.name, changed: true, onChange: () => {} })),
+    ]} />);
+    await view.findByRole('grid', { name: '행 상태' });
+    const row = (id: string) => view.container.querySelector(`.ag-row[row-id="${id}"]`)!;
+    const cell = (id: string) => view.container.querySelector(`[row-id="${id}"] [col-id="name"]`)!;
+    await waitFor(() => {
+      expect(row('n').classList.contains('w-sheet-row-new')).toBe(true);
+      expect(row('d').classList.contains('w-sheet-row-inactive')).toBe(true);
+      expect(cell('u').classList.contains('w-sheet-cell-changed')).toBe(true);
+    });
+    expect(cell('n').classList.contains('w-sheet-cell-changed')).toBe(false);
+    expect(cell('d').classList.contains('w-sheet-cell-changed')).toBe(false);
+  });
+
+  it('짧은 시트는 내용 높이에 맞추고 긴 시트는 480px 안에서 스크롤한다', async () => {
+    const short = render(<WorklogSheet label="짧은 시트" rows={rows} columns={columns} getRowId={row => row.id} />);
+    await short.findByRole('grid', { name: '짧은 시트' });
+    expect(short.container.querySelector<HTMLElement>('.w-sheet-grid')!.style.height).toBe('');
+    expect(short.container.querySelector('.ag-root.ag-layout-auto-height')).toBeTruthy();
+    cleanup();
+    const many = Array.from({ length: 20 }, (_, index) => ({ id: `r-${index}`, name: `행 ${index}` }));
+    const long = render(<WorklogSheet label="긴 시트" rows={many} columns={columns} getRowId={row => row.id} />);
+    await long.findByRole('grid', { name: '긴 시트' });
+    expect(long.container.querySelector<HTMLElement>('.w-sheet-grid')!.style.height).toBe('480px');
+    expect(long.container.querySelector('.ag-root.ag-layout-normal')).toBeTruthy();
+  });
+
+  it('600px 미만 화면은 터치용 44px 행을 쓴다', async () => {
+    resizeViewport(390);
+    const view = render(<WorklogSheet label="모바일 행" rows={rows} columns={columns} getRowId={row => row.id} />);
+    await view.findByRole('grid', { name: '모바일 행' });
+    expect((view.container.querySelector('.ag-row') as HTMLElement).style.height).toBe('44px');
   });
 });

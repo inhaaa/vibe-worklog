@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import type { PageProps } from '../types';
 import { Form, fmtDate, fmtDateTime } from '../ui';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
+import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
+import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { WorklogSheetHandle } from '../components/WorklogSheet';
 import type { SheetEditorField } from '../components/SheetCellEditor';
 
@@ -79,9 +82,10 @@ function useUnloadGuard(dirty: boolean) {
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty]);
 }
-function CodeSheet({ title, action, model, fields, context, today, group, error }: {
-  title: string; action: string; model: Sheet; fields: Field[];
+function CodeSheet({ title, heading, action, model, fields, context, today, group, error, pagination, busy = false }: {
+  title: string; heading?: ReactNode; action: string; model: Sheet; fields: Field[];
   context: Record<string, string | number | null>; today?: string; group?: Entry | null; error?: string | null;
+  pagination?: ReactNode; busy?: boolean;
 }) {
   const attendance = Boolean(today);
   const detail = action === '/admin/common-codes/bulk';
@@ -90,6 +94,8 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
   const [commandId, setCommandId] = useState(model.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
+  const [confirming, setConfirming] = useState(() => (model.errors ?? []).some(item => item.field === 'reason'));
+  const formId = useId();
   const sheet = useRef<WorklogSheetHandle>(null);
   const sheetElement = useRef<HTMLDivElement>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(entry => [entry.id, entry])), [model.latestRows]);
@@ -102,6 +108,7 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
   const dirty = rows.filter(changed);
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
   const unsaved = dirty.length > 0 || reason.length > 0;
+  const reasonError = errors.find(item => item.field === 'reason')?.message;
   const lockedGroup = detail && (!group || group.systemOwned === true);
   useUnloadGuard(unsaved);
   const renew = () => setCommandId(crypto.randomUUID());
@@ -153,8 +160,18 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
       event.preventDefault();
       return;
     }
+    if (!confirming) {
+      event.preventDefault();
+      setConfirming(true);
+      return;
+    }
     const anotherDraft = Array.from(document.querySelectorAll('[data-unsaved-changes="true"]')).some(element => element !== sheetElement.current);
     if (anotherDraft && !window.confirm('다른 시트에도 저장하지 않은 변경이 있습니다. 다른 시트의 편집을 버리고 이 시트를 저장할까요?')) event.preventDefault();
+  }
+  function changeReason(value: string) {
+    setReason(value);
+    setErrors(current => current.filter(item => item.field !== 'reason'));
+    renew();
   }
   function display(value: Value, field: Field) {
     if (field.kind === 'check') return value ? '사용' : '미사용';
@@ -193,8 +210,8 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
     return attendance ? <><strong>{systemText(row.systemKind)}</strong><small className="t-code-help">{original?.supported && row.enabled ? '지원 정책 · 이 버전 신청 허용' : !row.systemKind ? '계산·차감 계약 미지원 · 신청 불가' : '이 버전 신규 신청 미사용'}</small><small className="t-code-help">{original?.capabilityMessage}</small><small className="t-code-help">{original ? `최신 등록 v${original.revision}` : '초안'}</small></>
       : <>{original?.systemOwned ? <span className="t-tag gray">시스템 보호</span> : '사용자 관리'}{!detail && row.id && <a href={href({ ...context, groupId: row.id, codePage: 0 })}>상세코드 보기</a>}</>;
   }
-  const state = (row: Row) => row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : changed(row) ? '수정' : '저장됨';
   const columns = [
+    sheetStateColumn<Row>(row => sheetStateOf(row, changed(row))),
     ...fields.map(field => {
       const column: ColDef<Row> = {
       colId: field.key, headerName: field.label,
@@ -213,35 +230,32 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
     sheetColumn<Row>({ colId: 'protection', headerName: attendance ? '유형·신청 가능' : '보호·상세', minWidth: attendance ? 280 : 180,
       valueGetter: ({ data }) => data ? attendance ? `${systemText(data.systemKind)} ${data.id ? latest.get(data.id)?.capabilityMessage ?? '' : ''}` : data.id && latest.get(data.id)?.systemOwned ? '시스템 보호' : '사용자 관리' : '',
     }, row => protection(row)),
-    sheetColumn<Row>({ colId: 'state', headerName: '상태', minWidth: 110, width: 110, flex: 0,
-      valueGetter: ({ data }) => data ? state(data) : '',
-    }, row => <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : changed(row) ? 'blue' : 'gray'}`}>{state(row)}</span>),
   ];
   const fieldErrors = errors.some(item => fields.some(field => field.key === item.field));
   return <div className="t-org-sheet" ref={sheetElement} data-unsaved-changes={String(unsaved)}>
-    <Form action={action} onSubmit={submit} className="t-sheet-form">
+    <Form id={formId} action={action} onSubmit={submit} className="t-sheet-form">
       <input type="hidden" name="commandId" value={commandId} />
       <input type="hidden" name="rows" value={JSON.stringify(payload)} />
       {Object.entries(context).map(([name, value]) => value == null ? null : <input key={name} type="hidden" name={name} value={value} />)}
-      <div className="t-sheet-toolbar" role="group" aria-label={`${title} 시트 편집`}>
-        <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50 || lockedGroup}>입력</button>
-        <button type="button" className="t-btn" onClick={remove} disabled={!selected.size || lockedGroup} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
-        <button type="submit" className="t-btn primary" disabled={!dirty.length || dirty.length > 50 || Boolean(conflicts.length) || lockedGroup}>저장</button>
-        <button type="button" className="t-btn" onClick={cancel} disabled={!unsaved}>취소</button>
-        <span className="t-tag blue" role="status">변경 {dirty.length}행</span>
-      </div>
-      <p className="t-subtle">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하는 비활성 처리입니다.{attendance && ' 적용일 이후의 신규 신청에만 반영됩니다.'}</p>
       {lockedGroup && <p className="notice">{group ? '시스템 소유 그룹의 상세코드는 편집할 수 없습니다.' : '코드그룹을 먼저 조회·선택하세요.'}</p>}
-      {(error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={fieldErrors ? undefined : 'true'}>
+      {!reasonError && (error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={fieldErrors ? undefined : 'true'}>
         <p>{error ?? '입력을 확인하세요. 편집 내용은 보존되어 있습니다.'}</p>
         {errors.filter(item => !fields.some(field => field.key === item.field)).map((item, index) => <p key={index}>{item.message}</p>)}
       </div>}
-      <WorklogSheet ref={sheet} label={`${title} 편집 시트`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
+      <WorklogSheet ref={sheet} label={`${title} 편집 시트`} title={heading ?? title} rows={rows} columns={columns} getRowId={row => row.clientRowId}
         selectedIds={selected} onSelectionChange={setSelected}
         selectionLabel={(_row, index) => `${title} ${index + 1}행 선택`}
         isRowSelectable={row => !lockedGroup && !(row.id && latest.get(row.id)?.systemOwned)}
         changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
-        emptyMessage={`등록된 ${title}가 없습니다. 입력 버튼으로 추가하세요.`} />
+        emptyMessage={`등록된 ${title}가 없습니다. 행 추가 버튼으로 추가하세요.`}
+        actions={<div className="w-sheet-tools" role="group" aria-label={`${title} 시트 편집`}>
+          <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50 || lockedGroup}>행 추가</button>
+          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size || lockedGroup} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
+          <span className="w-sheet-divider" aria-hidden="true" />
+          <button type="button" className="t-btn" onClick={cancel} disabled={!unsaved}>변경 취소</button>
+          <button type="submit" className="t-btn primary" disabled={!dirty.length || dirty.length > 50 || Boolean(conflicts.length) || lockedGroup}>저장</button>
+        </div>}
+        pagination={pagination} />
       {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label={`${title} 충돌 최신값 비교`}>
         <h3>최신값을 확인하세요</h3>
         {conflicts.map(row => {
@@ -252,8 +266,9 @@ function CodeSheet({ title, action, model, fields, context, today, group, error 
         })}
         <button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button>
       </section>}
-      <div className="t-sheet-reason"><label htmlFor={`${title}-reason`}>{title} 일괄 변경 사유</label><textarea id={`${title}-reason`} name="reason" value={reason} rows={2} maxLength={500} required onChange={event => { setReason(event.target.value); renew(); }} /></div>
     </Form>
+    {confirming && <SheetSaveDialog formId={formId} label={`${title} 일괄 변경 사유`} reason={reason} error={reasonError}
+      counts={sheetChangeCounts(dirty)} busy={busy} onReasonChange={changeReason} onClose={() => setConfirming(false)} />}
   </div>;
 }
 function Pagination({ title, page, hasNext, values, path }: { title: string; page: number; hasNext: boolean; values: Record<string, string | number | null>; path?: string }) {
@@ -262,32 +277,33 @@ function Pagination({ title, page, hasNext, values, path }: { title: string; pag
     {hasNext && <a href={href({ ...values, [title === '상세코드' ? 'codePage' : 'page']: page + 1 }, path)}>다음</a>}
   </nav>;
 }
-function CommonCodes({ model: m, error }: { model: CommonModel; error?: string | null }) {
+function CommonCodes({ model: m, error, busy }: { model: CommonModel; error?: string | null; busy?: boolean }) {
   const context = { q: m.q, page: m.page, groupId: m.groupId, codeQ: m.codeQ, codePage: m.codePage };
   const selected = m.selectedGroup ?? m.groups.find(group => group.id === m.groupId) ?? null;
   return <section className="t-code-management">
-    <header className="t-pagehead"><div><h1>공통코드 관리</h1><p className="t-muted">회사별 표시·분류 코드를 관리하세요. 권한·신청 상태·계산 규칙은 변경되지 않습니다.</p></div><a className="t-btn" href="/admin/attendance-types">근태코드 관리</a></header>
-    <section className="t-card" role="region" aria-label="코드그룹 관리">
-      <h2>코드그룹</h2>
-      <form action="/admin/common-codes" method="get" className="t-toolbar" role="search" aria-label="코드그룹 검색"><label htmlFor="code-group-q">코드그룹 검색</label><input id="code-group-q" className="t-input" name="q" type="search" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><button className="t-btn primary">조회</button></form>
-      <CodeSheet title="코드그룹" action="/admin/common-code-groups/bulk" model={m.groupSheet} fields={commonFields} context={context} error={m.groupSheet.errors.length ? error : undefined} />
-      <Pagination title="코드그룹" page={m.page} hasNext={m.hasNext} values={context} />
+    <PageHeader title="공통코드 관리" help={<>
+      <p>회사별 표시·분류 코드를 관리하세요. 권한·신청 상태·계산 규칙은 변경되지 않습니다.</p>
+      <p>한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하는 비활성 처리입니다.</p>
+    </>} actions={<a className="t-btn" href="/admin/attendance-types">근태코드 관리</a>} />
+    <section className="wl-section" role="region" aria-label="코드그룹 관리">
+      <form action="/admin/common-codes" method="get" className="wl-querybar" role="search" aria-label="코드그룹 검색"><label htmlFor="code-group-q">코드그룹 검색</label><input id="code-group-q" className="t-input" name="q" type="search" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
+      <CodeSheet title="코드그룹" action="/admin/common-code-groups/bulk" model={m.groupSheet} fields={commonFields} context={context} error={m.groupSheet.errors.length ? error : undefined} busy={busy}
+        pagination={<Pagination title="코드그룹" page={m.page} hasNext={m.hasNext} values={context} />} />
     </section>
-    <section className="t-card" role="region" aria-label="상세코드 관리">
-      <h2>상세코드 {selected && <span className="t-muted">· {selected.name}</span>}</h2>
-      <form action="/admin/common-codes" method="get" className="t-toolbar" role="search" aria-label="상세코드 검색">
+    <section className="wl-section" role="region" aria-label="상세코드 관리">
+      <form action="/admin/common-codes" method="get" className="wl-querybar" role="search" aria-label="상세코드 검색">
         <input type="hidden" name="q" value={m.q} /><input type="hidden" name="page" value={m.page} />
         <label htmlFor="code-group-choice">코드그룹 선택</label><select id="code-group-choice" className="t-select" name="groupId" defaultValue={m.groupId ?? ''}><option value="">그룹 선택</option>{selected && !m.groups.some(group => group.id === selected.id) && <option value={selected.id}>{selected.name}</option>}{m.groups.map(group => <option key={group.id} value={group.id}>{group.code} · {group.name}{!group.active && ' (그룹 비활성)'}</option>)}</select>
-        <label htmlFor="common-code-q">상세코드 검색</label><input id="common-code-q" className="t-input" name="codeQ" type="search" maxLength={120} defaultValue={m.codeQ} placeholder="코드 또는 이름" /><button className="t-btn primary">조회</button>
+        <label htmlFor="common-code-q">상세코드 검색</label><input id="common-code-q" className="t-input" name="codeQ" type="search" maxLength={120} defaultValue={m.codeQ} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </form>
       {selected?.active === false && <p className="notice">비활성 그룹입니다. 상세코드와 과거 참조는 보존됩니다.</p>}
-      <CodeSheet title="상세코드" action="/admin/common-codes/bulk" model={m.codeSheet} fields={commonFields} context={context} group={selected} error={m.codeSheet.errors.length ? error : undefined} />
-      <Pagination title="상세코드" page={m.codePage} hasNext={m.codeHasNext} values={context} />
+      <CodeSheet title="상세코드" heading={selected ? `상세코드 · ${selected.name}` : '상세코드'} action="/admin/common-codes/bulk" model={m.codeSheet} fields={commonFields} context={context} group={selected} error={m.codeSheet.errors.length ? error : undefined} busy={busy}
+        pagination={<Pagination title="상세코드" page={m.codePage} hasNext={m.codeHasNext} values={context} />} />
     </section>
     {error && !m.groupSheet.errors.length && !m.codeSheet.errors.length && <p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
   </section>;
 }
-function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string | null }) {
+function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: string | null; busy?: boolean }) {
   function period(version: TypeVersion) {
     const sameType = m.versions.filter(item => item.typeId === version.typeId);
     const nextDate = sameType.map(item => item.effectiveFrom).filter(date => date > version.effectiveFrom).sort()[0];
@@ -310,23 +326,27 @@ function AttendanceTypes({ model: m, error }: { model: TypeModel; error?: string
       version => <>{version.reason}<small className="t-code-help">{version.createdByName ?? '시스템 기초'}</small><small className="t-code-help">{fmtDateTime(version.createdAt)}</small></>),
   ];
   return <section className="t-code-management">
-    <header className="t-pagehead"><div><h1>근태코드 관리</h1><p className="t-muted">신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p></div><a className="t-btn" href="/admin/common-codes">공통코드 관리</a></header>
-    <section className="t-card">
-      <form action="/admin/attendance-types" method="get" className="t-toolbar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><button className="t-btn primary">조회</button></form>
+    <PageHeader title="근태코드 관리" help={<>
+      <p>신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p>
+      <p>한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하는 비활성 처리입니다. 적용일 이후의 신규 신청에만 반영됩니다.</p>
+      <p>유급 구분은 정책 메타데이터입니다. 급여·법정 계산이나 근무 인정시간을 산정하지 않습니다. 같은 적용일의 수정도 새 버전이며 미래 적용일을 예약할 수 있습니다.</p>
+      <p>편집 시트는 최신 등록 정책(예약 포함)입니다. 대상일의 적용 정책은 이력의 적용일·버전으로 결정됩니다. 비활성 버전을 추가해도 이후 예약 정책은 보존되어 다시 사용될 수 있습니다.</p>
+    </>} actions={<a className="t-btn" href="/admin/common-codes">공통코드 관리</a>} />
+    <section className="wl-section">
+      <form action="/admin/attendance-types" method="get" className="wl-querybar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
       <p className="notice">현재는 시스템 종일 연차와 기록 정정을 지원합니다. 신규 코드는 초안으로 등록하며 계산·차감 계약 미지원으로 신청할 수 없습니다.</p>
-      <p className="t-subtle">유급 구분은 정책 메타데이터입니다. 급여·법정 계산이나 근무 인정시간을 산정하지 않습니다. 같은 적용일의 수정도 새 버전이며 미래 적용일을 예약할 수 있습니다.</p>
-      <p className="t-subtle">편집 시트는 최신 등록 정책(예약 포함)입니다. 대상일의 적용 정책은 이력의 적용일·버전으로 결정됩니다. 비활성 버전을 추가해도 이후 예약 정책은 보존되어 다시 사용될 수 있습니다.</p>
-      <CodeSheet title="근태코드" action="/admin/attendance-types/bulk" model={m.sheet} fields={typeFields} context={{ q: m.q, page: m.page }} today={m.today} error={error} />
-      <Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />
+      <CodeSheet title="근태코드" action="/admin/attendance-types/bulk" model={m.sheet} fields={typeFields} context={{ q: m.q, page: m.page }} today={m.today} error={error} busy={busy}
+        pagination={<Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />} />
     </section>
-    <section className="t-card t-code-versions"><h2>근태코드 버전 이력</h2><p className="t-subtle">조회된 코드의 불변 정책입니다. 대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
-      <WorklogSheet label="근태코드 버전 이력" rows={versions} columns={versionColumns} getRowId={version => version.id}
+    <section className="wl-section t-code-versions">
+      <WorklogSheet label="근태코드 버전 이력" title="근태코드 버전 이력" rows={versions} columns={versionColumns} getRowId={version => version.id}
         emptyMessage="등록된 버전이 없습니다." />
+      <p className="t-subtle">조회된 코드의 불변 정책입니다. 대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
     </section>
   </section>;
 }
-export function CodePages({ page, data }: PageProps) {
-  if (page === 'org/common-codes') return <CommonCodes model={data.commonCodes as CommonModel} error={data.error as string | undefined} />;
-  if (page === 'org/attendance-types') return <AttendanceTypes model={data.attendanceTypes as TypeModel} error={data.error as string | undefined} />;
+export function CodePages({ page, data, busy }: PageProps) {
+  if (page === 'org/common-codes') return <CommonCodes model={data.commonCodes as CommonModel} error={data.error as string | undefined} busy={busy} />;
+  if (page === 'org/attendance-types') return <AttendanceTypes model={data.attendanceTypes as TypeModel} error={data.error as string | undefined} busy={busy} />;
   return null;
 }

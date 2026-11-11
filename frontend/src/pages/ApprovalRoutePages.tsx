@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Form, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
+import { PageHeader } from '../components/PageHeader';
+import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
+import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
 type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD';
 interface Route {
@@ -129,20 +132,24 @@ function routeChanged(row: Row, previous: Route | undefined) {
     return previous.active;
   return routeFields.some(field => row[field] !== previous[field]);
 }
-function RouteSheet({ model: m, error }: {
+function RouteSheet({ model: m, error, busy = false }: {
   model: Routes;
   error?: string | null;
+  busy?: boolean;
 }) {
   const [rows, setRows] = useState(m.sheet.rows);
   const [reason, setReason] = useState(m.sheet.reason);
   const [commandId, setCommandId] = useState(m.sheet.commandId);
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(m.sheet.errors ?? []);
+  const [confirming, setConfirming] = useState(() => (m.sheet.errors ?? []).some(item => item.field === 'reason'));
+  const formId = useId();
   const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(m.sheet.latestRows.map(route => [route.id, route])), [m.sheet.latestRows]);
   const dirty = rows.filter(row => routeChanged(row, row.id ? latest.get(row.id) : undefined));
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
   const unsaved = dirty.length > 0 || reason.length > 0;
+  const reasonError = errors.find(item => item.field === 'reason')?.message;
   const renew = () => setCommandId(crypto.randomUUID());
   useUnloadGuard(unsaved);
   function update(id: string, field: string, value: string | boolean | null) {
@@ -200,12 +207,17 @@ function RouteSheet({ model: m, error }: {
     return { ...shared, readOnly: field === 'code' && Boolean(row.id), maxLength: field === 'code' ? 40 : 120, required: true };
   }
   function submit(event: FormEvent) {
-    if (!sheet.current?.validate()) { event.preventDefault(); return; }
-    if (dirty.length < 1 || dirty.length > 50 || conflicts.length)
-      event.preventDefault();
+    if (!sheet.current?.validate() || dirty.length < 1 || dirty.length > 50 || conflicts.length) { event.preventDefault(); return; }
+    if (!confirming) { event.preventDefault(); setConfirming(true); }
+  }
+  function changeReason(value: string) {
+    setReason(value);
+    setErrors(current => current.filter(item => item.field !== 'reason'));
+    renew();
   }
   const payload = dirty.map(row => ({ clientRowId: row.clientRowId, id: row.id || undefined, expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation, code: row.code, name: row.name, active: row.active, approverKind: row.approverKind, employeeId: row.employeeId }));
   const columns = [
+    sheetStateColumn<Row>(row => sheetStateOf(row, routeChanged(row, row.id ? latest.get(row.id) : undefined))),
     sheetEditorColumn<Row>({ field: 'code', headerName: '코드', minWidth: 150, pinned: 'left' }, (row, index) => cell(row, index, 'code', '결재선 코드')),
     sheetEditorColumn<Row>({ field: 'name', headerName: '이름', minWidth: 180, flex: 1 }, (row, index) => cell(row, index, 'name', '결재선 이름')),
     sheetEditorColumn<Row>({ field: 'approverKind', headerName: '결재 방식', minWidth: 210 }, (row, index) => cell(row, index, 'approverKind', '결재 방식')),
@@ -217,22 +229,15 @@ function RouteSheet({ model: m, error }: {
     sheetColumn<Row>({ field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active}
       disabled={row.operation === 'DEACTIVATE'} aria-invalid={errors.some(error => error.clientRowId === row.clientRowId && error.field === 'active')}
       data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
-    sheetColumn<Row>({ colId: 'state', headerName: '변경 상태', minWidth: 120, valueGetter: ({ data }) => data ? data.operation === 'DEACTIVATE' ? '비활성 예정' : !data.id ? '신규' : routeChanged(data, latest.get(data.id)) ? '수정' : '저장됨' : '' }, row => {
-      const modified = routeChanged(row, row.id ? latest.get(row.id) : undefined);
-      return <span className={`t-tag ${row.operation === 'DEACTIVATE' ? 'amber' : modified ? 'blue' : 'gray'}`}>{row.operation === 'DEACTIVATE' ? '비활성 예정' : !row.id ? '신규' : modified ? '수정' : '저장됨'}</span>;
-    }),
   ];
   return <section className="t-org-sheet t-approval-routes" data-unsaved-changes={String(unsaved)}>
-    <header className="t-pagehead">
-      <div>
-
-        <h1>결재선 관리</h1>
-        <p className="t-muted">한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요.</p>
-      </div>
-      <a className="t-btn" href="/admin/approval-route-assignments">사원·조직별 배정</a>
-    </header>
-    <section className="t-card">
-      <form action="/admin/approval-routes" method="get" className="t-toolbar" role="search" aria-label="결재선 검색">
+    <PageHeader title="결재선 관리" help={<>
+      <p>한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요.</p>
+      <p>내용 변경은 새 버전으로 저장됩니다. 기존 배정은 유지되며 새 버전을 사용하려면 다시 배정하세요.</p>
+      <p>한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 비활성 결재선은 신규 신청을 막지만 기존 신청의 결재자를 바꾸지 않습니다.</p>
+    </>} actions={<a className="t-btn" href="/admin/approval-route-assignments">사원·조직별 배정</a>} />
+    <section className="wl-section">
+      <form action="/admin/approval-routes" method="get" className="wl-querybar" role="search" aria-label="결재선 검색">
         <label htmlFor="route-q">결재선 검색</label>
         <input
           id="route-q"
@@ -242,27 +247,17 @@ function RouteSheet({ model: m, error }: {
           defaultValue={m.q}
           maxLength={120}
           placeholder="코드 또는 이름" />
-        <button className="t-btn primary">조회</button>
-        <a className="t-btn" href="/admin/approval-routes">전체 보기</a>
+        <div className="wl-querybar-actions">
+          <a className="t-btn wl-query-reset" href="/admin/approval-routes">초기화</a>
+          <button className="t-btn wl-query-submit" type="submit">조회</button>
+        </div>
       </form>
-      <p className="t-subtle">내용 변경은 새 버전으로 저장됩니다. 기존 배정은 유지되며 새 버전을 사용하려면 다시 배정하세요.</p>
-      <Form action="/admin/approval-routes/bulk" onSubmit={submit} className="t-sheet-form">
+      <Form id={formId} action="/admin/approval-routes/bulk" onSubmit={submit} className="t-sheet-form">
         <input type="hidden" name="commandId" value={commandId} />
         <input type="hidden" name="rows" value={JSON.stringify(payload)} />
         <input type="hidden" name="q" value={m.q} />
         <input type="hidden" name="page" value={m.page} />
-        <div className="t-sheet-toolbar" role="group" aria-label="결재선 시트 편집">
-          <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50}>입력</button>
-          <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
-          <button
-            type="submit"
-            className="t-btn primary"
-            disabled={!dirty.length || dirty.length > 50 || Boolean(conflicts.length)}>저장</button>
-          <button type="button" className="t-btn" onClick={cancel} disabled={!unsaved}>취소</button>
-          <span className="t-tag blue" role="status">변경 {dirty.length}행</span>
-        </div>
-        <p className="t-subtle">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 비활성 결재선은 신규 신청을 막지만 기존 신청의 결재자를 바꾸지 않습니다.</p>
-        {(error || errors.length > 0) && <div
+        {!reasonError && (error || errors.length > 0) && <div
           className="notice error"
           role="alert"
           tabIndex={-1}
@@ -274,10 +269,22 @@ function RouteSheet({ model: m, error }: {
             {item.message}
           </p>)}
         </div>}
-        <WorklogSheet ref={sheet} label="결재선 편집 시트" rows={rows} columns={columns} getRowId={row => row.clientRowId}
+        <WorklogSheet ref={sheet} label="결재선 편집 시트" title="결재선 목록" rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected} selectionLabel={(_row, index) => `${index + 1}행 선택`}
-          changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors} />
-        {!rows.length && <p className="notice">등록된 결재선이 없습니다. 입력 버튼으로 추가하세요.</p>}
+          changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
+          emptyMessage="등록된 결재선이 없습니다. 행 추가 버튼으로 추가하세요."
+          actions={<div className="w-sheet-tools" role="group" aria-label="결재선 시트 편집">
+            <button type="button" className="t-btn" onClick={add} disabled={dirty.length >= 50}>행 추가</button>
+            <button type="button" className="t-btn" onClick={remove} disabled={!selected.size} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
+            <span className="w-sheet-divider" aria-hidden="true" />
+            <button type="button" className="t-btn" onClick={cancel} disabled={!unsaved}>변경 취소</button>
+            <button type="submit" className="t-btn primary" disabled={!dirty.length || dirty.length > 50 || Boolean(conflicts.length)}>저장</button>
+          </div>}
+          pagination={<nav className="actions pagination" aria-label="결재선 페이지">
+            <span>{m.page + 1}페이지</span>
+            {m.page > 0 && <a href={queryHref('/admin/approval-routes', { q: m.q, page: m.page - 1 })}>이전</a>}
+            {m.hasNext && <a href={queryHref('/admin/approval-routes', { q: m.q, page: m.page + 1 })}>다음</a>}
+          </nav>} />
         {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교">
           <h2>최신값을 확인하세요</h2>
           {conflicts.map(row => {
@@ -300,28 +307,13 @@ function RouteSheet({ model: m, error }: {
           })}
           <button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button>
         </section>}
-        <div className="t-sheet-reason">
-          <label htmlFor="route-reason">일괄 변경 사유</label>
-          <textarea
-            id="route-reason"
-            name="reason"
-            value={reason}
-            rows={2}
-            maxLength={500}
-            required
-            onChange={event => { setReason(event.target.value); renew(); }} />
-        </div>
       </Form>
-      <nav className="actions pagination" aria-label="결재선 페이지">
-        <span>{m.page + 1}페이지</span>
-        {m.page > 0 && <a href={queryHref('/admin/approval-routes', { q: m.q, page: m.page - 1 })}>이전</a>}
-        {m.hasNext && <a href={queryHref('/admin/approval-routes', { q: m.q, page: m.page + 1 })}>다음</a>}
-      </nav>
     </section>
-    <section className="t-card t-route-versions">
-      <h2>결재선 버전 이력</h2>
-      <p className="t-subtle">저장된 내용은 덮어쓰지 않습니다. 조회된 결재선의 버전입니다.</p>
+    {confirming && <SheetSaveDialog formId={formId} label="일괄 변경 사유" reason={reason} error={reasonError}
+      counts={sheetChangeCounts(dirty)} busy={busy} onReasonChange={changeReason} onClose={() => setConfirming(false)} />}
+    <section className="wl-section t-route-versions">
       <VersionTable versions={m.versions.filter(version => m.sheet.latestRows.some(route => route.id === version.routeId))} />
+      <p className="t-subtle">저장된 내용은 덮어쓰지 않습니다. 조회된 결재선의 버전입니다.</p>
     </section>
   </section>;
 }
@@ -335,7 +327,8 @@ function VersionTable({ versions }: {
     sheetColumn<Version>({ field: 'createdAt', headerName: '등록 시각 (서울)', minWidth: 185 }, version => fmtDateTime(version.createdAt)),
     sheetColumn<Version>({ field: 'reason', headerName: '변경 사유', minWidth: 220, flex: 1 }, version => version.reason),
   ];
-  return versions.length ? <WorklogSheet label="결재선 버전 이력" rows={versions} columns={columns} getRowId={version => version.id} /> : <p className="notice">등록된 버전이 없습니다.</p>;
+  return <WorklogSheet label="결재선 버전 이력" title="결재선 버전 이력" rows={versions} columns={columns} getRowId={version => version.id}
+    emptyMessage="등록된 버전이 없습니다." />;
 }
 function RouteAssignments({ model: m, error }: {
   model: Assignments;
@@ -368,20 +361,17 @@ function RouteAssignments({ model: m, error }: {
     sheetColumn<Assignment>({ field: 'reason', headerName: '사유', minWidth: 220, flex: 1 }, assignment => assignment.reason),
   ];
   return <section className="t-approval-assignments" data-unsaved-changes={String(dirty)}>
-    <header className="t-pagehead">
-      <div>
-
-        <h1>결재선 배정</h1>
-        <p className="t-muted">사원 또는 조직에 적용할 1단계 결재선 버전을 지정하세요.</p>
-      </div>
-      <a className="t-btn" href="/admin/approval-routes">결재선 관리</a>
-    </header>
+    <PageHeader title="결재선 배정" help={<>
+      <p>사원 또는 조직에 적용할 1단계 결재선 버전을 지정하세요.</p>
+      <p>선택 우선순위: 사원별 결재선 → 기존 지정 승인자 → 현재 소속 조직의 결재선. 선택된 경로가 공석·부적격이면 신청을 차단합니다.</p>
+    </>}
+      actions={<a className="t-btn" href="/admin/approval-routes">결재선 관리</a>} />
     <ErrorNotice message={error} />
-    <section className="t-card">
+    <section className="wl-section">
       <form
         action="/admin/approval-route-assignments"
         method="get"
-        className="t-toolbar"
+        className="wl-querybar"
         role="search"
         aria-label="결재선 배정 대상 조회">
         <label htmlFor="route-scope">배정 범위</label>
@@ -412,9 +402,8 @@ function RouteAssignments({ model: m, error }: {
             {m.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.code} · {organization.name}</option>)}
           </select>
         </>}
-        <button className="t-btn primary">조회</button>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </form>
-      <p className="t-subtle">선택 우선순위: 사원별 결재선 → 기존 지정 승인자 → 현재 소속 조직의 결재선. 선택된 경로가 공석·부적격이면 신청을 차단합니다.</p>
     </section>
     {selected ? <>
       <section className="t-card">
@@ -486,18 +475,17 @@ function RouteAssignments({ model: m, error }: {
           <p className="t-subtle">오늘 이후에 적용하며 기존 구간은 이력으로 보존합니다. 종료하면 해당일부터 이 배정을 해제합니다. 기존 대기 신청은 자동 이동하지 않고 관리자가 신청 상세에서 명시 재할당합니다.</p>
         </Form>
       </section>
-      <section className="t-card">
-        <h2>적용 배정 이력</h2>
-        {m.history.length ? <WorklogSheet label="결재선 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} scope="all" /> : <p className="notice">등록된 배정이 없습니다.</p>}
+      <section className="wl-section">
+        <WorklogSheet label="결재선 배정 이력" title="적용 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} scope="all" emptyMessage="등록된 배정이 없습니다." />
       </section>
     </> : <section className="t-card">
       <p className="notice">대상 사원 또는 조직을 선택해 조회하세요.</p>
     </section>}
   </section>;
 }
-export function ApprovalRoutePages({ page, data }: PageProps): ReactNode {
+export function ApprovalRoutePages({ page, data, busy }: PageProps): ReactNode {
   if (page === 'org/approval-routes')
-    return <RouteSheet model={data.approvalRoutes as Routes} error={data.error as string | null | undefined} />;
+    return <RouteSheet model={data.approvalRoutes as Routes} error={data.error as string | null | undefined} busy={busy} />;
   if (page === 'org/approval-route-assignments')
     return <RouteAssignments
       model={data.approvalRouteAssignments as Assignments}

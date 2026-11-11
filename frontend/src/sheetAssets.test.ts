@@ -30,7 +30,13 @@ describe('시트 스타일의 CSP 자산 계약', () => {
     expect(String(app.source)).toContain('.t-employee-header');
     expect(String(app.source)).toContain('.t-request-dialog');
     expect(String(sheet.source)).toContain('.ag-theme-quartz');
-    expect(String(sheet.source)).toContain('--ag-row-height:40px');
+    expect(String(sheet.source)).toContain('--ag-row-height:38px');
+    expect(String(app.source)).toMatch(/@layer legacy\s*\{/);
+    expect(String(sheet.source)).toMatch(/@layer vendor\s*\{/);
+    expect(String(app.source)).toContain('Pretendard Variable');
+    const fonts = output.filter(asset => asset.fileName.includes('PretendardVariable.subset') && asset.fileName.endsWith('.woff2'));
+    expect(fonts.length).toBeGreaterThan(80);
+    expect(String(app.source)).toContain(`/react/${fonts[0].fileName}`);
     expect(String(app.source) + String(sheet.source)).not.toMatch(/url\(["']?data:/);
   });
 
@@ -69,8 +75,13 @@ describe('시트 스타일의 CSP 자산 계약', () => {
     const source = String(css.source);
     expect(source).toContain('.ag-theme-quartz');
     expect(source).toContain('.w-sheet-grid');
-    expect(source).toContain('--ag-row-height:40px');
+    expect(source).toContain('--ag-row-height:38px');
     expect(source.match(/url\(["']?(?:data:|https?:|\/\/)/)).toBeNull();
+    expect(source.includes('--ag-background-color:var(--g0)')).toBe(true);
+    expect(source.includes('--ag-header-background-color:var(--g50)')).toBe(true);
+    expect(source.includes('--ag-selected-row-background-color:var(--brand-tint)')).toBe(true);
+    expect(source.includes('--ag-range-selection-border-color:var(--brand)')).toBe(true);
+    expect(source.includes('--ag-font-family:var(--font-ui)')).toBe(true);
     expect(output.filter((asset) => /\.(svg|woff2)$/.test(asset.fileName))).toHaveLength(5);
   });
 });

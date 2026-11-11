@@ -41,7 +41,18 @@ async function editCell(view: ReturnType<typeof render>, label: string, value: s
 }
 function form(view: ReturnType<typeof render>, action = '/admin/attendance-types/bulk') { return view.container.querySelector(`form[action="${action}"]`) as HTMLFormElement; }
 function payload(view: ReturnType<typeof render>, action?: string) { return JSON.parse(String(new FormData(form(view, action)).get('rows'))) as Record<string, unknown>[]; }
-beforeEach(() => { history.replaceState(null, '', '/admin/attendance-types'); });
+async function save(view: ReturnType<typeof render>, action: string, title: string, reason?: string) {
+  fireEvent.click(within(form(view, action)).getByRole('button', { name: '저장' }));
+  const dialog = await view.findByRole('dialog', { name: '변경 내용 저장' });
+  if (reason !== undefined) fireEvent.change(within(dialog).getByLabelText(`${title} 일괄 변경 사유`), { target: { value: reason } });
+  fireEvent.click(within(dialog).getByRole('button', { name: /건 저장$/ }));
+  return dialog;
+}
+beforeEach(() => {
+  history.replaceState(null, '', '/admin/attendance-types');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value(this: HTMLDialogElement) { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value(this: HTMLDialogElement) { this.open = false; } });
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('공통코드·근태코드 React 관리', () => {
@@ -66,8 +77,7 @@ describe('공통코드·근태코드 React 관리', () => {
     fireEvent.click(view.getByLabelText('코드그룹 이름 1').closest('.ag-cell')!, { detail: 1 });
     const editor = await view.findByRole('textbox', { name: '코드그룹 이름 1' });
     fireEvent.change(editor, { target: { value: '저장 직전 값' } });
-    fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '표시명 정리' } });
-    fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
+    await save(view, '/admin/common-code-groups/bulk', '코드그룹', '표시명 정리');
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     const body = fetcher.mock.calls[0][1]?.body as URLSearchParams;
     expect(JSON.parse(body.get('rows')!)[0].name).toBe('저장 직전 값');
@@ -88,7 +98,6 @@ describe('공통코드·근태코드 React 관리', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = await show(common());
     await editCell(view, '코드그룹 이름 1', '');
-    fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '누락 검증' } });
     fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
     expect(fetcher).not.toHaveBeenCalled();
     await waitFor(() => expect(document.activeElement).toBe(view.getByRole('textbox', { name: '코드그룹 이름 1' })));
@@ -136,7 +145,7 @@ describe('공통코드·근태코드 React 관리', () => {
     const groups = within(view.getByRole('region', { name: '코드그룹 관리' }));
     fireEvent.click(groups.getByRole('button', { name: '비활성화' }));
     expect(payload(view, '/admin/common-code-groups/bulk')[0]).toMatchObject({ clientRowId: 'row-g-1', operation: 'DEACTIVATE' });
-    fireEvent.click(groups.getByRole('button', { name: '취소' }));
+    fireEvent.click(groups.getByRole('button', { name: '변경 취소' }));
     expect(payload(view, '/admin/common-code-groups/bulk')).toEqual([]);
     fireEvent.change(view.getByLabelText('코드그룹 편집 시트 현재 페이지 필터'), { target: { value: '' } });
     expect((await view.findByLabelText('코드그룹 이름 1')).textContent).toBe(group.name);
@@ -152,8 +161,7 @@ describe('공통코드·근태코드 React 관리', () => {
     await editCell(view, '코드그룹 이름 1', '숨은 변경');
     fireEvent.change(view.getByLabelText('코드그룹 편집 시트 현재 페이지 필터'), { target: { value: '두번째' } });
     await waitFor(() => expect(view.getByText('숨은 선택 0행 · 숨은 변경 1행')).toBeTruthy());
-    fireEvent.change(view.getByLabelText('코드그룹 일괄 변경 사유'), { target: { value: '표시명 정리' } });
-    fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
+    await save(view, '/admin/common-code-groups/bulk', '코드그룹', '표시명 정리');
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
     expect(JSON.parse((fetcher.mock.calls[0][1]?.body as URLSearchParams).get('rows')!)).toEqual([
       expect.objectContaining({ clientRowId: 'row-g-1', id: 'g-1', name: '숨은 변경' }),
@@ -174,7 +182,7 @@ describe('공통코드·근태코드 React 관리', () => {
     const view = await show(common());
     await editCell(view, '코드그룹 이름 1', '그룹 편집');
     await editCell(view, '상세코드 이름 1', '상세 편집');
-    fireEvent.submit(form(view, '/admin/common-code-groups/bulk'));
+    await save(view, '/admin/common-code-groups/bulk', '코드그룹', '그룹 정리');
     expect(confirm).toHaveBeenCalledWith('다른 시트에도 저장하지 않은 변경이 있습니다. 다른 시트의 편집을 버리고 이 시트를 저장할까요?');
     expect(fetcher).not.toHaveBeenCalled();
     expect(payload(view, '/admin/common-codes/bulk')[0].name).toBe('상세 편집');
@@ -224,7 +232,7 @@ describe('공통코드·근태코드 React 관리', () => {
     const view = await show(common());
     const groups = within(view.getByRole('region', { name: '코드그룹 관리' }));
     const codes = within(view.getByRole('region', { name: '상세코드 관리' }));
-    for (const name of ['조회', '입력', '비활성화', '저장', '취소']) {
+    for (const name of ['조회', '행 추가', '비활성화', '저장', '변경 취소']) {
       expect(groups.getByRole('button', { name })).toBeTruthy();
       expect(codes.getByRole('button', { name })).toBeTruthy();
     }
@@ -241,7 +249,7 @@ describe('공통코드·근태코드 React 관리', () => {
     const view = await show(common());
     const codes = within(view.getByRole('region', { name: '상세코드 관리' }));
     expect(view.getByLabelText('상세코드 코드 1').getAttribute('aria-readonly')).toBe('true');
-    fireEvent.click(codes.getByRole('button', { name: '입력' }));
+    fireEvent.click(codes.getByRole('button', { name: '행 추가' }));
     await editCell(view, '상세코드 코드 2', 'REMOTE');
     await editCell(view, '상세코드 이름 2', '재택');
     expect(payload(view, '/admin/common-codes/bulk')[0]).toMatchObject({ operation: 'CREATE', code: 'REMOTE' });
@@ -252,7 +260,7 @@ describe('공통코드·근태코드 React 관리', () => {
     fireEvent.click(codes.getByRole('button', { name: '비활성화' }));
     expect(payload(view, '/admin/common-codes/bulk')[0].operation).toBe('DEACTIVATE');
     expect(codes.getByText('비활성 예정')).toBeTruthy();
-    fireEvent.click(codes.getByRole('button', { name: '취소' }));
+    fireEvent.click(codes.getByRole('button', { name: '변경 취소' }));
     expect(payload(view, '/admin/common-codes/bulk')).toEqual([]);
   });
 
@@ -263,14 +271,14 @@ describe('공통코드·근태코드 React 관리', () => {
     expect((view.getByLabelText('상세코드 1행 선택') as HTMLInputElement).disabled).toBe(true);
     cleanup();
     const empty = await show(common({ groupId: null, codes: [], codeSheet: { ...sheet(code), rows: [], latestRows: [] } }));
-    expect((within(empty.getByRole('region', { name: '상세코드 관리' })).getByRole('button', { name: '입력' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((within(empty.getByRole('region', { name: '상세코드 관리' })).getByRole('button', { name: '행 추가' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('근태코드 신규 행은 미지원 초안이며 시스템 유형을 선택하지 못한다', async () => {
     const view = await show(attendance());
     expect(view.getByRole('heading', { name: '근태코드 관리' })).toBeTruthy();
     expect(payload(view)).toEqual([]);
-    fireEvent.click(view.getByRole('button', { name: '입력' }));
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
     await editCell(view, '근태코드 코드 2', 'SICK');
     await editCell(view, '근태코드 이름 2', '병가');
     expect(payload(view)[0]).toMatchObject({ operation: 'CREATE', systemKind: null, enabled: false, effectiveFrom: '2026-10-28' });
@@ -297,7 +305,7 @@ describe('공통코드·근태코드 React 관리', () => {
     expect(view.getByLabelText('적용일 1').getAttribute('aria-disabled')).toBe('false');
     await editCell(view, '적용일 1', '2026-11-10');
     expect(payload(view)[0].effectiveFrom).toBe('2026-11-10');
-    fireEvent.click(view.getByRole('button', { name: '취소' }));
+    fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(payload(view)).toEqual([]);
   });
 
@@ -338,10 +346,9 @@ describe('공통코드·근태코드 React 관리', () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response.clone()); vi.stubGlobal('fetch', fetcher);
     const view = await show(attendance());
     await editCell(view, '근태코드 이름 1', '변경명');
-    fireEvent.change(view.getByLabelText('근태코드 일괄 변경 사유'), { target: { value: '검토' } });
-    const command = new FormData(form(view)).get('commandId');
-    fireEvent.submit(form(view));
+    await save(view, '/admin/attendance-types/bulk', '근태코드', '검토');
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    const command = (fetcher.mock.calls[0][1]?.body as URLSearchParams).get('commandId');
     await waitFor(() => expect(view.getByText('결과 확인 필요')).toBeTruthy());
     await waitFor(() => expect(view.getByLabelText('근태코드 이름 1').hasAttribute('disabled')).toBe(false));
     fireEvent.click(view.getByLabelText('근태코드 이름 1').closest('.ag-cell')!, { detail: 1 });

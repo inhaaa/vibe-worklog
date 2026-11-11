@@ -1,3 +1,4 @@
+@layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: Refract (noon, app adaptation; charcoal and blue by request) · redesign: full · signature: workday record · states: existing · axes: light/system-sans/neutral-blue · posture: restrained · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S3 R5 V4 · weakest: S, authentication stays familiar; the workday guide uses the product's existing records and schedule. */
 /* Hallmark · restyled: the whole hero heading uses one roman style; login fields and actions are retained. */
@@ -87,4 +88,5 @@
 @media (prefers-reduced-motion: reduce) {
   #tna-app :is(.login-shell, .t-intro) * { transition: none; animation: none; }
   #tna-app :is(.login-shell, .t-intro) button:active { transform: none; }
+}
 }
