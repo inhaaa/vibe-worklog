@@ -8,9 +8,6 @@
 #tna-app .t-clock-buttons { display: flex; gap: var(--space-xs); align-items: center; }
 #tna-app .t-clock-buttons .t-btn { min-width: 112px; min-height: 44px; font-size: 14px; }
 #tna-app .t-clock-buttons .primary { background: var(--t-blue); color: var(--t-paper); border-color: var(--t-blue); }
-#tna-app .t-attendance-filter { padding: var(--space-md) 0; background: none; border: 0; border-bottom: 1px solid var(--t-line); border-radius: 0; gap: var(--space-sm); align-items: center; }
-#tna-app .t-attendance-filter label { margin: 0; }
-#tna-app .t-attendance-filter input { flex: 0 1 180px; width: auto; margin: 0; font-size: 16px; }
 #tna-app .t-employee-header {
   display: flex;
   flex-wrap: wrap;
@@ -85,11 +82,6 @@
 #tna-app .t-personnel-form { max-width: none; }
 #tna-app .t-personnel-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-lg); min-width: 0; }
 #tna-app .t-personnel-form .t-personnel-section { padding: var(--space-lg) 0; border: 0; border-bottom: 1px solid var(--t-line); border-radius: 0; background: none; box-shadow: none; }
-#tna-app .t-section-heading { display: flex; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-lg); }
-#tna-app .t-section-number { color: var(--t-muted); display: grid; place-items: center; min-width: 26px; height: 28px; font-size: 13px; font-weight: 500; }
-#tna-app .t-section-heading h2 { margin: 0; font-size: 18px; }
-#tna-app .t-section-heading p { font-size: 14px; color: var(--t-muted); margin: var(--space-2xs) 0 0; line-height: 1.7; }
-#tna-app .t-personnel-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg) 32px; }
 #tna-app .t-personnel-form label { font-size: 14px; font-weight: 500; margin: 0 0 var(--space-xs); display: block; }
 #tna-app .t-personnel-form input:not([type=hidden]), #tna-app .t-personnel-form select, #tna-app .t-personnel-form textarea { box-sizing: border-box; width: 100%; max-width: 100%; background: var(--t-paper); border: 1px solid var(--t-field-border); border-radius: 6px; padding: var(--space-xs) var(--space-sm); font-size: 16px; color: var(--t-ink); min-height: 44px; }
 #tna-app .t-personnel-form :is(input, select, textarea):focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; }
@@ -117,8 +109,6 @@
   #tna-app .t-clock-buttons { width: 100%; }
   #tna-app .t-clock-buttons form { flex: 1; }
   #tna-app .t-clock-buttons .t-btn { width: 100%; min-width: 0; }
-  #tna-app .t-attendance-filter input { flex-basis: calc(100% - 65px); }
-  #tna-app .t-personnel-fields { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   #tna-app .t-photo-upload { flex-wrap: wrap; padding: var(--space-md); gap: var(--space-sm); }
   #tna-app .t-photo-upload-icon { display: none; }
   #tna-app .t-photo-upload>div:nth-child(2) { flex-basis: 100%; }

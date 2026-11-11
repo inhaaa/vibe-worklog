@@ -43,11 +43,9 @@
 #tna-app .t-profile > .t-avatar { display: none; }
 #tna-app .t-role-picker { display: inline-flex; align-items: center; gap: var(--space-xs); margin: 0; font-size: 12px; color: var(--t-muted); white-space: nowrap; }
 #tna-app .t-role-picker select { min-height: 44px; padding: var(--space-xs); border: 1px solid var(--t-field-border); border-radius: 8px; background: var(--t-paper); color: var(--t-ink); font-size: 14px; }
-#tna-app .t-main .t-pagehead { gap: var(--space-lg); margin-bottom: 32px; align-items: center; }
 #tna-app h1, #tna-app .t-main h1 { font-size: 28px; line-height: 1.4; letter-spacing: -.03em; font-weight: 600; }
 #tna-app h2 { font-size: 20px; line-height: 1.5; letter-spacing: -.02em; font-weight: 600; }
 #tna-app h3 { font-size: 16px; font-weight: 600; }
-#tna-app .t-pagehead h1 { margin: 0 0 var(--space-xs); }
 #tna-app :is(.t-muted, .t-subtle, .hint), #tna-app .t-main .t-pagehead .t-muted { color: var(--t-muted); font-size: 14px; line-height: 1.7; }
 #tna-app :is(.t-card, .panel) { padding: var(--space-lg) 0; background: var(--t-paper); border: 0; border-top: 1px solid var(--t-line); border-radius: 0; box-shadow: none; }
 #tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding: var(--space-md) 0; border: 0; border-radius: 0; box-shadow: none; }
@@ -72,13 +70,9 @@
 #tna-app :is(table, .t-table), #tna-app .t-app-shell :is(.t-table, .t-table th, .t-table td) { font-size: 14px; }
 #tna-app :is(th, td) { padding: var(--space-md) var(--space-sm); border-color: var(--t-line); font-variant-numeric: tabular-nums; }
 #tna-app :is(th, .t-table th) { background: var(--t-canvas); color: var(--t-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
-#tna-app .t-sheet-scroll { border: 1px solid var(--t-line); border-radius: 8px; }
 #tna-app .t-sheet-table :is(th, td) { padding: var(--space-xs); }
 #tna-app .t-sheet-table :is(input, select) { min-width: 0; font-size: 14px; }
-#tna-app .t-sheet-table .t-sheet-check { margin: var(--space-sm) 0; }
 #tna-app :is(.t-sheet-links, .t-sheet-error) { font-size: 14px; }
-#tna-app .t-sheet-table [data-changed=true] { background: var(--t-blue-soft); border-color: var(--t-blue); }
-#tna-app .t-sheet-reason textarea { border-color: var(--t-field-border); }
 #tna-app .t-tag { padding: var(--space-2xs) var(--space-xs); font-size: 12px; line-height: 1.5; border-radius: 4px; white-space: nowrap; }
 #tna-app .t-tag.blue { color: var(--t-blue); background: var(--t-blue-soft); }
 #tna-app .t-tag.gray { color: var(--t-muted); background: var(--t-surface); }
@@ -96,7 +90,6 @@
 #tna-app .t-home-flow .t-flow-legend span::before { content: none; }
 #tna-app .t-home-flow :is(.t-flow-schedule, .t-flow-entry-copy, .t-flow-day) { border: 0; border-radius: 0; background: var(--t-canvas); }
 #tna-app .t-calendar-toolbar { gap: var(--space-md); }
-#tna-app .t-calendar-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: var(--space-lg); }
 #tna-app .t-app-shell :is(.t-calendar-note, .t-calendar-legend, .t-calendar-bottom, .t-weekdays, .t-day .t-day-number, .t-day .t-day-event) { font-size: 12px; }
 #tna-app .t-icon-button, #tna-app .t-mobile-menu { width: 44px; height: 44px; min-height: 44px; }
 #tna-app :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; transition: none; }
@@ -135,7 +128,6 @@
   #tna-app .t-profile-copy { max-width: 72px; font-size: 14px; }
   #tna-app .t-profile-copy small { display: none; }
   #tna-app .t-profile .t-logout { padding-inline: var(--space-xs); }
-  #tna-app .t-main .t-pagehead { flex-wrap: wrap; align-items: flex-start; gap: var(--space-md); margin-bottom: var(--space-lg); }
   #tna-app .t-main h1 { font-size: 24px; }
   #tna-app :is(.t-btn, .t-tag) { white-space: nowrap; }
   #tna-app .t-toolbar :is(.t-select, .t-input) { min-width: 0; }
@@ -177,20 +169,12 @@
 #tna-app .notice { border: 1px solid var(--t-accent-border); }
 #tna-app .notice.error { border-left-color: var(--t-danger); }
 #tna-app .t-clock-actions { background: var(--t-blue-soft); padding: var(--space-lg); border: 1px solid var(--t-accent-border); border-radius: var(--t-radius); }
-#tna-app .t-calendar-side .t-card { background: var(--t-paper); }
 @media (hover: hover) {
   #tna-app tbody tr:hover { background: var(--t-blue-soft); }
 }
 @media (max-width: 680px) {
   #tna-app :is(.t-card, .panel) { padding: var(--space-md); }
   #tna-app :is(.t-card, .panel) :is(.t-card, .panel) { padding-inline: 0; }
-  #tna-app .t-record-table, #tna-app .t-record-table tbody { display: block; width: 100%; min-width: 0; }
-  #tna-app .t-record-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  #tna-app .t-record-table tbody tr { display: block; border-bottom: 1px solid var(--t-line); }
-  #tna-app .t-record-table tbody tr:last-child { border-bottom: 0; }
-  #tna-app .t-record-table td { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 0 var(--space-xs); padding: var(--space-sm); border: 0; white-space: normal; overflow-wrap: anywhere; }
-  #tna-app .t-record-table td::before { content: attr(data-label); grid-column: 1; grid-row: 1; color: var(--t-accent-ink); font-weight: 500; word-break: keep-all; }
-  #tna-app .t-record-table td > * { grid-column: 2; min-width: 0; }
 }
 
 }
