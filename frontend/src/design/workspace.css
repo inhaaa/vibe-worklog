@@ -221,3 +221,36 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
   :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) th { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--g200); background: var(--g50); color: var(--g700); font-weight: 600; text-align: left; white-space: nowrap; }
   :is(.t-personal-table, .t-request-board, .t-annual-summary-scroll, .t-personnel-history .table-scroll) td { padding: 9px 12px; border-bottom: 1px solid var(--g150); color: var(--g900); vertical-align: top; }
 }
+
+/* 내 근태현황 (T4): one metrics strip, a summary line for the balance basis, flat sections. */
+.t-annual-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 0 12px; overflow: hidden; border: 1px solid var(--g200); border-radius: var(--r-pop); }
+.t-annual-metrics > .t-card { margin: 0; padding: 14px 16px; border: 0; border-left: 1px solid var(--g200); border-radius: 0; background: var(--g0); box-shadow: none; }
+.t-annual-metrics > .t-card:first-child { border-left: 0; }
+.t-annual-metrics > .t-request-available { background: var(--brand-tint); }
+.t-annual-metrics h2 { margin: 0; color: var(--g600); font: 600 12.5px/1.4 var(--font-ui); }
+.t-annual-metrics strong { display: block; margin: 4px 0 2px; color: var(--g900); font: 700 22px/1.25 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.t-annual-metrics p { margin: 0; color: var(--g600); font-size: 12px; }
+.t-request-balance-basis { display: flex; flex-wrap: wrap; gap: 6px 0; margin: 0 0 20px; padding: 10px 6px; border: 0; border-radius: var(--r-pop); background: var(--g50); font-size: 13px; }
+.t-request-balance-basis > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 0 14px; border: 0; border-left: 1px solid var(--g200); background: transparent; }
+.t-request-balance-basis > div:first-child { border-left: 0; }
+.t-request-balance-basis dt { color: var(--g700); }
+.t-request-balance-basis dd { margin: 0; color: var(--g900); font-weight: 700; font-variant-numeric: tabular-nums; }
+.t-request-balance-basis dd small { margin-left: 6px; color: var(--g600); font-size: 12px; font-weight: 400; }
+.t-annual-page .wl-section h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-annual-page .wl-section > .t-muted, .t-request-list-head p { margin: 2px 0 10px; color: var(--g600); font-size: 12.5px; }
+.t-request-list-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; margin: 0 0 10px; }
+.t-request-list-search { display: grid; gap: 4px; margin: 0; color: var(--g700); font: 600 12.5px/1.4 var(--font-ui); }
+.t-request-list-search .t-input { width: 240px; }
+.t-request-list-search span { color: var(--g600); font-size: 12px; font-weight: 400; }
+.t-annual-page .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin: 10px 0 0; color: var(--g600); font-size: 12.5px; }
+.t-request-empty { padding: 24px 12px; color: var(--g600); font-size: 13px; text-align: center; }
+.t-request-empty > span { display: none; }
+.t-request-empty :is(p, small) { margin: 0; }
+@media (max-width: 900px) {
+  .t-annual-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .t-annual-metrics > .t-card:nth-child(3) { border-left: 0; }
+  .t-annual-metrics > .t-card:nth-child(n + 3) { border-top: 1px solid var(--g200); }
+}
+@media (max-width: 600px) {
+  .t-request-list-search, .t-request-list-search .t-input { width: 100%; }
+}
