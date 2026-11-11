@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const legacy = [
   'src/WorkspacePolish.css', 'src/ThemeSwitcher.css',
-  'src/components/DemoAccountSwitcher.css', 'src/components/EmployeeWorkspace.css', 'src/components/Modal.css',
+  'src/components/DemoAccountSwitcher.css', 'src/components/EmployeeWorkspace.css',
   'src/components/WorkspaceNavigation.css',
   'src/pages/ApprovalWorkspace.css', 'src/pages/DemoAccess.css', 'src/pages/DemoLanding.css', 'src/pages/PersonalDetails.css',
   'src/pages/RecordDetails.css', 'src/pages/RequestDetail.css', 'src/pages/RequestWorkspace.css',
@@ -39,6 +39,13 @@ describe('CSS cascade layers', () => {
     const css = code('src/components/worklog-sheet.css');
     expect(css.startsWith('@layer vendor, legacy;')).toBe(true);
     expect(body(css)).not.toMatch(/^@layer legacy/);
+    expect(css).not.toContain('#tna-app');
+    expect(css).not.toContain('!important');
+  });
+
+  it.each(['src/components/Modal.css', 'src/design/request.css', 'src/design/workspace.css', 'src/design/screens.css'])('keeps %s in the design layer above legacy rules', file => {
+    const css = code(file);
+    expect(css).not.toMatch(/^@layer/);
     expect(css).not.toContain('#tna-app');
     expect(css).not.toContain('!important');
   });

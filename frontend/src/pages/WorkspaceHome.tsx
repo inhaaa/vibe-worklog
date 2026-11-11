@@ -149,9 +149,9 @@ function HomeDashboard({ home, storageKey, busy }: { home: HomeView; storageKey?
         </button>
       </div>
       {localOnly && <p className="t-work-home-local-note" role="status">이 화면에만 구성이 적용됩니다.</p>}
-      {draft && <Modal title="위젯 설정" className="t-work-home-settings" onClose={closeEditor} footer={<>
-        <button type="button" className="t-btn t-modal-dismiss" onClick={closeEditor}>취소</button>
-        <button type="button" className="t-btn primary t-work-home-settings-save" onClick={saveWidgets}>구성 저장</button>
+      {draft && <Modal title="위젯 설정" size="m" className="t-work-home-settings" onClose={closeEditor} footer={<>
+        <button type="button" className="t-btn" onClick={closeEditor}>취소</button>
+        <button type="button" className="t-btn primary" onClick={saveWidgets}>구성 저장</button>
       </>}>
         <fieldset className="t-work-home-widget-picker">
           <legend>표시할 위젯</legend>

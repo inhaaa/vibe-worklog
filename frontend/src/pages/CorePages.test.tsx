@@ -107,6 +107,40 @@ describe('개인 홈과 일정', () => {
     expect(html).toContain('month=2026-11');
     expect(html).toContain('/me/attendance?date=2026-10-26');
   });
+  it('요약 줄·막대·오른쪽 패널은 이번 달 자료로 예정 근무·연차·검토 중·확인 필요와 선택한 주를 계산한다', () => {
+    const work = { workday: true, startTime: '09:00', endTime: '18:00', breaks: [{ startTime: '12:00', endTime: '13:00' }] };
+    const entry = (date: string, changes: Record<string, unknown> = {}, requests: unknown[] = []) => ({
+      ...day, today: false, selected: date === '2026-11-10', requests, scheduleText: '09:00–18:00',
+      snapshot: { ...snapshot, workDate: date, dayKind: 'WORKDAY', schedule: work, ...changes },
+    });
+    const days = [
+      entry('2026-11-09'), entry('2026-11-10'),
+      entry('2026-11-11', {}, [{ request: { id: 'leave', fromDate: '2026-11-11', toDate: '2026-11-11' }, kindLabel: '종일 연차', statusLabel: '승인 유효', tone: 'green', effectiveLeave: true }]),
+      entry('2026-11-12', {}, [{ request: { id: 'wait', fromDate: '2026-11-12', toDate: '2026-11-12' }, kindLabel: '종일 연차', statusLabel: '검토 중', tone: 'amber', effectiveLeave: false }]),
+      entry('2026-11-13', { schedule: null, dayKind: 'UNCONFIRMED' }),
+      entry('2026-11-14', { dayKind: 'NON_WORKDAY', schedule: { ...work, workday: false } }),
+      entry('2026-11-16'),
+    ];
+    const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-11', selectedDate: '2026-11-10', days, leadingBlanks: [], previousMonth: null, nextMonth: null, selectedDay: days[1] } })} />);
+    const pairs = (root: Element) => [...root.querySelectorAll('dt')].map(term => [term.textContent, term.nextElementSibling?.textContent]);
+    expect(pairs(view.container.querySelector('.wl-summary')!)).toEqual([['예정 근무', '4일 · 32:00'], ['승인 연차', '1일'], ['검토 중', '1건'], ['확인 필요', '1일']]);
+    const panel = view.getByRole('complementary', { name: '주간 근무와 처리할 일' });
+    expect(within(panel).getByText('11.09 (월) – 11.15 (일)')).toBeTruthy();
+    expect(panel.querySelector('.wl-side-big')?.firstChild?.textContent).toBe('24:00');
+    expect(pairs(panel.querySelector('.wl-side-facts')!)).toEqual([['예정 근무', '3일'], ['승인 연차', '1일'], ['비근로일·휴일', '1일'], ['확인 필요', '1일']]);
+    expect(within(panel).getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['11.12 (목) 종일 연차', '/requests/wait'], ['11.13 (금) 근무 미배정', '/me/schedule?month=2026-11&date=2026-11-13'],
+    ]);
+    const bar = (date: string, selector: string) => view.container.querySelector(`a[href$="date=${date}"] ${selector}`);
+    expect(bar('2026-11-11', '.t-day-event.leave')?.getAttribute('data-kind')).toBe('leave');
+    expect(bar('2026-11-11', '.t-day-event.leave svg')).not.toBeNull();
+    expect(bar('2026-11-12', '.t-day-event.warning')?.getAttribute('data-kind')).toBe('wait');
+    expect(bar('2026-11-13', '.t-attendance-plan')?.getAttribute('data-kind')).toBe('unknown');
+    expect(bar('2026-11-14', '.t-attendance-plan')?.getAttribute('data-kind')).toBe('off');
+    expect(bar('2026-11-09', '.t-attendance-plan')?.getAttribute('data-kind')).toBe('work');
+    expect(view.getByRole('link', { name: '근태 신청' }).getAttribute('href')).toBe('/me/requests/new?year=2026');
+  });
   it('달력은 기존 7열·빈칸·주말·오늘·선택·미확인 표시와 날짜 접근성 계약을 유지한다', async () => {
     const pending = {
       request: { id: 'pending' },

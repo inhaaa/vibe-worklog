@@ -7,8 +7,12 @@ import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { ApprovalStamps } from '../components/ApprovalStamps';
+import { Notice } from '../components/Notice';
 import {
   Form,
+  FormRow,
+  FormTable,
   Field,
   Check,
   SelectField,
@@ -60,7 +64,7 @@ const Reason = ({ label = '사유', value }: { label?: string; value?: string })
 );
 const Reasons = ({ reasons }: { reasons?: string[] }) => <>{(reasons ?? []).join(' · ')}</>;
 const Summary = ({ entries }: { entries: Record<string, string> }) => (
-  <dl>
+  <dl className="wl-form-table">
     {Object.entries(entries ?? {}).map(([key, value]) => (
       <React.Fragment key={key}>
         <dt>{key}</dt>
@@ -186,6 +190,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
       {hidden('commandId', m.pageCommand)}
     </>
   );
+  const approvalTone = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
   return (
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)"
@@ -195,9 +200,16 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
         </div>} />
       <div className="t-request-detail-document">
+        <section className="t-card wl-detail-approval" aria-labelledby="request-record-approval-title">
+          <h2 id="request-record-approval-title">결재 진행</h2>
+          <ApprovalStamps steps={[
+            { role: '대상 사원', name: r.targetEmployeeName, detail: d.routeSnapshot?.organizationName, state: '제출' },
+            { role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone },
+          ]} />
+        </section>
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
-          <dl className="t-request-detail-values">
+          <dl className="wl-form-table">
             <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
             <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
             <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
@@ -222,7 +234,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
             <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
           </div>
-          {r.kind === 'CANCEL_LEAVE' && <p className="t-request-detail-notice">취소 심사 중에는 원승인·차감이 유지됩니다.</p>}
+          {r.kind === 'CANCEL_LEAVE' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
           {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
         </section>
       </div>
@@ -236,16 +248,16 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           </section>}
           {d.correction && <section className="t-card">
             <h2>요청한 정정</h2>
-            <dl className="t-request-detail-values">
+            <dl className="wl-form-table">
               <dt>출근</dt><dd>출근 {correctionAction(d.correction.inAction)}{d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`}</dd>
               <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
               <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
             </dl>
-            <p className="t-request-detail-notice">원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</p>
+            <Notice>원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</Notice>
           </section>}
           {d.attendancePolicy && <section className="t-card t-request-route">
             <h2>제출 당시 근태정책</h2>
-            <dl className="t-request-detail-values">
+            <dl className="wl-form-table">
               <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
               <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
               <dt>단위</dt><dd>{label(d.attendancePolicy.unit, { DAY: '종일(DAY)', HOUR: '시간(HOUR)', NONE: '해당 없음' })}</dd>
@@ -273,66 +285,72 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             {!hasActions && <p className="t-request-detail-empty">현재 가능한 결정·변경이 없습니다.</p>}
             {m.canDecide && (
               <>
-                <Form action={`/requests/${r.id}/approve`} method="post" className="admin-form t-request-detail-form t-request-decision-approve" aria-label="승인 검토">
+                <Form action={`/requests/${r.id}/approve`} method="post" className="wl-form wl-decision-form" aria-label="승인 검토">
                   <h3>승인</h3>
                   <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
                   {versionFields}
-                  <Reason label="승인 검토 사유" />
-                  <button className="t-btn primary">승인하기</button>
+                  <FormTable><Reason label="승인 검토 사유" /></FormTable>
+                  <div className="wl-form-actions"><button className="t-btn primary">승인하기</button></div>
                 </Form>
-                <Form action={`/requests/${r.id}/reject`} method="post" className="admin-form t-request-detail-form t-request-decision-reject" aria-label="반려 검토">
+                <Form action={`/requests/${r.id}/reject`} method="post" className="wl-form wl-decision-form" aria-label="반려 검토">
                   <h3>반려</h3>
                   <p>보완이 필요한 내용을 사유로 남겨 주세요.</p>
                   {versionFields}
-                  <Reason label="반려 사유" />
-                  <button className="t-btn secondary">반려하기</button>
+                  <FormTable><Reason label="반려 사유" /></FormTable>
+                  <div className="wl-form-actions"><button className="t-btn secondary">반려하기</button></div>
                 </Form>
               </>
             )}
             {m.canWithdraw && (
-              <Form action={`/requests/${r.id}/withdraw`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/requests/${r.id}/withdraw`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
-                <Reason label="철회 사유" />
-                <button className="t-btn secondary">대기 신청 철회</button>
+                <FormTable><Reason label="철회 사유" /></FormTable>
+                <div className="wl-form-actions"><button className="t-btn secondary">대기 신청 철회</button></div>
               </Form>
             )}
             {m.canCancel && (
-              <Form action={`/requests/${r.id}/cancellations`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/requests/${r.id}/cancellations`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
-                <Reason label="취소 요청 사유" />
-                <p>
-                  예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
-                  필요합니다.
-                </p>
-                <button className="t-btn secondary">취소 심사 요청</button>
+                <FormTable>
+                  <Reason label="취소 요청 사유" />
+                  <p>
+                    예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
+                    필요합니다.
+                  </p>
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn secondary">취소 심사 요청</button></div>
               </Form>
             )}
             {m.admin && r.status === 'PENDING' && (
-              <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="admin-form t-request-detail-form">
+              <Form action={`/admin/requests/${r.id}/reassign`} method="post" className="wl-form wl-decision-form">
                 <h3>대기 건 명시 재할당</h3>
                 {versionFields}
-                <SelectField label="새 승인자" name="approverEmployeeId" required>
-                  {(m.candidates ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.displayName}
-                    </option>
-                  ))}
-                </SelectField>
-                <Reason label="재할당 사유" />
-                <button className="t-btn">재할당 저장</button>
+                <FormTable>
+                  <SelectField label="새 승인자" name="approverEmployeeId" required>
+                    {(m.candidates ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.displayName}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <Reason label="재할당 사유" />
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn">재할당 저장</button></div>
               </Form>
             )}
             {m.canCancelException && (
               <Form
                 action={`/admin/requests/${r.id}/cancellation-exceptions`}
                 method="post"
-                className="admin-form t-request-detail-form"
+                className="wl-form wl-decision-form"
               >
                 <h3>과거·퇴사자 예외 취소</h3>
                 {versionFields}
-                <Reason label="검토 근거와 예외 취소 사유" />
-                <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
-                <button className="t-btn">예외 취소 심사 요청</button>
+                <FormTable>
+                  <Reason label="검토 근거와 예외 취소 사유" />
+                  <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
+                </FormTable>
+                <div className="wl-form-actions"><button className="t-btn">예외 취소 심사 요청</button></div>
               </Form>
             )}
           </section>
@@ -354,8 +372,9 @@ function Correction({ model: m }: { model: CorrectionModel }) {
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
         </p>
       )}
-      <section className="t-card t-correction-source" aria-label="현재 원천 기록">
-        <div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">01</span><div><h2>현재 원천 기록</h2><p>{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p></div></div>
+      <section className="wl-section t-correction-source" aria-label="현재 원천 기록">
+        <h2>현재 원천 기록</h2>
+        <p className="hint">{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p>
         <ul className="t-correction-events">
           {m.day.events.map((e) => (
             <li key={e.id}>
@@ -364,72 +383,59 @@ function Correction({ model: m }: { model: CorrectionModel }) {
           ))}
           {!m.day.events.length && <li>조회된 원천 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</li>}
         </ul>
-        <p className="t-muted">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
+        <p className="hint">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
       </section>
-        <Form
-          action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
-          method="post"
-          className="t-correction-form"
-          onChange={() => setDirty(true)}
-          data-unsaved-changes={String(dirty)}
-        >
-          {hidden('targetEmployeeId', f.targetEmployeeId)}
-          {hidden('workDate', f.workDate)}
-          {hidden('baseInputRevision', f.baseInputRevision)}
-          {hidden('sourceFingerprint', f.sourceFingerprint)}
-          {hidden('commandId', f.commandId)}
-          {hidden('exceptional', m.exceptional)}
-          {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
-          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">02</span><div><h2>출퇴근 변경</h2><p>유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p></div></div>
-          <div className="t-correction-fields"><div className="t-request-field">
-          <SelectField label="출근 변경" name="inAction" value={f.inAction}>
-            {m.actions.map((a) => (
-              <option key={a} value={a}>
-                {actionName(a)}
-              </option>
-            ))}
-          </SelectField>
-          </div><div className="t-request-field"><Field
-            label="제안 출근 시각 (서울)"
-            name="requestedInAt"
-            type="datetime-local"
-            step="0.001"
-            value={f.requestedInAt}
-          />
-          </div><div className="t-request-field"><SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
-            {m.actions.map((a) => (
-              <option key={a} value={a}>
-                {actionName(a)}
-              </option>
-            ))}
-          </SelectField>
-          </div><div className="t-request-field"><Field
-            label="제안 퇴근 시각 (서울)"
-            name="requestedOutAt"
-            type="datetime-local"
-            step="0.001"
-            value={f.requestedOutAt}
-          />
-          </div></div><p className="t-muted">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p></section>
-          <section className="t-card"><div className="t-correction-section-head"><span className="t-correction-step" aria-hidden="true">03</span><div><h2>실제 근로·휴게와 사유</h2><p>실제 확인한 근거를 기준으로 작성해 주세요.</p></div></div>
-          <Check
-            name="presenceAsWork"
-            label="제안 구간의 실제 근로를 확인했습니다"
-            checked={f.presenceAsWork}
-          />
-          <Check
-            name="breaksConfirmed"
-            label="실제 휴게를 확인했습니다 (없으면 아래 비움)"
-            checked={f.breaksConfirmed}
-          />
-          <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
-          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><div className="t-request-field"><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></div></details>
-          <div className="t-request-field"><Reason label="정정 사유와 사실 근거" value={f.reason} /></div>
-          <p className="hint">
-            민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
-          </p>
-          </section><div className="t-correction-submit"><span>작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
-        </Form>
+      <Form
+        action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
+        method="post"
+        className="wl-form t-correction-form"
+        onChange={() => setDirty(true)}
+        data-unsaved-changes={String(dirty)}
+      >
+        {hidden('targetEmployeeId', f.targetEmployeeId)}
+        {hidden('workDate', f.workDate)}
+        {hidden('baseInputRevision', f.baseInputRevision)}
+        {hidden('sourceFingerprint', f.sourceFingerprint)}
+        {hidden('commandId', f.commandId)}
+        {hidden('exceptional', m.exceptional)}
+        {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
+        <section className="wl-section">
+          <h2>출퇴근 변경</h2>
+          <p className="hint">유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p>
+          <FormTable columns={2}>
+            <SelectField label="출근 변경" name="inAction" value={f.inAction}>
+              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+            </SelectField>
+            <Field label="제안 출근 시각 (서울)" name="requestedInAt" type="datetime-local" step="0.001" value={f.requestedInAt} />
+            <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
+              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+            </SelectField>
+            <Field label="제안 퇴근 시각 (서울)" name="requestedOutAt" type="datetime-local" step="0.001" value={f.requestedOutAt} />
+          </FormTable>
+          <p className="hint">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p>
+        </section>
+        <section className="wl-section">
+          <h2>실제 근로·휴게와 사유</h2>
+          <p className="hint">실제 확인한 근거를 기준으로 작성해 주세요.</p>
+          <FormTable>
+            <FormRow label="실제 확인">
+              <Check name="presenceAsWork" label="제안 구간의 실제 근로를 확인했습니다" checked={f.presenceAsWork} />
+              <Check name="breaksConfirmed" label="실제 휴게를 확인했습니다 (없으면 아래 비움)" checked={f.breaksConfirmed} />
+            </FormRow>
+            <FormRow label="휴게 구간">
+              <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
+            </FormRow>
+          </FormTable>
+          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><FormTable><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></FormTable></details>
+          <FormTable>
+            <Reason label="정정 사유와 사실 근거" value={f.reason} />
+            <p className="hint">
+              민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
+            </p>
+          </FormTable>
+        </section>
+        <div className="wl-form-actions"><span className="wl-modal-note">작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
+      </Form>
     </div>
   );
 }
@@ -437,20 +443,21 @@ function Balances({ model: m }: { model: BalancesModel }) {
   const f = m.form;
   return (
     <>
-      <h1>기초 잔여 관리</h1>
-      <Form action="/admin/leave-balances" method="get">
-        <SelectField label="사원" name="employeeId" value={m.employee.id}>
-          <EmployeeOptions employees={m.employees} />
-        </SelectField>
-        <button>조회</button>
+      <PageHeader title="기초 잔여 관리" actions={<>
+        <a className="t-btn" href="/admin/requests">고객사 신청·예외 현황</a>
+        <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
+      </>} />
+      <Form action="/admin/leave-balances" method="get" className="wl-querybar">
+        <div>
+          <SelectField label="사원" name="employeeId" value={m.employee.id}>
+            <EmployeeOptions employees={m.employees} />
+          </SelectField>
+        </div>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <p>
-        <a href="/admin/requests">고객사 신청·예외 현황</a> ·{' '}
-        <a href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
-      </p>
-      <section className="panel">
+      <section className="wl-section">
         <h2>{m.employee.displayName} · 기초 묶음</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.buckets.map((b) => (
             <li key={b.id}>
               <a href={`/admin/leave-balances/buckets/${b.id}`}>
@@ -460,47 +467,24 @@ function Balances({ model: m }: { model: BalancesModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>근거 있는 기초 등록</h2>
-        <p>
+        <p className="hint">
           자동 발생이 아닙니다. 본인의 기초 등록·증감은 다른 담당자가 처리합니다. 소수 단위는
           지원하지 않습니다.
         </p>
-        <Form action="/admin/leave-balances/entries" method="post" className="admin-form">
+        <Form action="/admin/leave-balances/entries" method="post" className="wl-form">
           {hidden('employeeId', f.employeeId)}
           {hidden('commandId', f.commandId)}
-          <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
-          <Field
-            label="사용 가능 시작일"
-            name="usableFrom"
-            type="date"
-            value={f.usableFrom}
-            required
-          />
-          <Field
-            label="사용 가능 종료일 (포함)"
-            name="usableTo"
-            type="date"
-            value={f.usableTo ?? ''}
-          />
-          <Field
-            label="기초 일수 (정수 DAY)"
-            name="quantityDays"
-            type="number"
-            min="0"
-            step="1"
-            value={f.quantityDays ?? ''}
-            required
-          />
-          <Field
-            label="발생 근거 참조"
-            name="sourceReference"
-            maxLength={500}
-            value={f.sourceReference}
-            required
-          />
-          <Reason label="등록 사유" value={f.reason} />
-          <button>기초 원장 등록</button>
+          <FormTable>
+            <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
+            <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
+            <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
+            <Field label="기초 일수 (정수 DAY)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
+            <Reason label="등록 사유" value={f.reason} />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">기초 원장 등록</button></div>
         </Form>
       </section>
     </>
@@ -523,39 +507,22 @@ function Ledger({ model: m }: { model: LedgerModel }) {
       <section className="wl-section">
         <WorklogSheet label="연차 원장" title="원장 이력" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>증감 조정</h2>
         <Form
           action={`/admin/leave-balances/buckets/${m.bucketId}/adjustments`}
           method="post"
-          className="admin-form"
+          className="wl-form"
         >
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
-          <Field
-            label="조정 DAY (감액은 음수)"
-            name="quantityDays"
-            type="number"
-            step="1"
-            value={f.quantityDays ?? ''}
-            required
-          />
-          <Field
-            label="효력 기준일"
-            name="effectiveOn"
-            type="date"
-            value={f.effectiveOn}
-            required
-          />
-          <Field
-            label="근거 참조"
-            name="sourceReference"
-            value={f.sourceReference}
-            maxLength={500}
-            required
-          />
-          <Reason label="조정 사유" value={f.reason} />
-          <button>조정 원장 추가</button>
+          <FormTable>
+            <Field label="조정 DAY (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
+            <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
+            <Reason label="조정 사유" value={f.reason} />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">조정 원장 추가</button></div>
         </Form>
       </section>
     </>
@@ -603,7 +570,7 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <section className="panel">
+      <section className="wl-section">
         <h2>월 요약</h2>
         <p>
           확인된 실근로 부분합 {m.totalTime ?? '미확정'} / 미확정 {summary.result.unconfirmedDays}일
@@ -620,9 +587,9 @@ function Month({ model: m }: { model: MonthModel }) {
       <section className="wl-section">
         <WorklogSheet label="일별 계산 결과" title="일 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>월 경계를 포함한 주간 참고량</h2>
-        <ul>
+        <ul className="wl-rows">
           {view.weeks.map((w) => (
             <li key={w.from}>
               {w.from} ~ {previousDay(w.to)} · 확인 부분합 {w.result.confirmedWorkMillis} ms /
@@ -633,27 +600,29 @@ function Month({ model: m }: { model: MonthModel }) {
         </ul>
       </section>
       {m.admin && (
-        <section className="panel">
+        <section className="wl-section">
           <h2>수동 재집계·검토용 Excel</h2>
           <p>
             <a href={`/admin/work-policies?employeeId=${m.employeeId}`}>주 기산점·적용 대상 검토</a>{' '}
             · <a href="/admin/audit">감사 이력</a>
           </p>
-          <Form action="/admin/calculations" method="post" className="admin-form">
+          <Form action="/admin/calculations" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.calculateCommand)}
-            <Field label="재집계 사유" name="reason" maxLength={500} required />
-            <button>월과 경계 주 재집계</button>
+            <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
+            <div className="wl-form-actions"><button className="t-btn">월과 경계 주 재집계</button></div>
           </Form>
-          <Form action="/admin/reports/exports" method="post" className="admin-form">
+          <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.exportCommand)}
-            <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
-            <p>
-              결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
-              않습니다.
-            </p>
-            <button>검토용 XLSX 다운로드</button>
+            <FormTable>
+              <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
+              <p>
+                결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
+                않습니다.
+              </p>
+            </FormTable>
+            <div className="wl-form-actions"><button className="t-btn">검토용 XLSX 다운로드</button></div>
           </Form>
         </section>
       )}
@@ -665,76 +634,70 @@ function Policies({ model: m }: { model: PoliciesModel }) {
     a = m.assessmentForm;
   return (
     <>
-      <h1>적용 대상·주 기산점 검토</h1>
-      <p>
-        법률 적합성을 자동 인증하지 않습니다. 근거를 확인한 적용 대상과 기간만 명시하며 민감한 보호
-        사유는 수집하지 않습니다. 변경은 새 불변 버전입니다.
-      </p>
-      <Form action="/admin/work-policies" method="get">
-        <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
-          <EmployeeOptions employees={m.employees} />
-        </SelectField>
-        <button>조회</button>
+      <PageHeader title="적용 대상·주 기산점 검토" help="법률 적합성을 자동 인증하지 않습니다. 근거를 확인한 적용 대상과 기간만 명시하며 민감한 보호 사유는 수집하지 않습니다. 변경은 새 불변 버전입니다." />
+      <Form action="/admin/work-policies" method="get" className="wl-querybar">
+        <div>
+          <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
+            <EmployeeOptions employees={m.employees} />
+          </SelectField>
+        </div>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <section className="panel">
+      <section className="wl-section">
         <h2>사업장 주 기산점</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.policies.map((r) => (
             <li key={r.id}>
-              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
-              <p>월요일 일치검토 {String(r.mondayWeekReviewed)}</p><p>{r.basis}</p>
+              <div className="wl-rows-main">
+                <h3>v{r.revision} · {fmtDate(r.validFrom)} ~ {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}</h3>
+                <p>월요일 일치검토 {String(r.mondayWeekReviewed)} · {r.basis}</p>
+              </div>
             </li>
           ))}
         </ul>
-        <Form action="/admin/work-policies" method="post" className="admin-form">
+        <Form action="/admin/work-policies" method="post" className="wl-form">
           {hidden('commandId', p.commandId)}
-          <Field label="적용 시작일" name="from" type="date" value={p.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={p.to} required />
-          <Check
-            label="실제 회사의 주 기산점이 월요일인 것을 확인했습니다"
-            name="mondayWeekReviewed"
-            checked={p.mondayWeekReviewed}
-          />
-          <TextAreaField label="검토 근거" name="basis" value={p.basis} maxLength={500} required />
-          <Field label="등록 사유" name="reason" value={p.reason} maxLength={500} required />
-          <button>기산점 검토 버전 저장</button>
+          <FormTable>
+            <Field label="적용 시작일" name="from" type="date" value={p.from} required />
+            <Field label="종료일 (포함)" name="to" type="date" value={p.to} required />
+            <FormRow label="월요일 확인">
+              <Check label="실제 회사의 주 기산점이 월요일인 것을 확인했습니다" name="mondayWeekReviewed" checked={p.mondayWeekReviewed} />
+            </FormRow>
+            <TextAreaField label="검토 근거" name="basis" value={p.basis} maxLength={500} required />
+            <Field label="등록 사유" name="reason" value={p.reason} maxLength={500} required />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">기산점 검토 버전 저장</button></div>
         </Form>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>사원별 일반 규정 적용 검토</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.assessments.map((r) => (
             <li key={r.id}>
-              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
-              <p>일반규정 검토 {String(r.generalRuleReviewed)}</p><p>{r.basis}</p>
+              <div className="wl-rows-main">
+                <h3>v{r.revision} · {fmtDate(r.validFrom)} ~ {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}</h3>
+                <p>일반규정 검토 {String(r.generalRuleReviewed)} · {r.basis}</p>
+              </div>
             </li>
           ))}
         </ul>
-        <Form action="/admin/work-assessments" method="post" className="admin-form">
+        <Form action="/admin/work-assessments" method="post" className="wl-form">
           {hidden('employeeId', a.employeeId)}
           {hidden('commandId', a.commandId)}
-          <Field label="적용 시작일" name="from" type="date" value={a.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={a.to} required />
-          <Check
-            label="성인 통상 고정 근무의 일반 규정 적용을 검토했습니다"
-            name="generalRuleReviewed"
-            checked={a.generalRuleReviewed}
-          />
-          <p>
-            단시간·보호 대상·특례·적용 제외 등 별도 검토가 필요하거나 미확인이라면 체크하지 마세요.
-            구체적인 민감정보를 적지 않습니다.
-          </p>
-          <TextAreaField
-            label="최소 검토 근거 참조"
-            name="basis"
-            value={a.basis}
-            maxLength={500}
-            required
-          />
-          <Field label="등록 사유" name="reason" value={a.reason} maxLength={500} required />
-          <button>적용 검토 버전 저장</button>
+          <FormTable>
+            <Field label="적용 시작일" name="from" type="date" value={a.from} required />
+            <Field label="종료일 (포함)" name="to" type="date" value={a.to} required />
+            <FormRow label="일반 규정 검토">
+              <Check label="성인 통상 고정 근무의 일반 규정 적용을 검토했습니다" name="generalRuleReviewed" checked={a.generalRuleReviewed} />
+            </FormRow>
+            <p>
+              단시간·보호 대상·특례·적용 제외 등 별도 검토가 필요하거나 미확인이라면 체크하지 마세요.
+              구체적인 민감정보를 적지 않습니다.
+            </p>
+            <TextAreaField label="최소 검토 근거 참조" name="basis" value={a.basis} maxLength={500} required />
+            <Field label="등록 사유" name="reason" value={a.reason} maxLength={500} required />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">적용 검토 버전 저장</button></div>
         </Form>
       </section>
     </>
@@ -752,9 +715,9 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
   const confirmation = c.confirmation;
   return (
     <>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 일정·휴일</h2>
-        <dl>
+        <dl className="wl-form-table">
           <dt>일정 버전 ID</dt>
           <dd>{c.scheduleVersionId ?? '일정 미확인'}</dd>
           <dt>휴일 캘린더 버전 ID</dt>
@@ -780,7 +743,7 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
           </>
         )}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 원천과 유효 출퇴근</h2>
         <p>
           원천은 보존하며 승인된 정정의 유효 사건을 별도로 보여 줍니다. IP·인증 원문은 표시하지
@@ -795,7 +758,7 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
         <h3>실제 근로·휴게 확인</h3>
         {confirmation ? (
           <>
-            <dl>
+            <dl className="wl-form-table">
               <dt>확인 ID</dt>
               <dd>{confirmation.id}</dd>
               <dt>확인 대상 사실·검토 개정</dt>
@@ -842,37 +805,20 @@ function Result({ model: m }: { model: ResultModel }) {
   };
   return (
     <section className="t-record-detail" aria-label="계산 근거 상세">
-      <nav className="actions" aria-label="상세에서 목록으로">
-        {m.workspacePrincipal?.roles.includes('EMPLOYEE') && (
-          <a className="t-btn secondary" href={`/me/worktime?month=${m.month}`}>
-            내 근로시간
-          </a>
-        )}
-        {m.admin && (
-          <a
-            className="t-btn secondary"
-            href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}
-          >
-            사원 월 현황
-          </a>
-        )}
-      </nav>
-      <h1>계산 근거 상세</h1>
-      <p>
-        이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다.
-        법률·급여 확정 자료가 아닌 검토용 결과입니다.
-      </p>
-      <p>
-        시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은
-        구분합니다.
-      </p>
-      <section className="panel">
+      <PageHeader title="계산 근거 상세" help={<>
+        <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
+        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은 구분합니다.</p>
+      </>} actions={<>
+        {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
+        {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
+      </>} />
+      <section className="wl-section">
         <h2>결과와 최신성</h2>
         <p>
           {day.employeeNo} · {day.employeeName} / {fmtDate(day.workDate)}
         </p>
         <p>사번·이름은 현재 사원 정보이며 아래 업무 근거는 계산 당시 값입니다.</p>
-        <dl>
+        <dl className="wl-form-table">
           <dt>결과 ID</dt>
           <dd>{day.id}</dd>
           <dt>결과 개정·규칙</dt>
@@ -909,10 +855,10 @@ function Result({ model: m }: { model: ResultModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>저장된 산정 결과</h2>
         <Summary entries={times} />
-        <dl>
+        <dl className="wl-form-table">
           <dt>종일 연차</dt>
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
@@ -921,9 +867,9 @@ function Result({ model: m }: { model: ResultModel }) {
         </p>
       </section>
       {run && (
-        <section className="panel">
+        <section className="wl-section">
           <h2>계산 실행</h2>
-          <dl>
+          <dl className="wl-form-table">
             <dt>실행 ID</dt>
             <dd>{run.id}</dd>
             <dt>실행 상태·엔진</dt>
@@ -950,12 +896,12 @@ function Result({ model: m }: { model: ResultModel }) {
       {d.clock ? (
         <FrozenClock clock={d.clock} />
       ) : (
-        <section className="panel">
+        <section className="wl-section">
           <h2>당시 일정·휴일</h2>
           <p>저장 당시 일정·휴일 근거 확인 필요</p>
         </section>
       )}
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 정책·적용 검토·재직 근거</h2>
         <p>원문 자유 근거·민감한 보호 사유는 표시하지 않습니다.</p>
         {d.policy ? (
@@ -1009,7 +955,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <p>저장 당시 재직기간 근거 확인 필요</p>
         )}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 신청·효력 참조</h2>
         <h3>승인 연차 효력 ID</h3>
         {d.leaveEffects.length === 0 && <p>저장된 승인 연차 참조 없음 또는 근거 확인 필요</p>}
@@ -1065,11 +1011,11 @@ function Audit({ model: m }: { model: AuditModel }) {
 function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
   return (
     <section className="t-record-detail" aria-label="감사 상세">
-      <h1>감사 상세</h1>
-      <p>같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
-      <section className="panel">
+      <PageHeader title="감사 상세" />
+      <p className="hint">같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
+      <section className="wl-section">
         <h2>행위와 추적 정보</h2>
-        <dl>
+        <dl className="wl-form-table">
           <dt>감사 ID</dt>
           <dd>{a.id}</dd>
           <dt>행위</dt>
@@ -1090,14 +1036,14 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
           <dd className="reason-cell">{a.reason}</dd>
         </dl>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>변경 전 업무 요약</h2>
         {Object.keys(a.beforeSummary ?? {}).length === 0 && (
           <p>표시 가능한 업무 요약이 없습니다.</p>
         )}
         <Summary entries={a.beforeSummary} />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>변경 후 업무 요약</h2>
         {Object.keys(a.afterSummary ?? {}).length === 0 && <p>표시 가능한 업무 요약이 없습니다.</p>}
         <Summary entries={a.afterSummary} />
@@ -1134,7 +1080,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
         );
       }));
   return (
-    <section className="panel">
+    <section className="wl-section">
       <h2>출근 기록·실제 근로 확인</h2>
       <p>
         {fmtDate(d.workDate)} · Asia/Seoul · 사실 v{d.inputRevision} / 검토 v{d.reviewRevision}
@@ -1153,7 +1099,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
         체류시간을 실제 근로로 자동 확정하지 않습니다. 중복·역전·자정 통과 기록은 정정 검토가
         필요합니다.
       </p>
-      <WorklogSheet label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
+      <WorklogSheet title="원천 출퇴근 기록" label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
       {changedEvents && (
         <div className="notice">
           <h3>승인 정정 반영값 · 원천은 별도 보존</h3>
@@ -1169,7 +1115,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
       {d.confirmation && (
         <p className="notice">현재 사실의 실제 근로·휴게 일치 확인이 저장되었습니다.</p>
       )}
-      <Form action="/me/work-confirmations" method="post" className="admin-form">
+      <Form action="/me/work-confirmations" method="post" className="wl-form">
         {hidden('workDate', f.workDate)}
         {hidden('baseInputRevision', f.baseInputRevision)}
         {hidden('expectedReviewRevision', f.expectedReviewRevision)}
@@ -1189,27 +1135,33 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
             ))}
           </ul>
         )}
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            name="presenceAsWork"
-            value="true"
-            defaultChecked={f.presenceAsWork}
-            required
-          />
-          출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            name="breaksMatch"
-            value="true"
-            defaultChecked={f.breaksMatch}
-            required
-          />
-          실제 휴게가 표시된 예정 휴게와 일치합니다
-        </label>
-        <button type="submit">현재 사실 확인 저장</button>
+        <FormTable>
+          <FormRow label="본인 확인" required>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="presenceAsWork"
+                value="true"
+                defaultChecked={f.presenceAsWork}
+                required
+              />
+              출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="breaksMatch"
+                value="true"
+                defaultChecked={f.breaksMatch}
+                required
+              />
+              실제 휴게가 표시된 예정 휴게와 일치합니다
+            </label>
+          </FormRow>
+        </FormTable>
+        <div className="wl-form-actions">
+          <button type="submit" className="t-btn primary">현재 사실 확인 저장</button>
+        </div>
       </Form>
     </section>
   );

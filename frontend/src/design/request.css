@@ -1,0 +1,214 @@
+/* Request compose (spec 7.7–7.8, design board frame 2). Unlayered: wins over legacy RequestWorkspace.css,
+   whose rules for the renamed classes no longer match. Step flow, preview and focus handling are unchanged. */
+
+/* Own dialog (page opened directly): the same chrome as the shared modal, header and actions stay in view. */
+.t-request-dialog {
+  width: min(920px, calc(100% - 48px)); max-width: none; max-height: calc(100dvh - 48px); margin: auto; padding: 0 24px;
+  overflow: auto; overscroll-behavior: contain; box-sizing: border-box;
+  border: 0; border-radius: var(--r-modal); background: var(--g0); color: var(--g900); box-shadow: var(--shadow-modal);
+}
+.t-request-dialog::backdrop { background: rgba(18, 24, 36, .44); }
+.wl-compose-head {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 56px; margin: 0 -24px; padding: 0 12px 0 24px; border-bottom: 1px solid var(--g200); background: var(--g0);
+}
+.wl-compose-head > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.wl-compose-head h2 { margin: 0; color: var(--g900); font: 700 18px/1.4 var(--font-ui); letter-spacing: -.025em; }
+.wl-compose-year { margin: 0; color: var(--g600); font-size: 12.5px; font-weight: 600; }
+.t-btn.t-request-close {
+  display: grid; place-items: center; flex: none; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 0;
+  border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--g600); box-shadow: none; cursor: pointer;
+}
+.t-btn.t-request-close:hover:not(:disabled) { background: var(--g100); color: var(--g900); }
+.t-request-close svg { width: 18px; height: 18px; }
+.wl-compose-dismiss {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 20px -24px 0; padding: 12px 16px 12px 24px; border-top: 1px solid var(--g200); color: var(--g600); font-size: 12px;
+}
+
+/* Steps: one quiet line. */
+.wl-steps ol { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 16px 0 0; padding: 0; list-style: none; }
+.wl-steps li { display: flex; align-items: center; gap: 6px; color: var(--g600); font-size: 13px; font-weight: 600; }
+.wl-step-number { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--g100); color: var(--g700); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wl-steps li[data-complete="true"] .wl-step-number { background: var(--brand-tint-2); color: var(--brand-ink); }
+.wl-steps li:has([aria-current="step"]) { color: var(--brand-ink); }
+.wl-steps li:has([aria-current="step"]) .wl-step-number { background: var(--brand); color: var(--g0); }
+
+/* Blocks: 결재선 · 신청자 · 신청 내용 (board .msec). Inside the shared modal the body padding already spaces the steps. */
+.t-request-embedded > .wl-steps ol { margin-top: 0; }
+.wl-compose-block { margin: 20px 0 0; }
+/* 신청자: one document-table row of label/value pairs (board frame 2). The div wrappers step out of the grid.
+   dl.* matches the specificity of dl.wl-form-table; this file loads after ui.css, so these rules win. */
+dl.wl-compose-applicant { grid-template-columns: repeat(4, max-content minmax(0, 1fr)); margin: 0; }
+.wl-compose-applicant > div { display: contents; }
+.wl-compose-applicant > div > dt { min-width: 0; }
+:is(.wl-compose-block, .wl-compose-summary, .t-request-preview) > h3, .wl-compose-doc-head h3 { margin: 0 0 8px; color: var(--g900); font: 700 14.5px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.wl-compose-main { margin: 24px 0 0; }
+.wl-compose-doc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.wl-compose-doc-head h3 { margin: 0; }
+.wl-compose-kind { display: flex; align-items: center; gap: 8px; color: var(--g700); font-size: 13px; font-weight: 600; }
+.wl-compose-kind .t-btn { min-height: 28px; padding: 0 10px; }
+.wl-compose-date, .wl-compose-fields { margin: 0; }
+.t-annual-context:not([hidden]) ~ .t-annual-compose-form .wl-compose-fields { border-top-width: 0; }
+.wl-compose-count { display: flex; justify-content: space-between; gap: 12px; width: 100%; margin: 0; color: var(--g600); font-size: 12px; }
+.wl-compose-count > span:last-child { font-variant-numeric: tabular-nums; }
+
+/* Type picker (TYPE step): two compact options. */
+.t-request-type-picker { min-width: 0; margin: 16px 0 12px; padding: 0; border: 0; }
+.t-request-type-picker legend { margin: 0 0 10px; padding: 0; color: var(--g900); font: 700 14.5px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-request-type-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.t-request-type-card {
+  position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 2px 10px; min-height: 0;
+  margin: 0; padding: 12px 40px 12px 14px; border: 1px solid var(--g300); border-radius: var(--r-pop); background: var(--g0); box-shadow: none; cursor: pointer;
+}
+.t-request-type-card[data-selected="true"] { border-color: var(--brand); background: var(--brand-tint); box-shadow: none; }
+.t-request-type-card input { position: absolute; top: 50%; right: 14px; width: 16px; max-width: 16px; height: 16px; min-height: 0; margin: -8px 0 0; accent-color: var(--brand); }
+.t-request-type-icon { grid-row: span 2; display: grid; place-items: center; width: 24px; height: 24px; color: var(--g600); background: none; }
+.t-request-type-icon svg { width: 20px; height: 20px; }
+.t-request-type-card strong { color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+.t-request-type-card small { margin: 0; color: var(--g600); font-size: 12.5px; line-height: 1.5; }
+.t-request-type-picker > .t-muted { margin: 8px 0 0; color: var(--g600); font-size: 12px; }
+
+/* Widgets inside value cells. The row label names the group, so the legends stay visually hidden. */
+.wl-form-value :is(.t-request-period-picker, .t-request-bucket-picker) { flex: 1 1 100%; min-width: 0; margin: 0; padding: 0; border: 0; }
+.wl-form-value :is(.t-request-period-picker, .t-request-bucket-picker) > legend { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.t-request-period-sheet { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
+button.t-request-period-trigger {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 200px; min-height: var(--h-ctl); height: auto; padding: 0 10px;
+  border: 1px solid var(--field-line); border-radius: var(--r-ctl); background: var(--g0); color: var(--g900); box-shadow: none;
+  font: 400 13px/1.3 var(--font-ui); text-align: left; cursor: pointer;
+}
+.t-request-period-trigger > span { color: var(--g600); font-size: 12px; font-weight: 600; }
+.t-request-period-trigger > strong { flex: 1; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.t-request-period-trigger > svg { width: 16px; height: 16px; color: var(--g600); }
+.t-request-period-trigger[aria-expanded="true"] { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--g0); }
+.t-request-period-trigger[aria-invalid="true"] { border-color: var(--danger); box-shadow: none; }
+.t-request-period-trigger:hover:not(:disabled, [aria-expanded="true"]) { background: var(--g50); }
+.t-request-period-error { width: 100%; margin: 4px 0 0; color: var(--danger); font-size: 12px; font-weight: 600; }
+.t-request-calendar { flex: 1 1 100%; max-width: 320px; padding: 8px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); box-shadow: var(--shadow-pop); }
+.t-request-calendar-head h4 { margin: 0; color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
+.t-request-calendar-days > .t-btn { min-width: 0; padding: 0; font-variant-numeric: tabular-nums; }
+/* Stage 1 base buttons erased these legacy states: restore today and the selected day here. */
+.t-request-calendar-days > .t-btn[aria-current="date"]:not([aria-pressed="true"]) { border-color: var(--brand); color: var(--brand-ink); }
+.t-request-calendar-days > .t-btn[aria-pressed="true"] { border-color: var(--brand); background: var(--brand); color: var(--g0); font-weight: 700; }
+.t-request-bucket-sheet { border: 1px solid var(--g200); border-radius: var(--r-ctl); background: var(--g0); }
+:is(.t-request-bucket-head, .t-request-bucket-row) { align-items: center; padding: 0 12px; font-size: 13px; }
+.t-request-bucket-head { min-height: 32px; background: var(--g50); color: var(--g700); font-weight: 600; }
+.t-request-bucket-row { min-height: var(--h-row); border-top: 1px solid var(--g150); }
+.t-request-bucket-row:has(input:checked) { background: var(--brand-tint); box-shadow: inset 3px 0 var(--brand); }
+.t-request-bucket-row strong { color: var(--brand-ink); }
+.t-request-bucket-choice input { accent-color: var(--brand); }
+.t-request-correction-source { flex: 1 1 100%; display: grid; gap: 4px; margin: 0; padding: 10px 12px; border: 0; border-radius: var(--r-pop); background: var(--g50); font-size: 13px; }
+.t-request-correction-source > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.t-request-correction-source ul { margin: 0; padding-left: 18px; }
+.t-request-correction-source p { margin: 0; color: var(--g600); font-size: 12.5px; }
+.t-request-correction-inputs { display: flex; flex-wrap: wrap; gap: 8px 16px; flex: 1 1 100%; }
+.wl-form-value .t-request-field { display: flex; align-items: center; gap: 8px; margin: 0; }
+.wl-form-value .t-request-field > label { margin: 0; color: var(--g700); font: 500 12.5px/1.4 var(--font-ui); white-space: nowrap; }
+.wl-form-value .t-break-editor { flex: 1 1 100%; }
+.wl-form-row:has(.t-request-period-picker, .t-request-correction-source) > .wl-form-label { align-items: flex-start; padding-top: 14px; }
+.t-btn.t-break-remove {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 0 8px;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g700); box-shadow: none;
+  font: 600 12.5px/1.2 var(--font-ui); cursor: pointer;
+}
+.t-btn.t-break-remove:hover:not(:disabled) { border-color: var(--g400); background: var(--g50); }
+
+/* Preview, summary and the action row that stays at the bottom of the scroll area. */
+.t-request-preview { margin: 20px 0 0; padding: 16px; border: 1px solid var(--brand-tint-2); border-radius: var(--r-pop); background: var(--brand-tint); }
+.t-request-review-kind { margin: 0 0 10px; color: var(--g700); font-size: 13px; font-weight: 600; }
+.t-request-review-totals { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; font-size: 13px; }
+.t-request-review-totals p { margin: 0; }
+.t-request-review-quantity { color: var(--brand-ink); font-weight: 700; }
+.t-request-review-quantity small { margin-left: 6px; color: var(--g600); font-weight: 500; }
+.t-request-preview > p { margin: 6px 0 0; color: var(--g700); font-size: 13px; }
+.wl-compose-summary { margin: 20px 0 0; padding: 14px 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); }
+.wl-compose-actions {
+  position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px;
+  margin: 16px 0 0; padding: 12px 0; border-top: 1px solid var(--g200); background: var(--g0);
+}
+/* The modal body pads its scroll area: let the row reach the bottom edge so no content shows beneath it. */
+.t-modal-body .wl-compose-actions { bottom: -24px; margin-bottom: -24px; padding-bottom: 36px; }
+.t-request-page-link { display: inline-block; margin: 12px 0 0; color: var(--link); font-size: 12.5px; }
+
+@media (max-width: 600px), (pointer: coarse) {
+  .t-btn.t-request-close { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .t-request-dialog { width: 100%; max-width: 100%; max-height: calc(100dvh - 16px); margin: auto 0 0; padding: 0 16px; border-radius: 12px 12px 0 0; }
+  .wl-compose-head { margin: 0 -16px; padding: 0 4px 0 16px; }
+  .wl-compose-dismiss { margin: 20px -16px 0; padding: 10px 16px max(10px, env(safe-area-inset-bottom)); }
+  dl.wl-compose-applicant { grid-template-columns: repeat(2, max-content minmax(0, 1fr)); }
+  .wl-compose-applicant > div > dt { padding: 9px 12px; border-bottom: 1px solid var(--g200); }
+  .t-request-type-cards { grid-template-columns: minmax(0, 1fr); }
+  button.t-request-period-trigger { flex: 1 1 100%; }
+  .wl-compose-actions > .t-btn { flex: 1 0 auto; }
+  .t-modal-body .wl-compose-actions { bottom: -16px; margin-bottom: -16px; padding-bottom: max(28px, calc(12px + env(safe-area-inset-bottom))); }
+}
+
+/* Request detail and approval processing. One column in the L modal; legacy two-column grids and cards are switched off. */
+.t-request-detail-page { padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--g900); }
+.t-request-detail-page :is(.t-request-detail-document, .t-request-detail-columns, .t-request-detail-main, .t-request-detail-side) { display: block; margin: 0; }
+.t-request-detail-page .t-card { margin: 0; padding: 20px 0; border: 0; border-top: 1px solid var(--g200); border-radius: 0; background: transparent; box-shadow: none; }
+.t-request-detail-page .t-request-detail-document > .t-card:first-child { padding-top: 4px; border-top: 0; }
+.t-request-detail-page h2 { margin: 0 0 10px; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-request-detail-page h3 { margin: 0 0 4px; color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+.t-request-detail-page p { line-height: 1.6; }
+.t-request-detail-page :is(.hint, .t-muted) { color: var(--g600); font-size: 12.5px; line-height: 1.6; }
+.t-request-detail-page .t-card > .hint { margin: 8px 0 0; }
+.t-request-detail-page .wl-form-table { margin-bottom: 0; }
+.t-request-detail-backlinks { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-btn:is(.t-request-detail-back, .t-request-detail-original) {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-ctl); padding: 0 12px;
+  border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800); box-shadow: none;
+  font: 600 13px/1.2 var(--font-ui); text-decoration: none; white-space: nowrap;
+}
+.t-btn:is(.t-request-detail-back, .t-request-detail-original):hover { border-color: var(--g400); background: var(--g50); }
+.t-request-detail-original { margin-top: 12px; }
+.t-request-detail-summary-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.t-request-detail-summary-head h2 { margin: 0; }
+.t-request-detail-summary-head .t-request-detail-person { margin: 2px 0 0; color: var(--g700); font-size: 13px; font-weight: 600; }
+.t-request-detail-status { display: inline-flex; align-items: center; min-height: 24px; padding: 0 9px; border: 0; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700); font: 600 12.5px/1 var(--font-ui); }
+.t-request-detail-status[data-status="PENDING"] { background: var(--warn-bg); color: var(--warn); }
+.t-request-detail-status[data-status="APPROVED"] { background: var(--ok-bg); color: var(--ok); }
+.t-request-detail-status[data-status="REJECTED"] { background: var(--danger-bg); color: var(--danger); }
+.t-request-detail-effect { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 10px 0 12px; padding: 0; color: var(--g700); font-size: 13px; }
+.t-request-detail-effect strong { color: var(--g900); font-weight: 600; }
+.t-request-detail-effect > span { margin-left: auto; color: var(--g600); font-size: 12px; }
+.t-request-detail-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 20px; padding: 12px 0 0; border-top: 1px solid var(--g150); }
+.t-request-detail-fact h3 { margin: 0 0 2px; color: var(--g600); font: 500 12px/1.5 var(--font-ui); }
+.t-request-detail-fact p { margin: 0; color: var(--g900); font: 600 14px/1.55 var(--font-ui); overflow-wrap: anywhere; }
+.t-request-detail-fact .t-muted { font-size: 12px; font-weight: 400; }
+.t-request-detail-dates { display: flex; flex-wrap: wrap; gap: 4px 6px; font-variant-numeric: tabular-nums; }
+.t-request-detail-quantity { color: var(--brand-ink); font-size: 13px; font-weight: 700; }
+.t-request-detail-reason { white-space: pre-wrap; }
+.t-request-detail-days { margin: 0; padding: 0; border: 0; list-style: none; }
+.t-request-detail-days li { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--g150); font-size: 13px; font-variant-numeric: tabular-nums; }
+.t-request-detail-days strong { color: var(--brand-ink); font-weight: 600; }
+.t-request-detail-section-head { display: flex; align-items: baseline; gap: 8px; }
+.t-request-detail-section-head h2 { margin-bottom: 0; }
+.t-request-detail-timeline { margin: 10px 0 0; padding: 0; list-style: none; }
+.t-request-detail-timeline li { padding: 10px 0; border-top: 1px solid var(--g150); }
+.t-request-detail-event { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.t-request-detail-event strong { font-size: 13px; font-weight: 700; }
+.t-request-detail-event time { color: var(--g600); font-size: 12px; font-variant-numeric: tabular-nums; }
+.t-request-detail-transition { margin: 2px 0 0; color: var(--g700); font-size: 12.5px; }
+.t-request-detail-timeline .t-request-detail-reason { margin: 4px 0 0; font-size: 13px; }
+.t-request-detail-empty { margin: 8px 0 0; padding: 0; background: transparent; color: var(--g600); font-size: 13px; }
+.t-request-decision-guide { margin: 0 0 4px; color: var(--g600); font-size: 12.5px; }
+.wl-decision-form { margin: 16px 0 0; padding: 16px 0 0; border-top: 1px solid var(--g150); }
+.wl-decision-form > p { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; }
+@media (max-width: 600px) {
+  .t-request-detail-overview { grid-template-columns: minmax(0, 1fr); }
+  .t-request-detail-effect > span { width: 100%; margin-left: 0; }
+}
+
+/* Correction request (request/correction). */
+.t-correction-workspace { min-width: 0; color: var(--g900); }
+.t-correction-workspace > .notice { margin: 0 0 20px; }
+.t-correction-events { display: grid; margin: 0 0 8px; padding: 0; border-top: 2px solid var(--g800); list-style: none; }
+.t-correction-events li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--g200); font-size: 13px; }
+.t-correction-events strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+.t-correction-advanced { margin: 0 0 16px; }
+.t-correction-advanced summary { color: var(--g700); font-size: 13px; font-weight: 600; cursor: pointer; }
+.t-correction-advanced[open] .wl-form-table { margin-top: 8px; }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
-import { ErrorNotice, Form, fmtDate, fmtDateTime } from '../ui';
+import { ErrorNotice, Form, FormRow, FormTable, fmtDate, fmtDateTime } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
@@ -406,7 +406,7 @@ function RouteAssignments({ model: m, error }: {
       </form>
     </section>
     {selected ? <>
-      <section className="t-card">
+      <section className="wl-section">
         <h2>{'displayName' in selected ? selected.displayName : selected.name} · 결재선 지정·해제</h2>
         {conflict && <div className="t-sheet-conflict">
           <p>대상 정보가 변경되었습니다. 최신 대상과 배정 이력을 확인한 후 입력을 유지할 수 있습니다.</p>
@@ -418,7 +418,7 @@ function RouteAssignments({ model: m, error }: {
         </div>}
         <Form
           action="/admin/approval-route-assignments"
-          className="admin-form t-route-assignment-form"
+          className="wl-form t-route-assignment-form"
           onSubmit={event => {
             if (conflict)
               event.preventDefault();
@@ -428,7 +428,8 @@ function RouteAssignments({ model: m, error }: {
           <input type="hidden" name="organizationId" value={m.form.organizationId ?? ''} />
           <input type="hidden" name="expectedVersion" value={expectedVersion ?? ''} />
           <input type="hidden" name="commandId" value={commandId} />
-          <label htmlFor="route-version">적용할 결재선 버전</label>
+          <FormTable>
+          <FormRow label="적용할 결재선 버전" htmlFor="route-version" required>
           <select
             className="t-select"
             id="route-version"
@@ -439,7 +440,8 @@ function RouteAssignments({ model: m, error }: {
             {missingVersion && <option value={form.routeVersionId!}>현재 선택값 (재확인 필요)</option>}
             {m.versions.map(version => <option key={version.id} value={version.id} disabled={!version.active}>{version.code} · {version.name} · v{version.revision} · {kindText(version.approverKind)}{version.employeeName ? ` (${version.employeeName})` : ''}{!version.active ? ' (정의 비활성)' : ''}</option>)}
           </select>
-          <label htmlFor="route-valid-from">적용일 (시작 포함·종료 제외)</label>
+          </FormRow>
+          <FormRow label="적용일 (시작 포함·종료 제외)" htmlFor="route-valid-from" required>
           <input
             className="t-input"
             id="route-valid-from"
@@ -449,7 +451,8 @@ function RouteAssignments({ model: m, error }: {
             value={form.validFrom}
             required
             onChange={event => update('validFrom', event.target.value)} />
-          <label htmlFor="route-assignment-reason">배정·해제 사유</label>
+          </FormRow>
+          <FormRow label="배정·해제 사유" htmlFor="route-assignment-reason" required>
           <textarea
             id="route-assignment-reason"
             name="reason"
@@ -458,7 +461,9 @@ function RouteAssignments({ model: m, error }: {
             value={form.reason}
             required
             onChange={event => update('reason', event.target.value)} />
-          <div className="t-sheet-toolbar" role="group" aria-label="결재선 배정 편집">
+          </FormRow>
+          </FormTable>
+          <div className="wl-form-actions" role="group" aria-label="결재선 배정 편집">
             <button className="t-btn" type="button" onClick={start}>입력</button>
             <button
               className="t-btn primary"
@@ -472,13 +477,13 @@ function RouteAssignments({ model: m, error }: {
               disabled={conflict || m.history.every(assignment => assignment.supersededAt || assignment.validTo && assignment.validTo <= m.today)}>배정 종료</button>
             <button className="t-btn" type="button" disabled={!dirty} onClick={cancel}>취소</button>
           </div>
-          <p className="t-subtle">오늘 이후에 적용하며 기존 구간은 이력으로 보존합니다. 종료하면 해당일부터 이 배정을 해제합니다. 기존 대기 신청은 자동 이동하지 않고 관리자가 신청 상세에서 명시 재할당합니다.</p>
+          <p className="hint">오늘 이후에 적용하며 기존 구간은 이력으로 보존합니다. 종료하면 해당일부터 이 배정을 해제합니다. 기존 대기 신청은 자동 이동하지 않고 관리자가 신청 상세에서 명시 재할당합니다.</p>
         </Form>
       </section>
       <section className="wl-section">
         <WorklogSheet label="결재선 배정 이력" title="적용 배정 이력" rows={m.history} columns={columns} getRowId={assignment => assignment.id} scope="all" emptyMessage="등록된 배정이 없습니다." />
       </section>
-    </> : <section className="t-card">
+    </> : <section className="wl-section">
       <p className="notice">대상 사원 또는 조직을 선택해 조회하세요.</p>
     </section>}
   </section>;

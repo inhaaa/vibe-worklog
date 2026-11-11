@@ -107,8 +107,6 @@ textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
   .wl-querybar-actions > * { flex: 1; }
 }
 
-/* Modal size: stage 2 styles only s (save confirmation). Other sizes, header and footer move in stage 3. */
-.t-modal[data-size="s"] { width: min(440px, calc(100% - 48px)); }
 
 /* Sheet save confirmation. */
 .wl-save-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; }
@@ -120,3 +118,124 @@ textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
 .wl-save-reason-meta p { margin: 0; }
 .wl-field-error { color: var(--danger); font-weight: 600; }
 .wl-char-count { flex: none; font-variant-numeric: tabular-nums; }
+
+/* Forms and sections that left the legacy admin-form/panel/actions classes. */
+.wl-form { display: block; max-width: none; margin: 0; padding: 0; border: 0; background: none; }
+.wl-section > h2 { margin: 0 0 10px; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.wl-section h3 { margin: 16px 0 8px; color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+:is(.wl-section, .wl-form) > .hint { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; line-height: 1.6; }
+.wl-section > :is(p, ul):not([class]) { margin: 0 0 10px; color: var(--g800); font-size: 14px; line-height: 1.6; }
+/* Personnel form sections sit in a gapped fieldset: drop the legacy section padding and divider. */
+.t-personnel-form .wl-section { margin: 0; padding: 0; border: 0; }
+.t-personnel-section fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* A data line right under a query bar (조회 기준) keeps its distance from the section below. */
+.wl-querybar + p { margin: -8px 0 20px; color: var(--g600); font-size: 12.5px; }
+.wl-form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin: 12px 0 0; }
+
+/* Document table (spec 7.8): 2px g800 top line, 116px g50 label cell, 1px g200 row lines.
+   A required item gets a dot after its label (.wl-required). A <p>/.hint right after a row reads as part of that row. */
+.wl-form-table { min-width: 0; margin: 0 0 16px; border-top: 2px solid var(--g800); }
+.wl-form-row { display: grid; grid-template-columns: 116px minmax(0, 1fr); min-width: 0; border-bottom: 1px solid var(--g200); }
+.wl-form-label {
+  display: flex; align-items: center; min-width: 0; margin: 0; padding: 8px 14px;
+  background: var(--g50); color: var(--g700); font: 600 13px/1.4 var(--font-ui); overflow-wrap: anywhere;
+}
+.wl-form-row:has(textarea, .table-scroll, .t-break-editor, .t-request-bucket-sheet) > .wl-form-label { align-items: flex-start; padding-top: 14px; }
+.wl-form-value { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; padding: 6px 12px; }
+.wl-form-value > :is(.t-input, .t-select) { flex: 0 1 280px; width: auto; min-width: 0; margin: 0; }
+.wl-form-value > textarea {
+  flex: 1 1 100%; width: 100%; min-height: 76px; margin: 0; padding: 8px 10px; box-sizing: border-box;
+  border: 1px solid var(--field-line); border-radius: var(--r-ctl); background: var(--g0); color: var(--g900); box-shadow: none;
+  font: 400 13px/1.55 var(--font-ui); resize: vertical;
+}
+.wl-form-value > textarea:focus { border-color: var(--brand); outline: 2px solid var(--brand); outline-offset: 1px; }
+.wl-form-value > label:not(.checkbox-label) { margin: 0; color: var(--g700); font: 500 12.5px/1.4 var(--font-ui); white-space: nowrap; }
+.wl-form-value .checkbox-label { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; margin: 0; color: var(--g900); font: 400 13px/1.4 var(--font-ui); }
+.wl-form-value :is(input[type="checkbox"], input[type="radio"]) { flex: none; width: 16px; height: 16px; min-height: 0; margin: 0; accent-color: var(--brand); }
+.wl-form-value > p { margin: 0; color: var(--g700); font-size: 13px; }
+.wl-form-value > .table-scroll { flex: 1 1 100%; }
+.wl-form-table > :is(p, .hint) {
+  margin: 0; padding: 0 12px 8px 128px; border-bottom: 1px solid var(--g200);
+  background: linear-gradient(90deg, var(--g50) 116px, var(--g0) 116px); color: var(--g600); font: 400 12px/1.5 var(--font-ui);
+}
+.wl-form-row:has(+ :is(p, .hint)), .wl-form-table > :is(p, .hint):has(+ :is(p, .hint)) { border-bottom-color: transparent; }
+
+/* Two-column document table (th td th td). A textarea row and anything that is not a row span both columns. */
+.wl-form-table[data-columns="2"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--g200); }
+.wl-form-table[data-columns="2"] > .wl-form-row { border-top: 1px solid var(--g200); border-bottom: 0; }
+.wl-form-table[data-columns="2"] > .wl-form-row:nth-child(-n + 2) { border-top: 0; }
+.wl-form-table[data-columns="2"] > .wl-form-row:nth-child(even):not(:has(textarea)) { border-left: 1px solid var(--g200); }
+.wl-form-table[data-columns="2"] > :is(.wl-form-row:has(textarea), :not(.wl-form-row)) { grid-column: 1 / -1; }
+
+/* Read-only document table for flat dt/dd lists. The label column grows to 200px before wrapping. */
+dl.wl-form-table { display: grid; grid-template-columns: fit-content(200px) minmax(0, 1fr); }
+dl.wl-form-table dt { min-width: 116px; padding: 9px 14px; border-bottom: 1px solid var(--g200); background: var(--g50); color: var(--g700); font: 600 13px/1.45 var(--font-ui); }
+dl.wl-form-table dd { min-width: 0; margin: 0; padding: 9px 12px; border-bottom: 1px solid var(--g200); color: var(--g900); font: 400 13px/1.55 var(--font-ui); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+/* Weekday table inside a value cell (schedule template). */
+.wl-form-value .table-scroll table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wl-form-value .table-scroll th { height: 32px; padding: 0 8px; border-bottom: 1px solid var(--g200); background: var(--g50); color: var(--g700); font-weight: 600; text-align: left; }
+.wl-form-value .table-scroll td { padding: 4px 8px; border-bottom: 1px solid var(--g150); }
+.wl-form-value .table-scroll td input[type="text"] {
+  width: 100%; min-width: 72px; height: 30px; min-height: 0; padding: 0 8px; box-sizing: border-box;
+  border: 1px solid var(--field-line); border-radius: var(--r-ctl); background: var(--g0); color: var(--g900); font: 400 13px/1.4 var(--font-ui);
+}
+
+@media (max-width: 600px) {
+  .wl-form-row { grid-template-columns: minmax(0, 1fr); }
+  .wl-form-label, .wl-form-row:has(textarea, .table-scroll, .t-break-editor, .t-request-bucket-sheet) > .wl-form-label { padding: 7px 12px; }
+  .wl-form-value { padding: 8px 12px 10px; }
+  .wl-form-value > :is(.t-input, .t-select) { flex: 1 1 100%; }
+  .wl-form-table > :is(p, .hint) { padding-left: 12px; background: var(--g0); }
+  .wl-form-table[data-columns="2"] { display: block; border-bottom: 0; }
+  .wl-form-table[data-columns="2"] > .wl-form-row { border-top: 0; border-left: 0; border-bottom: 1px solid var(--g200); }
+  dl.wl-form-table { grid-template-columns: minmax(0, 1fr); }
+  dl.wl-form-table dt { padding: 7px 12px; border-bottom: 0; }
+  dl.wl-form-table dd { padding: 8px 12px 10px; }
+  .wl-form-actions > .t-btn { flex: 1 0 auto; }
+}
+
+/* Approval stamps (spec 7.8): one 128px cell per step (role, name and detail, state). A vertical list on phones. */
+.wl-stamps { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 128px; margin: 0; padding: 0; border: 1px solid var(--g300); border-radius: var(--r-ctl); list-style: none; overflow: hidden; }
+.wl-stamp { display: grid; grid-template-rows: 26px auto 30px; min-width: 0; border-left: 1px solid var(--g300); text-align: center; }
+.wl-stamp:first-child { border-left: 0; }
+.wl-stamp-role { display: grid; place-items: center; border-bottom: 1px solid var(--g300); background: var(--g50); color: var(--g700); font: 600 12px/1 var(--font-ui); }
+.wl-stamp-who { display: grid; align-content: center; gap: 2px; min-width: 0; padding: 9px 6px 6px; }
+.wl-stamp-who strong { color: var(--g900); font: 700 14px/1.35 var(--font-ui); overflow-wrap: anywhere; }
+.wl-stamp-who small { color: var(--g600); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.wl-stamp-state { display: grid; place-items: center; border-top: 1px dashed var(--g200); }
+.wl-approval { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.wl-approval-note { flex: 1 1 220px; margin: 0; color: var(--g600); font-size: 12.5px; line-height: 1.6; }
+
+/* Notice: one sentence with an info icon on g50. */
+.wl-notice { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border-radius: var(--r-pop); background: var(--g50); color: var(--g700); font: 400 12.5px/1.6 var(--font-ui); }
+.wl-notice svg { flex: none; width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: var(--g500); stroke-width: 1.7; stroke-linecap: round; }
+
+/* Info grid: read-only facts, label above value, 4 columns (2 on phones). */
+.wl-info-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.wl-info-grid > div { min-width: 0; }
+.wl-info-grid dt { color: var(--g600); font: 500 12px/1.5 var(--font-ui); }
+.wl-info-grid dd { margin: 2px 0 0; color: var(--g900); font: 600 14px/1.5 var(--font-ui); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .wl-stamps { display: grid; grid-auto-flow: row; grid-auto-columns: auto; width: 100%; }
+  .wl-stamp { grid-template-rows: none; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--g300); border-left: 0; text-align: left; }
+  .wl-stamp:first-child { border-top: 0; }
+  .wl-stamp-role { align-self: stretch; border-right: 1px solid var(--g300); border-bottom: 0; }
+  .wl-stamp-who { padding: 8px 12px; }
+  .wl-stamp-state { padding: 0 12px; border-top: 0; }
+  .wl-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Short link/history lists: 2px top line, 1px row lines, main text left and an optional inline form right. */
+.wl-rows { margin: 0 0 16px; padding: 0; border-top: 2px solid var(--g800); list-style: none; }
+.wl-rows:empty { display: none; }
+.wl-rows > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; min-height: var(--h-row); padding: 8px 12px; border-bottom: 1px solid var(--g200); font-size: 13px; }
+.wl-rows > li > a { color: var(--link); text-underline-offset: 3px; }
+.wl-rows-main { min-width: 0; }
+.wl-rows-main :is(h3, p), .wl-rows > li > p { margin: 0; }
+.wl-rows-main h3 { color: var(--g900); font: 600 13px/1.5 var(--font-ui); }
+.wl-rows-main p, .wl-rows > li > p { color: var(--g600); font-size: 12.5px; }
+.wl-inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wl-inline-form > label { margin: 0; color: var(--g700); font: 500 12.5px/1.4 var(--font-ui); }
+.wl-inline-form > .t-input { width: 220px; }
