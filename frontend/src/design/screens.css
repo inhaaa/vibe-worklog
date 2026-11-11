@@ -59,3 +59,65 @@
 .t-clock-actions strong { color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
 .t-clock-actions .t-muted { margin: 2px 0 0; color: var(--g600); font-size: 12.5px; }
 .t-clock-buttons { display: flex; gap: 6px; }
+
+/* Home (T5): greeting, a metrics strip and flat bordered panels; widget settings unchanged. */
+.t-work-home { color: var(--g900); }
+.t-work-home-welcome { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 16px; margin: 0 0 20px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.t-work-home-date { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--g600); font-size: 13px; font-weight: 600; }
+.t-work-home-date svg { width: 15px; height: 15px; }
+.t-work-home-intro h1 { margin: 4px 0 0; color: var(--g900); font: 700 22px/1.35 var(--font-ui); letter-spacing: -.025em; }
+.t-work-home-intro > p:not(.t-work-home-date) { margin: 2px 0 0; color: var(--g600); font-size: 13px; }
+.t-work-home-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.t-work-home-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+.t-work-home-toolbar h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
+.t-btn.t-work-home-settings-trigger { display: inline-grid; place-items: center; width: var(--h-ctl); min-width: var(--h-ctl); height: var(--h-ctl); min-height: var(--h-ctl); padding: 0; border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g700); box-shadow: none; }
+.t-btn.t-work-home-settings-trigger:hover:not(:disabled) { border-color: var(--g400); background: var(--g50); }
+.t-work-home-local-note { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; }
+.t-work-home-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; margin: 0 0 16px; overflow: hidden; border: 1px solid var(--g200); border-radius: var(--r-pop); }
+.t-work-home-metric { margin: 0; padding: 14px 16px; border: 0; border-left: 1px solid var(--g200); border-radius: 0; background: var(--g0); box-shadow: none; }
+.t-work-home-metric:first-child { border-left: 0; }
+.t-work-home-metric dt { display: flex; align-items: center; gap: 6px; color: var(--g600); font: 600 12.5px/1.4 var(--font-ui); }
+.t-work-home-metric dd { margin: 4px 0 0; }
+.t-work-home-metric strong { display: block; color: var(--g900); font: 700 22px/1.25 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.t-work-home-metric small { color: var(--g600); font-size: 12px; }
+.t-work-home-widget-icon { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--g600); }
+.t-work-home-widget-icon svg { width: 15px; height: 15px; }
+.t-work-home-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0 0 16px; }
+.t-work-home-panel { margin: 0; padding: 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); box-shadow: none; }
+.t-work-home-columns + .t-work-home-panel { margin-top: 0; }
+.t-work-home-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; }
+.t-work-home-panel-heading h2 { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); }
+.t-work-home-panel-heading a { color: var(--link); font-size: 12.5px; font-weight: 600; text-decoration: none; }
+.t-work-home-clock { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0 0 10px; }
+.t-work-home-clock dt { color: var(--g600); font-size: 12px; }
+.t-work-home-clock dd { margin: 2px 0 0; color: var(--g900); font: 700 18px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; }
+.t-work-home-confirmation, .t-work-home-empty { margin: 0; color: var(--g600); font-size: 12.5px; }
+.t-work-home-timeline, .t-work-home-recent { margin: 8px 0 0; padding: 0; border-top: 1px solid var(--g150); list-style: none; }
+.t-work-home-timeline li, .t-work-home-recent li { padding: 8px 0; border-bottom: 1px solid var(--g150); font-size: 13px; }
+.t-work-home-request-icon { display: none; }
+.t-work-home-recent a { min-block-size: 0; padding-block: 0; grid-template-columns: minmax(0, 1fr) auto; }
+.t-work-home-recent strong { font-size: 13px; font-weight: 600; }
+.t-work-home-recent small { display: block; color: var(--g600); font-size: 12px; font-variant-numeric: tabular-nums; }
+.t-work-home-badge { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700); font: 600 12px/1 var(--font-ui); }
+.t-work-home-badge[data-tone="amber"] { background: var(--warn-bg); color: var(--warn); }
+.t-work-home-badge[data-tone="green"], .t-work-home-badge[data-tone="recorded"] { background: var(--ok-bg); color: var(--ok); }
+.t-work-home-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border-top: 2px solid var(--g800); }
+.t-work-home-week > * { min-width: 0; padding: 10px; border: 0; border-right: 1px solid var(--g150); border-bottom: 1px solid var(--g150); border-radius: 0; background: var(--g0); box-shadow: none; }
+.t-work-home-week > :last-child { border-right: 0; }
+.t-work-home-week-date { display: flex; align-items: baseline; gap: 4px; color: var(--g600); font-size: 12px; font-variant-numeric: tabular-nums; }
+.t-work-home-week-date > span { color: var(--brand-ink); font-weight: 700; }
+.t-work-home-week > [aria-current] { background: var(--brand-tint); box-shadow: inset 0 -2px var(--brand); }
+.t-work-home-week-shift strong { display: block; margin-top: 4px; color: var(--g900); font: 600 13px/1.4 var(--font-ui); font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) {
+  .t-work-home-columns { grid-template-columns: minmax(0, 1fr); }
+  .t-work-home-week { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .t-work-home-welcome { flex-direction: column; align-items: stretch; }
+  .t-work-home-actions { width: 100%; }
+  .t-work-home-actions > * { flex: 1 1 0; }
+  .t-work-home-week { grid-template-columns: minmax(0, 1fr); }
+  .t-work-home-week > * { border-right: 0; }
+  .t-work-home-metric { border-top: 1px solid var(--g200); border-left: 0; }
+  .t-work-home-metric:first-child { border-top: 0; }
+}

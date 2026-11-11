@@ -283,7 +283,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const currentPage = useRef({ envelope, revision });
   currentPage.current = { envelope, revision };
   const modalDirty = useRef(false);
-  const skipPageFocus = useRef(false);
+  const skipPageFocus = useRef<PageEnvelope | null>(null);
   const serial = useRef(0);
   const posting = useRef(false);
   const pending = useRef<AbortController | null>(null);
@@ -304,7 +304,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
     pending.current?.abort();
     currentUrl.current = saved.url;
     historyPosition.current = saved.position;
-    skipPageFocus.current = true;
+    skipPageFocus.current = saved.envelope;
     setEnvelope(saved.envelope);
     setRevision(saved.revision);
     backgroundRef.current = null;
@@ -534,14 +534,16 @@ export function App({ initial }: { initial: PageEnvelope }) {
       : envelope.page === 'demo'
         ? 'intro-body'
         : '';
-    if (skipPageFocus.current) { skipPageFocus.current = false; return; }
-    const focusRoot = backgroundRef.current ? document.querySelector('.t-modal') : document;
+    // 모달 커밋의 effect가 닫기 클릭 뒤에 늦게 실행돼도 건너뛰기 표식을 가로채거나 배경 제목으로 초점을 옮기지 않도록,
+    // 복원한 배경 화면의 실행만 건너뛰고 닫기 처리가 이미 바꾼 ref 대신 이 렌더의 background로 판단한다.
+    if (skipPageFocus.current === envelope) { skipPageFocus.current = null; return; }
+    const focusRoot = background ? document.querySelector('.t-modal') : document;
     const errorField = focusRoot?.querySelector<HTMLElement>('[data-error-focus="true"]:not(:disabled)');
     if (errorField) {
       errorField.focus({ preventScroll: true });
       return;
     }
-    if (!backgroundRef.current && location.hash) {
+    if (!background && location.hash) {
       try {
         const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
         if (target) {
@@ -553,7 +555,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         /* 잘못 인코딩된 fragment는 제목으로 초점을 옮긴다. */
       }
     }
-    if (backgroundRef.current) {
+    if (background) {
       if (!focusRoot?.contains(document.activeElement)) document.querySelector<HTMLElement>('.t-modal-title')?.focus({ preventScroll: true });
       return;
     }
