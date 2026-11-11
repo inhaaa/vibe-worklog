@@ -26,6 +26,7 @@ import './design/tokens.css';
 import './design/ui.css';
 import './design/shell.css';
 import './design/request.css';
+import './design/workspace.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
@@ -230,7 +231,8 @@ function Workspace({
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
         {page !== 'workspace/home' && headerEmployee && (
-          <EmployeeHeader employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />
+          <EmployeeHeader variant={page === 'workspace/profile' || page === 'org/personnel' ? 'card' : 'line'}
+            employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />
         )}
         {children}
       </main>
