@@ -64,7 +64,7 @@ const Reason = ({ label = '사유', value }: { label?: string; value?: string })
 );
 const Reasons = ({ reasons }: { reasons?: string[] }) => <>{(reasons ?? []).join(' · ')}</>;
 const Summary = ({ entries }: { entries: Record<string, string> }) => (
-  <dl>
+  <dl className="wl-form-table">
     {Object.entries(entries ?? {}).map(([key, value]) => (
       <React.Fragment key={key}>
         <dt>{key}</dt>
@@ -758,9 +758,9 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
   const confirmation = c.confirmation;
   return (
     <>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 일정·휴일</h2>
-        <dl>
+        <dl className="wl-form-table">
           <dt>일정 버전 ID</dt>
           <dd>{c.scheduleVersionId ?? '일정 미확인'}</dd>
           <dt>휴일 캘린더 버전 ID</dt>
@@ -786,7 +786,7 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
           </>
         )}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 원천과 유효 출퇴근</h2>
         <p>
           원천은 보존하며 승인된 정정의 유효 사건을 별도로 보여 줍니다. IP·인증 원문은 표시하지
@@ -801,7 +801,7 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
         <h3>실제 근로·휴게 확인</h3>
         {confirmation ? (
           <>
-            <dl>
+            <dl className="wl-form-table">
               <dt>확인 ID</dt>
               <dd>{confirmation.id}</dd>
               <dt>확인 대상 사실·검토 개정</dt>
@@ -848,37 +848,20 @@ function Result({ model: m }: { model: ResultModel }) {
   };
   return (
     <section className="t-record-detail" aria-label="계산 근거 상세">
-      <nav className="actions" aria-label="상세에서 목록으로">
-        {m.workspacePrincipal?.roles.includes('EMPLOYEE') && (
-          <a className="t-btn secondary" href={`/me/worktime?month=${m.month}`}>
-            내 근로시간
-          </a>
-        )}
-        {m.admin && (
-          <a
-            className="t-btn secondary"
-            href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}
-          >
-            사원 월 현황
-          </a>
-        )}
-      </nav>
-      <h1>계산 근거 상세</h1>
-      <p>
-        이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다.
-        법률·급여 확정 자료가 아닌 검토용 결과입니다.
-      </p>
-      <p>
-        시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은
-        구분합니다.
-      </p>
-      <section className="panel">
+      <PageHeader title="계산 근거 상세" help={<>
+        <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
+        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은 구분합니다.</p>
+      </>} actions={<>
+        {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
+        {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
+      </>} />
+      <section className="wl-section">
         <h2>결과와 최신성</h2>
         <p>
           {day.employeeNo} · {day.employeeName} / {fmtDate(day.workDate)}
         </p>
         <p>사번·이름은 현재 사원 정보이며 아래 업무 근거는 계산 당시 값입니다.</p>
-        <dl>
+        <dl className="wl-form-table">
           <dt>결과 ID</dt>
           <dd>{day.id}</dd>
           <dt>결과 개정·규칙</dt>
@@ -915,10 +898,10 @@ function Result({ model: m }: { model: ResultModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>저장된 산정 결과</h2>
         <Summary entries={times} />
-        <dl>
+        <dl className="wl-form-table">
           <dt>종일 연차</dt>
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
@@ -927,9 +910,9 @@ function Result({ model: m }: { model: ResultModel }) {
         </p>
       </section>
       {run && (
-        <section className="panel">
+        <section className="wl-section">
           <h2>계산 실행</h2>
-          <dl>
+          <dl className="wl-form-table">
             <dt>실행 ID</dt>
             <dd>{run.id}</dd>
             <dt>실행 상태·엔진</dt>
@@ -956,12 +939,12 @@ function Result({ model: m }: { model: ResultModel }) {
       {d.clock ? (
         <FrozenClock clock={d.clock} />
       ) : (
-        <section className="panel">
+        <section className="wl-section">
           <h2>당시 일정·휴일</h2>
           <p>저장 당시 일정·휴일 근거 확인 필요</p>
         </section>
       )}
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 정책·적용 검토·재직 근거</h2>
         <p>원문 자유 근거·민감한 보호 사유는 표시하지 않습니다.</p>
         {d.policy ? (
@@ -1015,7 +998,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <p>저장 당시 재직기간 근거 확인 필요</p>
         )}
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>당시 신청·효력 참조</h2>
         <h3>승인 연차 효력 ID</h3>
         {d.leaveEffects.length === 0 && <p>저장된 승인 연차 참조 없음 또는 근거 확인 필요</p>}
@@ -1071,11 +1054,11 @@ function Audit({ model: m }: { model: AuditModel }) {
 function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
   return (
     <section className="t-record-detail" aria-label="감사 상세">
-      <h1>감사 상세</h1>
-      <p>같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
-      <section className="panel">
+      <PageHeader title="감사 상세" />
+      <p className="hint">같은 고객사의 기록이며 열람 자체도 감사에 남깁니다. 시각 기준: Asia/Seoul (UTC+09:00).</p>
+      <section className="wl-section">
         <h2>행위와 추적 정보</h2>
-        <dl>
+        <dl className="wl-form-table">
           <dt>감사 ID</dt>
           <dd>{a.id}</dd>
           <dt>행위</dt>
@@ -1096,14 +1079,14 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
           <dd className="reason-cell">{a.reason}</dd>
         </dl>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>변경 전 업무 요약</h2>
         {Object.keys(a.beforeSummary ?? {}).length === 0 && (
           <p>표시 가능한 업무 요약이 없습니다.</p>
         )}
         <Summary entries={a.beforeSummary} />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>변경 후 업무 요약</h2>
         {Object.keys(a.afterSummary ?? {}).length === 0 && <p>표시 가능한 업무 요약이 없습니다.</p>}
         <Summary entries={a.afterSummary} />
@@ -1140,7 +1123,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
         );
       }));
   return (
-    <section className="panel">
+    <section className="wl-section">
       <h2>출근 기록·실제 근로 확인</h2>
       <p>
         {fmtDate(d.workDate)} · Asia/Seoul · 사실 v{d.inputRevision} / 검토 v{d.reviewRevision}
@@ -1159,7 +1142,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
         체류시간을 실제 근로로 자동 확정하지 않습니다. 중복·역전·자정 통과 기록은 정정 검토가
         필요합니다.
       </p>
-      <WorklogSheet label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
+      <WorklogSheet title="원천 출퇴근 기록" label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
       {changedEvents && (
         <div className="notice">
           <h3>승인 정정 반영값 · 원천은 별도 보존</h3>
@@ -1175,7 +1158,7 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
       {d.confirmation && (
         <p className="notice">현재 사실의 실제 근로·휴게 일치 확인이 저장되었습니다.</p>
       )}
-      <Form action="/me/work-confirmations" method="post" className="admin-form">
+      <Form action="/me/work-confirmations" method="post" className="wl-form">
         {hidden('workDate', f.workDate)}
         {hidden('baseInputRevision', f.baseInputRevision)}
         {hidden('expectedReviewRevision', f.expectedReviewRevision)}
@@ -1195,27 +1178,33 @@ export function AttendanceRecord({ data }: { data: Record<string, unknown> }): R
             ))}
           </ul>
         )}
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            name="presenceAsWork"
-            value="true"
-            defaultChecked={f.presenceAsWork}
-            required
-          />
-          출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            name="breaksMatch"
-            value="true"
-            defaultChecked={f.breaksMatch}
-            required
-          />
-          실제 휴게가 표시된 예정 휴게와 일치합니다
-        </label>
-        <button type="submit">현재 사실 확인 저장</button>
+        <FormTable>
+          <FormRow label="본인 확인" required>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="presenceAsWork"
+                value="true"
+                defaultChecked={f.presenceAsWork}
+                required
+              />
+              출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="breaksMatch"
+                value="true"
+                defaultChecked={f.breaksMatch}
+                required
+              />
+              실제 휴게가 표시된 예정 휴게와 일치합니다
+            </label>
+          </FormRow>
+        </FormTable>
+        <div className="wl-form-actions">
+          <button type="submit" className="t-btn primary">현재 사실 확인 저장</button>
+        </div>
       </Form>
     </section>
   );
