@@ -1295,3 +1295,13 @@ git commit -m "docs: record the WorkLog workspace stage" -m "Co-Authored-By: Cla
 - [ ] **Step 5: Push 여부 확인**
 
 사용자에게 4단계 커밋을 Push할지 묻는다. 공개 데모 배포는 하지 않는다.
+
+## 실행 기록 (2026-11-11)
+
+- 0번: 기준 브랜치에 새 커밋이 없었다. 합성 경로 2개를 확인했고, 바꾸기 전 내 업무 묶음은 28장, JS 오류 0이었다.
+- 1–6번: 계획대로 구현했다(`36fdc5a`, `d01c1e6`, `c75343c`, `0c0b1f0`, `cd758fa`, `7f35412`). 3번에서 달 이동 버튼에 28px 최소 높이를 더했다.
+- 7번: 화면 확인 뒤 탭 표시 막대, 지표 띠 간격, 인사정보 fieldset 테두리를 고쳤다(`fc00aa2`). 최종 결과는 다음과 같다.
+  - 515개 테스트 통과, 빌드 성공
+  - 캡처 148장, JS 오류 0, 넘침 0
+  - `workspace-check`·`modal-check`·`sheet-check` PASS
+- 8번: 문서를 반영했다.
