@@ -193,6 +193,7 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
 }
 .t-personnel-tabs .t-btn:hover:not(:disabled) { border-color: transparent; border-bottom-color: var(--g300); background: transparent; color: var(--g900); }
 .t-personnel-tabs .t-btn[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--g900); }
+.t-personnel-tabs .t-btn::before, .t-personnel-tabs .t-btn::after { content: none; }
 .t-personnel-tab-icon { width: 15px; height: 15px; }
 .t-personnel-tabpanel { padding: 0; border: 0; background: transparent; }
 .t-personnel-tabpanel:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
@@ -223,7 +224,7 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
 }
 
 /* 내 근태현황 (T4): one metrics strip, a summary line for the balance basis, flat sections. */
-.t-annual-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0 0 12px; overflow: hidden; border: 1px solid var(--g200); border-radius: var(--r-pop); }
+.t-annual-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 12px 0; overflow: hidden; border: 1px solid var(--g200); border-radius: var(--r-pop); }
 .t-annual-metrics > .t-card { margin: 0; padding: 14px 16px; border: 0; border-left: 1px solid var(--g200); border-radius: 0; background: var(--g0); box-shadow: none; }
 .t-annual-metrics > .t-card:first-child { border-left: 0; }
 .t-annual-metrics > .t-request-available { background: var(--brand-tint); }
