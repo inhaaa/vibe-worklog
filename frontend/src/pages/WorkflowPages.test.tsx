@@ -236,6 +236,24 @@ describe('WorkflowPages', () => {
       }
     expect(view.getByRole('button', { name: '승인하기' })).toBeTruthy();
   });
+  it('결재 진행은 대상 사원·현재 결재 담당과 현재 상태를 결재란으로 보여 준다', async () => {
+    const view = await render('request/detail', { request, detail: { days: [], history: [], correction: null } });
+    const approval = view.getByRole('region', { name: '결재 진행' });
+    const steps = within(within(approval).getByRole('list', { name: '결재란' })).getAllByRole('listitem');
+    expect(steps.map(step => step.querySelector('strong')?.textContent)).toEqual([request.targetEmployeeName, '승인자']);
+    expect(within(steps[1]).getByText('결재 대기').className).toBe('t-tag amber');
+  });
+  it.each(['ATTENDANCE_CORRECTION', 'CANCEL_LEAVE'])('대리 작성한 %s 상세에서 대상 사원을 기안자로 표시하지 않는다', async kind => {
+    const view = await render('request/detail', {
+      request: { ...request, kind, exceptional: true, authorAccountId: 'admin-account', targetEmployeeId: 'employee-2', targetEmployeeName: '합성 대상 사원' },
+      detail: { days: [], history: [], correction: null },
+    });
+    const approval = view.getByRole('region', { name: '결재 진행' });
+    const target = within(within(approval).getByRole('list', { name: '결재란' })).getAllByRole('listitem')[0];
+    expect(within(target).getByText('대상 사원')).toBeTruthy();
+    expect(within(target).getByText('합성 대상 사원')).toBeTruthy();
+    expect(within(approval).queryByText('기안', { exact: true })).toBeNull();
+  });
   it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', async () => {
     const view = await render('request/detail', {
       request,

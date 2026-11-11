@@ -191,10 +191,10 @@ function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: P
     <>
       <PageHeader title="내 정보" help="현재 계정과 업무 배정 정보를 확인하세요." />
       {details && <PersonalDetailsTabs model={details} identity={{ employeeName: p.employeeName, joinedOn: p.joinedOn, birthDate }} />}
-      <section className="panel t-profile-details" aria-label="본인 정보">
+      <section className="wl-section t-profile-details" aria-label="본인 정보">
         <div className="t-personal-panel-heading"><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>
         <p className="t-profile-asof">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
-        <dl className="t-person-info">
+        <dl className="wl-info-grid">
           {entries.filter(([label]) => !hasHeader || !['이름', '사번', '회사', '입사일', '현재 소속'].includes(label)).map(([label, value]) => (
             <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
           ))}

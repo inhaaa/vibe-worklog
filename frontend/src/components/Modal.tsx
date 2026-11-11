@@ -9,12 +9,13 @@ interface ModalProps {
   onClose: () => void;
   busy?: boolean;
   className?: string;
+  /** 하단 동작. false면 하단을 그리지 않는다(동작 줄을 본문 폼 안에 두는 신청 작성). */
   footer?: ReactNode;
-  /** s 440, m 720, l 920, xl 1200(px). 2단계는 s만 스타일을 둔다. 지정하지 않으면 기존 너비. */
+  /** s 440, m 720, l 920, xl 1200(px). 기본 l. */
   size?: 's' | 'm' | 'l' | 'xl';
 }
 
-export function Modal({ title, children, onClose, busy = false, className = '', footer, size }: ModalProps) {
+export function Modal({ title, children, onClose, busy = false, className = '', footer, size = 'l' }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -71,9 +72,9 @@ export function Modal({ title, children, onClose, busy = false, className = '', 
         </button>
       </header>
       <div className="t-modal-body">{children}</div>
-      <footer className="t-modal-footer">
-        {footer ?? <button type="button" className="t-btn t-modal-dismiss" disabled={busy} onClick={onClose}>닫기</button>}
-      </footer>
+      {footer !== false && <footer className="t-modal-footer">
+        {footer ?? <button type="button" className="t-btn" disabled={busy} onClick={onClose}>닫기</button>}
+      </footer>}
     </dialog>,
     document.getElementById('tna-app') ?? document.body,
   );

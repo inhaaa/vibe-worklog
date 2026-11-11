@@ -1,5 +1,5 @@
-import { useId, useRef, useState, useSyncExternalStore } from 'react';
-import { Field, Form, SelectField, TextAreaField } from '../ui';
+import { useId, useRef, useState } from 'react';
+import { Field, Form, SelectField, TextAreaField, FormTable } from '../ui';
 import './PersonalDetails.css';
 
 export interface PersonalDetailsForm {
@@ -24,15 +24,7 @@ export interface PersonalDetailsModel {
 }
 interface Identity { employeeName: string; joinedOn: string; birthDate?: string | null }
 const tabs = ['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처'] as const;
-const wideSheet = '(min-width: 70rem)';
 
-function subscribeToSheetWidth(notify: () => void) {
-  const media = window.matchMedia?.(wideSheet);
-  media?.addEventListener('change', notify);
-  return () => media?.removeEventListener('change', notify);
-}
-
-function sheetIsWide() { return window.matchMedia?.(wideSheet).matches ?? false; }
 
 const kinds = ['FAMILY', 'EDUCATION', 'QUALIFICATION', 'LANGUAGE'];
 const choices: Record<string, string> = {
@@ -58,7 +50,7 @@ const tabIcons = {
 function display(value: string | number | null | undefined) { return value == null || value === '' ? '미등록' : value; }
 function status(value: string | undefined) { return choices[value ?? 'UNKNOWN'] ?? '미등록'; }
 function Info({ values }: { values: [string, string | number | null | undefined][] }) {
-  return <dl className="t-person-info">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
+  return <dl className="wl-info-grid">{values.map(([label, value]) => <div key={label}><dt>{label}</dt><dd data-empty={display(value) === '미등록' || undefined}>{display(value)}</dd></div>)}</dl>;
 }
 function InfoGroup({ title, icon, values }: { title: string; icon: keyof typeof sheetIcons; values: [string, string | number | null | undefined][] }) {
   const titleId = useId();
@@ -79,12 +71,11 @@ function EmptyDetails({ title }: { title: string }) {
 
 export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDetailsModel; identity: Identity }) {
   const [tab, setTab] = useState(0), id = useId(), buttons = useRef<(HTMLButtonElement | null)[]>([]);
-  const vertical = useSyncExternalStore(subscribeToSheetWidth, sheetIsWide, () => false);
   const f = m.form;
   function move(event: React.KeyboardEvent, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight' || (vertical && event.key === 'ArrowDown')) next = (index + 1) % tabs.length;
-    else if (event.key === 'ArrowLeft' || (vertical && event.key === 'ArrowUp')) next = (index + tabs.length - 1) % tabs.length;
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = tabs.length - 1;
     else return;
@@ -95,7 +86,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
     <div className="t-personnel-index">
       <p className="t-personnel-index-title">인사기록</p>
-      <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목" aria-orientation={vertical ? 'vertical' : 'horizontal'}>
+      <div className="t-personnel-tabs" role="tablist" aria-label="인사정보 항목" aria-orientation="horizontal">
         {tabs.map((label, index) => (
           <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
             aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
@@ -155,29 +146,30 @@ export function PersonalDetailsEditor({ model: m, today, busy }: { model: Person
   function entryChanged() { setEntryCommand(crypto.randomUUID()); setEntryDirty(true); }
   const entryConflict = entryVersion !== m.version;
   return <>
-    <section className="t-card t-personnel-section">
+    <section className="wl-section t-personnel-section">
       <h2>상세 기본사항·주소·연락처</h2>
-      <p className="t-muted">본인과 담당자만 조회합니다. 한글성명·회사 입사일은 기본정보·소속에서, 생년월일은 위 인사정보에서 관리합니다. 주민등록번호는 수집하지 않습니다.</p>
+      <p className="hint">본인과 담당자만 조회합니다. 한글성명·회사 입사일은 기본정보·소속에서, 생년월일은 위 인사정보에서 관리합니다. 주민등록번호는 수집하지 않습니다.</p>
       <Form key={reset} action={`${path}/personal-details`} onChange={changed} data-unsaved-changes={dirty ? 'true' : undefined}
         onReset={event => { event.preventDefault(); setDirty(false); setVersion(m.version); setCommand(crypto.randomUUID()); setReset(value => value + 1); }}>
         <input type="hidden" name="expectedVersion" value={version} /><input type="hidden" name="commandId" value={command} />
-        <fieldset disabled={busy}><div className="t-personnel-fields">
-          <div><SelectField label="입사구분" name="admissionType" value={f.admissionType ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'NEW', 'EXPERIENCED', 'TRANSFER']} /></SelectField></div>
-          <div><Field label="인정경력 (개월)" name="recognizedMonths" type="number" value={f.recognizedMonths ?? null} min={0} max={1200} /></div>
-          <div><Field label="그룹입사일" name="groupJoinedOn" type="date" value={f.groupJoinedOn ?? null} /></div>
-          <div><Field label="영문성명" name="englishName" value={f.englishName ?? null} maxLength={120} /></div>
-          <div><SelectField label="결혼여부" name="maritalStatus" value={f.maritalStatus ?? 'UNKNOWN'}><option value="UNKNOWN">미등록</option><option value="YES">기혼</option><option value="NO">미혼</option></SelectField></div>
-          <div><Field label="결혼일자" name="marriedOn" type="date" value={f.marriedOn ?? null} max={today} /></div>
-          <div><SelectField label="보훈여부" name="veteranStatus" value={f.veteranStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'YES', 'NO']} /></SelectField></div>
-          <div><SelectField label="장애여부" name="disabilityStatus" value={f.disabilityStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'YES', 'NO']} /></SelectField></div>
-          <div><SelectField label="병역여부" name="militaryStatus" value={f.militaryStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'COMPLETED', 'EXEMPT', 'PENDING', 'NOT_APPLICABLE']} /></SelectField></div>
-          <div><Field label="군별" name="militaryBranch" value={f.militaryBranch ?? null} maxLength={60} /></div>
-          <div><Field label="휴대전화" name="mobilePhone" type="tel" value={f.mobilePhone ?? null} maxLength={40} /></div>
-          <div><Field label="우편번호" name="postalCode" value={f.postalCode ?? null} maxLength={20} /></div>
-          <div><Field label="주소" name="address" value={f.address ?? null} maxLength={200} /></div>
-          <div><Field label="상세주소" name="addressDetail" value={f.addressDetail ?? null} maxLength={200} /></div>
-          <div><Field label="연락 이메일" name="contactEmail" type="email" value={f.contactEmail ?? null} maxLength={254} /></div>
-        </div><TextAreaField label="상세정보 변경 사유" name="reason" value={f.reason ?? ''} maxLength={500} required /></fieldset>
+        <fieldset disabled={busy}><FormTable columns={2}>
+          <SelectField label="입사구분" name="admissionType" value={f.admissionType ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'NEW', 'EXPERIENCED', 'TRANSFER']} /></SelectField>
+          <Field label="인정경력 (개월)" name="recognizedMonths" type="number" value={f.recognizedMonths ?? null} min={0} max={1200} />
+          <Field label="그룹입사일" name="groupJoinedOn" type="date" value={f.groupJoinedOn ?? null} />
+          <Field label="영문성명" name="englishName" value={f.englishName ?? null} maxLength={120} />
+          <SelectField label="결혼여부" name="maritalStatus" value={f.maritalStatus ?? 'UNKNOWN'}><option value="UNKNOWN">미등록</option><option value="YES">기혼</option><option value="NO">미혼</option></SelectField>
+          <Field label="결혼일자" name="marriedOn" type="date" value={f.marriedOn ?? null} max={today} />
+          <SelectField label="보훈여부" name="veteranStatus" value={f.veteranStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'YES', 'NO']} /></SelectField>
+          <SelectField label="장애여부" name="disabilityStatus" value={f.disabilityStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'YES', 'NO']} /></SelectField>
+          <SelectField label="병역여부" name="militaryStatus" value={f.militaryStatus ?? 'UNKNOWN'}><Options values={['UNKNOWN', 'COMPLETED', 'EXEMPT', 'PENDING', 'NOT_APPLICABLE']} /></SelectField>
+          <Field label="군별" name="militaryBranch" value={f.militaryBranch ?? null} maxLength={60} />
+          <Field label="휴대전화" name="mobilePhone" type="tel" value={f.mobilePhone ?? null} maxLength={40} />
+          <Field label="우편번호" name="postalCode" value={f.postalCode ?? null} maxLength={20} />
+          <Field label="주소" name="address" value={f.address ?? null} maxLength={200} />
+          <Field label="상세주소" name="addressDetail" value={f.addressDetail ?? null} maxLength={200} />
+          <Field label="연락 이메일" name="contactEmail" type="email" value={f.contactEmail ?? null} maxLength={254} />
+          <TextAreaField label="상세정보 변경 사유" name="reason" value={f.reason ?? ''} maxLength={500} required />
+        </FormTable></fieldset>
         {conflict && <div role="alert"><p>다른 상세정보가 저장되었습니다. 입력을 유지했습니다. 현재 저장값을 확인한 뒤 다시 저장하세요.</p><Info values={[
           ['현재 입사구분', status(m.currentForm?.admissionType)], ['현재 인정경력 (개월)', m.currentForm?.recognizedMonths],
           ['현재 그룹입사일', m.currentForm?.groupJoinedOn], ['현재 영문성명', m.currentForm?.englishName],
@@ -188,22 +180,23 @@ export function PersonalDetailsEditor({ model: m, today, busy }: { model: Person
           ['현재 우편번호', m.currentForm?.postalCode], ['현재 주소', m.currentForm?.address],
           ['현재 상세주소', m.currentForm?.addressDetail], ['현재 연락 이메일', m.currentForm?.contactEmail],
         ]} /><button type="button" disabled={busy} onClick={() => { setVersion(m.version); changed(); }}>상세정보 최신 버전 확인</button></div>}
-        <div className="actions"><button type="reset" className="t-btn" disabled={busy}>상세정보 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || conflict}>상세정보 저장</button></div>
+        <div className="wl-form-actions"><button type="reset" className="t-btn" disabled={busy}>상세정보 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || conflict}>상세정보 저장</button></div>
       </Form>
     </section>
-    <section className="t-card t-personnel-section"><h2>가족·학력·자격·어학 이력 등록</h2>
-      <p className="t-muted">필요한 최소 항목만 기록하세요. 이름·주민번호 등 불필요한 개인 식별정보를 입력하지 마세요. 수정 사항은 새 이력으로 추가하여 기존 기록을 보존합니다.</p>
+    <section className="wl-section t-personnel-section"><h2>가족·학력·자격·어학 이력 등록</h2>
+      <p className="hint">필요한 최소 항목만 기록하세요. 이름·주민번호 등 불필요한 개인 식별정보를 입력하지 마세요. 수정 사항은 새 이력으로 추가하여 기존 기록을 보존합니다.</p>
       <Form key={entryReset} action={`${path}/personal-entries`} onChange={entryChanged} data-unsaved-changes={entryDirty ? 'true' : undefined}
         onReset={event => { event.preventDefault(); setEntryDirty(false); setEntryVersion(m.version); setEntryCommand(crypto.randomUUID()); setEntryReset(value => value + 1); }}>
         <input type="hidden" name="expectedVersion" value={entryVersion} /><input type="hidden" name="commandId" value={entryCommand} />
-        <fieldset disabled={busy}><div className="t-personnel-fields">
-          <div><SelectField label="이력 구분" name="kind" value={e?.kind ?? 'FAMILY'}>{kinds.map((kind, i) => <option key={kind} value={kind}>{tabs[i + 2]}</option>)}</SelectField></div>
-          <div><Field label="항목명" name="title" value={e?.title ?? ''} maxLength={120} placeholder="관계·학교명·자격명·언어" required /></div>
-          <div><Field label="상세" name="detail" value={e?.detail ?? null} maxLength={200} placeholder="인원·전공/졸업·발급기관·등급/점수" /></div>
-          <div><Field label="적용 시작일" name="effectiveFrom" type="date" value={e?.effectiveFrom ?? today} required /></div>
-          <div><Field label="적용 종료일" name="effectiveTo" type="date" value={e?.effectiveTo ?? null} /></div>
-        </div><TextAreaField label="이력 등록 사유" name="reason" value={e?.reason ?? ''} maxLength={500} required /></fieldset>
-        <div className="actions"><button type="reset" className="t-btn" disabled={busy}>이력 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || entryConflict}>이력 추가</button></div>
+        <fieldset disabled={busy}><FormTable columns={2}>
+          <SelectField label="이력 구분" name="kind" value={e?.kind ?? 'FAMILY'}>{kinds.map((kind, i) => <option key={kind} value={kind}>{tabs[i + 2]}</option>)}</SelectField>
+          <Field label="항목명" name="title" value={e?.title ?? ''} maxLength={120} placeholder="관계·학교명·자격명·언어" required />
+          <Field label="상세" name="detail" value={e?.detail ?? null} maxLength={200} placeholder="인원·전공/졸업·발급기관·등급/점수" />
+          <Field label="적용 시작일" name="effectiveFrom" type="date" value={e?.effectiveFrom ?? today} required />
+          <Field label="적용 종료일" name="effectiveTo" type="date" value={e?.effectiveTo ?? null} />
+          <TextAreaField label="이력 등록 사유" name="reason" value={e?.reason ?? ''} maxLength={500} required />
+        </FormTable></fieldset>
+        <div className="wl-form-actions"><button type="reset" className="t-btn" disabled={busy}>이력 입력 취소</button><button type="submit" className="t-btn primary" disabled={busy || entryConflict}>이력 추가</button></div>
         {entryConflict && <section className="t-personnel-conflict" aria-label="최신 이력 비교"><h3>다른 이력이 반영되었습니다</h3>
           <p>입력은 유지했습니다. 현재 버전 {m.version}의 등록된 이력을 확인한 뒤 다시 저장하세요.</p>
           {m.entries.length ? <ul>{m.entries.map(entry => <li key={entry.id}><strong>{tabs[kinds.indexOf(entry.kind) + 2]}: {entry.title}</strong><p>{display(entry.detail)}</p><p>{entry.effectiveFrom}, 버전 {entry.revision}</p></li>)}</ul> : <p>현재 등록된 이력이 없습니다.</p>}

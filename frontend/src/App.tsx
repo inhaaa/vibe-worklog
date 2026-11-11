@@ -24,6 +24,9 @@ import './WorkspacePolish.css';
 import './design/tokens.css';
 import './design/ui.css';
 import './design/shell.css';
+import './design/request.css';
+import './design/workspace.css';
+import './design/screens.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
@@ -228,7 +231,10 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {page !== 'workspace/home' && headerEmployee && <EmployeeHeader employee={headerEmployee} />}
+        {page !== 'workspace/home' && headerEmployee && (
+          <EmployeeHeader variant={page === 'workspace/profile' || page === 'org/personnel' ? 'card' : 'line'}
+            employee={headerEmployee} />
+        )}
         {children}
       </main>
     </div>
@@ -648,7 +654,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
             {content}
           </>
         )}
-        {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}>
+        {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}
+          footer={envelope.data.compose ? false : undefined}>
           {notice && <p className="notice" role="alert">{notice}</p>}
           <div key={revision} onChange={event => {
             const form = (event.target as Element).closest('form');

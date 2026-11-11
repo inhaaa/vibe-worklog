@@ -57,3 +57,20 @@ it('같은 사원의 사진 개정이 바뀌면 이전 사진 오류와 무관�
   view.rerender(<EmployeeHeader employee={{ ...employee, photoUrl: '/me/profile/photo?v=2' }} />);
   expect(screen.getByRole('img', { name: '김직원 사원사진' }).getAttribute('src')).toBe('/me/profile/photo?v=2');
 });
+
+it('내 업무 화면의 맥락 줄은 한 줄에 재직 상태와 사번·소속·직급·직책·직무·입사일을 둔다', () => {
+  render(<EmployeeHeader employee={employee} variant="line" />);
+  const line = screen.getByRole('region', { name: '사원 인사정보' });
+  expect(line.className).toBe('wl-context');
+  const facts = within(line).getAllByRole('term').map(term => [term.textContent, term.nextElementSibling?.textContent]);
+  expect(facts).toEqual([['사번', 'E001'], ['소속', '개발팀'], ['직급·직책', '선임 · 팀원'], ['직무', '개발'], ['입사일', '2024-03-04']]);
+  expect(within(line).getByText('휴직').className).toBe('t-tag amber');
+  expect(within(line).getByRole('img', { name: '김직원 사원사진' })).toBeTruthy();
+  expect(line.textContent).not.toContain('1990-01-01');
+  expect(within(line).queryByRole('region', { name: '인사 요약' })).toBeNull();
+});
+
+it('요약만 있는 화면의 맥락 줄은 이름과 회사만 표시한다', () => {
+  render(<EmployeeHeader employee={{ employeeName: '김직원', companyName: '합성회사' }} variant="line" />);
+  expect(screen.getByRole('region', { name: '사원 인사정보' }).textContent).toBe('김김직원합성회사');
+});

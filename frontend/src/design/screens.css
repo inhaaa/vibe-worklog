@@ -1,0 +1,61 @@
+/* Remaining T1 screens and T5 home (spec 8). Unlayered; markup keeps its classes, so these rules restyle the
+   approval inbox, organization tree, today's clock strip and the home dashboard over legacy CSS. */
+
+/* Approval inbox: page head, underline tabs, flat rows under a 2px line. */
+.t-approval-workspace { color: var(--g900); }
+.t-approval-pagehead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.t-approval-heading { display: flex; align-items: center; gap: 8px; }
+.t-approval-heading h1 { margin: 0; color: var(--g900); font: 700 22px/1.35 var(--font-ui); letter-spacing: -.025em; }
+.t-approval-pagehead .t-approval-icon, .t-approval-empty .t-approval-icon { display: none; }
+.t-approval-btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--h-ctl); padding: 0 12px; border: 1px solid var(--g300); border-radius: var(--r-ctl); background: var(--g0); color: var(--g800); box-shadow: none; font: 600 13px/1.2 var(--font-ui); text-decoration: none; white-space: nowrap; }
+.t-approval-btn:hover { border-color: var(--g400); background: var(--g50); }
+.t-approval-btn.primary { border-color: var(--brand); background: var(--brand); color: var(--g0); }
+.t-approval-nav { display: flex; gap: 0; margin: 0 0 16px; padding: 0; border: 0; border-bottom: 1px solid var(--g200); background: transparent; }
+.t-approval-nav a { margin: 0 0 -1px; padding: 10px 14px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--g600); font: 600 13px/1.2 var(--font-ui); text-decoration: none; }
+.t-approval-nav a[aria-current="page"] { border-bottom-color: var(--brand); color: var(--g900); }
+.t-approval-intro { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; margin: 0 0 10px; padding: 0; border: 0; background: transparent; }
+.t-approval-intro h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); }
+.t-approval-intro p { margin: 2px 0 0; color: var(--g600); font-size: 12.5px; }
+.t-approval-count { color: var(--g600); font-size: 13px; }
+.t-approval-list { display: grid; gap: 0; margin: 0; padding: 0; overflow: visible; border: 0; border-top: 2px solid var(--g800); border-radius: 0; list-style: none; }
+.t-approval-card { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; margin: 0; padding: 12px; border: 0; border-bottom: 1px solid var(--g200); border-radius: 0; background: var(--g0); box-shadow: none; }
+.t-approval-card-top { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.t-approval-kind { color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
+.t-approval-status { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: var(--r-ctl); background: var(--g100); color: var(--g700); font: 600 12px/1 var(--font-ui); }
+.t-approval-status[data-status="PENDING"] { background: var(--warn-bg); color: var(--warn); }
+.t-approval-status[data-status="APPROVED"] { background: var(--ok-bg); color: var(--ok); }
+.t-approval-status[data-status="REJECTED"] { background: var(--danger-bg); color: var(--danger); }
+.t-approval-person { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.t-approval-avatar { display: inline-grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; background: var(--g800); color: var(--g0); font-size: 12px; font-weight: 700; }
+.t-approval-person h2 { margin: 0; color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
+.t-approval-person p { margin: 0; color: var(--g600); font-size: 12px; }
+.t-approval-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; }
+.t-approval-facts dt { color: var(--g600); font-size: 12px; }
+.t-approval-facts dd { margin: 0; color: var(--g900); font: 600 13px/1.4 var(--font-ui); font-variant-numeric: tabular-nums; }
+.t-approval-reason { flex: 1 1 120px; min-width: 0; margin: 0; overflow: hidden; color: var(--g700); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.t-approval-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--g600); font-size: 12.5px; }
+.t-approval-meta strong { color: var(--g900); font-weight: 600; }
+.t-approval-card > .t-approval-btn { margin-left: auto; }
+.t-approval-empty { margin: 0; padding: 32px 12px; border: 0; border-top: 2px solid var(--g800); border-radius: 0; background: transparent; color: var(--g600); text-align: center; }
+.t-approval-empty h2 { margin: 0 0 4px; color: var(--g900); font: 700 15px/1.4 var(--font-ui); }
+.t-approval-empty p { margin: 0; font-size: 13px; }
+.t-approval-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 12px 0 0; color: var(--g600); font-size: 12.5px; }
+.t-approval-pagination div { display: flex; gap: 6px; }
+
+/* Organization tree: a plain indented list with guide lines; the selected organization uses brand-tint. */
+.t-org-tree-panel { margin: 0; }
+.t-org-tree ul { margin: 0; padding: 0 0 0 14px; border-left: 1px solid var(--g150); list-style: none; }
+.t-org-tree > ul { padding-left: 0; border-left: 0; }
+.t-org-tree li { margin: 0; }
+.t-org-tree summary { cursor: pointer; }
+.t-org-tree :is(summary, .t-org-leaf) { padding: 2px 0; font-size: 13px; }
+.t-org-tree :is(.t-head-status, .t-head-status small, .t-subtle) { display: inline; margin: 0 0 0 6px; color: var(--g600); font-size: 12px; }
+.t-org-tree a { display: inline-block; padding: 5px 8px; border-radius: var(--r-ctl); color: var(--g800); font-size: 13px; text-decoration: none; }
+.t-org-tree a:hover { background: var(--g50); }
+.t-org-tree a[aria-current="true"] { background: var(--brand-tint); color: var(--brand-ink); font-weight: 700; }
+
+/* Today's clock strip on 출퇴근 기록. */
+.t-clock-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--g200); border-radius: var(--r-pop); background: var(--g0); box-shadow: none; }
+.t-clock-actions strong { color: var(--g900); font: 700 14px/1.4 var(--font-ui); }
+.t-clock-actions .t-muted { margin: 2px 0 0; color: var(--g600); font-size: 12.5px; }
+.t-clock-buttons { display: flex; gap: 6px; }
