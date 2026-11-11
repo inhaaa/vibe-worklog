@@ -226,3 +226,16 @@ dl.wl-form-table dd { min-width: 0; margin: 0; padding: 9px 12px; border-bottom:
   .wl-stamp-state { padding: 0 12px; border-top: 0; }
   .wl-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Short link/history lists: 2px top line, 1px row lines, main text left and an optional inline form right. */
+.wl-rows { margin: 0 0 16px; padding: 0; border-top: 2px solid var(--g800); list-style: none; }
+.wl-rows:empty { display: none; }
+.wl-rows > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; min-height: var(--h-row); padding: 8px 12px; border-bottom: 1px solid var(--g200); font-size: 13px; }
+.wl-rows > li > a { color: var(--link); text-underline-offset: 3px; }
+.wl-rows-main { min-width: 0; }
+.wl-rows-main :is(h3, p), .wl-rows > li > p { margin: 0; }
+.wl-rows-main h3 { color: var(--g900); font: 600 13px/1.5 var(--font-ui); }
+.wl-rows-main p, .wl-rows > li > p { color: var(--g600); font-size: 12.5px; }
+.wl-inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wl-inline-form > label { margin: 0; color: var(--g700); font: 500 12.5px/1.4 var(--font-ui); }
+.wl-inline-form > .t-input { width: 220px; }

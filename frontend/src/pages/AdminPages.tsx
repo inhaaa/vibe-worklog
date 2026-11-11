@@ -944,15 +944,12 @@ function ScheduleFields({
 function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
   return (
     <div className="t-legacy-page admin-shell">
+      <PageHeader title="고정 근무 템플릿" help="여러 템플릿을 만들고 사원별 적용일로 배정합니다. 과거 배정은 당시 불변 버전을 사용합니다." />
       <ErrorNotice message={m.error} />
-      <h1>고정 근무 템플릿</h1>
-      <p>
-        여러 템플릿을 만들고 사원별 적용일로 배정합니다. 과거 배정은 당시 불변 버전을 사용합니다.
-      </p>
-      <section className="panel">
+      <section className="wl-section">
         <h2>등록된 템플릿</h2>
         {m.templates.length === 0 && <p>등록된 템플릿이 없습니다.</p>}
-        <ul>
+        <ul className="wl-rows">
           {m.templates.map((item) => (
             <li key={item.id}>
               <a href={`/admin/schedules/${item.id}`}>
@@ -962,7 +959,7 @@ function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>새 템플릿</h2>
         <Form action="/admin/schedules" method="post" className="wl-form">
           <ScheduleFields form={m.form} today={m.today} />
@@ -1092,75 +1089,48 @@ function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }
 function NetworksPage({ model: m }: { model: NetworksModel }) {
   return (
     <div className="t-legacy-page admin-shell">
+      <PageHeader title="허용 IP 네트워크" help={<>
+        <p>시각 기준: Asia/Seoul (서울)</p>
+        <p>IP 일치는 현장 근로나 본인 존재를 보증하지 않습니다. 실제 접속 주소만 검증하며 전달 헤더로 우회할 수 없습니다.</p>
+      </>} actions={<a className="t-btn" href="/admin/calendar">휴일 캘린더</a>} />
       <ErrorNotice message={m.error} />
-      <h1>허용 IP 네트워크</h1>
-      <p>시각 기준: Asia/Seoul (서울)</p>
-      <p>
-        IP 일치는 현장 근로나 본인 존재를 보증하지 않습니다. 실제 접속 주소만 검증하며 전달 헤더로
-        우회할 수 없습니다.
-      </p>
-      <a href="/admin/calendar">휴일 캘린더</a>
-      <section className="panel">
+      <section className="wl-section">
         <h2>허용망 이력</h2>
         {m.networks.length === 0 && <p>등록된 허용망이 없습니다.</p>}
-        {m.networks.map((network) => (
-          <article key={network.id}>
-            <h3>
-              {network.label} · {network.network}
-            </h3>
-            <p>
-              시작 {fmtDateTime(network.validFrom)} ·{' '}
-              {network.validTo ? `종료 ${fmtDateTime(network.validTo)}` : '현재 유효'}
-            </p>
-            {!network.validTo && (
-              <Form
-                action={`/admin/networks/${network.id}/close`}
-                method="post"
-                className="admin-form"
-              >
-                <Hidden name="commandId" value={m.pageCommand} />
-                <Hidden name="expectedVersion" value={network.version} />
-                <Field
-                  id={`close-${network.id}`}
-                  label="종료 사유"
-                  name="reason"
-                  maxLength={500}
-                  required
-                />
-                <button type="submit">허용 종료</button>
-              </Form>
-            )}
-          </article>
-        ))}
+        <ul className="wl-rows">
+          {m.networks.map((network) => (
+            <li key={network.id}>
+              <div className="wl-rows-main">
+                <h3>{network.label} · {network.network}</h3>
+                <p>시작 {fmtDateTime(network.validFrom)} · {network.validTo ? `종료 ${fmtDateTime(network.validTo)}` : '현재 유효'}</p>
+              </div>
+              {!network.validTo && (
+                <Form action={`/admin/networks/${network.id}/close`} method="post" className="wl-form wl-inline-form">
+                  <Hidden name="commandId" value={m.pageCommand} />
+                  <Hidden name="expectedVersion" value={network.version} />
+                  <Field id={`close-${network.id}`} label="종료 사유" name="reason" maxLength={500} required />
+                  <button type="submit" className="t-btn">허용 종료</button>
+                </Form>
+              )}
+            </li>
+          ))}
+        </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>허용망 추가</h2>
-        <Form action="/admin/networks/changes" method="post" className="admin-form">
+        <Form action="/admin/networks/changes" method="post" className="wl-form">
           <Hidden name="commandId" value={m.form.commandId} />
-          <Field
-            id="network"
-            label="IPv4/IPv6 CIDR"
-            name="network"
-            value={m.form.network}
-            placeholder="192.0.2.0/24"
-            required
-            maxLength={80}
-          />
-          <Field
-            id="network-label"
-            label="명칭"
-            name="label"
-            value={m.form.label}
-            maxLength={120}
-            required
-          />
-          <Check
-            name="wideConfirmed"
-            label="광범위 허용 위험을 검토했습니다"
-            checked={m.form.wideConfirmed}
-          />
-          <Reason id="network-reason" form={m.form} label="등록 사유" />
-          <button type="submit">허용망 저장</button>
+          <FormTable>
+            <Field id="network" label="IPv4/IPv6 CIDR" name="network" value={m.form.network} placeholder="192.0.2.0/24" required maxLength={80} />
+            <Field id="network-label" label="명칭" name="label" value={m.form.label} maxLength={120} required />
+            <FormRow label="위험 검토">
+              <Check name="wideConfirmed" label="광범위 허용 위험을 검토했습니다" checked={m.form.wideConfirmed} />
+            </FormRow>
+            <Reason id="network-reason" form={m.form} label="등록 사유" />
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">허용망 저장</button>
+          </div>
         </Form>
       </section>
     </div>
