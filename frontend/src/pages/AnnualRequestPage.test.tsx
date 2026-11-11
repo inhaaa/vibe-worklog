@@ -68,9 +68,10 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const routing=view.getByRole('region',{name:'결재선'});
   const applicant=view.getByRole('region',{name:'신청자'});
   const content=view.getByRole('region',{name:'신청 내용'});
-  const approvalTable=within(routing).getByRole('table',{name:'결재 정보'});
-  expect(within(approvalTable).getAllByRole('columnheader').map(header=>header.textContent)).toEqual(['결재 경로','결재 담당','상태']);
-  expect(within(approvalTable).getByRole('cell',{name:'합성 조직장'})).toBeTruthy();
+  const stamps=within(routing).getByRole('list',{name:'결재란'});
+  const steps=within(stamps).getAllByRole('listitem');
+  expect(steps.map(step=>step.querySelector('.wl-stamp-role')?.textContent)).toEqual(['기안','결재']);
+  expect(within(steps[1]).getByText('합성 조직장')).toBeTruthy();
   expect(routing.compareDocumentPosition(applicant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(applicant.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   const withinContent=within(content);
@@ -416,7 +417,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
  it('PAGE 모드는 같은 입력·CSRF를 가진 일반 React 폼이다',()=>{
   const view=render(<App initial={envelope({}, {...compose,mode:'PAGE'})}/>);
   expect(view.queryByRole('dialog')).toBeNull();expect(view.getByRole('heading',{name:'근태 신청'})).toBeTruthy();
-  expect(view.getByRole('table',{name:'결재 정보'})).toBeTruthy();
+  expect(view.getByRole('list',{name:'결재란'})).toBeTruthy();
   expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('_csrf')).toBe('csrf');
  });
  it('422는 입력·선택 연도·명령과 열린 모달을 보존하고 오류에 초점을 둔다',()=>{

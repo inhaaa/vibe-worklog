@@ -9,6 +9,8 @@ import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { PageHeader } from '../components/PageHeader';
 import { RequestPeriodSheet, requestPeriodIssue } from '../components/RequestPeriodSheet';
 import './RequestWorkspace.css';
+import { ApprovalStamps } from '../components/ApprovalStamps';
+import { Notice } from '../components/Notice';
 
 const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' }[kind] ?? kind);
 const statusName = (status: string) => ({ PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' }[status] ?? status);
@@ -47,28 +49,24 @@ function useUnload(dirty: boolean) {
     return () => window.removeEventListener('beforeunload', listener);
   }, [dirty]);
 }
-function ApprovalLine({ approval, checked }: { approval: ApprovalPreview | undefined; checked: boolean }) {
+function ApprovalLine({ approval, checked, applicant }: { approval: ApprovalPreview | undefined; checked: boolean; applicant: { name: string; organization: string | null } }) {
   const status = approval?.eligible ? (checked ? '미리보기 확인' : '결재 가능') : '확인 필요';
-  return <section className="t-request-routing" aria-labelledby="annual-approval-line">
+  return <section className="wl-compose-block" aria-labelledby="annual-approval-line">
     <h3 id="annual-approval-line">결재선</h3>
-    {approval ? <>
-      <table className="t-request-approval-table" aria-label="결재 정보">
-        <thead><tr><th scope="col">결재 경로</th><th scope="col">결재 담당</th><th scope="col">상태</th></tr></thead>
-        <tbody><tr>
-          <td>{approval.routeName ?? (approval.source === 'LEGACY' ? '사원별 지정 승인자' : '미지정')}</td>
-          <td>{approval.approverName ?? '미지정'}</td>
-          <td><span className="t-request-route-status" data-eligible={approval.eligible}>{status}</span></td>
-        </tr></tbody>
-      </table>
-      {approval.message && approval.message !== status && <p className="t-request-route-note">{approval.message}</p>}
-    </> : <p className="t-request-route-note" role="status">유형·일자 조회 후 확인</p>}
+    {approval ? <div className="wl-approval">
+      <ApprovalStamps steps={[
+        { role: '기안', name: applicant.name, detail: applicant.organization, state: '작성 중' },
+        { role: '결재', name: approval.approverName ?? '미지정', detail: approval.routeName ?? (approval.source === 'LEGACY' ? '사원별 지정 승인자' : '미지정'), state: status, tone: approval.eligible ? 'ok' : 'warn' },
+      ]} />
+      {approval.message && approval.message !== status && <p className="wl-approval-note">{approval.message}</p>}
+    </div> : <p className="wl-approval-note" role="status">유형·일자 조회 후 확인</p>}
   </section>;
 }
 function ApplicantFacts({ model }: { model: AnnualModel }) {
   const employee = model.employeeHeader;
-  return <section className="t-request-applicant" aria-labelledby="annual-applicant">
+  return <section className="wl-compose-block" aria-labelledby="annual-applicant">
     <h3 id="annual-applicant">신청자</h3>
-    <dl className="t-request-context-facts">
+    <dl className="wl-form-table wl-compose-applicant">
       <div><dt>이름</dt><dd>{employee?.employeeName ?? model.workspaceEmployee?.employeeName ?? '확인 필요'}</dd></div>
       <div><dt>소속</dt><dd>{employee?.organizationName ?? (employee ? '소속 미배정' : model.workspaceEmployee?.companyName ?? '확인 필요')}</dd></div>
       {employee?.employeeNo && <div><dt>사번</dt><dd>{employee.employeeNo}</dd></div>}
@@ -99,10 +97,10 @@ function LeaveBucketSheet({ buckets, selected, onSelect }: { buckets: Bucket[]; 
     </div> : <p className="t-request-bucket-empty" role="status">선택할 수 있는 연차 묶음이 없습니다.</p>}
   </fieldset>;
 }
-function RequestField({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="t-request-sheet-row">
-    <span className="t-request-sheet-label" aria-hidden="true">{label}</span>
-    <div className="t-request-sheet-value">{children}</div>
+function RequestField({ label, required = false, children }: { label: string; required?: boolean; children: ReactNode }) {
+  return <div className="wl-form-row">
+    <span className={`wl-form-label${required ? ' wl-required' : ''}`} aria-hidden="true">{label}</span>
+    <div className="wl-form-value">{children}</div>
   </div>;
 }
 function RequestComposer({ initial, model, onClose, submitting, embedded = false }: { initial: ComposeView; model: AnnualModel; onClose: () => void; submitting: boolean; embedded?: boolean }) {
@@ -132,6 +130,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   const loadedDate = (isLeave ? compose.leaveForm.from : compose.correctionForm.workDate) ?? model.annual.today;
   const needsContext = kind !== compose.kind || date !== loadedDate;
   const approval = needsContext ? undefined : step === 'REVIEW' ? compose.preview?.approval : compose.approval;
+  const applicant = { name: model.employeeHeader?.employeeName ?? model.workspaceEmployee?.employeeName ?? '확인 필요', organization: model.employeeHeader?.organizationName ?? null };
   useUnload(dirty);
   useEffect(() => {
     if (modal && dialog.current && !dialog.current.open) dialog.current.showModal();
@@ -196,25 +195,25 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     if (invalidPeriod) { event.preventDefault(); event.stopPropagation(); focusInvalidPeriod(); return; }
     if (!ready || locked || compose.conflict || noLeaveBuckets) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
-  const summary = <aside className="t-request-summary" aria-label="신청 요약">
+  const summary = <aside className="wl-compose-summary" aria-label="신청 요약">
     <h3>신청 요약</h3>
-    <dl className="t-request-summary-facts">
+    <dl className="wl-info-grid">
       <div><dt>신청 유형</dt><dd>{kindName(kind)}</dd></div>
       <div><dt>{step==='TYPE'||needsContext?'기준 날짜':'대상 기간'}</dt><dd>{step==='TYPE'||needsContext?fmtDate(date):isLeave?`${fmtDate(leave.from)} ~ ${fmtDate(leave.to)}`:fmtDate(correction.workDate)}</dd></div>
       <div><dt>오늘 사용 가능</dt><dd>{step==='REVIEW'&&compose.preview?compose.preview.availableDays:model.annual.currentAvailableDays} DAY</dd></div>
       {!embedded&&<div><dt>예정 결재 담당</dt><dd>{needsContext?'유형·일자 조회 후 확인':approval?.approverName??'미지정'}</dd></div>}
     </dl>
-    <p className="t-request-summary-note">현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</p>
+    <Notice>현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</Notice>
   </aside>;
   const content = <>
-    {!embedded && <header className="t-modal-head"><div><h2 id="annual-compose-title">근태 신청</h2><p className="t-request-year">{model.annual.year}년 신청</p><p id="annual-compose-description">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p></div><button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button></header>}
-    <nav className="t-request-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="t-request-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
-    <div className="t-request-form-context"><ApprovalLine approval={approval} checked={step==='REVIEW'} /><ApplicantFacts model={model} /></div>
-    <section className="t-request-main" aria-label={step==='CONTENT'?'신청 내용':undefined}>
+    {!embedded && <header className="wl-compose-head"><div><h2 id="annual-compose-title">근태 신청</h2><p className="wl-compose-year">{model.annual.year}년 신청</p></div><p id="annual-compose-description" className="t-sr-only">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p><button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button></header>}
+    <nav className="wl-steps" aria-label="신청 작성 단계"><ol>{(['TYPE','CONTENT','REVIEW'] as const).map((value,index)=><li key={value} data-complete={String(index < ['TYPE','CONTENT','REVIEW'].indexOf(step))}><span className="wl-step-number" aria-hidden="true">{index+1}</span><span aria-current={step===value?'step':undefined}>{['신청 유형','내용 작성','제출 전 확인'][index]}</span></li>)}</ol></nav>
+    <div className="wl-compose-context"><ApprovalLine approval={approval} checked={step==='REVIEW'} applicant={applicant} /><ApplicantFacts model={model} /></div>
+    <section className="wl-compose-main" aria-label={step==='CONTENT'?'신청 내용':undefined}>
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
-    {step==='CONTENT' && <header className="t-request-document-head">
+    {step==='CONTENT' && <header className="wl-compose-doc-head">
       <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&!error?'true':undefined}>신청서</h3>
-      <div className="t-request-kind-summary"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn t-request-text-button" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></div>
+      <div className="wl-compose-kind"><span>{kindName(compose.kind)}</span><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></div>
     </header>}
     <Form action="/me/requests/new" method="get" className="t-annual-context" hidden={step==='REVIEW'||(step==='CONTENT'&&kind==='LEAVE_DAY')}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}
@@ -222,24 +221,24 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
       <fieldset ref={typePicker} className="t-request-type-picker" hidden={step!=='TYPE'} disabled={locked}><legend>어떤 신청을 하시겠어요?</legend><div className="t-request-type-cards">
         {(['LEAVE_DAY','ATTENDANCE_CORRECTION'] as const).map(value=><label className="t-request-type-card" key={value} data-selected={String(kind===value)}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setDate(lookupDates.current[value]);}} data-error-focus={!preserveOpeningFocus&&step==='TYPE'&&kind===value&&!error?'true':undefined}/><span className="t-request-type-icon"><RequestIcon kind={value}/></span><strong>{kindName(value)}</strong><small>{value==='LEAVE_DAY'?'하루 단위로 연차를 사용해요.':'출퇴근 시각과 실제 휴게를 바로잡아요.'}</small></label>)}
       </div><p className="t-muted">병가·반차·시간차 등 미지원 초안은 신청할 수 없습니다.</p></fieldset>
-      <div className={`t-request-context-date${step==='CONTENT'?' t-request-sheet-row':''}`}>
-        <label className="t-request-sheet-label" htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label>
-        <div className="t-request-context-controls">
+      <div className="wl-form-table wl-compose-date"><div className="wl-form-row">
+        <label className="wl-form-label wl-required" htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label>
+        <div className="wl-form-value">
           <input id="annual-date" className="t-input" type="date" disabled={locked} name="date" value={date} onChange={event => {setDate(event.target.value);lookupDates.current[kind]=event.target.value;}} max={kind === 'ATTENDANCE_CORRECTION' ? model.annual.today : undefined} required />
           <button type={step==='TYPE'&&!needsContext?'button':'submit'} className={`t-btn ${step==='TYPE'?'primary':''}`} disabled={locked} onClick={event=>{if(step==='TYPE'&&!needsContext){event.preventDefault();if(event.currentTarget.form?.reportValidity())setStep('CONTENT');}}}>{step==='TYPE'?'내용 작성으로':'유형·일자 조회'}</button>
         </div>
-      </div>
+      </div></div>
     </Form>
     {kind !== compose.kind && <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
     <Form action={isLeave ? '/me/requests/leave' : '/me/requests/correction'} className="t-annual-compose-form" onSubmit={submit} aria-labelledby={step==='CONTENT'?'annual-application-title':undefined}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}{hidden('kind', compose.kind)}{hidden('commandId', current.commandId)}
       {current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
       <fieldset ref={element => { form.current = element?.form ?? null; }} disabled={locked || kind!==compose.kind}>
-        <div className="t-request-content-fields" hidden={step!=='CONTENT'}>
+        <div className="wl-form-table wl-compose-fields" hidden={step!=='CONTENT'}>
         {isLeave ? <>
           {hidden('from', leave.from)}{hidden('to', leave.to)}
-          {step==='CONTENT' && <RequestField label="신청 기간"><RequestPeriodSheet {...period} onSelect={change} /></RequestField>}
-          <RequestField label="사용할 연차"><LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} /></RequestField>
+          {step==='CONTENT' && <RequestField label="신청 기간" required><RequestPeriodSheet {...period} onSelect={change} /></RequestField>}
+          <RequestField label="사용할 연차" required><LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} /></RequestField>
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
           <RequestField label="기존 기록"><section className="t-request-correction-source" aria-label="현재 정정 근거">
@@ -274,11 +273,11 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
             <RequestBreakEditor value={correction.actualBreaks ?? ''} onChange={value=>change('actualBreaks',value)} disabled={locked}/>
           </RequestField>
         </>}
-        <div className="t-request-sheet-row">
-          <label className="t-request-sheet-label" htmlFor="annual-reason">신청 사유</label>
-          <div className="t-request-sheet-value t-request-field">
+        <div className="wl-form-row">
+          <label className="wl-form-label wl-required" htmlFor="annual-reason">신청 사유</label>
+          <div className="wl-form-value">
             <textarea id="annual-reason" name="reason" maxLength={500} rows={3} value={current.reason ?? ''} onChange={event => change('reason', event.target.value)} required />
-            <p className="t-request-reason-hint"><span>민감정보를 적지 마세요.</span><span aria-hidden="true">{(current.reason??'').length}/500</span></p>
+            <p className="wl-compose-count"><span>민감정보를 적지 마세요.</span><span aria-hidden="true">{(current.reason??'').length}/500</span></p>
           </div>
         </div>
         {compose.conflict && <div className="notice"><p>다른 변경이 반영됐습니다. 제안값은 보존했습니다. 최신 근거를 확인한 뒤 다시 미리보기 하세요.</p><button type="button" className="t-btn" onClick={confirmLatest}>최신 근거 확인 후 편집 유지</button></div>}
@@ -286,7 +285,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         {compose.preview && <section className="t-request-preview" aria-label="신청 미리보기" hidden={step!=='REVIEW'}>
           <h3 ref={previewHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='REVIEW'&&!error?'true':undefined}>신청 미리보기</h3>
           <p className="t-request-review-kind">{kindName(compose.kind)}</p>
-          <dl className="t-request-review-details">
+          <dl className="wl-info-grid">
             <div><dt>대상 기간</dt><dd>{isLeave?`${fmtDate(leave.from)} ~ ${fmtDate(leave.to)}`:fmtDate(correction.workDate)}</dd></div>
             {!isLeave&&<>
               {(['in','out'] as const).map(direction=><div key={direction}><dt>{direction==='in'?'제안 출근':'제안 퇴근'}</dt><dd>{actionName(correction[`${direction}Action`])}{correction[`${direction}Action`]==='SET'&&` · ${(direction==='in'?correction.requestedInAt:correction.requestedOutAt)?.replace('T',' ')}`}</dd></div>)}
@@ -301,12 +300,12 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
           <p>{compose.preview.message}</p><p className="t-muted">{ready ? '제출·승인 시 다시 검증합니다.' : '입력 또는 근거가 바뀌었습니다. 미리보기를 다시 확인하세요.'}</p>
         </section>}
         {summary}
-        {step!=='TYPE' && <div className="t-request-footer">{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict || noLeaveBuckets}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict || noLeaveBuckets}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>}
+        {step!=='TYPE' && <div className="wl-compose-actions"><span className="wl-modal-note"><span className="wl-required" aria-hidden="true" />필수 입력</span>{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict || noLeaveBuckets}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict || noLeaveBuckets}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>}
       </fieldset>
     </Form>
     {!embedded&&<a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>}
     </section>
-    {!embedded&&<footer className="t-request-dismiss"><span>제출 전까지 신청 내용은 저장되지 않습니다.</span><button type="button" className="t-btn" onClick={close} disabled={locked}>닫기</button></footer>}
+    {!embedded&&<footer className="wl-compose-dismiss"><span>제출 전까지 신청 내용은 저장되지 않습니다.</span><button type="button" className="t-btn" onClick={close} disabled={locked}>닫기</button></footer>}
   </>;
   return modal&&!embedded ? <dialog ref={dialog} className="t-request-dialog" aria-modal="true" aria-labelledby="annual-compose-title" aria-describedby="annual-compose-description" onCancel={event => { event.preventDefault(); close(); }} data-unsaved-changes={String(dirty)}>{content}</dialog> : <section className={`t-request-compose-page${embedded?' t-request-embedded':' t-card'}`} aria-labelledby={embedded?undefined:'annual-compose-title'} data-unsaved-changes={String(dirty)} data-modal-busy={String(locked)}>{content}</section>;
 }

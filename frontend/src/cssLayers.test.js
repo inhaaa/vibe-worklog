@@ -43,7 +43,7 @@ describe('CSS cascade layers', () => {
     expect(css).not.toContain('!important');
   });
 
-  it.each(['src/components/Modal.css'])('keeps %s in the design layer above legacy rules', file => {
+  it.each(['src/components/Modal.css', 'src/design/request.css'])('keeps %s in the design layer above legacy rules', file => {
     const css = code(file);
     expect(css).not.toMatch(/^@layer/);
     expect(css).not.toContain('#tna-app');

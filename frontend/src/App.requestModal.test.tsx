@@ -51,6 +51,9 @@ describe('신청 공통 모달 통합', () => {
     expect(within(dialog).queryByRole('heading',{name:'내 근태현황·신청'})).toBeNull();
     expect(within(dialog).getByRole('region',{name:'결재선'})).toBeTruthy();
     expect(within(dialog).getByRole('form',{name:'신청서'})).toBeTruthy();
+    expect(dialog.querySelector('.t-modal-footer')).toBeNull();
+    expect(within(dialog).getAllByRole('button',{name:'닫기'})).toHaveLength(1);
+    expect(within(dialog).getByRole('button',{name:'미리보기'}).closest('.wl-compose-actions')?.closest('form')).toBeTruthy();
     expect(document.activeElement).toBe(within(dialog).getByRole('heading',{name:'근태 신청'}));
     expect(document.contains(search)).toBe(true);
     expect(search.value).toBe('검색 유지');

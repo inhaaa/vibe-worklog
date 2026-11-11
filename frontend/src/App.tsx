@@ -25,6 +25,7 @@ import './WorkspacePolish.css';
 import './design/tokens.css';
 import './design/ui.css';
 import './design/shell.css';
+import './design/request.css';
 
 function isTaskUrl(url: URL) {
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
@@ -651,7 +652,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
             {content}
           </>
         )}
-        {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}>
+        {background && <Modal title={Boolean(envelope.data.compose) ? '근태 신청' : titles[envelope.page] ?? '업무 상세'} busy={busy || modalWorking} onClose={closeModal}
+          footer={envelope.data.compose ? false : undefined}>
           {notice && <p className="notice" role="alert">{notice}</p>}
           <div key={revision} onChange={event => {
             const form = (event.target as Element).closest('form');
