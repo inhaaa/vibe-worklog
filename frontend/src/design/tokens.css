@@ -28,7 +28,7 @@
   --t-green: var(--ok); --t-green-soft: var(--ok-bg); --t-amber: var(--warn); --t-amber-soft: var(--warn-bg);
   --t-danger: var(--danger); --t-danger-soft: var(--danger-bg);
   --t-overlay: rgba(26, 31, 39, .48); --t-shadow: var(--shadow-modal);
-  --t-radius: var(--r-pop); --radius-card: var(--r-pop); --radius-input: var(--r-ctl);
+  --t-radius: var(--r-pop); --radius-input: var(--r-ctl);
   --t-nav: var(--g0); --t-nav-ink: var(--g800); --t-nav-muted: var(--g600); --t-nav-rule: var(--g200);
   --t-nav-hover: var(--g100); --t-nav-selected: var(--brand-tint); --t-nav-focus: var(--brand);
   --t-nav-work: var(--g600); --t-nav-approval: var(--g600); --t-nav-people: var(--g600); --t-nav-operations: var(--g600);

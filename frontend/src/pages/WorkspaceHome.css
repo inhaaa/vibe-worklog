@@ -131,7 +131,6 @@
 #tna-app .t-work-home-widget-options :is(strong, small) { display: block; overflow-wrap: anywhere; word-break: keep-all; }
 #tna-app .t-work-home-widget-options strong { font-size: 14px; }
 #tna-app .t-work-home-widget-options small { color: var(--t-muted); font-size: 13px; }
-#tna-app .t-work-home-settings-save { min-inline-size: 100px; min-block-size: 44px; border-radius: 6px; }
 
 #tna-app .t-work-home .t-work-home-no-widgets {
   display: grid;
