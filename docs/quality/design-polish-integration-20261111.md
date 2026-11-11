@@ -1,6 +1,6 @@
 # 추가 6개 커밋 통합 검증
 
-2026-11-11, Asia/Seoul. 마지막 반영 기준 `a65111c` 이후 `512d5ac4908b933546fccbb8abad9898e1dc6906`까지 완료 커밋 6개를 일반 제품과 공개 통합본에 반영했다. 이 기록은 배포 전 검증이며 실제 공개 반영은 별도 기록한다.
+2026-11-11, Asia/Seoul. 마지막 반영 기준 `a65111c` 이후 `512d5ac4908b933546fccbb8abad9898e1dc6906`까지 완료 커밋 6개를 일반 제품과 공개 통합본에 반영했다. 아래는 배포 전 검증이며, `8a731a7`의 실제 공개 반영과 후속 확인은 [배포 결과](public-design-polish-deploy-20261111.md)에 구분해 기록한다.
 
 ## 통합 범위
 
@@ -26,4 +26,4 @@
 
 소스 검토에서 추가 중요 지적은 없었다. 원래 작업트리와 사용자 미커밋 파일은 보존했다. 이번에는 새 장시간 부하·전체 취약점 검사·실고객 운영 검증을 실행하지 않았다.
 
-각 통합 작업트리의 `target/frontend-tests-polish-20261111.log`, `target/frontend-build-polish-20261111.log`, 공개의 `target/java-polish-unit-20261111.log`에 원시 검증 결과를 보존했다. 배포 준비 증거는 Git 제외 `target/public-polish-ops-20261111`에 있다. [공개 데모 후속 배포](../development/worklog-public-updates.md)에 실제 배포 결과를 별도로 남긴다.
+각 통합 작업트리의 `target/frontend-tests-polish-20261111.log`, `target/frontend-build-polish-20261111.log`, 공개의 `target/java-polish-unit-20261111.log`에 원시 검증 결과를 보존했다. 배포 준비 증거는 Git 제외 `target/public-polish-ops-20261111`에 있다. [실제 배포 결과와 한계](public-design-polish-deploy-20261111.md) 및 [공개 데모 후속 배포](../development/worklog-public-updates.md)에 배포 후 결과를 별도로 기록했다.
