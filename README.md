@@ -7,6 +7,7 @@ AI 바이브 코딩을 활용하여 설계하고 개발하는 중소기업 대�
 아래 테스트 수치는 각 작업·브랜치의 실행 당시 결과입니다. 2026-11-09 기준 [WorkLog 공개 데모](https://worklog.inhaaa.com)는 `main`의 제품 소스 `d1d0bc3`과 기존 데모 보안을 통합한 `a23b119`·V17을 실행합니다.
 
 - **Project Status:** Phase 6 · Local Quality Validation
+- 공통 디자인 시스템 (2026-11-10~11, 개발본 `claude/worklog-design-system-20261110`). Pretendard·토큰·legacy 층 위에 공통 시트, 공통 모달·문서형 화면, 내 업무 캘린더와 사원 맥락 줄을 적용하고 쓰지 않는 legacy CSS 규칙을 지웠습니다. 프런트엔드 516개 테스트·타입·빌드와 차콜·블루 1440·390px 합성 화면 192장 검증을 통과했습니다. Java 테스트는 이 PC에 JDK 25가 없어 실행하지 못했습니다(Java 코드 변경 없음). 공개 배포는 별도입니다. [설계](docs/superpowers/specs/2026-11-10-worklog-design-system-design.md)·[검증 결과](docs/quality/worklog-design-system-20261110.md)
 - 공개 데모 표기 통일 (2026-11-09, `e07594f`). 상단과 사이드바의 이름을 **WorkLog 데모**로 맞췄습니다. [화면 계약과 배포 검증](docs/design/worklog-landing.md)
 - 데모 바로 입장·사번 변경 공개 반영 (2026-11-09, `153470d`). **WorkLog 시작하기**로 기본 관리자 `99999`에 입장한 뒤, 상단 **사번 변경**에서 승인자 전환과 관리자 복귀를 공개 PC·모바일에서 확인했습니다. 공개 프런트 테스트 430개와 배포 후 GET 검증 14개를 통과했습니다. [화면 계약과 검증](docs/design/worklog-landing.md)
 - 신청 기간 시트 공개 반영 (2026-11-09). 공개 데모의 블루·차콜에서 시작일·종료일 선택, 범위 제한, 신청 요약 반영과 초점 복귀를 확인했습니다. WorkLog 앱 교체 전후 DB와 기존 서비스 상태를 대조했습니다. [실제 배포 결과](docs/development/worklog-public-updates.md#2026-11-09-신청-기간-시트-공개-반영)
