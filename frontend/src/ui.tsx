@@ -2,6 +2,7 @@ import { createContext, useContext, useId } from 'react';
 import type {
   FormHTMLAttributes,
   InputHTMLAttributes,
+  ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
@@ -23,6 +24,38 @@ export function Form({ method = 'post', children, ...props }: FormHTMLAttributes
   );
 }
 
+/** 문서형 표(설계 7.8). 안의 Field·SelectField·TextAreaField는 항목명·값 칸 한 행으로 그린다. */
+const FormTableContext = createContext(false);
+export function FormTable({ columns = 1, children }: { columns?: 1 | 2; children: ReactNode }) {
+  return (
+    <FormTableContext value={true}>
+      <div className="wl-form-table" data-columns={columns === 2 ? 2 : undefined}>{children}</div>
+    </FormTableContext>
+  );
+}
+
+/** 문서형 표의 한 행. htmlFor가 없으면 값 칸을 항목명으로 이름 붙인 group으로 둔다(묶음·체크 항목). */
+export function FormRow({
+  label,
+  htmlFor,
+  required = false,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  const labelId = useId();
+  const className = `wl-form-label${required ? ' wl-required' : ''}`;
+  return (
+    <div className="wl-form-row" role={htmlFor ? undefined : 'group'} aria-labelledby={htmlFor ? undefined : labelId}>
+      {htmlFor ? <label className={className} htmlFor={htmlFor}>{label}</label> : <span id={labelId} className={className}>{label}</span>}
+      <div className="wl-form-value"><FormTableContext value={false}>{children}</FormTableContext></div>
+    </div>
+  );
+}
+
 interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value'> {
   label: string;
   value?: string | number | null;
@@ -36,17 +69,23 @@ export function Field({
   ...props
 }: FieldProps) {
   const generatedId = useId();
+  const inTable = useContext(FormTableContext);
   const fieldId = id ?? generatedId;
-  return (
+  const input = (
+    <input
+      {...props}
+      id={fieldId}
+      type={type}
+      className={className}
+      defaultValue={type === 'password' ? undefined : (value ?? undefined)}
+    />
+  );
+  return inTable ? (
+    <FormRow label={label} htmlFor={fieldId} required={props.required}>{input}</FormRow>
+  ) : (
     <>
       <label htmlFor={fieldId}>{label}</label>
-      <input
-        {...props}
-        id={fieldId}
-        type={type}
-        className={className}
-        defaultValue={type === 'password' ? undefined : (value ?? undefined)}
-      />
+      {input}
     </>
   );
 }
@@ -90,13 +129,19 @@ export function SelectField({
   ...props
 }: SelectProps) {
   const generatedId = useId();
+  const inTable = useContext(FormTableContext);
   const fieldId = id ?? generatedId;
-  return (
+  const select = (
+    <select {...props} id={fieldId} className={className} defaultValue={value ?? ''}>
+      {children}
+    </select>
+  );
+  return inTable ? (
+    <FormRow label={label} htmlFor={fieldId} required={props.required}>{select}</FormRow>
+  ) : (
     <>
       <label htmlFor={fieldId}>{label}</label>
-      <select {...props} id={fieldId} className={className} defaultValue={value ?? ''}>
-        {children}
-      </select>
+      {select}
     </>
   );
 }
@@ -107,11 +152,15 @@ interface TextAreaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>
 }
 export function TextAreaField({ label, value, id, ...props }: TextAreaProps) {
   const generatedId = useId();
+  const inTable = useContext(FormTableContext);
   const fieldId = id ?? generatedId;
-  return (
+  const textarea = <textarea {...props} id={fieldId} defaultValue={value ?? ''} />;
+  return inTable ? (
+    <FormRow label={label} htmlFor={fieldId} required={props.required}>{textarea}</FormRow>
+  ) : (
     <>
       <label htmlFor={fieldId}>{label}</label>
-      <textarea {...props} id={fieldId} defaultValue={value ?? ''} />
+      {textarea}
     </>
   );
 }
