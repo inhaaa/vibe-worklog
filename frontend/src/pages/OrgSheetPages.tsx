@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
-import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime } from '../ui';
+import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime, FormTable } from '../ui';
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
@@ -238,17 +238,19 @@ function OrganizationHeadsPage({ model: m, error }: { model: OrganizationHeads; 
   ];
   return <div className="t-organization-heads">
     <PageHeader title="조직장 배정" help="조직별 한 명을 지정하고 적용일별 이력을 보존합니다." actions={<a className="t-btn" href="/company/organizations">조직도</a>} />
-    <section className="t-card"><form action="/admin/organization-heads" method="get" className="t-toolbar"><div><SelectField label="배정할 조직" name="organizationId" value={m.organizationId}><option value="">조직을 선택하세요</option>{m.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.code} · {organization.name}{organization.active ? '' : ' (비활성)'}</option>)}</SelectField></div><button className="t-btn primary" type="submit">조회</button></form><p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p></section>
+    <form action="/admin/organization-heads" method="get" className="wl-querybar"><div><SelectField label="배정할 조직" name="organizationId" value={m.organizationId}><option value="">조직을 선택하세요</option>{m.organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.code} · {organization.name}{organization.active ? '' : ' (비활성)'}</option>)}</SelectField></div><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
+    <p className="t-subtle">조회 기준 (서울): {fmtDateTime(m.asOf)}</p>
     <ErrorNotice message={error} />
     {selected ? <>
-      <section className="t-card t-head-history"><h2>{selected.name} 조직장 이력</h2><p className="t-subtle">시작일은 포함하고 종료일은 제외합니다. 당일 교체와 종료 이력도 보존합니다.</p>
+      <section className="wl-section t-head-history"><h2>{selected.name} 조직장 이력</h2><p className="hint">시작일은 포함하고 종료일은 제외합니다. 당일 교체와 종료 이력도 보존합니다.</p>
         {m.history.length === 0 ? <p className="notice">등록된 조직장이 없습니다.</p> : <WorklogSheet label="조직장 배정 이력" rows={m.history} columns={columns} getRowId={head => head.id} scope="all" />}
       </section>
-      <div className="t-head-forms"><section className="t-card"><h2>조직장 지정·교체</h2><p className="t-muted">조직장 배정으로 관리·결재 권한이 자동 부여되지 않습니다. 소속과 다른 조직의 사원도 겸직할 수 있습니다.</p><Form action="/admin/organization-heads" className="admin-form"><HeadCommandFields form={m.form} /><SelectField label="새 조직장" name="employeeId" value={m.form.employeeId} required><option value="">사원을 선택하세요</option>{missing && <option value={m.form.employeeId!}>현재 선택값 (재지정 필요)</option>}{m.candidates.map(employee => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.employeeName}</option>)}</SelectField><Field label="적용 시작일 (포함)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="지정·교체 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /><p className="t-subtle">오늘 이후 날짜만 선택하세요. 기존 대기 신청의 결재자는 자동 변경되지 않습니다.</p><button className="t-btn primary" disabled={!selected.active || m.candidates.length === 0} title={!selected.active ? '비활성 조직에는 배정할 수 없습니다.' : m.candidates.length === 0 ? '배정 가능한 재직 사원이 없습니다.' : undefined}>조직장 저장</button></Form></section>
-      <section className="t-card"><h2>조직장 배정 종료</h2><p className="t-muted">해당 적용일부터 조직장을 비워 둡니다. 이전 배정과 신청 이력은 보존합니다.</p><Form action="/admin/organization-heads/end" className="admin-form"><HeadCommandFields form={m.form} /><Field label="종료 적용일 (제외)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="종료 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /><button className="t-btn" disabled={m.history.every(head => head.supersededAt || (head.validTo && head.validTo <= m.today))} title="열려 있는 배정이 있을 때 종료할 수 있습니다.">배정 종료</button></Form></section></div>
-    </> : <section className="t-card"><p className="notice">조직을 선택해 조직장 배정과 이력을 확인하세요.</p></section>}
+      <div className="t-head-forms"><section className="wl-section"><h2>조직장 지정·교체</h2><p className="hint">조직장 배정으로 관리·결재 권한이 자동 부여되지 않습니다. 소속과 다른 조직의 사원도 겸직할 수 있습니다.</p><Form action="/admin/organization-heads" className="wl-form"><HeadCommandFields form={m.form} /><FormTable><SelectField label="새 조직장" name="employeeId" value={m.form.employeeId} required><option value="">사원을 선택하세요</option>{missing && <option value={m.form.employeeId!}>현재 선택값 (재지정 필요)</option>}{m.candidates.map(employee => <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.employeeName}</option>)}</SelectField><Field label="적용 시작일 (포함)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="지정·교체 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /><p className="hint">오늘 이후 날짜만 선택하세요. 기존 대기 신청의 결재자는 자동 변경되지 않습니다.</p></FormTable><div className="wl-form-actions"><button className="t-btn primary" disabled={!selected.active || m.candidates.length === 0} title={!selected.active ? '비활성 조직에는 배정할 수 없습니다.' : m.candidates.length === 0 ? '배정 가능한 재직 사원이 없습니다.' : undefined}>조직장 저장</button></div></Form></section>
+      <section className="wl-section"><h2>조직장 배정 종료</h2><p className="hint">해당 적용일부터 조직장을 비워 둡니다. 이전 배정과 신청 이력은 보존합니다.</p><Form action="/admin/organization-heads/end" className="wl-form"><HeadCommandFields form={m.form} /><FormTable><Field label="종료 적용일 (제외)" name="validFrom" type="date" value={m.form.validFrom} min={m.today} required /><TextAreaField label="종료 사유" name="reason" value={m.form.reason} rows={3} maxLength={500} required /></FormTable><div className="wl-form-actions"><button className="t-btn" disabled={m.history.every(head => head.supersededAt || (head.validTo && head.validTo <= m.today))} title="열려 있는 배정이 있을 때 종료할 수 있습니다.">배정 종료</button></div></Form></section></div>
+    </> : <p className="notice">조직을 선택해 조직장 배정과 이력을 확인하세요.</p>}
   </div>;
 }
+
 function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations }) {
   const ids = new Set(m.organizations.map(organization => organization.id));
   type CompanyEmployee = CompanyOrganizations['employees'][number];

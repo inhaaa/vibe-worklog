@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
-import { Form, fmtDate, fmtDateTime } from '../ui';
+import { Form, FormRow, FormTable, fmtDate, fmtDateTime } from '../ui';
 import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
@@ -381,23 +381,25 @@ function AttributionManagement({model:m,error}:{model:AttributionView;error?:str
   return <section className="t-annual-page">
     <PageHeader title="기초 묶음 귀속연도" actions={<a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a>} />
     <p className="t-muted">{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p>
-    <p className="notice">묶음 전체가 단일 귀속연도라는 근거가 있을 때만 확정하세요. 혼합된 묶음은 미분류로 유지합니다. 분류는 기초·사용·복원 원장을 바꾸지 않습니다.</p>
-    <section className="t-card"><h2>귀속 분류 등록</h2>
+    <Notice>묶음 전체가 단일 귀속연도라는 근거가 있을 때만 확정하세요. 혼합된 묶음은 미분류로 유지합니다. 분류는 기초·사용·복원 원장을 바꾸지 않습니다.</Notice>
+    <section className="wl-section"><h2>귀속 분류 등록</h2>
       {error&&<p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
       {conflict&&<section className="notice"><p>최신 분류는 v{latest}입니다. 이력의 근거와 현재 편집값을 비교한 뒤 확인하세요.</p><button type="button" className="t-btn" onClick={()=>{setExpected(latest);change();}}>최신 이력 확인 후 편집 유지</button></section>}
-      <Form action={`/admin/leave-balances/buckets/${m.bucket.id}/attributions`} className="admin-form" onChange={change} onSubmit={event=>{if(conflict)event.preventDefault();}} data-unsaved-changes={String(dirty)}>
+      <Form action={`/admin/leave-balances/buckets/${m.bucket.id}/attributions`} className="wl-form" onChange={change} onSubmit={event=>{if(conflict)event.preventDefault();}} data-unsaved-changes={String(dirty)}>
         {hidden('expectedRevision',expected)}{hidden('commandId',command)}
-        <label htmlFor="attribution-status">분류 상태</label><select id="attribution-status" name="classificationStatus" className="t-select" value={status} onChange={event=>setStatus(event.target.value)}><option value="UNCLASSIFIED">미분류 (확정 해제)</option><option value="CONFIRMED">귀속연도 확정</option></select>
-        {status==='CONFIRMED'?<>
-          <label htmlFor="entitlement-year">귀속연도</label><input id="entitlement-year" className="t-input" name="entitlementYear" type="number" min="1900" max="9998" defaultValue={m.form.entitlementYear??''} required/>
-          <label className="checkbox-label"><input type="checkbox" name="singleYearConfirmed" value="true" defaultChecked={m.form.singleYearConfirmed} required/>묶음 전체가 단일 귀속연도라는 근거를 확인했습니다</label>
-        </>:<p>귀속연도를 지정하지 않고 새 미분류 이력을 추가합니다.</p>}
-        <label htmlFor="attribution-basis">분류 근거</label><textarea id="attribution-basis" name="basis" rows={3} maxLength={500} defaultValue={m.form.basis} required/>
-        <label htmlFor="attribution-reason">변경 사유</label><textarea id="attribution-reason" name="reason" rows={2} maxLength={500} defaultValue={m.form.reason} required/>
-        <button className="t-btn primary" disabled={conflict}>귀속 이력 저장</button>
+        <FormTable>
+          <FormRow label="분류 상태" htmlFor="attribution-status" required><select id="attribution-status" name="classificationStatus" className="t-select" value={status} onChange={event=>setStatus(event.target.value)}><option value="UNCLASSIFIED">미분류 (확정 해제)</option><option value="CONFIRMED">귀속연도 확정</option></select></FormRow>
+          {status==='CONFIRMED'?<>
+            <FormRow label="귀속연도" htmlFor="entitlement-year" required><input id="entitlement-year" className="t-input" name="entitlementYear" type="number" min="1900" max="9998" defaultValue={m.form.entitlementYear??''} required/></FormRow>
+            <FormRow label="근거 확인" required><label className="checkbox-label"><input type="checkbox" name="singleYearConfirmed" value="true" defaultChecked={m.form.singleYearConfirmed} required/>묶음 전체가 단일 귀속연도라는 근거를 확인했습니다</label></FormRow>
+          </>:<p>귀속연도를 지정하지 않고 새 미분류 이력을 추가합니다.</p>}
+          <FormRow label="분류 근거" htmlFor="attribution-basis" required><textarea id="attribution-basis" name="basis" rows={3} maxLength={500} defaultValue={m.form.basis} required/></FormRow>
+          <FormRow label="변경 사유" htmlFor="attribution-reason" required><textarea id="attribution-reason" name="reason" rows={2} maxLength={500} defaultValue={m.form.reason} required/></FormRow>
+        </FormTable>
+        <div className="wl-form-actions"><button className="t-btn primary" disabled={conflict}>귀속 이력 저장</button></div>
       </Form>
     </section>
-    <section className="t-card"><h2>귀속 분류 이력</h2><p className="t-muted">최신 revision을 사용하며 이전 근거는 덮어쓰지 않습니다.</p>
+    <section className="wl-section"><h2>귀속 분류 이력</h2><p className="t-muted">최신 revision을 사용하며 이전 근거는 덮어쓰지 않습니다.</p>
       <div className="table-scroll"><table><thead><tr><th>개정</th><th>분류·연도</th><th>근거·사유</th><th>등록자·시각 (서울)</th></tr></thead><tbody>
         {m.history.map(item=><tr key={item.id}><td>v{item.revision}</td><td>{item.classificationStatus==='CONFIRMED'?`${item.entitlementYear}년 확정`:'미분류'}</td><td>{item.basis}<small>{item.reason}</small></td><td>{item.createdByName??'등록 담당자'}<small>{fmtDateTime(item.createdAt)}</small></td></tr>)}
       </tbody></table></div>
