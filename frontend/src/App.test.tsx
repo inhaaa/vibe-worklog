@@ -230,6 +230,17 @@ describe('React 앱 탐색과 제출', () => {
     expect(topbar.getByRole('link', { name: 'WorkLog 홈으로' }).getAttribute('aria-current')).toBe('page');
   });
 
+  it('데스크톱 상단 버튼으로 사이드 메뉴를 닫고 다시 연다', () => {
+    render(<App initial={today} />);
+    const shell = screen.getByRole('complementary', { name: '주 메뉴' }).closest('.t-app-shell')!;
+    fireEvent.click(screen.getByRole('button', { name: '사이드 메뉴 닫기' }));
+    expect(shell.getAttribute('data-sidebar-collapsed')).toBe('true');
+    const reopen = screen.getByRole('button', { name: '사이드 메뉴 열기' });
+    expect(reopen.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(reopen);
+    expect(shell.getAttribute('data-sidebar-collapsed')).toBe('false');
+  });
+
   it('홈에는 인사 헤더 없이 근무 대시보드만 표시한다', () => {
     render(<App initial={{ ...today, page: 'workspace/home' }} />);
     expect(screen.getByRole('heading', { name: '민감직원님, 안녕하세요' })).toBeTruthy();

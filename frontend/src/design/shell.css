@@ -88,6 +88,22 @@
 .t-topbar .t-btn:hover:not(:disabled) { background: var(--g50); border-color: var(--g400); }
 .t-main { grid-area: main; width: 100%; max-width: var(--container, 1440px); min-width: 0; margin: 0 auto; padding: 22px var(--page-pad) 40px; }
 .t-mobile-menu { display: none; }
+.t-sidebar-toggle {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--g700); cursor: pointer;
+}
+.t-sidebar-toggle:hover { background: var(--g100); color: var(--g900); }
+.t-sidebar-toggle svg { width: 18px; height: 18px; }
+.t-app-shell[data-sidebar-collapsed="true"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "main"; }
+.t-app-shell[data-sidebar-collapsed="true"] .t-sidebar { display: none; }
+.t-app-shell[data-sidebar-collapsed="true"] .t-topbar .t-brand-button { display: inline-flex; align-items: center; gap: 8px; color: var(--g900); font-weight: 800; text-decoration: none; }
+.t-app-shell[data-sidebar-collapsed="true"] .t-topbar .t-brand-sub { display: none; }
+.t-navigation-tools { display: flex; justify-content: flex-end; gap: 2px; padding: 0 0 4px; }
+.t-navigation-tools button {
+  min-height: 26px; padding: 0 8px; border: 0; border-radius: var(--r-ctl); background: transparent;
+  color: var(--g600); font: 500 12px/1 var(--font-ui); cursor: pointer;
+}
+.t-navigation-tools button:hover { background: var(--g100); color: var(--g900); }
 
 @media (max-width: 960px) {
   .t-app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "top" "main"; }
@@ -95,6 +111,7 @@
   .t-sidebar { display: none; position: static; height: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--g200); }
   .t-app-shell[data-menu-open="true"] .t-sidebar { display: flex; }
   .t-sidebar .t-brand-button { display: none; }
+  .t-sidebar-toggle { display: none; }
   .t-topbar { flex-wrap: wrap; padding-block: 6px; }
   .t-topbar .t-brand-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--g900); font-weight: 800; text-decoration: none; }
   .t-topbar .t-brand-sub { display: none; }
