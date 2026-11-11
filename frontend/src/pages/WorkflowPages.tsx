@@ -443,20 +443,21 @@ function Balances({ model: m }: { model: BalancesModel }) {
   const f = m.form;
   return (
     <>
-      <h1>기초 잔여 관리</h1>
-      <Form action="/admin/leave-balances" method="get">
-        <SelectField label="사원" name="employeeId" value={m.employee.id}>
-          <EmployeeOptions employees={m.employees} />
-        </SelectField>
-        <button>조회</button>
+      <PageHeader title="기초 잔여 관리" actions={<>
+        <a className="t-btn" href="/admin/requests">고객사 신청·예외 현황</a>
+        <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
+      </>} />
+      <Form action="/admin/leave-balances" method="get" className="wl-querybar">
+        <div>
+          <SelectField label="사원" name="employeeId" value={m.employee.id}>
+            <EmployeeOptions employees={m.employees} />
+          </SelectField>
+        </div>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <p>
-        <a href="/admin/requests">고객사 신청·예외 현황</a> ·{' '}
-        <a href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
-      </p>
-      <section className="panel">
+      <section className="wl-section">
         <h2>{m.employee.displayName} · 기초 묶음</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.buckets.map((b) => (
             <li key={b.id}>
               <a href={`/admin/leave-balances/buckets/${b.id}`}>
@@ -466,47 +467,24 @@ function Balances({ model: m }: { model: BalancesModel }) {
           ))}
         </ul>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>근거 있는 기초 등록</h2>
-        <p>
+        <p className="hint">
           자동 발생이 아닙니다. 본인의 기초 등록·증감은 다른 담당자가 처리합니다. 소수 단위는
           지원하지 않습니다.
         </p>
-        <Form action="/admin/leave-balances/entries" method="post" className="admin-form">
+        <Form action="/admin/leave-balances/entries" method="post" className="wl-form">
           {hidden('employeeId', f.employeeId)}
           {hidden('commandId', f.commandId)}
-          <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
-          <Field
-            label="사용 가능 시작일"
-            name="usableFrom"
-            type="date"
-            value={f.usableFrom}
-            required
-          />
-          <Field
-            label="사용 가능 종료일 (포함)"
-            name="usableTo"
-            type="date"
-            value={f.usableTo ?? ''}
-          />
-          <Field
-            label="기초 일수 (정수 DAY)"
-            name="quantityDays"
-            type="number"
-            min="0"
-            step="1"
-            value={f.quantityDays ?? ''}
-            required
-          />
-          <Field
-            label="발생 근거 참조"
-            name="sourceReference"
-            maxLength={500}
-            value={f.sourceReference}
-            required
-          />
-          <Reason label="등록 사유" value={f.reason} />
-          <button>기초 원장 등록</button>
+          <FormTable>
+            <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
+            <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
+            <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
+            <Field label="기초 일수 (정수 DAY)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
+            <Reason label="등록 사유" value={f.reason} />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">기초 원장 등록</button></div>
         </Form>
       </section>
     </>
@@ -529,39 +507,22 @@ function Ledger({ model: m }: { model: LedgerModel }) {
       <section className="wl-section">
         <WorklogSheet label="연차 원장" title="원장 이력" rows={m.ledger} columns={columns} getRowId={entry => entry.id} scope="all" />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>증감 조정</h2>
         <Form
           action={`/admin/leave-balances/buckets/${m.bucketId}/adjustments`}
           method="post"
-          className="admin-form"
+          className="wl-form"
         >
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
-          <Field
-            label="조정 DAY (감액은 음수)"
-            name="quantityDays"
-            type="number"
-            step="1"
-            value={f.quantityDays ?? ''}
-            required
-          />
-          <Field
-            label="효력 기준일"
-            name="effectiveOn"
-            type="date"
-            value={f.effectiveOn}
-            required
-          />
-          <Field
-            label="근거 참조"
-            name="sourceReference"
-            value={f.sourceReference}
-            maxLength={500}
-            required
-          />
-          <Reason label="조정 사유" value={f.reason} />
-          <button>조정 원장 추가</button>
+          <FormTable>
+            <Field label="조정 DAY (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
+            <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
+            <Reason label="조정 사유" value={f.reason} />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">조정 원장 추가</button></div>
         </Form>
       </section>
     </>
@@ -609,7 +570,7 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <section className="panel">
+      <section className="wl-section">
         <h2>월 요약</h2>
         <p>
           확인된 실근로 부분합 {m.totalTime ?? '미확정'} / 미확정 {summary.result.unconfirmedDays}일
@@ -626,9 +587,9 @@ function Month({ model: m }: { model: MonthModel }) {
       <section className="wl-section">
         <WorklogSheet label="일별 계산 결과" title="일 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>월 경계를 포함한 주간 참고량</h2>
-        <ul>
+        <ul className="wl-rows">
           {view.weeks.map((w) => (
             <li key={w.from}>
               {w.from} ~ {previousDay(w.to)} · 확인 부분합 {w.result.confirmedWorkMillis} ms /
@@ -639,27 +600,29 @@ function Month({ model: m }: { model: MonthModel }) {
         </ul>
       </section>
       {m.admin && (
-        <section className="panel">
+        <section className="wl-section">
           <h2>수동 재집계·검토용 Excel</h2>
           <p>
             <a href={`/admin/work-policies?employeeId=${m.employeeId}`}>주 기산점·적용 대상 검토</a>{' '}
             · <a href="/admin/audit">감사 이력</a>
           </p>
-          <Form action="/admin/calculations" method="post" className="admin-form">
+          <Form action="/admin/calculations" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.calculateCommand)}
-            <Field label="재집계 사유" name="reason" maxLength={500} required />
-            <button>월과 경계 주 재집계</button>
+            <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
+            <div className="wl-form-actions"><button className="t-btn">월과 경계 주 재집계</button></div>
           </Form>
-          <Form action="/admin/reports/exports" method="post" className="admin-form">
+          <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.exportCommand)}
-            <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
-            <p>
-              결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
-              않습니다.
-            </p>
-            <button>검토용 XLSX 다운로드</button>
+            <FormTable>
+              <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
+              <p>
+                결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
+                않습니다.
+              </p>
+            </FormTable>
+            <div className="wl-form-actions"><button className="t-btn">검토용 XLSX 다운로드</button></div>
           </Form>
         </section>
       )}
@@ -671,76 +634,70 @@ function Policies({ model: m }: { model: PoliciesModel }) {
     a = m.assessmentForm;
   return (
     <>
-      <h1>적용 대상·주 기산점 검토</h1>
-      <p>
-        법률 적합성을 자동 인증하지 않습니다. 근거를 확인한 적용 대상과 기간만 명시하며 민감한 보호
-        사유는 수집하지 않습니다. 변경은 새 불변 버전입니다.
-      </p>
-      <Form action="/admin/work-policies" method="get">
-        <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
-          <EmployeeOptions employees={m.employees} />
-        </SelectField>
-        <button>조회</button>
+      <PageHeader title="적용 대상·주 기산점 검토" help="법률 적합성을 자동 인증하지 않습니다. 근거를 확인한 적용 대상과 기간만 명시하며 민감한 보호 사유는 수집하지 않습니다. 변경은 새 불변 버전입니다." />
+      <Form action="/admin/work-policies" method="get" className="wl-querybar">
+        <div>
+          <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
+            <EmployeeOptions employees={m.employees} />
+          </SelectField>
+        </div>
+        <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      <section className="panel">
+      <section className="wl-section">
         <h2>사업장 주 기산점</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.policies.map((r) => (
             <li key={r.id}>
-              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
-              <p>월요일 일치검토 {String(r.mondayWeekReviewed)}</p><p>{r.basis}</p>
+              <div className="wl-rows-main">
+                <h3>v{r.revision} · {fmtDate(r.validFrom)} ~ {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}</h3>
+                <p>월요일 일치검토 {String(r.mondayWeekReviewed)} · {r.basis}</p>
+              </div>
             </li>
           ))}
         </ul>
-        <Form action="/admin/work-policies" method="post" className="admin-form">
+        <Form action="/admin/work-policies" method="post" className="wl-form">
           {hidden('commandId', p.commandId)}
-          <Field label="적용 시작일" name="from" type="date" value={p.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={p.to} required />
-          <Check
-            label="실제 회사의 주 기산점이 월요일인 것을 확인했습니다"
-            name="mondayWeekReviewed"
-            checked={p.mondayWeekReviewed}
-          />
-          <TextAreaField label="검토 근거" name="basis" value={p.basis} maxLength={500} required />
-          <Field label="등록 사유" name="reason" value={p.reason} maxLength={500} required />
-          <button>기산점 검토 버전 저장</button>
+          <FormTable>
+            <Field label="적용 시작일" name="from" type="date" value={p.from} required />
+            <Field label="종료일 (포함)" name="to" type="date" value={p.to} required />
+            <FormRow label="월요일 확인">
+              <Check label="실제 회사의 주 기산점이 월요일인 것을 확인했습니다" name="mondayWeekReviewed" checked={p.mondayWeekReviewed} />
+            </FormRow>
+            <TextAreaField label="검토 근거" name="basis" value={p.basis} maxLength={500} required />
+            <Field label="등록 사유" name="reason" value={p.reason} maxLength={500} required />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">기산점 검토 버전 저장</button></div>
         </Form>
       </section>
-      <section className="panel">
+      <section className="wl-section">
         <h2>사원별 일반 규정 적용 검토</h2>
-        <ul>
+        <ul className="wl-rows">
           {m.assessments.map((r) => (
             <li key={r.id}>
-              <strong>v{r.revision}</strong> {fmtDate(r.validFrom)} ~{' '}
-              {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}
-              <p>일반규정 검토 {String(r.generalRuleReviewed)}</p><p>{r.basis}</p>
+              <div className="wl-rows-main">
+                <h3>v{r.revision} · {fmtDate(r.validFrom)} ~ {r.validTo == null ? '종료 없음' : fmtDate(r.validTo)}</h3>
+                <p>일반규정 검토 {String(r.generalRuleReviewed)} · {r.basis}</p>
+              </div>
             </li>
           ))}
         </ul>
-        <Form action="/admin/work-assessments" method="post" className="admin-form">
+        <Form action="/admin/work-assessments" method="post" className="wl-form">
           {hidden('employeeId', a.employeeId)}
           {hidden('commandId', a.commandId)}
-          <Field label="적용 시작일" name="from" type="date" value={a.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={a.to} required />
-          <Check
-            label="성인 통상 고정 근무의 일반 규정 적용을 검토했습니다"
-            name="generalRuleReviewed"
-            checked={a.generalRuleReviewed}
-          />
-          <p>
-            단시간·보호 대상·특례·적용 제외 등 별도 검토가 필요하거나 미확인이라면 체크하지 마세요.
-            구체적인 민감정보를 적지 않습니다.
-          </p>
-          <TextAreaField
-            label="최소 검토 근거 참조"
-            name="basis"
-            value={a.basis}
-            maxLength={500}
-            required
-          />
-          <Field label="등록 사유" name="reason" value={a.reason} maxLength={500} required />
-          <button>적용 검토 버전 저장</button>
+          <FormTable>
+            <Field label="적용 시작일" name="from" type="date" value={a.from} required />
+            <Field label="종료일 (포함)" name="to" type="date" value={a.to} required />
+            <FormRow label="일반 규정 검토">
+              <Check label="성인 통상 고정 근무의 일반 규정 적용을 검토했습니다" name="generalRuleReviewed" checked={a.generalRuleReviewed} />
+            </FormRow>
+            <p>
+              단시간·보호 대상·특례·적용 제외 등 별도 검토가 필요하거나 미확인이라면 체크하지 마세요.
+              구체적인 민감정보를 적지 않습니다.
+            </p>
+            <TextAreaField label="최소 검토 근거 참조" name="basis" value={a.basis} maxLength={500} required />
+            <Field label="등록 사유" name="reason" value={a.reason} maxLength={500} required />
+          </FormTable>
+          <div className="wl-form-actions"><button className="t-btn primary">적용 검토 버전 저장</button></div>
         </Form>
       </section>
     </>
