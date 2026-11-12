@@ -135,6 +135,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(next.searchParams.get('page')).toBe('2');
     expect(next.searchParams.get('month')).toBe('2026-10');
     expect(view.container.querySelector('main')?.textContent).toContain('8:00:00');
+    expect(view.container.querySelector('main')?.textContent).not.toContain('밀리초');
     expect(view.container.querySelector('main form[method="post"]')).toBeNull();
     expect(view.container.querySelector('main a[href^="/admin/"]')).toBeNull();
     expect(view.getByRole('grid', { name: '회사 현황 대상 사원' })).toBeTruthy();
