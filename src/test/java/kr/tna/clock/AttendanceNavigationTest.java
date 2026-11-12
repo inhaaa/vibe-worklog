@@ -17,7 +17,8 @@ import org.springframework.web.servlet.view.RedirectView;
 class AttendanceNavigationTest {
     private final ClockService clocks = mock(ClockService.class);
     private final OrgCommands commands = mock(OrgCommands.class);
-    private final AttendanceController controller = new AttendanceController(null, clocks, commands);
+    private final kr.tna.worktime.WorktimeService worktime = mock(kr.tna.worktime.WorktimeService.class);
+    private final AttendanceController controller = new AttendanceController(null, clocks, commands, worktime);
     private final TnaPrincipal actor = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1, Set.of("EMPLOYEE"), Instant.EPOCH);
     private final LocalDate today = LocalDate.of(2027, 1, 1);
 
@@ -58,7 +59,33 @@ class AttendanceNavigationTest {
         verify(clocks).record(actor, "IN", command, "127.0.0.1");
     }
 
+    @Test void confirmationCalculatesTheDayAndStillReturnsWhenCalculationFails() {
+        LocalDate day = today.minusDays(1);UUID command = UUID.randomUUID();
+        var form = new ClockData.ConfirmationForm(day, 4L, 2L, true, true, "snapshot-fingerprint", command);
+        var binding = new org.springframework.validation.BeanPropertyBindingResult(form, "confirmationForm");
+        var redirect = (RedirectView) controller.confirm(actor, form, binding).getView();
+        assertEquals("/me/attendance?date=" + day, redirect.getUrl());
+        verify(worktime).calculateConfirmedDay(actor, day, command);
+        when(worktime.calculateConfirmedDay(actor, day, command)).thenThrow(new kr.tna.org.OrgException(503, "저장소 오류"));
+        assertEquals("/me/attendance?date=" + day, ((RedirectView) controller.confirm(actor, form, binding).getView()).getUrl(),
+                "계산이 실패해도 저장한 확인은 유지하고 화면을 정상 이동해야 합니다.");
+    }
+    @Test void dayPageCarriesOnlyTheCurrentActualWork() {
+        when(commands.today()).thenReturn(today);
+        when(clocks.day(actor, today)).thenReturn(day(today));
+        when(worktime.days(actor, actor.employeeId(), today, today)).thenReturn(List.of(view(today, true, 8 * 3_600_000L)));
+        assertEquals(8 * 3_600_000L, controller.history(actor, today).getModel().get("actualWorkMillis"));
+        when(worktime.days(actor, actor.employeeId(), today, today)).thenReturn(List.of(view(today, false, 8 * 3_600_000L)));
+        assertNull(controller.history(actor, today).getModel().get("actualWorkMillis"), "오래된 결과의 값은 보이지 않아야 합니다.");
+    }
+
     private ClockData.DaySnapshot day(LocalDate selected) {
         return new ClockData.DaySnapshot(actor.employeeId(), selected, List.of(), null, null, null, "UNKNOWN", 4, 2, null, "snapshot-fingerprint", List.of());
+    }
+    private kr.tna.worktime.WorktimeData.DayView view(LocalDate date, boolean current, Long actual) {
+        var result = new kr.tna.worktime.WorktimeCalculator.DayResult(date, kr.tna.worktime.WorktimeCalculator.Status.CALCULATED,
+                null, null, actual, null, null, null, null, null, null, 0, 4, 2, Set.of());
+        return new kr.tna.worktime.WorktimeData.DayView(UUID.randomUUID(), UUID.randomUUID(), actor.employeeId(), "E001", "직원",
+                date, 1, "CALC-1", Instant.EPOCH, "a".repeat(64), current, result, false, 0);
     }
 }
