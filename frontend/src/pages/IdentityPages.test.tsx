@@ -64,7 +64,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
     const view = await show('workspace/profile', { profile });
     const main = view.container.querySelector('main')!;
     expect(view.getByRole('heading', { name: '내 정보' })).toBeTruthy();
-    for (const text of ['E001', '김직원', 'employee@example.test', '개발팀', '고정 근무', '박승인', '공통 · 관리자 · 대표 · 결재 담당 가능', '2026-10-27 00:00:00.000'])
+    for (const text of ['E001', '김직원', 'employee@example.test', '개발팀', '고정 근무', '박승인', '공통 · 관리자 · 대표 · 결재 담당 가능', '2026-10-27 00:00:00'])
       expect(main.textContent).toContain(text);
     expect(main.querySelector('form,input,select,textarea')).toBeNull();
     expect(main.textContent).not.toContain('조직장');
@@ -134,7 +134,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
     const next = new URL(view.getByRole('link', { name: '다음' }).getAttribute('href')!, location.origin);
     expect(next.searchParams.get('page')).toBe('2');
     expect(next.searchParams.get('month')).toBe('2026-10');
-    expect(view.container.querySelector('main')?.textContent).toContain('8:00:00.000');
+    expect(view.container.querySelector('main')?.textContent).toContain('8:00:00');
     expect(view.container.querySelector('main form[method="post"]')).toBeNull();
     expect(view.container.querySelector('main a[href^="/admin/"]')).toBeNull();
     expect(view.getByRole('grid', { name: '회사 현황 대상 사원' })).toBeTruthy();
@@ -182,8 +182,10 @@ describe('내 정보·권한 목록·회사 현황', () => {
     const view = await show('company/attendance', { companyAttendance: { ...attendance, days: [{ workDate: '2026-10-26', scheduledMillis: 28800000, actualWorkMillis: 0, leaveDays: 0, status: 'REVIEW_REQUIRED', current: false }] } });
     const row = view.container.querySelector('main [row-id="2026-10-26"]')!;
     expect(row.textContent).toContain('미산정·재집계 필요');
-    expect(row.textContent?.match(/미확정/g)).toHaveLength(3);
-    expect(row.textContent).not.toContain('0:00:00.000');
+    expect(row.textContent?.match(/미확정/g)).toHaveLength(1);
+    expect(row.querySelector('[col-id="scheduledMillis"]')?.textContent).toBe('-');
+    expect(row.querySelector('[col-id="actualWorkMillis"]')?.textContent).toBe('-');
+    expect(row.textContent).not.toContain('0:00:00');
   });
 
   it('회사 근무현황은 표시 문자열이 아닌 실제 근로시간 값으로 정렬한다', async () => {
@@ -197,8 +199,8 @@ describe('내 정보·권한 목록·회사 현황', () => {
     const grid = view.getByRole('grid', { name: '사원 일별 근무현황' });
     fireEvent.click(within(grid).getByRole('columnheader', { name: /실근로/ }).querySelector('.ag-header-cell-label')!);
     await waitFor(() => expect(grid.querySelector('[row-id]')?.getAttribute('row-id')).toBe('2026-10-26'));
-    expect(grid.textContent).toContain('10:00:00.000');
-    expect(grid.textContent).toContain('8:00:00.000');
+    expect(grid.textContent).toContain('10:00:00');
+    expect(grid.textContent).toContain('8:00:00');
   });
 
   it('선택할 사원과 일별 결과가 없을 때 조회 범위를 분명히 표시한다', async () => {
@@ -215,7 +217,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
     for (const [name, value] of Object.entries({ year: '2026', organizationId: 'o-1', status: 'APPROVED', page: '2' }))
       expect(next.searchParams.get(name)).toBe(value);
     const main = view.container.querySelector('main')!;
-    for (const text of ['E001', '김직원', '개발팀', '종일 연차', '승인', '유효', '조회연도 신청일량 (DAY)', '2026-10-26 00:00:00.000']) expect(main.textContent).toContain(text);
+    for (const text of ['E001', '김직원', '개발팀', '종일 연차', '승인', '유효', '조회연도 신청일량 (DAY)', '2026-10-26 00:00:00']) expect(main.textContent).toContain(text);
     for (const text of ['민감 사유', 'private@example.test', '192.0.2.1']) expect(main.textContent).not.toContain(text);
     expect(main.querySelector('a[href^="/requests/"],form[method="post"]')).toBeNull();
     expect(view.getByRole('grid', { name: '회사 신청 목록' })).toBeTruthy();

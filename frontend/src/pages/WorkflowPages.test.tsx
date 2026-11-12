@@ -288,7 +288,7 @@ describe('WorkflowPages', () => {
     const times = view.container.querySelectorAll('time');
     expect(times).toHaveLength(2);
     expect(times[0].getAttribute('datetime')).toBe('2026-11-01T00:00:00.123Z');
-    expect(times[0].textContent).toBe('2026-11-01 09:00:00.123');
+    expect(times[0].textContent).toBe('2026-11-01 09:00:00');
     const text = view.container.textContent;
     for (const label of ['신청 제출', '결재 대기 → 승인', '검토 완료', '유효']) expect(text).toContain(label);
     for (const code of ['SUBMITTED', 'APPROVED', 'null']) expect(text).not.toContain(code);
@@ -311,7 +311,7 @@ describe('WorkflowPages', () => {
       },
     });
     const text = view.container.textContent;
-    for (const label of ['출퇴근·휴게 정정', '후속 정정으로 대체', '출근 유지', '퇴근 변경', '2026-11-01 18:00:00.123', '원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.']) expect(text).toContain(label);
+    for (const label of ['출퇴근·휴게 정정', '후속 정정으로 대체', '출근 유지', '퇴근 변경', '2026-11-01 18:00:00', '원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.']) expect(text).toContain(label);
     for (const code of [' DAY', 'KEEP', 'SET']) expect(text).not.toContain(code);
   });
   it('제출 당시 정책·결재선과 취소의 원신청 연결을 보존한다', async () => {
@@ -361,7 +361,7 @@ describe('WorkflowPages', () => {
       day,
       exceptional: true,
       actions: ['KEEP', 'SET', 'CLEAR'],
-      eventTimes: { 'in-1': '2026-10-26 09:00:00.123' },
+      eventTimes: { 'in-1': '2026-10-26 09:00:00' },
       form: {
         targetEmployeeId: 'employee-1',
         workDate: day.workDate,
@@ -409,7 +409,7 @@ describe('WorkflowPages', () => {
         },
       },
     };
-    expect((await render('request/detail', data)).container.textContent).toContain('12:00:00.123');
+    expect((await render('request/detail', data)).container.textContent).toContain('2026-10-26 12:00:00 ~ 2026-10-26 13:00:00');
     data.detail.correction.actualBreaks = 'private-invalid-json';
     const view = await render('request/detail', data);
     expect(view.container.textContent).toContain('확인 필요');
@@ -546,10 +546,10 @@ describe('WorkflowPages', () => {
     const changed = view.getByRole('region', { name: '당시 유효 출퇴근' });
     expect(within(source).getByRole('grid', { name: '당시 원천 출퇴근' })).toBeTruthy();
     expect(source.querySelector('[row-id="in-1"]')).toBeTruthy();
-    expect(source.textContent).toContain('2026-10-26 09:00:00.123');
+    expect(source.textContent).toContain('2026-10-26 09:00:00');
     expect(within(changed).getByRole('grid', { name: '당시 유효 출퇴근' })).toBeTruthy();
     expect(changed.querySelector('[row-id="effective-1"]')).toBeTruthy();
-    expect(changed.textContent).toContain('2026-10-26 09:01:00.456');
+    expect(changed.textContent).toContain('2026-10-26 09:01:00');
   });
 
   it('일 결과는 미확정·실제0시간을 구분하고 ms를 숫자로 정렬한다', async () => {
@@ -619,7 +619,7 @@ describe('WorkflowPages', () => {
     expect(view.getByRole('grid', { name: '고객사 감사 목록' })).toBeTruthy();
     expect(view.container.querySelector('[row-id="audit-1"]')).toBeTruthy();
     expect(view.getByRole('link', { name: 'APPROVE' }).getAttribute('href')).toBe('/admin/audit/audit-1');
-    expect(view.container.textContent).toContain('2026-10-26 09:00:00.123');
+    expect(view.container.textContent).toContain('2026-10-26 09:00:00');
     expect(view.container.textContent).toContain('<img src=x onerror=alert(1)>');
     expect(view.container.querySelector('img')).toBeNull();
   });

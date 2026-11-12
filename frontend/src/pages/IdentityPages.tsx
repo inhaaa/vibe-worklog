@@ -304,14 +304,14 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
               { colId: 'workDate', headerName: '근무일', valueGetter: ({ data }) => data && fmtDate(data.workDate), minWidth: 140, pinned: 'left' },
               { colId: 'status', headerName: '상태·최신성', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${data.current ? '최신' : '미산정·재집계 필요'}`, minWidth: 250 },
               {
-                colId: 'scheduledMillis', headerName: '예정 근무 (시:분:초.밀리초)',
+                colId: 'scheduledMillis', headerName: '예정 근무',
                 valueGetter: ({ data }) => data?.current ? data.scheduledMillis : null,
                 valueFormatter: ({ value }) => duration(value),
                 filterValueGetter: ({ data }) => duration(data?.current ? data.scheduledMillis : null),
                 getQuickFilterText: ({ value }) => duration(value), minWidth: 230, cellClass: 'w-sheet-number',
               },
               {
-                colId: 'actualWorkMillis', headerName: '실근로 (시:분:초.밀리초)',
+                colId: 'actualWorkMillis', headerName: '실근로',
                 valueGetter: ({ data }) => data?.current ? data.actualWorkMillis : null,
                 valueFormatter: ({ value }) => duration(value),
                 filterValueGetter: ({ data }) => duration(data?.current ? data.actualWorkMillis : null),
