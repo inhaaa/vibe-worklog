@@ -237,6 +237,31 @@ class WorktimeServiceIT {
         int before=db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant);
         assertNotNull(reports.audits(manager));assertEquals(before+1,db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant));
     }
+    @Test void confirmedDayIsCalculatedOnceAsASingleDayRun() {
+        UUID confirmation=UUID.randomUUID();
+        UUID run=reports.calculateConfirmedDay(employee,date,confirmation);
+        assertEquals(run,reports.calculateConfirmedDay(employee,date,confirmation),"같은 확인을 다시 보내도 계산은 한 번이어야 합니다.");
+        var day=reports.days(employee,employee.employeeId(),date,date).getFirst();
+        assertTrue(day.current());assertEquals(8*3_600_000L,day.result().actualWorkMillis());assertFalse(day.pending());
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=?",Integer.class,tenant,employee.employeeId(),date));
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.calculation_run WHERE tenant_id=? AND id=? AND requested_by=? AND from_date=? AND to_date=? AND expanded_from=? AND expanded_to=? AND status='COMPLETED'",
+                Integer.class,tenant,run,employee.accountId(),date,date,date,date));
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='WORKTIME_AUTO_CALCULATE' AND target_id=?",Integer.class,tenant,run));
+    }
+    @Test void autoCalculationOnlyTouchesTheCallersOwnDay() {
+        reports.calculateConfirmedDay(manager,date,UUID.randomUUID());
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=?",Integer.class,tenant,employee.employeeId()));
+        assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=?",Integer.class,tenant,manager.employeeId()));
+    }
+    @Test void pendingDaysFollowCalculationAndSkipTheFuture() {
+        assertTrue(reports.days(employee,employee.employeeId(),date,date).getFirst().pending(),"확인했지만 계산 전인 어제는 확인 전입니다.");
+        assertFalse(reports.days(employee,employee.employeeId(),date.plusDays(2),date.plusDays(2)).getFirst().pending(),"미래 날짜는 세지 않습니다.");
+        assertTrue(reports.days(employee,employee.employeeId(),date.minusDays(1),date.minusDays(1)).getFirst().pending(),"기록 없는 지난 근무일은 확인 전입니다.");
+        reports.calculateConfirmedDay(employee,date,UUID.randomUUID());
+        var month=reports.month(employee,employee.employeeId(),java.time.YearMonth.from(date));
+        assertEquals(month.days().stream().filter(DayView::pending).count(),month.summary().pendingDays());
+        assertFalse(month.days().stream().filter(d->d.workDate().equals(date)).findFirst().orElseThrow().pending());
+    }
     private UUID recalculate(){return reports.recalculate(manager,employee.employeeId(),date,date,UUID.randomUUID(),"합성 수동 재집계");}
     private TnaPrincipal member(String name,Set<String> roles) {
         UUID employeeId=UUID.randomUUID(),account=UUID.randomUUID();
