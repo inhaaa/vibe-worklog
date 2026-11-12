@@ -42,15 +42,15 @@ public class AttendanceController {
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
         var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
                 .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
-        page.addObject("actualWorkMillis",worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
-                .filter(DayView::current).map(view->view.result().actualWorkMillis()).findFirst().orElse(null));
+        page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
+                .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
         if(isToday)page.addObject("inCommand",UUID.randomUUID()).addObject("outCommand",UUID.randomUUID());
         return page;
     }
     /** 확인은 이미 저장됐다. 계산 실패는 그날을 확인 전으로 남기고 담당자 재집계로 복구한다. */
     private void calculate(TnaPrincipal actor,ConfirmationForm form){
         try{worktime.calculateConfirmedDay(actor,form.workDate(),form.commandId());}
-        catch(RuntimeException failed){LOG.warn("event=worktime_auto_calculate outcome=failed status={}",failed instanceof OrgException e?e.status():500);}
+        catch(RuntimeException failed){LOG.warn("event=worktime_auto_calculate outcome=failed status={} cause={}",failed instanceof OrgException e?e.status():500,failed.getClass().getSimpleName());}
     }
     public static ConfirmationForm confirmation(DaySnapshot d){return new ConfirmationForm(d.workDate(),d.inputRevision(),d.reviewRevision(),false,false,d.sourceFingerprint(),UUID.randomUUID());}
     public static Map<UUID,String> times(DaySnapshot d){Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));return values;}
