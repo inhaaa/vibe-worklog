@@ -191,6 +191,7 @@ class WorktimeCalculatorTest {
         assertFalse(calculator.pending(normal(), DATE.minusDays(1), false, null), "미래 날짜는 세지 않습니다.");
         assertTrue(calculator.pending(normal(), DATE, false, null), "오늘은 퇴근 기록이 있으면 셉니다.");
         assertFalse(calculator.pending(withEvents(normal(), List.of(event(EventKind.IN, "09:00"))), DATE, false, null), "오늘 퇴근 전은 세지 않습니다.");
+        assertTrue(calculator.pending(withEvents(normal(), List.of(event(EventKind.IN, "09:00"))), today, true, null), "현재 결과라도 실근로가 없으면 확인 전입니다.");
     }
     @Test void pendingSkipsOnlyRestDaysTheCalculatorResolvesWithoutRecords() {
         LocalDate today = DATE.plusDays(1);
@@ -202,6 +203,8 @@ class WorktimeCalculatorTest {
         assertTrue(calculator.pending(nonWorkday(DayKind.HOLIDAY, 0, true), today, false, null), "대기 정정이 있는 휴일");
         var missingSchedule = new DayInput(DATE, List.of(), List.of(), DayKind.WORKDAY, true, 7, 4, null, false, 0);
         assertTrue(calculator.pending(missingSchedule, today, false, null), "일정 미배정");
+        assertTrue(calculator.pending(nonWorkday(DayKind.WORKDAY, 2, false), today, false, null), "계산할 수 없는 입력은 확인 전입니다.");
+        assertFalse(calculator.pending(new DayInput(DATE, List.of(), List.of(new Schedule(false, null, null, List.of())), DayKind.NON_WORKDAY, false, 7, 4, null, false, 0), today, false, null), "일반 규정 미검토여도 0시간으로 확정되는 휴무일은 세지 않습니다.");
     }
 
     private DayInput normal() {
