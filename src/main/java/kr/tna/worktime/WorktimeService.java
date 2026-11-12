@@ -66,7 +66,8 @@ public final class WorktimeService {
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
-                return new ResultDetail(storedDay(person,stored,result,currentSource),stored.id().equals(latest.id()),latest.id(),run,
+                return new ResultDetail(storedDay(person,stored,result,currentSource,
+                        calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays()),stored.id().equals(latest.id()),latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
@@ -97,7 +98,7 @@ public final class WorktimeService {
             var weeks=weeklyPeriods(actor.tenantId(),expandedFrom,expandedTo,all);
             var result=calculator.month(month,selected.stream().map(this::currentResult).toList());
             return new MonthView(month,List.copyOf(selected),List.copyOf(weeks),new PeriodView(from,to.plusDays(1),
-                    selected.stream().allMatch(DayView::current),result,ids(selected)));
+                    selected.stream().allMatch(DayView::current),result,ids(selected),pendingDays(selected)));
         });
     }
     public UUID recalculate(TnaPrincipal actor,UUID employeeId,LocalDate from,LocalDate to,UUID commandId,String reason) {
@@ -260,17 +261,19 @@ public final class WorktimeService {
     }
     private List<DayView> readDays(UUID tenant,Employee employee,LocalDate from,LocalDate to) {
         var stored=new HashMap<LocalDate,WorktimeMapper.ResultRow>();for(var r:mapper.latest(tenant,employee.id(),from,to))stored.put(r.workDate(),r);
+        LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            Input current=input(tenant,employee,date);var r=stored.get(date);
+            Input current=input(tenant,employee,date);var r=stored.get(date);int leave=current.day().approvedLeaveDays();
             if(r==null) {
-                var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,current.day().approvedLeaveDays(),
+                var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,leave,
                         current.clock().inputRevision(),current.clock().reviewRevision(),Set.of("NOT_CALCULATED","LEGAL_OVERTIME_UNDETERMINED"));
-                days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing));
+                days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing,
+                        calculator.pending(current.day(),today,false,null),leave));
             }else {
                 var result=storedResult(r);
                 boolean matches=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())&&r.sourceFingerprint().equals(current.source());
-                days.add(storedDay(employee,r,result,matches));
+                days.add(storedDay(employee,r,result,matches,calculator.pending(current.day(),today,matches,result.actualWorkMillis()),leave));
             }
         }return List.copyOf(days);
     }
@@ -279,9 +282,9 @@ public final class WorktimeService {
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
-                r.calculatedAt(),r.sourceFingerprint(),current,result);
+                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays);
     }
     private FrozenEvidence frozenEvidence(String value,UUID employeeId,LocalDate date) {
         try {
@@ -354,7 +357,7 @@ public final class WorktimeService {
                 var policy=mapper.policy(tenant,date);if(policy==null||!policy.mondayWeekReviewed())basis=false;
             }
             var result=calculator.week(begin,week.stream().map(this::currentResult).toList(),basis);
-            weeks.add(new PeriodView(begin,end,week.stream().allMatch(DayView::current),result,ids(week)));
+            weeks.add(new PeriodView(begin,end,week.stream().allMatch(DayView::current),result,ids(week),pendingDays(week)));
         }
         return List.copyOf(weeks);
     }
@@ -374,6 +377,7 @@ public final class WorktimeService {
     private UUID target(TnaPrincipal actor,UUID id) {if(actor==null)throw OrgException.forbidden();return id==null?actor.employeeId():id;}
     private Employee employee(UUID tenant,UUID id) {var employee=employees.get(tenant,id);if(employee==null)throw OrgException.notFound();return employee;}
     private static List<UUID> ids(List<DayView> days) {return days.stream().map(DayView::id).filter(java.util.Objects::nonNull).toList();}
+    private static int pendingDays(List<DayView> days) {return (int)days.stream().filter(DayView::pending).count();}
     private static List<Object> row(Object... values) {return Arrays.asList(values);}
     private static void range(LocalDate from,LocalDate to) {if(from==null||to==null||from.isAfter(to)||ChronoUnit.DAYS.between(from,to)>=31||to.equals(LocalDate.MAX))throw OrgException.invalid("31일 이내의 올바른 조회 기간을 입력해 주세요.");}
     private static void period(LocalDate from,LocalDate to) {if(from==null||to!=null&&(to.isBefore(from)||to.equals(LocalDate.MAX)))throw OrgException.invalid("검토 유효기간을 확인해 주세요.");}
