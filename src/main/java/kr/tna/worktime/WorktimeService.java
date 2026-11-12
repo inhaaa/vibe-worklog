@@ -107,14 +107,17 @@ public final class WorktimeService {
         return administration.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,target,from,to,checked),checked,()->
                 calculate(actor,employee(actor.tenantId(),target),from,to,WorktimeCalculator.weekStart(from),WorktimeCalculator.weekStart(to).plusDays(6)));
     }
-    /** 본인 근무 확인 직후 그날 하루만 계산한다. 같은 확인 명령을 다시 보내도 계산은 한 번이다. */
+    /**
+     * 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
+     * 같은 확인 명령을 다시 보내도 계산은 한 번이다. 확인 트랜잭션이 커밋된 뒤 별도로 호출한다.
+     */
     public UUID calculateConfirmedDay(TnaPrincipal actor,LocalDate workDate,UUID confirmationCommandId) {
         if(actor==null)throw OrgException.forbidden();
         if(workDate==null||confirmationCommandId==null)throw OrgException.invalid("계산할 근무일을 확인해 주세요.");
         String action="WORKTIME_AUTO_CALCULATE";
         UUID commandId=UUID.nameUUIDFromBytes((action+":"+confirmationCommandId).getBytes(StandardCharsets.UTF_8));
         return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"근무 확인 후 자동 계산","EMPLOYEE",
-                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate,workDate,workDate));
+                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate,WorktimeCalculator.weekStart(workDate),WorktimeCalculator.weekStart(workDate).plusDays(6)));
     }
     private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to,LocalDate start,LocalDate end) {
         UUID target=employee.id(),runId=UUID.randomUUID();

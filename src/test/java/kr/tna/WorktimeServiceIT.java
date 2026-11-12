@@ -237,7 +237,7 @@ class WorktimeServiceIT {
         int before=db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant);
         assertNotNull(reports.audits(manager));assertEquals(before+1,db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant));
     }
-    @Test void confirmedDayIsCalculatedOnceAsASingleDayRun() {
+    @Test void confirmedDayIsCalculatedOnceWithItsWeek() {
         UUID confirmation=UUID.randomUUID();
         UUID run=reports.calculateConfirmedDay(employee,date,confirmation);
         assertEquals(run,reports.calculateConfirmedDay(employee,date,confirmation),"같은 확인을 다시 보내도 계산은 한 번이어야 합니다.");
@@ -245,13 +245,18 @@ class WorktimeServiceIT {
         assertTrue(day.current());assertEquals(8*3_600_000L,day.result().actualWorkMillis());assertFalse(day.pending());
         assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=?",Integer.class,tenant,employee.employeeId(),date));
         assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.calculation_run WHERE tenant_id=? AND id=? AND requested_by=? AND from_date=? AND to_date=? AND expanded_from=? AND expanded_to=? AND status='COMPLETED'",
-                Integer.class,tenant,run,employee.accountId(),date,date,date,date));
+                Integer.class,tenant,run,employee.accountId(),date,date,kr.tna.worktime.WorktimeCalculator.weekStart(date),kr.tna.worktime.WorktimeCalculator.weekStart(date).plusDays(6)));
         assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='WORKTIME_AUTO_CALCULATE' AND target_id=?",Integer.class,tenant,run));
+        assertTrue(reports.days(employee,employee.employeeId(),kr.tna.worktime.WorktimeCalculator.weekStart(date),kr.tna.worktime.WorktimeCalculator.weekStart(date).plusDays(6)).stream().allMatch(DayView::current),"확인한 날이 속한 주 7일은 모두 현재 결과여야 합니다.");
+        UUID second=reports.calculateConfirmedDay(employee,date,UUID.randomUUID());
+        assertNotEquals(run,second,"다른 확인은 따로 계산해야 합니다.");
+        assertEquals(2,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=?",Integer.class,tenant,employee.employeeId(),date));
+        assertStatus(409,()->reports.calculateConfirmedDay(employee,date.minusDays(1),confirmation));
     }
-    @Test void autoCalculationOnlyTouchesTheCallersOwnDay() {
+    @Test void autoCalculationOnlyTouchesTheCallersOwnWeek() {
         reports.calculateConfirmedDay(manager,date,UUID.randomUUID());
         assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=?",Integer.class,tenant,employee.employeeId()));
-        assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=?",Integer.class,tenant,manager.employeeId()));
+        assertEquals(7,db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=?",Integer.class,tenant,manager.employeeId()));
     }
     @Test void pendingDaysFollowCalculationAndSkipTheFuture() {
         assertTrue(reports.days(employee,employee.employeeId(),date,date).getFirst().pending(),"확인했지만 계산 전인 어제는 확인 전입니다.");
