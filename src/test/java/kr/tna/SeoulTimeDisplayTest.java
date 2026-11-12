@@ -13,16 +13,16 @@ import org.junit.jupiter.api.Test;
 class SeoulTimeDisplayTest {
     private final SeoulTimeDisplay display = new SeoulTimeDisplay();
 
-    @Test void instantUsesSeoulAcrossMidnightAndYearBoundariesWithMilliseconds() {
-        assertEquals("2027-01-01 00:00:00.123", display.instant(Instant.parse("2026-12-31T15:00:00.123Z")));
-        assertEquals("2026-12-31 23:59:59.999", display.instant(Instant.parse("2026-12-31T14:59:59.999999999Z")));
-        assertEquals("2026-01-01 09:00:00.000", display.instant(Instant.parse("2026-01-01T00:00:00Z")));
+    @Test void instantUsesSeoulAcrossMidnightAndYearBoundariesToTheSecond() {
+        assertEquals("2027-01-01 00:00:00", display.instant(Instant.parse("2026-12-31T15:00:00.123Z")));
+        assertEquals("2026-12-31 23:59:59", display.instant(Instant.parse("2026-12-31T14:59:59.999999999Z")));
+        assertEquals("2026-01-01 09:00:00", display.instant(Instant.parse("2026-01-01T00:00:00Z")));
     }
 
-    @Test void dateAndTimeHaveStableIsoAndMillisecondDisplays() {
+    @Test void dateAndTimeHaveStableIsoAndSecondDisplays() {
         assertEquals("2026-10-24", display.date(LocalDate.of(2026, 10, 24)));
-        assertEquals("09:05:00.007", display.time(LocalTime.of(9, 5, 0, 7_000_000)));
-        assertEquals("00:00:00.000", display.time(LocalTime.MIDNIGHT));
+        assertEquals("09:05:00", display.time(LocalTime.of(9, 5, 0, 7_000_000)));
+        assertEquals("00:00:00", display.time(LocalTime.MIDNIGHT));
     }
 
     @Test void displayDoesNotDependOnHostTimezoneOrLocale() {
@@ -31,9 +31,9 @@ class SeoulTimeDisplayTest {
         try {
             Locale.setDefault(Locale.forLanguageTag("ar-SA"));
             TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));
-            assertEquals("2027-01-01 00:00:00.123", display.instant(Instant.parse("2026-12-31T15:00:00.123Z")));
+            assertEquals("2027-01-01 00:00:00", display.instant(Instant.parse("2026-12-31T15:00:00.123Z")));
             assertEquals("2026-10-24", display.date(LocalDate.of(2026, 10, 24)));
-            assertEquals("09:05:00.007", display.time(LocalTime.of(9, 5, 0, 7_000_000)));
+            assertEquals("09:05:00", display.time(LocalTime.of(9, 5, 0, 7_000_000)));
         } finally {
             TimeZone.setDefault(originalZone);
             Locale.setDefault(originalLocale);
@@ -52,7 +52,7 @@ class SeoulTimeDisplayTest {
                 [{"startAt":"2026-12-31T14:30:00.123Z","endAt":"2026-12-31T15:00:00.456Z","secret":"DO_NOT_REFLECT"},
                  {"startAt":"2026-12-31T16:00:00Z","endAt":"2026-12-31T16:15:00Z"}]
                 """;
-        assertEquals("2026-12-31 23:30:00.123 ~ 2027-01-01 00:00:00.456; 2027-01-01 01:00:00.000 ~ 2027-01-01 01:15:00.000", display.intervals(data));
+        assertEquals("2026-12-31 23:30:00 ~ 2027-01-01 00:00:00; 2027-01-01 01:00:00 ~ 2027-01-01 01:15:00", display.intervals(data));
         assertFalse(display.intervals(data).contains("DO_NOT_REFLECT"));
     }
 

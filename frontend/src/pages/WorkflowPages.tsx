@@ -807,7 +807,7 @@ function Result({ model: m }: { model: ResultModel }) {
     <section className="t-record-detail" aria-label="계산 근거 상세">
       <PageHeader title="계산 근거 상세" help={<>
         <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
-        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은 구분합니다.</p>
+        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초. 날짜와 실제 발생 시각은 구분합니다.</p>
       </>} actions={<>
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
         {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}

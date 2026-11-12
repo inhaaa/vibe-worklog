@@ -146,7 +146,7 @@ class WorkspaceWebIT {
         assertEquals(2, data.at("/day/effectiveEvents").size());
         var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
         for (var event : day.events()) {
-            String expected = event.kind().equals("IN") ? "09:17:00.000" : "18:41:00.000";
+            String expected = event.kind().equals("IN") ? "09:17:00" : "18:41:00";
             assertTrue(data.at("/eventTimes/" + event.id()).asString().contains(expected));
         }
         assertEquals(day.events(), day.effectiveEvents());

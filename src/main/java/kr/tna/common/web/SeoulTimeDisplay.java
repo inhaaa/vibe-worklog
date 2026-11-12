@@ -14,8 +14,8 @@ import tools.jackson.databind.json.JsonMapper;
 public final class SeoulTimeDisplay {
     private static final String UNKNOWN = "미확인";
     private static final DateTimeFormatter INSTANT = DateTimeFormatter
-            .ofPattern("uuuu-MM-dd HH:mm:ss.SSS", Locale.ROOT).withZone(ZoneId.of("Asia/Seoul"));
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS", Locale.ROOT);
+            .ofPattern("uuuu-MM-dd HH:mm:ss", Locale.ROOT).withZone(ZoneId.of("Asia/Seoul"));
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
     private final JsonMapper json = JsonMapper.builder().build();
 
     public String instant(Instant value) { return value == null ? UNKNOWN : INSTANT.format(value); }
