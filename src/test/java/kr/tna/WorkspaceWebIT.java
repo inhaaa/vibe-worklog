@@ -146,8 +146,8 @@ class WorkspaceWebIT {
         assertEquals(2, data.at("/day/effectiveEvents").size());
         var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
         for (var event : day.events()) {
-            String expected = event.kind().equals("IN") ? "09:17:00" : "18:41:00";
-            assertTrue(data.at("/eventTimes/" + event.id()).asString().contains(expected));
+            String expected = today + (event.kind().equals("IN") ? " 09:17:00" : " 18:41:00");
+            assertEquals(expected, data.at("/eventTimes/" + event.id()).asString());
         }
         assertEquals(day.events(), day.effectiveEvents());
         assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",

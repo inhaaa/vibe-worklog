@@ -793,15 +793,15 @@ function Result({ model: m }: { model: ResultModel }) {
     day = d.day,
     run = d.run;
   const times = m.times ?? {
-    소정근로: '미확정',
-    체류: '미확정',
-    '확인 실근로': '미확정',
-    '확인 휴게': '미확정',
-    '일정 밖': '미확정',
-    '일8시간 초과 참고': '미확정',
-    야간: '미확정',
-    휴일: '미확정',
-    '법정 최종 연장': '미확정',
+    소정근로: '-',
+    체류: '-',
+    '확인 실근로': '-',
+    '확인 휴게': '-',
+    '일정 밖': '-',
+    '일8시간 초과 참고': '-',
+    야간: '-',
+    휴일: '-',
+    '법정 최종 연장': '-',
   };
   return (
     <section className="t-record-detail" aria-label="계산 근거 상세">
@@ -863,7 +863,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
         <p>
-          미확정은 실제0시간과 다릅니다. 야간·휴일·초과 참고량을 더해 총 실근로로 만들지 않습니다.
+          '-'는 미확정이며 실제 0시간과 다릅니다. 야간·휴일·초과 참고량을 더해 총 실근로로 만들지 않습니다.
         </p>
       </section>
       {run && (

@@ -22,7 +22,9 @@ class SeoulTimeDisplayTest {
     @Test void dateAndTimeHaveStableIsoAndSecondDisplays() {
         assertEquals("2026-10-24", display.date(LocalDate.of(2026, 10, 24)));
         assertEquals("09:05:00", display.time(LocalTime.of(9, 5, 0, 7_000_000)));
-        assertEquals("00:00:00", display.time(LocalTime.MIDNIGHT));
+        assertEquals("00:00", display.time(LocalTime.MIDNIGHT));
+        assertEquals("09:00", display.time(LocalTime.of(9, 0)));
+        assertEquals("09:00:30", display.time(LocalTime.of(9, 0, 30)));
     }
 
     @Test void displayDoesNotDependOnHostTimezoneOrLocale() {

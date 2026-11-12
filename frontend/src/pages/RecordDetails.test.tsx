@@ -18,7 +18,7 @@ function pair(region: HTMLElement, label: string, value: string) {
 describe('조회 상세의 이름 있는 정보 영역', () => {
   it('계산 근거의 항목·값 관계와 미확정 안내를 같은 상세 영역 안에 보존한다', () => {
     show('worktime/result', {
-      month: '2026-10', admin: false, times: { '확인 실근로': '미확정' },
+      month: '2026-10', admin: false, times: { '확인 실근로': '-' },
       detail: {
         day: { id: 'result-1', employeeId: 'employee-1', workDate: '2026-10-26', resultRevision: 1,
           ruleVersion: 'CALC-1', current: false, result: { status: 'REVIEW_REQUIRED', inputRevision: 2,
@@ -29,7 +29,7 @@ describe('조회 상세의 이름 있는 정보 영역', () => {
     });
     const region = screen.getByRole('region', { name: '계산 근거 상세' });
     pair(region, '결과 ID', 'result-1');
-    pair(region, '확인 실근로', '미확정');
+    pair(region, '확인 실근로', '-');
     expect(within(region).getByRole('status').textContent).toContain('현재 원천으로 대신 채우지 않았습니다');
     expect(within(region).getByRole('link', { name: '최신 계산 결과' }).getAttribute('href')).toBe('/worktime/results/result-2');
     expect(region.querySelector('form')).toBeNull();

@@ -507,7 +507,7 @@ describe('WorkflowPages', () => {
     const view = await render('worktime/result', {
       month: '2026-10',
       admin: false,
-      times: { '확인 실근로': '미확정' },
+      times: { '확인 실근로': '-' },
       detail: {
         day: {
           ...day,
@@ -532,7 +532,7 @@ describe('WorkflowPages', () => {
     expect(view.container.textContent).toContain('저장된 근거가 없거나 일부를 확인할 수 없습니다');
     expect(view.getByRole('link', { name: '최신 계산 결과' }).getAttribute('href')).toBe('/worktime/results/result-2');
     expect(view.container.textContent).toContain('저장 당시 주 기산점 검토 미확인');
-    expect(view.container.textContent).toContain('미확정은 실제0시간과 다릅니다');
+    expect(view.container.textContent).toContain("'-'는 미확정이며 실제 0시간과 다릅니다");
   });
   it('저장 당시 원천·유효 사건을 서로 다른 그리드와 사건 ID로 표시한다', async () => {
     const effective = { id: 'effective-1', kind: 'IN', occurredAt: '2026-10-26T00:01:00.456Z' };
