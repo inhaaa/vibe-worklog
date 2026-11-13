@@ -8,28 +8,8 @@ import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 interface Profile {
-  employeeNo: string;
   employeeName: string;
-  companyName: string;
-  email: string;
   joinedOn: string;
-  leftOn: string | null;
-  organizationName: string | null;
-  organizationHeadName?: string | null;
-  organizationHeadEligible?: boolean;
-  organizationHeadApproverEligible?: boolean;
-  scheduleName: string | null;
-  approverName: string | null;
-  approverEligible: boolean;
-  approvalPreview?: {
-    source: string;
-    routeName: string | null;
-    approverName: string | null;
-    eligible: boolean;
-    message: string | null;
-  };
-  roles: string[];
-  asOf: string;
 }
 interface AccessList {
   accessRows: {
