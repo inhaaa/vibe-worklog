@@ -168,9 +168,7 @@ public final class LeaveWorkflowService {
     }
     /** 그 날짜의 현재 승인 정정 신청 ID. 정정 화면이 ID를 입력받지 않고 hidden으로 보내도록 서버가 채운다. */
     public UUID currentCorrectionRequestId(TnaPrincipal actor,UUID employeeId,LocalDate date) {
-        if(actor==null)throw OrgException.forbidden();
-        Supplier<UUID> read=()->{var effect=mapper.currentCorrection(actor.tenantId(),employeeId,date);return effect==null?null:effect.requestId();};
-        return actor.employeeId().equals(employeeId)?commands.read(actor,read):administration.read(actor,read);
+        return targetRead(actor,employeeId,()->{var effect=mapper.currentCorrection(actor.tenantId(),employeeId,date);return effect==null?null:effect.requestId();});
     }
     public UUID submitCorrection(TnaPrincipal actor,CorrectionForm form) {
         if(form==null||form.workDate()==null||form.workDate().isAfter(today())||form.baseInputRevision()==null

@@ -192,6 +192,8 @@ class LeaveWorkflowIT {
         assertNull(workflow.currentCorrectionRequestId(employee,employee.employeeId(),correctionDate));
         UUID first=correction(null);approve(first);
         assertEquals(first,workflow.currentCorrectionRequestId(employee,employee.employeeId(),correctionDate));
+        assertEquals(first,workflow.currentCorrectionRequestId(manager,employee.employeeId(),correctionDate));
+        assertStatus(403,()->workflow.currentCorrectionRequestId(approver,employee.employeeId(),correctionDate));
     }
     @Test void staleCorrectionBaseAndForeignRequestAreRejectedWithoutDisclosure() {
         var before=clocks.day(employee,correctionDate);
