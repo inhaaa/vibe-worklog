@@ -57,30 +57,12 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
-  attendancePolicy?: {
-    id: string;
-    typeId: string;
-    code: string;
-    systemKind: string | null;
-    revision: number;
-    effectiveFrom: string;
-    enabled: boolean;
-    name: string;
-    unit: string;
-    payKind: string;
-    deductionRule: string;
-    recognitionRule: string;
-    basis: string;
-  } | null;
   routeSnapshot?: {
-    routeCode: string;
     routeName: string;
-    revision: number;
     scopeKind: string;
     approverKind: string;
     organizationName: string | null;
     resolvedApproverName: string;
-    resolvedAt: string;
   } | null;
 }
 export interface RequestDetailModel {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
-import { Form, FormRow, FormTable, fmtDate, fmtDateTime } from '../ui';
+import { Form, FormRow, FormTable, fmtDate, fmtDateTime, secondsInput } from '../ui';
 import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
@@ -243,9 +243,8 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
           <RequestField label="기존 기록"><section className="t-request-correction-source" aria-label="현재 정정 근거">
             <div><strong>현재 유효한 출퇴근 근거</strong><span>대상 근무일 {fmtDate(correction.workDate)}</span></div>
-            {(compose.day?.effectiveEvents ?? compose.day?.events ?? []).length ? <ul>{(compose.day?.effectiveEvents ?? compose.day?.events ?? []).map(event=><li key={event.id}>{event.kind==='IN'?'출근':'퇴근'} · {fmtDateTime(event.occurredAt)} (서울)</li>)}</ul> : <p>조회된 유효 출퇴근 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</p>}
+            {(compose.day?.effectiveEvents ?? compose.day?.events ?? []).length ? <ul>{(compose.day?.effectiveEvents ?? compose.day?.events ?? []).map(event=><li key={event.id}>{event.kind==='IN'?'출근':'퇴근'} · {fmtDateTime(event.occurredAt)}</li>)}</ul> : <p>출퇴근 기록이 없습니다.</p>}
             {compose.day?.confirmation ? <p>실제 근로·휴게 확인 {fmtDateTime(compose.day.confirmation.confirmedAt)}</p> : <p>실제 근로·휴게 확인이 아직 없습니다.</p>}
-            <p>원천 기록을 보존하고 확인된 근거로 정정 심사를 요청합니다.</p>
           </section></RequestField>
           {(['in', 'out'] as const).map(direction => {
             const label = direction === 'in' ? '출근' : '퇴근';
@@ -261,8 +260,8 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
                   }}><option value="KEEP">유지</option><option value="SET">시각 수정</option><option value="CLEAR">누락으로 정정</option></select>
                 </div>
                 <div className="t-request-field">
-                  <label htmlFor={`annual-${direction}-time`}>제안 {label} 시각 (서울)</label>
-                  <input id={`annual-${direction}-time`} className="t-input" type="datetime-local" step="0.001" name={timeField} value={correction[timeField] ?? ''} onChange={event => change(timeField, event.target.value)} readOnly={correction[actionField] !== 'SET'} />
+                  <label htmlFor={`annual-${direction}-time`}>{label} 시각</label>
+                  <input id={`annual-${direction}-time`} className="t-input" type="datetime-local" step="1" name={timeField} value={secondsInput(correction[timeField])} onChange={event => change(timeField, event.target.value)} readOnly={correction[actionField] !== 'SET'} />
                 </div>
               </div>
             </RequestField>;

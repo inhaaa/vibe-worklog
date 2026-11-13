@@ -188,13 +188,10 @@ describe('공통코드·근태코드 React 관리', () => {
     expect(payload(view, '/admin/common-codes/bulk')[0].name).toBe('상세 편집');
   });
 
-  it('신청 상세에 제출 당시 정책·근거를 표시하고 현재 정책과 구분한다', async () => {
+  it('신청 상세에 제출 당시 근태정책을 표시하지 않는다', async () => {
     const request = { id: 'r-1', targetEmployeeName: '김직원', kind: 'LEAVE_DAY', fromDate: '2026-11-01', toDate: '2026-11-01', quantityDays: 1, status: 'PENDING', effectStatus: 'NONE', version: 2, reason: '연차', approverName: '승인자', originalRequestId: null };
     const view = await show({ page: 'request/detail', csrf, data: { ...principal, request, detail: { days: [], correction: null, history: [], attendancePolicy: { ...type, id: 'v-1', typeId: 't-1' } }, admin: false, canDecide: false, pageCommand: 'decision-command' } });
-    expect(view.getByRole('heading', { name: '제출 당시 근태정책' })).toBeTruthy();
-    expect(view.getByText('ANNUAL · 종일 연차 · v1')).toBeTruthy();
-    expect(view.getByText('기존 종일 연차')).toBeTruthy();
-    expect(view.getByText(/이후 비활성·새 버전을 소급하지 않습니다/)).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '제출 당시 근태정책' })).toBeNull();
   });
 
   it('정책 이력에 등록자를 표시하고 시스템 기초 등록은 구분한다', async () => {

@@ -1,3 +1,5 @@
+import { secondsInput } from '../ui';
+
 export interface RequestBreakEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -30,8 +32,8 @@ export function RequestBreakEditor({ value, onChange, disabled = false }: Reques
       return <div className="t-break-row" key={index}>
         <span className="t-break-number" aria-hidden="true">{index + 1}</span>
         {editable ? <>
-          <label>시작<input aria-label={`휴게 ${index + 1} 시작 (서울)`} className="t-input" type="datetime-local" step="0.001" value={start} disabled={disabled} required onChange={event => update(index, `${event.target.value}/${end}`)} /></label>
-          <label>종료<input aria-label={`휴게 ${index + 1} 종료 (서울)`} className="t-input" type="datetime-local" step="0.001" value={end} disabled={disabled} required ref={element => element?.setCustomValidity(invalidOrder ? '휴게 시작보다 늦은 종료를 입력해 주세요.' : '')} onChange={event => update(index, `${start}/${event.target.value}`)} /></label>
+          <label>시작<input aria-label={`휴게 ${index + 1} 시작`} className="t-input" type="datetime-local" step="1" value={secondsInput(start)} disabled={disabled} required onChange={event => update(index, `${event.target.value}/${end}`)} /></label>
+          <label>종료<input aria-label={`휴게 ${index + 1} 종료`} className="t-input" type="datetime-local" step="1" value={secondsInput(end)} disabled={disabled} required ref={element => element?.setCustomValidity(invalidOrder ? '휴게 시작보다 늦은 종료를 입력해 주세요.' : '')} onChange={event => update(index, `${start}/${event.target.value}`)} /></label>
         </> : <label className="t-break-original">기존 입력 확인<input aria-label={`휴게 ${index + 1} 원본 입력`} className="t-input" type="text" value={raw} disabled={disabled} required ref={element => element?.setCustomValidity('보존된 휴게 입력을 시작/종료 형식으로 수정하거나 명시적으로 제거해 주세요.')} onChange={event => update(index, event.target.value)} /><small>기존 입력을 보존했습니다. 시작/종료 형식으로 수정하거나 이 구간을 제거하세요.</small></label>}
         <button type="button" className="t-btn t-break-remove" aria-label={`휴게 ${index + 1} 제거`} disabled={disabled} onClick={() => onChange(rows.filter((_, at) => at !== index).join(','))}>제거</button>
         {invalidOrder && editable && <p className="t-break-error">휴게 시작보다 늦은 종료를 입력해 주세요.</p>}

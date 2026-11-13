@@ -273,7 +273,7 @@ describe('WorkflowPages', () => {
     expect(view.getByRole('link', { name: '내 신청' }).getAttribute('href')).toBe('/me/requests');
     expect(view.getByLabelText('현재 상태').textContent).toBe('결재 대기');
     const text = view.container.textContent;
-    for (const label of ['종일 연차', '현재 효력', '효력 없음', '신청 기간', '신청 사유', '결재 담당', '2 DAY', '확정 휴일']) expect(text).toContain(label);
+    for (const label of ['종일 연차', '현재 효력', '효력 없음', '신청 기간', '신청 사유', '결재 담당', '2일', '확정 휴일']) expect(text).toContain(label);
     expect(text).toContain(request.reason);
     expect(text).toContain(request.targetEmployeeName);
     expect(view.container.querySelector('script,img')).toBeNull();
@@ -311,7 +311,7 @@ describe('WorkflowPages', () => {
     expect(view.queryByText('신청 제출', { exact: true })).toBeNull();
     expect(view.container.textContent).toContain('현재 가능한 결정·변경이 없습니다.');
   });
-  it('정정은 DAY 수량 없이 유지·변경·제거와 원천 보존 안내를 표시한다', async () => {
+  it('정정은 DAY 수량 없이 유지·변경·제거를 표시한다', async () => {
     const view = await render('request/detail', {
       request: { ...request, kind: 'ATTENDANCE_CORRECTION', quantityDays: null, status: 'APPROVED', effectStatus: 'SUPERSEDED' },
       detail: {
@@ -320,10 +320,10 @@ describe('WorkflowPages', () => {
       },
     });
     const text = view.container.textContent;
-    for (const label of ['출퇴근·휴게 정정', '후속 정정으로 대체', '출근 유지', '퇴근 변경', '2026-11-01 18:00:00', '원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.']) expect(text).toContain(label);
+    for (const label of ['출퇴근·휴게 정정', '후속 정정으로 대체', '출근 유지', '퇴근 변경', '2026-11-01 18:00:00']) expect(text).toContain(label);
     for (const code of [' DAY', 'KEEP', 'SET']) expect(text).not.toContain(code);
   });
-  it('제출 당시 정책·결재선과 취소의 원신청 연결을 보존한다', async () => {
+  it('제출 당시 결재선과 취소의 원신청 연결을 보이고 정책·버전은 숨긴다', async () => {
     const view = await render('request/detail', {
       request: { ...request, kind: 'CANCEL_LEAVE', originalRequestId: 'original-1', effectStatus: 'CANCELED' },
       detail: {
@@ -333,10 +333,12 @@ describe('WorkflowPages', () => {
       },
     });
     expect(view.getByRole('link', { name: '원신청 보기' }).getAttribute('href')).toBe('/requests/original-1');
-    expect(view.getByRole('heading', { name: '제출 당시 근태정책' })).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '제출 당시 근태정책' })).toBeNull();
     expect(view.getByRole('heading', { name: '제출 당시 결재선' })).toBeTruthy();
     const text = view.container.textContent;
-    for (const label of ['연차 취소', '효력 취소', '취소 심사 중에는 원승인·차감이 유지됩니다.', 'ANNUAL · 연차 정책 · v2', '승인 시 연차 DAY 차감', '정책 근거', 'TEAM · 조직장 결재 · v3', '대상자의 현재 조직장', '최초 담당', '제출 당시 해석은 보존됩니다.']) expect(text).toContain(label);
+    for (const label of ['연차 취소', '효력 취소', '취소 심사 중에는 원승인·차감이 유지됩니다.', '대상자의 현재 조직장', '최초 담당']) expect(text).toContain(label);
+    for (const hidden of ['결재선 버전', '해석 시각', '제출 당시 근태정책', '신청 버전', '원천 기록은 보존하며', 'Asia/Seoul', ' DAY'])
+      expect(text).not.toContain(hidden);
   });
   it('알 수 없는 상세 코드는 원래 값을 보존하고 알려진 정정·이력만 번역한다', async () => {
     const view = await render('request/detail', {
@@ -353,7 +355,7 @@ describe('WorkflowPages', () => {
     expect(text).toContain('FUTURE_STATUS → 결재 대기');
     expect(text).not.toContain(' DAY');
   });
-  it('미지원 정책·결재선 코드도 기존 의미로 추정하지 않고 원래 값을 표시한다', async () => {
+  it('미지원 결재선 코드도 기존 의미로 추정하지 않고 원래 값을 표시한다', async () => {
     const view = await render('request/detail', {
       request: { ...request, kind: 'constructor', status: 'toString', effectStatus: 'valueOf' },
       detail: {
@@ -363,7 +365,7 @@ describe('WorkflowPages', () => {
       },
     });
     const text = view.container.textContent;
-    for (const code of ['constructor', 'toString', 'valueOf', 'FUTURE_UNIT', 'FUTURE_PAY', 'FUTURE_DEDUCTION', 'FUTURE_SCOPE', 'FUTURE_APPROVER']) expect(text).toContain(code);
+    for (const code of ['constructor', 'toString', 'valueOf', 'FUTURE_SCOPE', 'FUTURE_APPROVER']) expect(text).toContain(code);
   });
   it('정정은 원천 결속·KEEP/SET/CLEAR·체크 해제 마커를 보존한다', async () => {
     const view = await render('request/correction', {
@@ -394,8 +396,8 @@ describe('WorkflowPages', () => {
     expect(posted.has('breaksConfirmed')).toBe(false);
     expect(posted.get('inAction')).toBe('SET');
     expect(posted.get('outAction')).toBe('KEEP');
-    expect(posted.get('requestedInAt')).toBe('2026-10-26T09:00:00.123');
-    expect(view.getByLabelText('제안 출근 시각 (서울)').getAttribute('step')).toBe('0.001');
+    expect(posted.get('requestedInAt')).toBe('2026-10-26T09:00');
+    expect(view.getByLabelText('출근 시각').getAttribute('step')).toBe('1');
     for (const label of ['출근 변경', '퇴근 변경']) {
       const options = (view.getByLabelText(label) as HTMLSelectElement).options;
       expect(Array.from(options, option => [option.value, option.text])).toEqual([

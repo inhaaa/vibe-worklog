@@ -13,11 +13,11 @@ describe('실제 휴게 행 편집', () => {
   it('시작·종료 행을 추가하고 서버의 쉼표·슬래시 형식으로 직렬화한다', () => {
     const view = render(<Editor />);
     fireEvent.click(view.getByRole('button', { name: '휴게 추가' }));
-    fireEvent.change(view.getByLabelText('휴게 1 시작 (서울)'), { target: { value: '2026-11-02T12:00' } });
-    fireEvent.change(view.getByLabelText('휴게 1 종료 (서울)'), { target: { value: '2026-11-02T13:00' } });
+    fireEvent.change(view.getByLabelText('휴게 1 시작'), { target: { value: '2026-11-02T12:00' } });
+    fireEvent.change(view.getByLabelText('휴게 1 종료'), { target: { value: '2026-11-02T13:00' } });
     fireEvent.click(view.getByRole('button', { name: '휴게 추가' }));
-    fireEvent.change(view.getByLabelText('휴게 2 시작 (서울)'), { target: { value: '2026-11-02T15:00' } });
-    fireEvent.change(view.getByLabelText('휴게 2 종료 (서울)'), { target: { value: '2026-11-02T15:10' } });
+    fireEvent.change(view.getByLabelText('휴게 2 시작'), { target: { value: '2026-11-02T15:00' } });
+    fireEvent.change(view.getByLabelText('휴게 2 종료'), { target: { value: '2026-11-02T15:10' } });
     const form = view.container.querySelector('form')!;
     expect(new FormData(form).get('actualBreaks')).toBe('2026-11-02T12:00/2026-11-02T13:00,2026-11-02T15:00/2026-11-02T15:10');
     fireEvent.click(view.getByRole('button', { name: '휴게 1 제거' }));
@@ -27,7 +27,7 @@ describe('실제 휴게 행 편집', () => {
     const view = render(<Editor initial="2026-11-02T13:00/2026-11-02T12:00" />);
     const form = view.container.querySelector('form')!;
     expect(form.checkValidity()).toBe(false);
-    fireEvent.change(view.getByLabelText('휴게 1 종료 (서울)'), { target: { value: '2026-11-02T14:00' } });
+    fireEvent.change(view.getByLabelText('휴게 1 종료'), { target: { value: '2026-11-02T14:00' } });
     expect(form.checkValidity()).toBe(true);
     fireEvent.click(view.getByRole('button', { name: '휴게 추가' }));
     expect(form.checkValidity()).toBe(false);
@@ -49,5 +49,11 @@ describe('실제 휴게 행 편집', () => {
     const view = render(<Editor initial={original} disabled />);
     expect((view.getByLabelText('휴게 1 원본 입력') as HTMLInputElement).value).toBe(original);
     expect(view.getByRole('button', { name: '휴게 추가' }).hasAttribute('disabled')).toBe(true);
+  });
+  it('휴게 입력은 초 단위이고 라벨에 서울 표기를 붙이지 않는다', () => {
+    const view = render(<RequestBreakEditor value="2026-11-04T12:00:30.125/2026-11-04T13:00" onChange={() => {}} />);
+    const start = view.getByLabelText('휴게 1 시작') as HTMLInputElement;
+    expect(start.getAttribute('step')).toBe('1');
+    expect(start.getAttribute('value')).toBe('2026-11-04T12:00:30');
   });
 });
