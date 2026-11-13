@@ -551,11 +551,13 @@ function Month({ model: m }: { model: MonthModel }) {
     sheetColumn<PeriodView>({ colId: 'week', headerName: '주간', minWidth: 210, pinned: 'left',
       valueGetter: ({ data }) => (data ? `${data.from} ~ ${previousDay(data.to)}` : '') }, week => `${week.from} ~ ${previousDay(week.to)}`),
     sheetColumn<PeriodView>({ colId: 'confirmedWorkMillis', field: 'result.confirmedWorkMillis', headerName: '실근로', minWidth: 120,
-      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, week => duration(week.result.confirmedWorkMillis)),
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data ? duration(data.result.confirmedWorkMillis) : '') }, week => duration(week.result.confirmedWorkMillis)),
     sheetColumn<PeriodView>({ field: 'pendingDays', headerName: '확인 전', minWidth: 100, cellClass: 'w-sheet-number',
-      filter: 'agNumberColumnFilter' }, week => `${week.pendingDays}일`),
+      filter: 'agNumberColumnFilter', getQuickFilterText: ({ data }) => (data ? `${data.pendingDays}일` : '') }, week => `${week.pendingDays}일`),
     sheetColumn<PeriodView>({ colId: 'over40hMillis', field: 'result.over40hMillis', headerName: '40시간 초과', minWidth: 130,
-      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, week => duration(week.result.over40hMillis)),
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data ? duration(data.result.over40hMillis) : '') }, week => duration(week.result.over40hMillis)),
   ];
   const leaveDays = view.days.reduce((sum, day) => sum + day.approvedLeaveDays, 0);
   const periodFields = (
