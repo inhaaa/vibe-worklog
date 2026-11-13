@@ -266,7 +266,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
                 filterValueGetter: ({ data }) => duration(data?.current ? data.actualWorkMillis : null),
                 getQuickFilterText: ({ value }) => duration(value), minWidth: 220, cellClass: 'w-sheet-number',
               },
-              { colId: 'leaveDays', headerName: '휴가 (DAY)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
+              { colId: 'leaveDays', headerName: '휴가 (일)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
             ]}
           />
         )}
@@ -312,7 +312,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
             { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
             { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
             { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
-            { field: 'quantityDays', headerName: '조회연도 신청일량 (DAY)', minWidth: 220, cellClass: 'w-sheet-number' },
+            { field: 'quantityDays', headerName: '조회연도 신청일량 (일)', minWidth: 220, cellClass: 'w-sheet-number' },
             { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
             { colId: 'submittedAt', headerName: '제출 시각 (서울)', valueGetter: ({ data }) => data && fmtDateTime(data.submittedAt), minWidth: 240 },
           ]}

@@ -94,7 +94,7 @@ describe('WorkflowPages', () => {
     const view = await render('request/list', { title: '결재 대기함', requests: [request], completed: false, page: 0, hasNext: true });
     expect(view.getByRole('list', { name: '결재 신청 목록' })).toBeTruthy();
     const text = view.container.textContent;
-    for (const value of ['이 페이지 1건', '종일 연차', '결재 대기', '효력 없음', '2 DAY', '2026-11-01', '2026-11-02', request.targetEmployeeName, request.reason]) expect(text).toContain(value);
+    for (const value of ['이 페이지 1건', '종일 연차', '결재 대기', '효력 없음', '2일', '2026-11-01', '2026-11-02', request.targetEmployeeName, request.reason]) expect(text).toContain(value);
     expect(view.getByRole('link', { name: '신청 검토' }).getAttribute('href')).toBe('/requests/request-1');
     expect(view.getByRole('link', { name: '다음' }).getAttribute('href')).toBe('/approvals?page=1');
     expect(view.container.querySelector('script,img,form')).toBeNull();
@@ -204,7 +204,7 @@ describe('WorkflowPages', () => {
     expect(posted.get('from')).toBe('2026-11-01');
     expect(posted.get('to')).toBe('2026-11-02');
     expect(view.container.textContent).toContain('대기는 예약·차감하지 않습니다');
-    expect(view.container.textContent).toContain('대기 2 DAY');
+    expect(view.container.textContent).toContain('대기 2일');
   });
   it('서버가 승인 권한을 주지 않으면 자기승인·담당자 승인을 표시하지 않는다', async () => {
     const view = await render('request/detail', {
@@ -426,7 +426,7 @@ describe('WorkflowPages', () => {
     expect(view.container.textContent).toContain('확인 필요');
     expect(view.container.textContent).not.toContain('private-invalid-json');
   });
-  it('기초·조정 원장은 정수 DAY와 버전 제출을 유지한다', async () => {
+  it('기초·조정 원장은 정수 일수와 버전 제출을 유지한다', async () => {
     const base = await render('request/balances', {
       employee,
       employees: [employee],

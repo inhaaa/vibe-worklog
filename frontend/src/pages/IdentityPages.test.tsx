@@ -198,7 +198,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
     for (const [name, value] of Object.entries({ year: '2026', organizationId: 'o-1', status: 'APPROVED', page: '2' }))
       expect(next.searchParams.get(name)).toBe(value);
     const main = view.container.querySelector('main')!;
-    for (const text of ['E001', '김직원', '개발팀', '종일 연차', '승인', '유효', '조회연도 신청일량 (DAY)', '2026-10-26 00:00:00']) expect(main.textContent).toContain(text);
+    for (const text of ['E001', '김직원', '개발팀', '종일 연차', '승인', '유효', '조회연도 신청일량 (일)', '2026-10-26 00:00:00']) expect(main.textContent).toContain(text);
     for (const text of ['민감 사유', 'private@example.test', '192.0.2.1']) expect(main.textContent).not.toContain(text);
     expect(main.querySelector('a[href^="/requests/"],form[method="post"]')).toBeNull();
     expect(view.getByRole('grid', { name: '회사 신청 목록' })).toBeTruthy();

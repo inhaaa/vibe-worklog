@@ -21,7 +21,7 @@ export function RequestBreakEditor({ value, onChange, disabled = false }: Reques
     onChange(rows.map((current, at) => at === index ? row : current).join(','));
   }
   return <section className="t-break-editor" aria-label="실제 휴게 구간">
-    <div className="t-break-editor-head"><div><h3>실제 휴게</h3><p>날짜와 시각은 서울 기준입니다. 실제 휴게가 없으면 구간 없이 확인하세요.</p></div><button type="button" className="t-btn" disabled={disabled} onClick={() => onChange(value ? `${value},/` : '/')}>휴게 추가</button></div>
+    <div className="t-break-editor-head"><div><h3>실제 휴게</h3><p>실제 휴게가 없으면 구간 없이 확인하세요.</p></div><button type="button" className="t-btn" disabled={disabled} onClick={() => onChange(value ? `${value},/` : '/')}>휴게 추가</button></div>
     <input type="hidden" name="actualBreaks" value={value} />
     {!rows.length && <p className="t-break-empty">등록한 휴게 구간이 없습니다.</p>}
     {rows.map((raw, index) => {

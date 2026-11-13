@@ -133,12 +133,12 @@ function Mine({ model: m }: { model: MineModel }) {
       </p>
       <section className="panel">
         <h2>연차 잔여와 대기량</h2>
-        <p>정수 DAY 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
+        <p>정수 일 단위 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
         <ul>
           {m.buckets.map((b) => (
             <li key={b.id}>
               {bucketPeriod(b)} · 현재 잔여 {b.balanceDays} / 사용 가능 {b.availableDays} / 대기{' '}
-              {b.pendingDays} DAY
+              {b.pendingDays}일
             </li>
           ))}
         </ul>
@@ -152,7 +152,7 @@ function Mine({ model: m }: { model: MineModel }) {
             <option value="">선택하세요</option>
             {m.buckets.map((b) => (
               <option key={b.id} value={b.id}>
-                {bucketPeriod(b)} / 사용 가능 {b.availableDays} DAY
+                {bucketPeriod(b)} / 사용 가능 {b.availableDays}일
               </option>
             ))}
           </SelectField>
@@ -438,7 +438,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
           {m.buckets.map((b) => (
             <li key={b.id}>
               <a href={`/admin/leave-balances/buckets/${b.id}`}>
-                {bucketPeriod(b)} / 잔여 {b.balanceDays} <abbr title="일">DAY</abbr> / 대기 {b.pendingDays} <abbr title="일">DAY</abbr>
+                {bucketPeriod(b)} / 잔여 {b.balanceDays}일 / 대기 {b.pendingDays}일
               </a>
             </li>
           ))}
@@ -457,7 +457,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
             <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
             <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
             <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
-            <Field label="기초 일수 (정수 DAY)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="기초 일수 (정수)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
             <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
             <Reason label="등록 사유" value={f.reason} />
           </FormTable>
@@ -494,7 +494,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
           <FormTable>
-            <Field label="조정 DAY (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="조정 일수 (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
             <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
             <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
             <Reason label="조정 사유" value={f.reason} />

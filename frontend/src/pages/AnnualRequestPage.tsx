@@ -380,7 +380,7 @@ function AttributionManagement({model:m,error}:{model:AttributionView;error?:str
   const change=()=>{setDirty(true);setCommand(crypto.randomUUID());};
   return <section className="t-annual-page">
     <PageHeader title="기초 묶음 귀속연도" actions={<a className="t-btn" href={`/admin/leave-balances/buckets/${m.bucket.id}`}>원장 보기</a>} />
-    <p className="t-muted">{m.bucket.employeeName} · {m.bucket.balanceDays} DAY 현재 잔액</p>
+    <p className="t-muted">{m.bucket.employeeName} · {m.bucket.balanceDays}일 현재 잔액</p>
     <Notice>묶음 전체가 단일 귀속연도라는 근거가 있을 때만 확정하세요. 혼합된 묶음은 미분류로 유지합니다. 분류는 기초·사용·복원 원장을 바꾸지 않습니다.</Notice>
     <section className="wl-section"><h2>귀속 분류 등록</h2>
       {error&&<p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
