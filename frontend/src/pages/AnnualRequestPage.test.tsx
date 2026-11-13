@@ -356,10 +356,10 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.getAllByText(/귀속 미확인/)[0]).toBeTruthy();
   const text=view.container.textContent??'';
   for(const hidden of['기준 시각','목록 필터와 무관한','선택 연도 · 오늘까지 유효한 승인','조회 시점 오늘','대기는 예약·차감하지 않음',
-    '본인 대상의 원신청 기간·일수입니다','귀속연도 잔액은 현재 원장 잔액입니다','신청 건수와 휴가 DAY는',' DAY'])
+    '본인 대상의 원신청 기간·일수입니다','귀속연도 잔액은 현재 원장 잔액입니다','신청 건수와 휴가 DAY는','오늘 이후 · 승인 시 이미 차감','자동 발생량·연초 잔여가 아님','확인 묶음의 현재 잔액','귀속 확인 자료의 부분합',' DAY'])
     expect(text).not.toContain(hidden);
  });
- it('빈 자료와 확인된 부분합을 연간 전체 0으로 단정하지 않는다',()=>{
+ it('빈 자료는 연간 사용을 0이 아닌 -로 보인다',()=>{
   const view=render(<App initial={envelope({coverage:'NO_REGISTERED_DATA',requests:[],summaries:[]})}/>);
   const used=view.getByRole('heading',{name:'사용'}).closest('section')!;
   expect(used.querySelector('strong')?.textContent).toBe('-');
@@ -370,6 +370,13 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.getByRole('heading',{name:'내 대상 신청 이력'})).toBeTruthy();
   expect(view.getByRole('heading',{name:'내가 대리 작성한 이력'})).toBeTruthy();
   expect(view.getByRole('navigation',{name:'내 신청 페이지'}).querySelector('a')?.getAttribute('href')).toContain('status=PENDING');
+ });
+ it('확인된 부분합에는 (일부)를, 귀속 자료가 없으면 -를 보인다',()=>{
+  const partial=render(<App initial={envelope({registeredDays:5,attributedBalanceDays:3,unknownBucketCount:1,attributionPartial:true})}/>);
+  expect([...partial.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['5일 (일부)','3일 (일부)']);
+  cleanup();
+  const none=render(<App initial={envelope({registeredDays:null,attributedBalanceDays:null,unknownBucketCount:0,attributionPartial:false})}/>);
+  expect([...none.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['-','-']);
  });
  it('대리 작성 이력은 담당자이거나 작성 이력이 있을 때만 보인다',()=>{
   const employeeOnly=render(<App initial={envelope({authoredRequests:[]})}/>);
