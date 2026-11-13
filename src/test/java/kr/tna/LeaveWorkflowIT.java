@@ -188,6 +188,11 @@ class LeaveWorkflowIT {
         var two=clocks.day(employee,correctionDate);assertEquals(2L,two.inputRevision());
         assertStatus(422,()->workflow.requestCancellation(employee,second,new CancelForm(false,1L,"정정 취소 금지",UUID.randomUUID())));
     }
+    @Test void correctionFormReadsTheCurrentApprovedCorrectionId() {
+        assertNull(workflow.currentCorrectionRequestId(employee,employee.employeeId(),correctionDate));
+        UUID first=correction(null);approve(first);
+        assertEquals(first,workflow.currentCorrectionRequestId(employee,employee.employeeId(),correctionDate));
+    }
     @Test void staleCorrectionBaseAndForeignRequestAreRejectedWithoutDisclosure() {
         var before=clocks.day(employee,correctionDate);
         assertStatus(409,()->workflow.submitCorrection(employee,new CorrectionForm(null,correctionDate,before.inputRevision()+1,before.sourceFingerprint(),"SET",correctionDate+"T09:00","SET",correctionDate+"T18:00",true,true,"",null,null,false,"오래된 사실",UUID.randomUUID())));
