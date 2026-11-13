@@ -21,6 +21,7 @@ import {
   fmtDate,
   fmtTime,
   fmtDateTime,
+  duration,
 } from '../ui';
 import type {
   EmployeeChoice,
@@ -1060,109 +1061,74 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
   );
 }
 
-export function AttendanceRecord({ data }: { data: Record<string, unknown> }): React.ReactNode {
+const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
+export function scheduleLine(day: DaySnapshot) {
+  if (day.schedule == null) return null;
+  if (!day.schedule.workday) return '비근무일';
+  return [`예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`,
+    ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+}
+export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
     d = m.day,
     f = m.confirmationForm;
+  const time = (event: ClockEvent) => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt);
   const columns = [
-    sheetColumn<ClockEvent>({ field: 'kind', headerName: '원천 사건', minWidth: 150, pinned: 'left', valueGetter: ({ data }) => data ? data.kind === 'IN' ? '출근' : '퇴근' : '' }, event => event.kind === 'IN' ? '출근' : '퇴근'),
-    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '서버 저장 시각 (서울)', minWidth: 250, flex: 1, valueGetter: ({ data }) => data ? m.eventTimes?.[data.id] ?? fmtDateTime(data.occurredAt) : '' }, event => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt)),
+    sheetColumn<ClockEvent>({ field: 'kind', headerName: '구분', minWidth: 120, pinned: 'left', valueGetter: ({ data }) => data ? eventName(data.kind) : '' }, event => eventName(event.kind)),
+    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '시각', minWidth: 200, flex: 1, valueGetter: ({ data }) => data ? time(data) : '' }, time),
   ];
+  const effective = d.effectiveEvents ?? d.events;
   const changedEvents =
     d.effectiveEvents != null &&
     (d.events.length !== d.effectiveEvents.length ||
       d.events.some((e, i) => {
-        const effective = d.effectiveEvents?.[i];
-        return (
-          e.id !== effective?.id ||
-          e.kind !== effective?.kind ||
-          e.occurredAt !== effective?.occurredAt
-        );
+        const after = d.effectiveEvents?.[i];
+        return e.id !== after?.id || e.kind !== after?.kind || e.occurredAt !== after?.occurredAt;
       }));
+  const canConfirm = d.schedule != null && d.calendarVersionId != null && d.confirmation == null
+    && effective.filter(e => e.kind === 'IN').length === 1 && effective.filter(e => e.kind === 'OUT').length === 1;
   return (
     <section className="wl-section">
-      <h2>출근 기록·실제 근로 확인</h2>
-      <p>
-        {fmtDate(d.workDate)} · Asia/Seoul · 사실 v{d.inputRevision} / 검토 v{d.reviewRevision}
-      </p>
-      {d.schedule == null ? (
-        <p className="notice">근무 일정 미배정 · 확인 필요</p>
-      ) : (
-        <p>
-          {d.schedule.workday
-            ? `예정 근무 ${fmtTime(d.schedule.startTime)}~${fmtTime(d.schedule.endTime)}`
-            : '소정 비근로일'}
-        </p>
-      )}
-      <p>캘린더: {d.dayKind}</p>
-      <p>
-        체류시간을 실제 근로로 자동 확정하지 않습니다. 중복·역전·자정 통과 기록은 정정 검토가
-        필요합니다.
-      </p>
-      <WorklogSheet title="원천 출퇴근 기록" label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
+      {d.schedule == null ? <p className="notice">근무 일정 미배정</p> : showSchedule && <p className="t-muted">{scheduleLine(d)}</p>}
+      <WorklogSheet title="출퇴근 기록" label="출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
       {changedEvents && (
         <div className="notice">
-          <h3>승인 정정 반영값 · 원천은 별도 보존</h3>
+          <h3>정정 반영 기록</h3>
           <ul>
-            {d.effectiveEvents?.map((e) => (
-              <li key={e.id}>
-                {e.kind} · {m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}
-              </li>
-            ))}
+            {d.effectiveEvents?.map(e => <li key={e.id}>{eventName(e.kind)} · {time(e)}</li>)}
           </ul>
         </div>
       )}
       {d.confirmation && (
-        <p className="notice">현재 사실의 실제 근로·휴게 일치 확인이 저장되었습니다.</p>
-      )}
-      <Form action="/me/work-confirmations" method="post" className="wl-form">
-        {hidden('workDate', f.workDate)}
-        {hidden('baseInputRevision', f.baseInputRevision)}
-        {hidden('expectedReviewRevision', f.expectedReviewRevision)}
-        {hidden('sourceFingerprint', f.sourceFingerprint)}
-        {hidden('commandId', f.commandId)}
-        <h3>퇴근 후 본인 확인</h3>
-        <p>
-          원천 한 쌍·같은 날짜·일정·캘린더가 유효해야 합니다. 실제가 다르면 확인하지 말고 정정
-          신청을 사용하세요.
+        <p className="notice">
+          {m.actualWorkMillis != null ? `근무 확인 완료 · 실근로 ${duration(m.actualWorkMillis)}` : '근무 확인 완료 · 실근로는 담당자 재집계 후 표시됩니다.'}
         </p>
-        {d.schedule && (
-          <ul>
-            {d.schedule.breaks.map((b, i) => (
-              <li key={i}>
-                예정 휴게 {fmtTime(b.startTime)} ~ {fmtTime(b.endTime)}
-              </li>
-            ))}
-          </ul>
-        )}
-        <FormTable>
-          <FormRow label="본인 확인" required>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="presenceAsWork"
-                value="true"
-                defaultChecked={f.presenceAsWork}
-                required
-              />
-              출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
-            </label>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="breaksMatch"
-                value="true"
-                defaultChecked={f.breaksMatch}
-                required
-              />
-              실제 휴게가 표시된 예정 휴게와 일치합니다
-            </label>
-          </FormRow>
-        </FormTable>
-        <div className="wl-form-actions">
-          <button type="submit" className="t-btn primary">현재 사실 확인 저장</button>
-        </div>
-      </Form>
+      )}
+      {canConfirm && (
+        <Form action="/me/work-confirmations" method="post" className="wl-form">
+          {hidden('workDate', f.workDate)}
+          {hidden('baseInputRevision', f.baseInputRevision)}
+          {hidden('expectedReviewRevision', f.expectedReviewRevision)}
+          {hidden('sourceFingerprint', f.sourceFingerprint)}
+          {hidden('commandId', f.commandId)}
+          <h3>근무 확인</h3>
+          <FormTable>
+            <FormRow label="근무 확인" required>
+              <label className="checkbox-label">
+                <input type="checkbox" name="presenceAsWork" value="true" defaultChecked={f.presenceAsWork} required />
+                휴게를 뺀 실제 근로가 맞습니다
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required />
+                휴게가 예정과 같습니다
+              </label>
+            </FormRow>
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">근무 확인</button>
+          </div>
+        </Form>
+      )}
     </section>
   );
 }
@@ -1220,34 +1186,31 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/day':
       content = <AttendanceRecord data={data} />;
       break;
-    case 'clock/history':
+    case 'clock/history': {
+      const clock = data as unknown as ClockModel;
+      const todayCard = clock.isToday && clock.day.workDate === data.today;
       content = (
         <>
-          <PageHeader title="출퇴근 기록" help="출퇴근 시각과 실제 근로를 확인하세요." />
-          {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
-            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요." />
+          {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
+            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
               {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
               <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
             </Form>)}</div>
           </section>}
           <Form action="/me/attendance" method="get" className="wl-querybar">
-            <Field
-              label="기준일"
-              name="date"
-              type="date"
-              value={(data as unknown as ClockModel).day.workDate}
-              required
-            />
+            <Field label="기준일" name="date" type="date" value={clock.day.workDate} required />
             <div className="wl-querybar-actions">
               <a className="t-btn wl-query-reset" href="/me/attendance">오늘</a>
               <button className="t-btn wl-query-submit" type="submit">조회</button>
             </div>
           </Form>
-          <AttendanceRecord data={data} />
+          <AttendanceRecord data={data} showSchedule={!todayCard} />
         </>
       );
       break;
+    }
     default:
       return null;
   }

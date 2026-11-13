@@ -162,6 +162,7 @@ export interface ClockModel {
   day: DaySnapshot;
   eventTimes: Record<string, string>;
   confirmationForm: ConfirmationForm;
+  actualWorkMillis?: number | null;
 }
 export interface CorrectionForm {
   targetEmployeeId: string | null;

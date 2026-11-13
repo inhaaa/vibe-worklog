@@ -48,6 +48,15 @@ const day = {
   schedule: null,
   confirmation: null,
 };
+const confirmable = {
+  ...day,
+  dayKind: 'WORKDAY',
+  calendarVersionId: 'calendar-1',
+  schedule: { workday: true, startTime: '09:00:00.000', endTime: '18:00:00.000', breaks: [{ startTime: '12:00:00.000', endTime: '13:00:00.000' }] },
+  events: [{ id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.123Z' }, { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:03:40.000Z' }],
+  effectiveEvents: [{ id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.123Z' }, { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:03:40.000Z' }],
+};
+const confirmationForm = { workDate: day.workDate, baseInputRevision: 2, expectedReviewRevision: 3, sourceFingerprint: 'clock-fingerprint', commandId: 'confirm-command' };
 const result = {
   status: 'REVIEW_REQUIRED',
   actualWorkMillis: null,
@@ -623,25 +632,36 @@ describe('WorkflowPages', () => {
     expect(view.container.textContent).toContain('<img src=x onerror=alert(1)>');
     expect(view.container.querySelector('img')).toBeNull();
   });
-  it('출퇴근 확인은 사실/검토 개정과 원천 지문·명령을 제출한다', async () => {
-    const view = await render('clock/history', {
-      day,
-      eventTimes: { 'in-1': '2026-10-26 09:00:00.123' },
-      confirmationForm: {
-        workDate: day.workDate,
-        baseInputRevision: 2,
-        expectedReviewRevision: 3,
-        sourceFingerprint: 'clock-fingerprint',
-        commandId: 'confirm-command',
-      },
-    });
-    expect(view.container.textContent).toContain('근무 일정 미배정');
+  it('출퇴근 기록은 구분·시각만 보이고 버전·캘린더 코드·안내문을 보이지 않는다', async () => {
+    const view = await render('clock/history', { day: confirmable, eventTimes: { 'in-1': '2026-10-26 09:00:00' }, confirmationForm });
+    const text = view.container.textContent ?? '';
+    for (const hidden of ['출근 기록·실제 근로 확인', '사실 v', '검토 v', '캘린더:', 'Asia/Seoul', '체류시간을 실제 근로로', '원천'])
+      expect(text).not.toContain(hidden);
+    expect(text).toContain('예정 09:00~18:00 · 휴게 12:00~13:00');
+    const grid = view.getByRole('grid', { name: '출퇴근 기록' });
+    expect(Array.from(grid.querySelectorAll('.ag-header-cell[col-id]')).map(cell => cell.getAttribute('col-id'))).toEqual(['kind', 'occurredAt']);
+    expect(within(grid).getByRole('columnheader', { name: /구분/ })).toBeTruthy();
+    expect(within(grid).getByRole('columnheader', { name: /시각/ })).toBeTruthy();
+    expect(grid.querySelector('[row-id="in-1"]')?.textContent).toContain('2026-10-26 09:00:00');
+  });
+  it('근무 확인은 출근·퇴근이 하나씩 있고 미확인일 때만 보이며 개정·지문·명령을 제출한다', async () => {
+    const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm });
     const posted = body(view, '/me/work-confirmations');
     expect(posted.get('expectedReviewRevision')).toBe('3');
     expect(posted.get('sourceFingerprint')).toBe('clock-fingerprint');
-    expect(view.container.textContent).toContain('09:00:00.123');
-    expect(view.getByRole('grid', { name: '원천 출퇴근 기록' })).toBeTruthy();
-    expect(view.container.querySelector('[row-id="in-1"]')).toBeTruthy();
+    expect(posted.get('commandId')).toBe('confirm-command');
+    expect(view.getByRole('button', { name: '근무 확인' })).toBeTruthy();
+    expect(view.container.textContent).not.toContain('원천 한 쌍');
+    for (const blocked of [{ ...confirmable, schedule: null }, { ...day, schedule: confirmable.schedule, calendarVersionId: 'calendar-1' },
+      { ...confirmable, confirmation: { id: 'c-1' } }])
+      expect((await render('clock/history', { day: blocked, eventTimes: {}, confirmationForm })).container.querySelector('form[action="/me/work-confirmations"]')).toBeNull();
+  });
+  it('근무 확인 뒤에는 계산된 실근로를 초 단위로 보인다', async () => {
+    const confirmed = { ...confirmable, confirmation: { id: 'c-1' } };
+    expect((await render('clock/history', { day: confirmed, eventTimes: {}, confirmationForm, actualWorkMillis: 29_486_000 })).container.textContent)
+      .toContain('근무 확인 완료 · 실근로 8:11:26');
+    expect((await render('clock/history', { day: confirmed, eventTimes: {}, confirmationForm, actualWorkMillis: null })).container.textContent)
+      .toContain('근무 확인 완료 · 실근로는 담당자 재집계 후 표시됩니다.');
   });
   it('서울 오늘 조회에서만 출퇴근 명령을 제공한다', async () => {
     const data = { day, today: day.workDate, isToday: true, inCommand: 'in-cmd', outCommand: 'out-cmd', eventTimes: {}, confirmationForm: { workDate: day.workDate, commandId: 'confirm' } };
