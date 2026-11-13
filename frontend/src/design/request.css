@@ -209,6 +209,3 @@ button.t-request-period-trigger {
 .t-correction-events { display: grid; margin: 0 0 8px; padding: 0; border-top: 2px solid var(--g800); list-style: none; }
 .t-correction-events li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--g200); font-size: 13px; }
 .t-correction-events strong { font-weight: 600; font-variant-numeric: tabular-nums; }
-.t-correction-advanced { margin: 0 0 16px; }
-.t-correction-advanced summary { color: var(--g700); font-size: 13px; font-weight: 600; cursor: pointer; }
-.t-correction-advanced[open] .wl-form-table { margin-top: 8px; }

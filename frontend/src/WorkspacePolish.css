@@ -92,7 +92,7 @@
 #tna-app .t-home-flow .t-flow-legend span::before { content: none; }
 #tna-app .t-home-flow :is(.t-flow-schedule, .t-flow-entry-copy, .t-flow-day) { border: 0; border-radius: 0; background: var(--t-canvas); }
 #tna-app .t-calendar-toolbar { gap: var(--space-md); }
-#tna-app .t-app-shell :is(.t-calendar-note, .t-calendar-legend, .t-calendar-bottom, .t-weekdays, .t-day .t-day-number, .t-day .t-day-event) { font-size: 12px; }
+#tna-app .t-app-shell :is(.t-calendar-legend, .t-calendar-bottom, .t-weekdays, .t-day .t-day-number, .t-day .t-day-event) { font-size: 12px; }
 #tna-app .t-icon-button, #tna-app .t-mobile-menu { width: 44px; height: 44px; min-height: 44px; }
 #tna-app :focus-visible { outline: 2px solid var(--t-focus); outline-offset: 3px; transition: none; }
 #tna-app :is(input, select, textarea):focus-visible { outline-offset: 2px; }

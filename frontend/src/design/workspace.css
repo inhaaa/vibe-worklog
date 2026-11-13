@@ -199,22 +199,16 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
 .t-personnel-tabpanel:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 .t-personal-panel-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin: 0 0 12px; padding: 0; border: 0; }
 .t-personal-panel-heading h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
-.t-personal-panel-heading p { margin: 2px 0 0; color: var(--g600); font-size: 12.5px; }
 .t-personal-count { color: var(--g600); font-size: 13px; }
 .t-personal-groups { display: grid; gap: 20px; }
 .t-personal-group { margin: 0; padding: 0; border: 0; }
 .t-personal-group h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: var(--g900); font: 700 13px/1.4 var(--font-ui); }
 .t-personal-group-icon { display: inline-grid; place-items: center; width: auto; height: auto; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--g600); }
 .t-personal-group-icon svg { width: 15px; height: 15px; }
-.t-personal-group .wl-info-grid, .t-profile-details .wl-info-grid { padding: 12px 0 0; border-top: 2px solid var(--g800); }
+.t-personal-group .wl-info-grid { padding: 12px 0 0; border-top: 2px solid var(--g800); }
 .wl-info-grid dd[data-empty] { color: var(--g600); font-weight: 500; }
-.t-personal-privacy { display: flex; align-items: center; gap: 8px; margin: 16px 0 0; padding: 10px 12px; border: 0; border-radius: var(--r-pop); background: var(--g50); color: var(--g700); font-size: 12.5px; }
-.t-personal-privacy svg { flex: none; width: 16px; height: 16px; color: var(--g500); }
 .t-personal-empty { padding: 24px 12px; border: 0; background: transparent; color: var(--g600); font-size: 13px; text-align: center; }
 .t-personal-empty > span { display: none; }
-.t-profile-details { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.t-profile-asof { margin: 0 0 10px; color: var(--g600); font-size: 12.5px; }
-.t-profile-footnote { margin: 12px 0 0; color: var(--g600); font-size: 12.5px; }
 
 /* Raw document tables in T4 screens; phones keep the legacy card layout. */
 @media (min-width: 601px) {
@@ -233,15 +227,13 @@ a.t-attendance-request-option:is(:hover, :focus-visible) { background: var(--g50
 .t-annual-metrics > .t-request-available { background: var(--brand-tint); }
 .t-annual-metrics h2 { margin: 0; color: var(--g600); font: 600 12.5px/1.4 var(--font-ui); }
 .t-annual-metrics strong { display: block; margin: 4px 0 2px; color: var(--g900); font: 700 22px/1.25 var(--font-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.t-annual-metrics p { margin: 0; color: var(--g600); font-size: 12px; }
 .t-request-balance-basis { display: flex; flex-wrap: wrap; gap: 6px 0; margin: 0 0 20px; padding: 10px 6px; border: 0; border-radius: var(--r-pop); background: var(--g50); font-size: 13px; }
 .t-request-balance-basis > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 0 14px; border: 0; border-left: 1px solid var(--g200); background: transparent; }
 .t-request-balance-basis > div:first-child { border-left: 0; }
 .t-request-balance-basis dt { color: var(--g700); }
 .t-request-balance-basis dd { margin: 0; color: var(--g900); font-weight: 700; font-variant-numeric: tabular-nums; }
-.t-request-balance-basis dd small { margin-left: 6px; color: var(--g600); font-size: 12px; font-weight: 400; }
 .t-annual-page .wl-section h2 { margin: 0; color: var(--g900); font: 700 15px/1.4 var(--font-ui); letter-spacing: -.02em; }
-.t-annual-page .wl-section > .t-muted, .t-request-list-head p { margin: 2px 0 10px; color: var(--g600); font-size: 12.5px; }
+.t-annual-page .wl-section > .t-muted { margin: 2px 0 10px; color: var(--g600); font-size: 12.5px; }
 .t-request-list-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; margin: 0 0 10px; }
 .t-request-list-search { display: grid; gap: 4px; margin: 0; color: var(--g700); font: 600 12.5px/1.4 var(--font-ui); }
 .t-request-list-search .t-input { width: 240px; }
