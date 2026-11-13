@@ -1064,9 +1064,9 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
 const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
 function scheduleLine(day: DaySnapshot) {
   if (day.schedule == null) return null;
-  const line = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
-    : [`예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`,
-      ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  const head = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
+    : `예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`;
+  const line = [head, ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
   return day.calendarVersionId == null ? `${line} · 캘린더 미확인` : line;
 }
 export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {

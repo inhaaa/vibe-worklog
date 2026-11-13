@@ -668,11 +668,14 @@ describe('WorkflowPages', () => {
   });
   it('캘린더·일정 상태를 한국어로 보이고 오늘 카드의 일정은 한 번만 보인다', async () => {
     const text = async (d: unknown) => (await render('clock/history', { day: d, eventTimes: {}, confirmationForm })).container.textContent ?? '';
-    expect(await text({ ...confirmable, dayKind: 'HOLIDAY' })).toContain('휴일');
+    const holiday = await text({ ...confirmable, dayKind: 'HOLIDAY' });
+    expect(holiday).toContain('휴일 · 휴게 12:00~13:00');
+    expect(holiday).not.toContain('예정 09:00');
     expect(await text({ ...confirmable, dayKind: 'NON_WORKDAY' })).toContain('비근무일');
     expect(await text({ ...confirmable, calendarVersionId: null })).toContain('캘린더 미확인');
     expect(await text({ ...confirmable, schedule: null })).toContain('근무 일정 미배정');
     const today = await render('clock/history', { day: confirmable, today: day.workDate, isToday: true, inCommand: 'in-cmd', outCommand: 'out-cmd', eventTimes: {}, confirmationForm });
+    expect((within(today.getByRole('region', { name: '오늘 출퇴근' })).getByText(/예정 09:00~18:00/)).textContent).toBe('예정 09:00~18:00 · 휴게 12:00~13:00');
     expect((today.container.textContent ?? '').split('예정 09:00~18:00').length - 1).toBe(1);
   });
   it('근무 확인 뒤에는 계산된 실근로를 초 단위로 보인다', async () => {
