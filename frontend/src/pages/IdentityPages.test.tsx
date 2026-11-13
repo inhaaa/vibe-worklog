@@ -41,8 +41,8 @@ it('인사정보 7개 탭과 미수집 주민번호를 읽기 전용으로 표�
   const view = await show('workspace/profile', { profile, personalDetails: { employeeId: 'e-1', version: 0, form: {}, entries: [], appointments: [] } });
   const tabs = view.getAllByRole('tab');
   expect(tabs.map(tab => tab.textContent)).toEqual(['기본사항', '발령내역', '가족사항', '학력사항', '자격사항', '어학사항', '주소·연락처']);
-  expect(view.getByRole('tabpanel').textContent).toContain('주민등록번호');
-  expect(view.getByRole('tabpanel').textContent).toContain('미수집');
+  expect(view.getByRole('tabpanel').textContent).not.toContain('주민등록번호');
+  expect(view.container.textContent).not.toContain('개인 정보와 입사 정보를 한눈에 확인하세요.');
   expect(view.getByRole('tabpanel').textContent).toContain('인정경력');
   fireEvent.keyDown(tabs[0], { key: 'ArrowRight' });
   expect(tabs[1].getAttribute('aria-selected')).toBe('true');
@@ -53,36 +53,14 @@ it('인사정보 7개 탭과 미수집 주민번호를 읽기 전용으로 표�
 });
 
 describe('내 정보·권한 목록·회사 현황', () => {
-  it('본인의 현재 조직장과 조직장·결재 자격을 구분해 표시한다', async () => {
-    const view = await show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장', organizationHeadEligible: false, organizationHeadApproverEligible: false } });
-    const main = view.container.querySelector('main')!;
-    expect(main.textContent).toContain('현재 조직장');
-    expect(main.textContent).toContain('김조직장 · 재지정 필요');
-    expect(main.textContent).toContain('조직장 결재 자격 없음');
-  });
-  it('내 정보에 본인 계정·현재 배정·보유 역할을 읽기 전용으로 표시한다', async () => {
-    const view = await show('workspace/profile', { profile });
+  it('내 정보는 인사 탭만 보이고 계정·배정·역할 정보는 보이지 않는다', async () => {
+    const view = await show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장' },
+      personalDetails: { employeeId: 'e-1', version: 0, form: {}, entries: [], appointments: [] } });
     const main = view.container.querySelector('main')!;
     expect(view.getByRole('heading', { name: '내 정보' })).toBeTruthy();
-    for (const text of ['E001', '김직원', 'employee@example.test', '개발팀', '고정 근무', '박승인', '공통 · 관리자 · 대표 · 결재 담당 가능', '2026-10-27 00:00:00'])
-      expect(main.textContent).toContain(text);
-    expect(main.querySelector('form,input,select,textarea')).toBeNull();
-    expect(main.textContent).not.toContain('조직장');
-  });
-
-  it('미배정 정보와 부적격 결재 담당을 추정하지 않고 구분한다', async () => {
-    const view = await show('workspace/profile', { profile: { ...profile, organizationName: null, scheduleName: null, approverName: '퇴사한 승인자', approverEligible: false } });
-    const main = view.container.querySelector('main')!;
-    expect(main.textContent?.match(/미배정/g)).toHaveLength(2);
-    expect(main.textContent).toContain('퇴사한 승인자 · 재지정 필요');
-  });
-
-  it('결재 담당이 없으면 미배정으로 표시하고 본인 정보도 이스케이프한다', async () => {
-    const view = await show('workspace/profile', { profile: { ...profile, employeeName: '<script>이름</script>', approverName: null, approverEligible: false } });
-    const main = view.container.querySelector('main')!;
-    expect(main.textContent).toContain('<script>이름</script>');
-    expect(main.querySelector('script')).toBeNull();
-    expect(main.textContent).toContain('미배정');
+    for (const text of ['계정과 업무 배정', 'employee@example.test', '김조직장', '박승인', '조회 기준', '공통 · 관리자'])
+      expect(main.textContent).not.toContain(text);
+    expect(view.getAllByRole('tab')).toHaveLength(7);
   });
 
   it('권한 목록의 검색·페이지 조건과 기존 단건 권한 관리 연결을 제공한다', async () => {
