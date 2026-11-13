@@ -652,9 +652,28 @@ describe('WorkflowPages', () => {
     expect(posted.get('commandId')).toBe('confirm-command');
     expect(view.getByRole('button', { name: '근무 확인' })).toBeTruthy();
     expect(view.container.textContent).not.toContain('원천 한 쌍');
+    const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };
+    const withEffective = (effectiveEvents: unknown[]) => ({ ...confirmable, effectiveEvents });
     for (const blocked of [{ ...confirmable, schedule: null }, { ...day, schedule: confirmable.schedule, calendarVersionId: 'calendar-1' },
-      { ...confirmable, confirmation: { id: 'c-1' } }])
+      { ...confirmable, confirmation: { id: 'c-1' } }, { ...confirmable, calendarVersionId: null },
+      withEffective([IN, { ...IN, id: 'in-2' }, OUT]), withEffective([IN]),
+      withEffective([{ ...IN, occurredAt: '2026-10-26T09:00:00.000Z' }, { ...OUT, occurredAt: '2026-10-26T00:00:00.000Z' }]),
+      withEffective([IN, { ...OUT, occurredAt: '2026-10-26T15:30:00.000Z' }])])
       expect((await render('clock/history', { day: blocked, eventTimes: {}, confirmationForm })).container.querySelector('form[action="/me/work-confirmations"]')).toBeNull();
+    const corrected = { ...confirmable, events: [IN, { ...IN, id: 'in-2' }, OUT], effectiveEvents: [IN, OUT] };
+    const view2 = await render('clock/history', { day: corrected, eventTimes: {}, confirmationForm });
+    expect(view2.container.querySelector('form[action="/me/work-confirmations"]')).toBeTruthy();
+    expect(view2.container.textContent).toContain('정정 반영 기록');
+    expect(view2.container.textContent).toMatch(/출근 · .*퇴근 · /);
+  });
+  it('캘린더·일정 상태를 한국어로 보이고 오늘 카드의 일정은 한 번만 보인다', async () => {
+    const text = async (d: unknown) => (await render('clock/history', { day: d, eventTimes: {}, confirmationForm })).container.textContent ?? '';
+    expect(await text({ ...confirmable, dayKind: 'HOLIDAY' })).toContain('휴일');
+    expect(await text({ ...confirmable, dayKind: 'NON_WORKDAY' })).toContain('비근무일');
+    expect(await text({ ...confirmable, calendarVersionId: null })).toContain('캘린더 미확인');
+    expect(await text({ ...confirmable, schedule: null })).toContain('근무 일정 미배정');
+    const today = await render('clock/history', { day: confirmable, today: day.workDate, isToday: true, inCommand: 'in-cmd', outCommand: 'out-cmd', eventTimes: {}, confirmationForm });
+    expect((today.container.textContent ?? '').split('예정 09:00~18:00').length - 1).toBe(1);
   });
   it('근무 확인 뒤에는 계산된 실근로를 초 단위로 보인다', async () => {
     const confirmed = { ...confirmable, confirmation: { id: 'c-1' } };

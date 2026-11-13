@@ -1062,11 +1062,12 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
 }
 
 const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
-export function scheduleLine(day: DaySnapshot) {
+function scheduleLine(day: DaySnapshot) {
   if (day.schedule == null) return null;
-  if (!day.schedule.workday) return '비근무일';
-  return [`예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`,
-    ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  const line = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
+    : [`예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`,
+      ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  return day.calendarVersionId == null ? `${line} · 캘린더 미확인` : line;
 }
 export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
@@ -1085,8 +1086,11 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
         const after = d.effectiveEvents?.[i];
         return e.id !== after?.id || e.kind !== after?.kind || e.occurredAt !== after?.occurredAt;
       }));
+  const ins = effective.filter(e => e.kind === 'IN'), outs = effective.filter(e => e.kind === 'OUT');
   const canConfirm = d.schedule != null && d.calendarVersionId != null && d.confirmation == null
-    && effective.filter(e => e.kind === 'IN').length === 1 && effective.filter(e => e.kind === 'OUT').length === 1;
+    && ins.length === 1 && outs.length === 1
+    && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
+    && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate));
   return (
     <section className="wl-section">
       {d.schedule == null ? <p className="notice">근무 일정 미배정</p> : showSchedule && <p className="t-muted">{scheduleLine(d)}</p>}
