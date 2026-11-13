@@ -71,7 +71,7 @@
 | GET `/admin/approval-route-assignments?scopeKind&employeeId&organizationId`, `approvalRouteAssignments` | 사원 또는 조직 선택, 불변 버전·적용일·사유, 현재/예정/종료/대체 이력 |
 | POST `/admin/approval-route-assignments`, `/admin/approval-route-assignments/end` | 대상 XOR·특정 버전·오늘 이후 적용일·대상 expectedVersion·commandId·사유. 배정/교체 또는 구간 종료 |
 | GET `/approvals?page`, `/approvals/completed?page` | 현재 지정 대기함과 본인 APPROVED/REJECTED 결정 목록을 각각50행 조회 |
-| GET `/me/profile`, `profile.approvalPreview` | 현재 선택 경로·실제 담당자·부적격/미배정 안내 |
+| GET `/me/profile`, `profile.approvalPreview` | 현재 선택 경로·실제 담당자·부적격/미배정 안내. 서버는 계속 보내지만 내 정보 화면은 표시하지 않으며 결재선은 신청 모달에서 확인한다 |
 | GET `/requests/{id}`, `detail.routeSnapshot` | 최초 결재선 버전·당시 소속 참조·최초 담당자·해석 시각, 현재 담당자와 별도 재할당 이력 |
 
 정의 변경은 새 불변 버전을 만들고 기존 배정을 자동 교체하지 않는다. 409/422에는 편집·비활성 예정·행/명령 식별자와 최신 원본을 보존하며 명시 확인 후에만 새 버전 기준으로 재시도한다. 배정 폼도 입력과 사유를 유지하고 충돌한 대상 버전은 명시 확인으로 갱신한다. 현재 저장된 배정을 그대로 조회한 상태는 미저장으로 표시하지 않으며 입력 버튼은 작성 내용을 지우지 않고 초점을 옮긴다. 메뉴·검색·페이지 이동 시 미저장 손실 확인과 공통 전송 잠금을 유지한다.
@@ -123,7 +123,7 @@
 
 현재 고객사·근무일·시간대·적용 일정·마지막 서버 저장 결과·네트워크 상태·처리 메시지·내역/정정 연결을 계속 제공한다. 출근/퇴근은 기존 POST 폼·CSRF·명령 ID·서버 시각·권한 및 허용 IP 검증을 사용한다. 브라우저가 표시한 현재 시각은 참고이며 저장 시각은 서버 응답으로 교체한다. 요청 중 버튼을 잠가도 서버 중복 검증은 별도로 수행한다.
 
-퇴근 후 현재 사실 개정의 출퇴근 구간과 예정 휴게를 보여 주고 실제 근로·휴게가 같은지 본인이 확인한다. 일치 확인은 검토 개정만 갱신하고 재집계 필요를 표시한다. 다르면 정정 신청으로 실제 구간을 제출하며, 확인 전 실근로를 정상 확정하지 않는다.
+퇴근 후 현재 사실 개정의 출퇴근 구간과 예정 휴게를 보여 주고 실제 근로·휴게가 같은지 본인이 확인한다. 일치 확인은 검토 개정만 갱신하고 재집계 필요를 표시한 뒤, 같은 요청에서 그날이 속한 주를 자동 계산한다. 다르면 정정 신청으로 실제 구간을 제출하며, 확인 전 실근로를 정상 확정하지 않는다.
 
 통신 실패면 `처리 여부 확인 필요`를 표시하고 기존 명령 키로 재확인한다. 저장 성공 응답을 받기 전 완료로 표시하지 않는다. IP 거부 때 우회 버튼·임의 시각 제출은 제공하지 않는다. 날짜 변경 후에도 이전 기록과 근무일을 명확히 표시한다.
 
@@ -170,11 +170,11 @@ XLSX에는 고객사·필터·기간·생성 시각·시간대·단위·결과 �
 | POST `/invite/{companyCode}/accept` | 목적별 토큰·새 비밀번호 | 토큰 소비·계정 활성화·안전한 로그인 연결 | 만료·재사용·소속 불일치 |
 | POST `/password-reset/request` | 회사 코드·이메일 | 존재 여부와 무관한 동일 접수 화면 | 429 |
 | POST `/password-reset/complete` | 회사 코드·토큰·새 비밀번호 | 일회성 소비·기존 세션 폐기 | 만료·재사용·용도 불일치 |
-| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전 | 401·422 |
+| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전, 확인한 날만 현재 결과의 실근로(`actualWorkMillis`, 없으면 null) | 401·422 |
 | GET `/me/schedule` | 선택 `month=YYYY-MM`·`date=YYYY-MM-DD` | 본인 월 달력·선택 날짜 SSR, 기존 일정·휴일·신청 효력 | 인증/현재 권한·날짜 형식·월/날짜 불일치 |
 | GET `/admin/employees` | `q`·`page`·`organizationId`·`status`·`employeeId` | 현재 페이지 최대50명·활성/비활성 수·선택 상세·기존 등록 폼 | 권한 없음·허용 외 상태·tenant/조직/선택 페이지 범위 밖 |
 | POST `/me/attendance/events` | eventKind(IN/OUT)·commandId | 서버 시각·저장 원천 ID·근무일/검토 상태 | IP 거부·중복 충돌·재직 불가 |
-| POST `/me/work-confirmations` | workDate·baseInputRevision·expectedReviewRevision·실제 근로/예정 휴게 일치 확인·commandId | 본인 확인 증거·검토 개정 증가·재집계 필요 표시 | 미퇴근·오래된 사실/검토 개정·불일치는 정정 안내 |
+| POST `/me/work-confirmations` | workDate·baseInputRevision·expectedReviewRevision·실제 근로/예정 휴게 일치 확인·commandId | 본인 확인 증거·검토 개정 증가·재집계 필요 표시. 저장 뒤 그날이 속한 주를 계산(`WORKTIME_AUTO_CALCULATE`)하며 계산이 실패해도 확인은 유지 | 미퇴근·오래된 사실/검토 개정·불일치는 정정 안내 |
 | POST `/me/attendance/{workDate}/confirm` | baseInputRevision·expectedReviewRevision·실제 근로 일치·예정 휴게 일치·commandId | 사실개정 유지·검토개정 증가·확인자/시각/증거·재집계 필요 | 사실 입력 변경·사실 차이(정정 안내)·미퇴근 |
 | GET `/me/requests`, `/requests/{id}` | 상태·기간·page 또는 ID | 허용 범위 신청·이력·효과 | 404 |
 | POST `/me/requests/leave` | bucketId·from/to·사유·commandId | 단일 묶음의 날짜별 DAY·PENDING ID | 묶음 경계·일정/근거 미확인·총0·중복 |
@@ -225,7 +225,7 @@ GET 목록 화면에는 동일 기능의 검색 폼과 접근 가능한 다음 �
 
 감사 목록은50건 고정·시각/ID 내림차순이며 before/after 커서를 함께 보내지 않는다. 같은 시각과 새 기록이 있어도 이전/다음 범위는 키셋으로 찾으며 전체 원장의 고정 스냅샷으로 표현하지 않는다. 상세는 개인정보/비밀정보가 없는 타입 검증 업무 요약만 전개하고 명시적 참조 해제를 값 누락과 구분한다. 목록과 상세 모두 열람 감사 저장 실패 시 결과를 정상 반환하지 않는다.
 
-표시 구현은 `SeoulTimeDisplay`를 공통으로 사용한다. 화면의 날짜는 ISO, Instant는 서울 `uuuu-MM-dd HH:mm:ss.SSS`, 새 XLSX는 밀리초·`+09:00`을 유지한다. HTML 입력/hidden 값과 저장된 Instant·근무일·원천·이전 XLSX 스냅샷은 바꾸지 않는다. 실제 휴게 JSON은 구간의 날짜·시각만 보여 주며 손상 근거를 원문으로 반사하지 않는다.
+표시 구현은 `SeoulTimeDisplay`를 공통으로 사용한다. 화면의 날짜는 ISO, Instant는 서울 `uuuu-MM-dd HH:mm:ss`(화면은 초까지만 표시, 저장·계산은 밀리초 유지), 새 XLSX는 밀리초·`+09:00`을 유지한다. HTML 입력/hidden 값과 저장된 Instant·근무일·원천·이전 XLSX 스냅샷은 바꾸지 않는다. 실제 휴게 JSON은 구간의 날짜·시각만 보여 주며 손상 근거를 원문으로 반사하지 않는다.
 
 ## 공통코드·근태코드 4단계 구현 계약
 

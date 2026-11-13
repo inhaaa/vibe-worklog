@@ -1680,3 +1680,24 @@ Expected: 작업 트리 깨끗함, Task별 커밋 목록.
 변하지 않는 것으로 확인한 테스트: `SeoulTimeDisplayWebIT`·`AuditTrailWebIT`(ISO 원문만 확인), `MvpJourneyIT`·`WorktimeServiceIT`의 XLSX 검사·`ReviewWorkbookTest`(Excel 형식 유지), `DayFlowTimelineTest`·고정 일정 테스트(저장 정밀도), `WorktimeWebIT`·`WorktimeResultDetailIT`·`AttendanceWebIT`·`ReactPageViewTest`(형식 문자열 미검사). `ProfileCompanyWebIT:96-98`은 내 정보 응답 키를 그대로 두므로 통과한다.
 
 참고(이번 범위 밖, 수정하지 않음): `src/main/resources/templates/worktime/month.html` 등 Thymeleaf 템플릿은 `ReactPageViewResolver`가 먼저 처리해 쓰이지 않는다.
+
+## 실행 중 바뀐 점
+
+- Task 2(`1b6ee24`): 서버 `SeoulTimeDisplay.time`은 계획 본문의 `HH:mm:ss`가 아니라 설계대로 `HH:mm`(초나 초 미만이 있으면 `HH:mm:ss`)를 쓴다. 계산 근거 상세 안내는 "'-'는 미확정이며…"로 바꿨다.
+- Task 3(`721039d`): 확인 전 규칙의 경계 단언 3개(빈 현재 결과, 잘못된 입력, 미검토 휴무일)를 더했다.
+- Task 4(`047a003`): 자동 계산 범위를 그날 하루가 아니라 확인한 날이 속한 주로 넓혔다. 주 40시간 초과 값이 나오려면 7일이 모두 현재 결과여야 하기 때문이며, 테스트도 함께 고쳤다.
+- Task 5(`c7d3fda`): 계획의 `map(...).findFirst()`는 실근로가 null인 현재 결과에서 NullPointerException을 냈다. `findFirst().map(...)`로 바꾸고 확인한 날에만 읽는다. Step 5의 IT는 근무 확인을 보내지 않으며 확인부터 실근로 표시까지의 흐름은 브라우저에서 확인한다.
+- Task 6(`21bfbee`): 기존 `targetRead`를 재사용하고 담당자 조회·거부 조회 테스트를 더했다.
+- Task 7(`73bcc99`): 신원 연결 테스트를 더하고 `Profile` 타입을 줄였다.
+- Task 8(`bb962dd`, `6b501bd`): 확인 폼 조건에 출근·퇴근 순서와 같은 서울 날짜를 더하고, 캘린더 상태를 한글(휴일·비근무일·캘린더 미확인)로 보이며, 휴게는 항상 보인다.
+- Task 9(`b4953db`): 후속 테스트 커밋으로 정렬 테스트가 실제 순서 변화를 검사하게 했다.
+- Task 11(`d14ffc1`): `(일부)`와 `-` 표시 테스트를 더했다.
+- Task 14: 계획의 세 파일 외에 계산 규칙·인사정보·로컬 개발·이 설계와 계획 문서도 실제 동작에 맞췄고, README는 '그 주 자동 계산'으로 적었다.
+
+사용자 확인이 필요한 항목(결정 아님):
+
+- 입사 전·퇴사 후 날짜를 확인 전으로 세는 것이 맞는가?
+- 결재 경로를 신청 모달에서만 볼 수 있어도 되는가?
+- "승인 시 이미 차감", "등록 자료 기준" 보조 문구를 지운 것이 맞는가?
+- 확인할 수 없는 날에 정정 신청 링크가 없어도 되는가?
+- 표에서 확인 전 날짜를 강조하지 않아도 되는가?
