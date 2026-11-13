@@ -122,7 +122,7 @@ describe('신청 공통 모달 통합', () => {
     expect(receipt.getByText('신청을 접수했습니다.')).toBeTruthy();
     expect(receipt.getByRole('link',{name:'생성한 신청 상세'}).getAttribute('href')).toBe('/requests/created-request');
     expect(within(screen.getByRole('region',{name:'내 대상 신청 이력'})).getByText('합성 휴가')).toBeTruthy();
-    expect(screen.getByText('4 DAY')).toBeTruthy();
+    expect(screen.getByText('4일')).toBeTruthy();
     expect(fetcher).toHaveBeenCalledTimes(4);
     expect(String(fetcher.mock.calls[2][0])).toContain('/me/requests/leave');
     expect(new URLSearchParams(fetcher.mock.calls[2][1]?.body as URLSearchParams).get('_csrf')).toBe(csrf.token);

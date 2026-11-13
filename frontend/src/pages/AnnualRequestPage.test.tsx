@@ -201,7 +201,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const view=render(<App initial={envelope({},compose)}/>);
   const summary=within(view.getByRole('complementary',{name:'신청 요약'}));
   expect(summary.getByText('종일 연차')).toBeTruthy();
-  expect(summary.getByText(/9 DAY/)).toBeTruthy();
+  expect(summary.getByText(/9일/)).toBeTruthy();
   expect(summary.queryByText(/예상 차감/)).toBeNull();
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
   fireEvent.click(view.getByRole('button',{name:/^종료일/}));
@@ -227,8 +227,8 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   fireEvent.click(view.getByRole('button',{name:'미리보기'}));
   await waitFor(()=>expect(within(view.getByRole('navigation',{name:'신청 작성 단계'})).getByText('제출 전 확인').getAttribute('aria-current')).toBe('step'));
   const summary=within(view.getByRole('complementary',{name:'신청 요약'}));
-  expect(summary.getByText('7 DAY')).toBeTruthy();
-  expect(summary.queryByText('9 DAY')).toBeNull();
+  expect(summary.getByText('7일')).toBeTruthy();
+  expect(summary.queryByText('9일')).toBeNull();
  });
  it('실제 생성 ID가 있을 때 접수 안내와 상세 링크를 상태 영역으로 제공한다',()=>{
   const view=render(<App initial={envelope({createdId:'created-request'})}/>);
@@ -278,7 +278,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const board=view.getByRole('region',{name:'내 대상 신청 이력'});
   expect(within(board).queryByRole('link',{name:'종일 연차'})).toBeNull();
   expect(within(board).getByRole('link',{name:'출퇴근·휴게 정정'})).toBeTruthy();
-  expect(view.getByText('3 DAY')).toBeTruthy();
+  expect(view.getByText('3일')).toBeTruthy();
   expect(within(view.getByRole('search',{name:'연도별 근태 조회'})).getByLabelText('상태')).toBeTruthy();
   expect(view.getByRole('navigation',{name:'내 신청 페이지'}).querySelector('a')?.getAttribute('href')).toContain('year=2026');
  });
@@ -354,19 +354,30 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.container.querySelector('form[action="/me/requests/leave"]')).toBeNull();
   expect(view.getByLabelText('조회 연도')).toBeTruthy();
   expect(view.getAllByText(/귀속 미확인/)[0]).toBeTruthy();
-  expect(view.getByText(/조회 시점 오늘/)).toBeTruthy();
+  const text=view.container.textContent??'';
+  for(const hidden of['기준 시각','목록 필터와 무관한','선택 연도 · 오늘까지 유효한 승인','조회 시점 오늘','대기는 예약·차감하지 않음',
+    '본인 대상의 원신청 기간·일수입니다','귀속연도 잔액은 현재 원장 잔액입니다','신청 건수와 휴가 DAY는',' DAY'])
+    expect(text).not.toContain(hidden);
  });
  it('빈 자료와 확인된 부분합을 연간 전체 0으로 단정하지 않는다',()=>{
   const view=render(<App initial={envelope({coverage:'NO_REGISTERED_DATA',requests:[],summaries:[]})}/>);
-  expect(view.getByText(/선택 연도의 등록 자료가 없습니다/)).toBeTruthy();
-  expect(view.getByText(/연간 전체 사용량이나 자동 발생량/)).toBeTruthy();
+  const used=view.getByRole('heading',{name:'사용'}).closest('section')!;
+  expect(used.querySelector('strong')?.textContent).toBe('-');
+  expect(view.queryByText(/선택 연도의 등록 자료가 없습니다/)).toBeNull();
  });
  it('목록 필터와 별개 연간 요약·본인 대상과 대리 작성 이력을 구분한다',()=>{
   const view=render(<App initial={envelope({status:'PENDING',hasNext:true,authoredHasNext:true,authoredRequests:[{...request,id:'proxy',targetEmployeeName:'대리 대상'}]})}/>);
   expect(view.getByRole('heading',{name:'내 대상 신청 이력'})).toBeTruthy();
   expect(view.getByRole('heading',{name:'내가 대리 작성한 이력'})).toBeTruthy();
-  expect(view.getByText(/목록 필터와 무관한 연도 전체/)).toBeTruthy();
   expect(view.getByRole('navigation',{name:'내 신청 페이지'}).querySelector('a')?.getAttribute('href')).toContain('status=PENDING');
+ });
+ it('대리 작성 이력은 담당자이거나 작성 이력이 있을 때만 보인다',()=>{
+  const employeeOnly=render(<App initial={envelope({authoredRequests:[]})}/>);
+  expect(employeeOnly.queryByRole('heading',{name:'내가 대리 작성한 이력'})).toBeNull();
+  cleanup();
+  const base=envelope({authoredRequests:[]});
+  const admin=render(<App initial={{...base,data:{...base.data,workspacePrincipal:{roles:['EMPLOYEE','ATTENDANCE_ADMIN']}}}}/>);
+  expect(admin.getByRole('heading',{name:'내가 대리 작성한 이력'})).toBeTruthy();
  });
  it('작성 GET의 모달에 레이블·최초 초점·서버 참조와 일반 페이지 링크를 제공한다',()=>{
   const view=render(<App initial={envelope({},compose)}/>);
@@ -383,7 +394,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'합성 휴가'}});
   const id=new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('commandId');
   fireEvent.click(view.getByRole('button',{name:'미리보기'}));
-  await waitFor(()=>expect(view.getByText(/예상 차감 2 DAY/)).toBeTruthy());
+  await waitFor(()=>expect(view.getByText(/예상 차감 2일/)).toBeTruthy());
   expect(String(fetcher.mock.calls[0][0])).toContain('/me/requests/preview');
   expect(new URLSearchParams(fetcher.mock.calls[0][1].body).get('commandId')).toBe(id);
   expect(location.pathname).toBe('/me/requests');
