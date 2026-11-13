@@ -245,6 +245,8 @@ export interface DayView {
   ruleVersion: string;
   calculatedAt: string;
   current: boolean;
+  pending: boolean;
+  approvedLeaveDays: number;
   result: DayResult;
 }
 export interface PeriodResult {
@@ -257,6 +259,7 @@ export interface PeriodView {
   from: string;
   to: string;
   current: boolean;
+  pendingDays: number;
   result: PeriodResult;
 }
 export interface MonthModel {
@@ -264,8 +267,6 @@ export interface MonthModel {
   employeeId: string;
   employees: EmployeeChoice[];
   admin: boolean;
-  actualTimes: Record<string, string>;
-  totalTime: string;
   from: string;
   to: string;
   calculateCommand: string;

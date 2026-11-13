@@ -464,50 +464,45 @@ describe('WorkflowPages', () => {
     expect(adjusted.get('expectedVersion')).toBe('6');
     expect(adjusted.get('quantityDays')).toBe('-1');
   });
-  it('월 결과는 미확정과 부분합·경계 주를 구분하고 관리자 명령을 제한한다', async () => {
+  it('근로시간은 실근로·확인 전·휴가 지표와 다섯 열만 보이고 담당자 명령을 제한한다', async () => {
     const data = {
-      admin: true,
-      employeeId: employee.id,
-      employees: [employee],
-      from: '2026-10-01',
-      to: '2026-10-31',
-      calculateCommand: 'calc-command',
-      exportCommand: 'export-command',
-      totalTime: '8:00:00.000',
-      actualTimes: {},
+      admin: true, employeeId: employee.id, employees: [employee], from: '2026-10-01', to: '2026-10-31',
+      calculateCommand: 'calc-command', exportCommand: 'export-command',
       overview: {
         month: '2026-10',
         days: [
-          {
-            id: 'result-1',
-            workDate: day.workDate,
-            current: false,
-            result,
-            ruleVersion: 'CALC-1',
-            resultRevision: 2,
-          },
+          { id: 'result-1', workDate: '2026-10-26', current: true, pending: false, approvedLeaveDays: 0,
+            result: { ...result, actualWorkMillis: 29_110_000, confirmedBreakMillis: 3_600_000, over8hMillis: 310_000 } },
+          { id: null, workDate: '2026-10-27', current: false, pending: true, approvedLeaveDays: 0, result },
+          { id: 'result-3', workDate: '2026-10-28', current: false, pending: true, approvedLeaveDays: 1,
+            result: { ...result, actualWorkMillis: 28_800_000 } },
         ],
-        weeks: [
-          {
-            from: '2026-09-28',
-            to: '2026-10-05',
-            current: false,
-            result: { confirmedWorkMillis: 0, unconfirmedDays: 7, over40hMillis: null },
-          },
-        ],
-        summary: {
-          current: false,
-          result: { confirmedWorkMillis: 28800000, unconfirmedDays: 1, reasons: ['UNCONFIRMED'] },
-        },
+        weeks: [{ from: '2026-10-26', to: '2026-11-02', current: false, pendingDays: 2,
+          result: { confirmedWorkMillis: 29_110_000, unconfirmedDays: 6, over40hMillis: null, reasons: [] } }],
+        summary: { from: '2026-10-01', to: '2026-11-01', current: false, pendingDays: 2,
+          result: { confirmedWorkMillis: 29_110_000, unconfirmedDays: 30, over40hMillis: null, reasons: ['PARTIAL_TOTAL'] } },
       },
     };
     const view = await render('worktime/month', data);
-    expect(view.container.textContent).toContain('미확정');
-    expect(view.container.textContent).toContain('8:00:00.000');
-    expect(view.container.textContent).toContain('2026-10-04');
-    expect(view.getByRole('link', { name: '계산 근거 상세' }).getAttribute('href')).toBe('/worktime/results/result-1');
-    expect(view.getByRole('grid', { name: '일별 계산 결과' })).toBeTruthy();
-    expect(view.container.querySelector(`[row-id="${day.workDate}"]`)).toBeTruthy();
+    const text = view.container.textContent ?? '';
+    expect(view.getByRole('heading', { name: '근로시간' })).toBeTruthy();
+    for (const hidden of ['일·주·월 근로시간 검토', '상태·최신성', '실근로 ms', '휴게 ms', 'PARTIAL_TOTAL', 'REVIEW_REQUIRED', 'CALC-1', '미확정', '(서울)', '결과 ID·입력/규칙 버전'])
+      expect(text).not.toContain(hidden);
+    const summary = view.getByLabelText('월 요약');
+    expect(summary.textContent).toContain('실근로 합계8:05:10');
+    expect(summary.textContent).toContain('확인 전2일');
+    expect(summary.textContent).toContain('휴가1일');
+    const grid = view.getByRole('grid', { name: '일별 근로시간' });
+    expect(Array.from(grid.querySelectorAll('.ag-header-cell[col-id]')).map(cell => cell.getAttribute('col-id')))
+      .toEqual(['workDate', 'actualWorkMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']);
+    expect(within(grid).getByRole('columnheader', { name: /8시간 초과/ })).toBeTruthy();
+    expect(grid.querySelector('[row-id="2026-10-26"] [col-id="actualWorkMillis"]')?.textContent).toBe('8:05:10');
+    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="actualWorkMillis"]')?.textContent).toBe('-');
+    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="approvedLeaveDays"]')?.textContent).toBe('1');
+    expect(within(grid).getByRole('link', { name: '2026-10-26' }).getAttribute('href')).toBe('/worktime/results/result-1');
+    const weeks = view.getByRole('grid', { name: '주간 근로시간' });
+    expect(weeks.textContent).toContain('2026-10-26 ~ 2026-11-01');
+    expect(weeks.querySelector('[col-id="pendingDays"]:not(.ag-header-cell)')?.textContent).toBe('2일');
     expect(view.container.querySelector('form[action="/admin/calculations"]')).toBeTruthy();
     expect(view.container.querySelector('form[action="/admin/reports/exports"]')).toBeTruthy();
     expect((await render('worktime/month', { ...data, admin: false })).container.querySelector('form[action="/admin/calculations"]')).toBeNull();
@@ -561,21 +556,18 @@ describe('WorkflowPages', () => {
     expect(changed.textContent).toContain('2026-10-26 09:01:00');
   });
 
-  it('일 결과는 미확정·실제0시간을 구분하고 ms를 숫자로 정렬한다', async () => {
-    const days = [null, 0, 10, 2].map((actualWorkMillis, index) => ({
-      id: null, workDate: `2026-10-${20 + index}`, current: true,
-      result: { ...result, actualWorkMillis }, ruleVersion: 'CALC-1', resultRevision: 1,
+  it('일별 실근로는 표시 문자열이 아닌 밀리초 값으로 정렬한다', async () => {
+    const days = [null, 0, 10_000, 2_000].map((actualWorkMillis, index) => ({
+      id: null, workDate: `2026-10-${20 + index}`, current: true, pending: false, approvedLeaveDays: 0,
+      result: { ...result, actualWorkMillis },
     }));
-    const period = { current: true, result: { confirmedWorkMillis: 12, unconfirmedDays: 1, reasons: [] } };
+    const period = { current: true, pendingDays: 0, result: { confirmedWorkMillis: 12_000, unconfirmedDays: 1, over40hMillis: null, reasons: [] } };
     const view = await render('worktime/month', { admin: false, employeeId: employee.id, employees: [],
-      actualTimes: { '2026-10-21': '0:00:00.000' }, totalTime: '0:00:00.012',
-      overview: { month: '2026-10', days, weeks: [], summary: period },
-    });
-    const grid = view.getByRole('grid', { name: '일별 계산 결과' });
-    expect(grid.querySelector('[row-id="2026-10-20"] [col-id="actualWorkMillis"]')?.textContent).toBe('미확정');
-    expect(grid.querySelector('[row-id="2026-10-21"] [col-id="actualWorkMillis"]')?.textContent).toBe('0');
-    expect(grid.querySelector('[row-id="2026-10-21"] [col-id="actualTime"]')?.textContent).toBe('0:00:00.000');
-    fireEvent.click(within(grid).getByRole('columnheader', { name: /실근로 ms/ }).querySelector('.ag-header-cell-label')!);
+      overview: { month: '2026-10', days, weeks: [], summary: period } });
+    const grid = view.getByRole('grid', { name: '일별 근로시간' });
+    expect(grid.querySelector('[row-id="2026-10-20"] [col-id="actualWorkMillis"]')?.textContent).toBe('-');
+    expect(grid.querySelector('[row-id="2026-10-21"] [col-id="actualWorkMillis"]')?.textContent).toBe('0:00:00');
+    fireEvent.click(within(grid).getByRole('columnheader', { name: /실근로/ }).querySelector('.ag-header-cell-label')!);
     await waitFor(() => expect(grid.querySelector('[row-id="2026-10-23"]')?.getAttribute('row-index')).toBe('2'));
     expect(grid.querySelector('[row-id="2026-10-22"]')?.getAttribute('row-index')).toBe('3');
   });

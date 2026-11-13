@@ -38,6 +38,7 @@ import type {
   LedgerEntry,
   MonthModel,
   DayView,
+  PeriodView,
   PoliciesModel,
   ResultModel,
   AuditModel,
@@ -63,7 +64,6 @@ const EmployeeOptions = ({ employees }: { employees: EmployeeChoice[] }) => (
 const Reason = ({ label = '사유', value }: { label?: string; value?: string }) => (
   <TextAreaField label={label} name="reason" value={value} maxLength={500} required />
 );
-const Reasons = ({ reasons }: { reasons?: string[] }) => <>{(reasons ?? []).join(' · ')}</>;
 const Summary = ({ entries }: { entries: Record<string, string> }) => (
   <dl className="wl-form-table">
     {Object.entries(entries ?? {}).map(([key, value]) => (
@@ -74,7 +74,6 @@ const Summary = ({ entries }: { entries: Record<string, string> }) => (
     ))}
   </dl>
 );
-const rawMillis = (value: number | null | undefined) => (value == null ? '미확정' : value);
 function previousDay(iso: string): string {
   const value = new Date(`${iso}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() - 1);
@@ -533,21 +532,32 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
+  const shown = (day: DayView, value: number | null) => (day.current ? value : null);
+  const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null) =>
+    sheetColumn<DayView>({ colId, headerName, minWidth: 120, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      valueGetter: ({ data }) => (data ? shown(data, pick(data)) : null),
+      getQuickFilterText: ({ data }) => (data ? duration(shown(data, pick(data))) : '') },
+      day => duration(shown(day, pick(day))));
   const columns = [
-    sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 145, pinned: 'left' }, day => fmtDate(day.workDate)),
-    sheetColumn<DayView>({ colId: 'state', headerName: '상태·최신성', minWidth: 230, valueGetter: ({ data }) => data ? `${data.result.status} / ${data.current ? '최신' : '미산정·재집계 필요'}` : '' }, day => `${day.result.status} / ${day.current ? '최신' : '미산정·재집계 필요'}`),
-    sheetColumn<DayView>({ colId: 'actualTime', headerName: '실근로 (시:분:초.밀리초)', minWidth: 210, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter', valueGetter: ({ data }) => data?.result.actualWorkMillis ?? null, getQuickFilterText: ({ data }) => data ? m.actualTimes?.[data.workDate] ?? '미확정' : '' }, day => m.actualTimes?.[day.workDate] ?? '미확정'),
-    sheetColumn<DayView>({ colId: 'actualWorkMillis', field: 'result.actualWorkMillis', headerName: '실근로 ms', minWidth: 150, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.actualWorkMillis)),
-    sheetColumn<DayView>({ colId: 'confirmedBreakMillis', field: 'result.confirmedBreakMillis', headerName: '휴게 ms', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.confirmedBreakMillis)),
-    sheetColumn<DayView>({ colId: 'over8hMillis', field: 'result.over8hMillis', headerName: '일8시간 초과 ms', minWidth: 175, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.over8hMillis)),
-    sheetColumn<DayView>({ colId: 'leaveDays', field: 'result.leaveDays', headerName: '휴가 DAY', minWidth: 130, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => day.result.leaveDays),
-    sheetColumn<DayView>({ colId: 'evidence', headerName: '근거·예외·버전', minWidth: 310, flex: 1, valueGetter: ({ data }) => data ? `${data.result.reasons.join(' · ')} · ${data.ruleVersion} · 결과 v${data.resultRevision} · ${data.id ?? ''} · 사실 ${data.result.inputRevision} / 검토 ${data.result.reviewRevision}` : '' }, day => <div className="reason-cell">
-      <p><Reasons reasons={day.result.reasons} /></p>
-      <p>{day.ruleVersion} · 결과 v{day.resultRevision} · {day.id}</p>
-      {day.id && <p><a href={`/worktime/results/${day.id}`}>계산 근거 상세</a></p>}
-      <p>사실 {day.result.inputRevision} / 검토 {day.result.reviewRevision}</p>
-    </div>),
+    sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 130, pinned: 'left' },
+      day => (day.id ? <a href={`/worktime/results/${day.id}`}>{fmtDate(day.workDate)}</a> : fmtDate(day.workDate))),
+    timeColumn('actualWorkMillis', '실근로', day => day.result.actualWorkMillis),
+    timeColumn('confirmedBreakMillis', '휴게', day => day.result.confirmedBreakMillis),
+    timeColumn('over8hMillis', '8시간 초과', day => day.result.over8hMillis),
+    sheetColumn<DayView>({ field: 'approvedLeaveDays', headerName: '휴가', minWidth: 90, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' },
+      day => (day.approvedLeaveDays ? day.approvedLeaveDays : '-')),
   ];
+  const weekColumns = [
+    sheetColumn<PeriodView>({ colId: 'week', headerName: '주간', minWidth: 210, pinned: 'left',
+      valueGetter: ({ data }) => (data ? `${data.from} ~ ${previousDay(data.to)}` : '') }, week => `${week.from} ~ ${previousDay(week.to)}`),
+    sheetColumn<PeriodView>({ colId: 'confirmedWorkMillis', field: 'result.confirmedWorkMillis', headerName: '실근로', minWidth: 120,
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, week => duration(week.result.confirmedWorkMillis)),
+    sheetColumn<PeriodView>({ field: 'pendingDays', headerName: '확인 전', minWidth: 100, cellClass: 'w-sheet-number',
+      filter: 'agNumberColumnFilter' }, week => `${week.pendingDays}일`),
+    sheetColumn<PeriodView>({ colId: 'over40hMillis', field: 'result.over40hMillis', headerName: '40시간 초과', minWidth: 130,
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, week => duration(week.result.over40hMillis)),
+  ];
+  const leaveDays = view.days.reduce((sum, day) => sum + day.approvedLeaveDays, 0);
   const periodFields = (
     <>
       {hidden('employeeId', m.employeeId)}
@@ -557,13 +567,9 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="일·주·월 근로시간 검토" help="법정 적합성·급여 확정 자료가 아닌 검토용 결과입니다. 미확정은0시간으로 바꾸지 않으며, 확인된 부분합과 구분합니다." />
-      <Form
-        action={m.admin ? '/admin/attendance' : '/me/worktime'}
-        method="get"
-        className="wl-querybar"
-      >
-        <Field label="기준 월 (서울)" name="month" type="month" value={view.month} required />
+      <PageHeader title="근로시간" />
+      <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
+        <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
           <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
             <EmployeeOptions employees={m.employees} />
@@ -571,34 +577,16 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
+      <dl className="wl-summary" aria-label="월 요약">
+        <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
+        <div data-tone={summary.pendingDays ? 'warn' : undefined}><dt>확인 전</dt><dd>{summary.pendingDays}일</dd></div>
+        <div><dt>휴가</dt><dd>{leaveDays}일</dd></div>
+      </dl>
       <section className="wl-section">
-        <h2>월 요약</h2>
-        <p>
-          확인된 실근로 부분합 {m.totalTime ?? '미확정'} / 미확정 {summary.result.unconfirmedDays}일
-        </p>
-        <p>{summary.current ? '입력·규칙 최신' : '미산정 또는 재집계 필요'}</p>
-        <p>
-          <Reasons reasons={summary.result.reasons} />
-        </p>
-        <p>
-          실제 휴게·일정·캘린더·법 적용 검토가 없는 결과는 확인이 필요합니다. 법정 최종 가산 연장은
-          자동 확정하지 않습니다.
-        </p>
+        <WorklogSheet label="일별 근로시간" title="일별" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
       <section className="wl-section">
-        <WorklogSheet label="일별 계산 결과" title="일 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
-      </section>
-      <section className="wl-section">
-        <h2>월 경계를 포함한 주간 참고량</h2>
-        <ul className="wl-rows">
-          {view.weeks.map((w) => (
-            <li key={w.from}>
-              {w.from} ~ {previousDay(w.to)} · 확인 부분합 {w.result.confirmedWorkMillis} ms /
-              미확정 {w.result.unconfirmedDays}일 / 주40시간 초과{' '}
-              {rawMillis(w.result.over40hMillis)} ms / {w.current ? '최신' : '재집계 필요'}
-            </li>
-          ))}
-        </ul>
+        <WorklogSheet label="주간 근로시간" title="주간" rows={view.weeks} columns={weekColumns} getRowId={week => week.from} scope="all" />
       </section>
       {m.admin && (
         <section className="wl-section">
@@ -616,13 +604,7 @@ function Month({ model: m }: { model: MonthModel }) {
           <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.exportCommand)}
-            <FormTable>
-              <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
-              <p>
-                결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
-                않습니다.
-              </p>
-            </FormTable>
+            <FormTable><Field label="검토용 출력 사유" name="reason" maxLength={500} required /></FormTable>
             <div className="wl-form-actions"><button className="t-btn">검토용 XLSX 다운로드</button></div>
           </Form>
         </section>
