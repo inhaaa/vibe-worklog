@@ -27,6 +27,11 @@ public interface ClockMapper {
             """)
     List<Event> events(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
     @Select("""
+            SELECT EXISTS(SELECT 1 FROM tna.attendance_event WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId}
+              AND assigned_work_date=#{date} AND event_kind=#{kind})
+            """)
+    boolean recorded(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("kind") String kind);
+    @Select("""
             SELECT a.schedule_version_id,d.weekday,d.workday,d.start_time,d.end_time FROM tna.schedule_assignment a
             JOIN tna.schedule_version v ON v.tenant_id=a.tenant_id AND v.id=a.schedule_version_id
             JOIN tna.schedule_day d ON d.tenant_id=v.tenant_id AND d.version_id=v.id AND d.weekday=#{weekday}

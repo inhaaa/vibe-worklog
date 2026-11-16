@@ -83,6 +83,8 @@ public final class ClockService {
             if(matched==null)throw OrgException.forbidden();
             UUID network=UUID.fromString(matched);
             LocalDate date=now.atZone(SEOUL).toLocalDate();
+            if(mapper.recorded(actor.tenantId(),actor.employeeId(),date,kind))
+                throw OrgException.conflict(kind.equals("IN")?"오늘 출근은 이미 기록했습니다.":"오늘 퇴근은 이미 기록했습니다.");
             Event event=new Event(UUID.randomUUID(),kind,now,date);
             changed(mapper.event(actor.tenantId(),actor.employeeId(),event,commandId,address,network));
             changed(mapper.advanceInput(actor.tenantId(),actor.employeeId(),date));

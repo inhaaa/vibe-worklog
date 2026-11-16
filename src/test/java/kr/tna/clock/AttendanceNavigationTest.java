@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgCommands;
+import kr.tna.org.OrgException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.view.RedirectView;
@@ -54,9 +55,37 @@ class AttendanceNavigationTest {
         request.setRemoteAddr("127.0.0.1");
         request.addHeader("X-Forwarded-For", "198.51.100.7");
         UUID command = UUID.randomUUID();
-        var redirect = (RedirectView) controller.event(actor, "IN", command, request).getView();
+        var redirect = (RedirectView) controller.event(actor, "IN", command, null, request).getView();
         assertEquals("/me/attendance", redirect.getUrl());
         verify(clocks).record(actor, "IN", command, "127.0.0.1");
+        assertEquals("/me/attendance", ((RedirectView) controller.event(actor, "IN", command, "https://example.test", request).getView()).getUrl(),
+                "home 외의 값은 무시해야 합니다.");
+        doThrow(OrgException.forbidden()).when(clocks).record(actor, "OUT", command, "127.0.0.1");
+        assertThrows(OrgException.class, () -> controller.event(actor, "OUT", command, null, request),
+                "홈에서 보낸 기록이 아니면 기존처럼 오류 화면으로 보내야 합니다.");
+    }
+
+    @Test void recordingFromHomeReturnsHomeAndCarriesOnlyTheErrorStatus() {
+        var request = new MockHttpServletRequest();
+        request.setRemoteAddr("127.0.0.1");
+        UUID command = UUID.randomUUID();
+        assertEquals("/me/home", ((RedirectView) controller.event(actor, "IN", command, "home", request).getView()).getUrl());
+        verify(clocks).record(actor, "IN", command, "127.0.0.1");
+        doThrow(OrgException.forbidden()).when(clocks).record(actor, "OUT", command, "127.0.0.1");
+        assertEquals("/me/home?clockError=403", ((RedirectView) controller.event(actor, "OUT", command, "home", request).getView()).getUrl());
+        doThrow(OrgException.conflict("오늘 출근은 이미 기록했습니다.")).when(clocks).record(actor, "IN", command, "127.0.0.1");
+        assertEquals("/me/home?clockError=409", ((RedirectView) controller.event(actor, "IN", command, "home", request).getView()).getUrl());
+    }
+
+    @Test void todayOffersCommandsOnlyForKindsWithoutARawRecord() {
+        when(commands.today()).thenReturn(today);
+        var in = new ClockData.Event(UUID.randomUUID(), "IN", Instant.EPOCH, today);
+        var d = day(today);
+        when(clocks.day(actor, today)).thenReturn(new ClockData.DaySnapshot(d.employeeId(), today, List.of(in), null, null, null, "UNKNOWN",
+                4, 2, null, "snapshot-fingerprint", List.of()));
+        var model = controller.history(actor, null).getModel();
+        assertFalse(model.containsKey("inCommand"), "이미 출근을 기록했으면 출근 명령을 주지 않아야 합니다.");
+        assertInstanceOf(UUID.class, model.get("outCommand"));
     }
 
     @Test void confirmationCalculatesTheDayAndStillReturnsWhenCalculationFails() {

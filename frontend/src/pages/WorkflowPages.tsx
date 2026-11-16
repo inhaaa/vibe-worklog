@@ -1169,10 +1169,14 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
           <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요." />
           {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
-            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
-              {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
-              <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
-            </Form>)}</div>
+            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => {
+              const name = kind === 'IN' ? '출근' : '퇴근', recorded = clock.day.events.find(e => e.kind === kind);
+              return <Form key={kind} action="/me/attendance/events">
+                {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
+                <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!!recorded || !(kind === 'IN' ? data.inCommand : data.outCommand)}>
+                  {recorded ? `${name} ${fmtDateTime(recorded.occurredAt).slice(11)}` : `${name} 기록`}</button>
+              </Form>;
+            })}</div>
           </section>}
           <Form action="/me/attendance" method="get" className="wl-querybar">
             <Field label="기준일" name="date" type="date" value={clock.day.workDate} required />

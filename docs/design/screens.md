@@ -37,7 +37,7 @@
 | UI-02 `/invite/{companyCode}` | 초대 대상 | 초대 검증·비밀번호 설정·이용 안내 | 토큰 tenant/계정/목적 결속·만료·재사용 검증 |
 | UI-03 `/password-reset` | 미인증 | 회사 코드·이메일, 재설정 접수/새 비밀번호 | 존재 여부 비노출, 만료 토큰 안내 |
 | UI-04 `/me/today` | 직원 | 큰 날짜·예정/현재 반영 타임라인·출퇴근·확인할 일·7일 주간 띠·접이식 원천 비교와 실제 근로/휴게 확인 | 본인만, 기존 명령·IP 검증 유지, 기록 존재를 완료로 판정하지 않음 |
-| UI-05 `/me/attendance` | 직원 | 기준일 출퇴근 기록(구분·시각)·예정 근무·근무 확인과 확인 뒤 그날 실근로 | 본인만, 확인할 수 없는 날(누락·중복·역전·자정 통과)은 확인 양식을 보이지 않음 |
+| UI-05 `/me/attendance` | 직원 | 기준일 출퇴근 기록(구분·시각)·예정 근무·근무 확인과 확인 뒤 그날 실근로. 오늘 카드의 출근·퇴근 버튼은 그 구분의 원래 기록이 있으면 비활성이고 기록 시각(`HH:mm:ss`)을 보인다 | 본인만, 확인할 수 없는 날(누락·중복·역전·자정 통과)은 확인 양식을 보이지 않음, 이미 기록한 구분은 명령 ID를 주지 않음 |
 | UI-06 `/me/requests` | 직원·겸임자 | 신청 종류·기간·상태·승인자·원신청 연결 | 본인만, 대기 철회·승인 후 취소 요청 구별 |
 | UI-07 `/me/requests/new/leave` | 직원 | 단일 기초 묶음·종일 날짜 범위·일정별 대상일·근거·잔여·대기량·사유 | 묶음 경계 분리, 대기는 예약 아님, 전체0·중복·미확인 안내 |
 | UI-08 `/me/requests/new/correction` | 직원 | 근무일·기존/요청 시각·휴게 확인 구간·사유·근거 | base input revision 고정, 현재 승인 정정 ID는 서버가 채워 hidden으로 보냄 |
@@ -115,6 +115,8 @@
 
 홈은 실제 저장된 본인 이름·오늘 snapshot·원장 잔여·대기/최근 신청·주간 날짜별 상태를 표시한다. 시안의 인명·연차8일·32시간을 업무 값으로 고정하지 않으며 자료가 없으면 미등록·미배정·미확인으로 안내한다.
 
+홈(`/me/home`)의 '오늘 근무' 위젯은 출퇴근 위젯이다([설계](../superpowers/specs/2026-11-16-home-clock-widget-design.md)). 일정 한 줄(`09:30 ~ 15:30` 또는 서버 일정 문구)과 `출근`·`퇴근` 버튼을 보이고, 버튼은 `eventKind`·`commandId`·`returnTo=home`으로 POST `/me/attendance/events`에 보낸다. 오늘 그 구분의 원래 기록이 있으면 버튼은 비활성이고 기록 시각을 `HH:mm:ss`로 보인다. 퇴근은 출근 없이도 누를 수 있다. `clockError`가 있으면 위젯 안에 403 "허용된 네트워크에서만 출퇴근을 기록할 수 있습니다.", 409 "오늘 이미 기록했습니다.", 그 밖은 "기록하지 못했습니다. 잠시 후 다시 시도해 주세요."를 보인다. 확인 문구·타임라인·기록 상세 링크는 유지한다.
+
 기존 공통 shell 안에 큰 서울 기준 날짜·본인 이름 → 하루 흐름 타임라인과 출퇴근·확인할 일 → 7일 주간 띠 → 최근 신청 → 접이식 원천·현재 반영 비교와 실제 근로·휴게 확인을 배치한다. 주간 날짜는 기존 본인 달력의 `month`·`date`로 연결한다. 소개·일정·직원 목록과 다른 업무 화면의 디자인·공통 메뉴는 유지한다.
 
 타임라인은 근무일에 존재하는 예정 근무·휴게 시작/종료와 현재 반영 `effectiveEvents`를 서울 시각으로 정렬하고 예정·현재 반영을 제목과 설명으로 구분한다. 없는 시각을 0시로 채우지 않고 같은 시각·중복 항목도 보존한다. 접이식 비교는 원천과 현재 반영 기록을 분리하며 정정 때문에 원천을 덮어쓰지 않는다. 타임라인의 정렬·기록 존재는 실제 근로·휴게·지각·연장·완료 판정이 아니다.
@@ -170,10 +172,11 @@ XLSX에는 고객사·필터·기간·생성 시각·시간대·단위·결과 �
 | POST `/invite/{companyCode}/accept` | 목적별 토큰·새 비밀번호 | 토큰 소비·계정 활성화·안전한 로그인 연결 | 만료·재사용·소속 불일치 |
 | POST `/password-reset/request` | 회사 코드·이메일 | 존재 여부와 무관한 동일 접수 화면 | 429 |
 | POST `/password-reset/complete` | 회사 코드·토큰·새 비밀번호 | 일회성 소비·기존 세션 폐기 | 만료·재사용·용도 불일치 |
-| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전, 확인한 날만 현재 결과의 실근로(`actualWorkMillis`, 없으면 null) | 401·422 |
+| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전, 확인한 날만 현재 결과의 실근로(`actualWorkMillis`, 없으면 null). 오늘의 `inCommand`·`outCommand`는 원래 기록이 없는 구분에만 준다 | 401·422 |
+| GET `/me/home` | 선택 `clockError`(정수 상태) | 홈 위젯 자료, 오늘 원래 출근·퇴근 시각(`inRecordedAt`·`outRecordedAt`, 없으면 null), 기록 안 한 구분에만 `clockInCommand`·`clockOutCommand`, 받은 `clockError` | 401 |
 | GET `/me/schedule` | 선택 `month=YYYY-MM`·`date=YYYY-MM-DD` | 본인 월 달력·선택 날짜 SSR, 기존 일정·휴일·신청 효력 | 인증/현재 권한·날짜 형식·월/날짜 불일치 |
 | GET `/admin/employees` | `q`·`page`·`organizationId`·`status`·`employeeId` | 현재 페이지 최대50명·활성/비활성 수·선택 상세·기존 등록 폼 | 권한 없음·허용 외 상태·tenant/조직/선택 페이지 범위 밖 |
-| POST `/me/attendance/events` | eventKind(IN/OUT)·commandId | 서버 시각·저장 원천 ID·근무일/검토 상태 | IP 거부·중복 충돌·재직 불가 |
+| POST `/me/attendance/events` | eventKind(IN/OUT)·commandId·선택 `returnTo=home` | 서버 시각·저장 원천 ID·근무일/검토 상태. 같은 근무일의 출근·퇴근은 각 1회만 저장하고 같은 명령 재전송은 한 건이다. `/me/attendance`로, `returnTo=home`이면 `/me/home`으로 돌아가며 다른 값은 무시한다 | IP 거부(403)·같은 날 같은 구분 재기록(409 "오늘 출근/퇴근은 이미 기록했습니다.")·재직 불가. `returnTo=home`이면 오류 화면 대신 `/me/home?clockError=<상태>` |
 | POST `/me/work-confirmations` | workDate·baseInputRevision·expectedReviewRevision·실제 근로/예정 휴게 일치 확인·commandId | 본인 확인 증거·검토 개정 증가·재집계 필요 표시. 저장 뒤 그날이 속한 주를 계산(`WORKTIME_AUTO_CALCULATE`)하며 계산이 실패해도 확인은 유지 | 미퇴근·오래된 사실/검토 개정·불일치는 정정 안내 |
 | POST `/me/attendance/{workDate}/confirm` | baseInputRevision·expectedReviewRevision·실제 근로 일치·예정 휴게 일치·commandId | 사실개정 유지·검토개정 증가·확인자/시각/증거·재집계 필요 | 사실 입력 변경·사실 차이(정정 안내)·미퇴근 |
 | GET `/me/requests`, `/requests/{id}` | 상태·기간·page 또는 ID | 허용 범위 신청·이력·효과 | 404 |

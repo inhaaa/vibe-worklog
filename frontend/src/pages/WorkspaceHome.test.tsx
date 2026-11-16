@@ -6,11 +6,11 @@ import { WorkspaceHome } from './WorkspaceHome';
 const day = {
   snapshot: { workDate: '2026-11-06' },
   today: true,
-  scheduleText: '09:00–18:00',
+  scheduleText: '09:30 ~ 15:30',
   calendarText: '확인된 근로일',
   confirmationText: '실제 근로 미확인',
-  inTime: '08:56',
-  outTime: '미기록',
+  inRecordedAt: '2026-11-06T00:28:14Z',
+  outRecordedAt: null,
   timeline: [
     { time: '08:56:00', title: '현재 반영 출근', kind: 'recorded' },
     { time: '09:00:00', title: '예정 근무 시작', kind: 'planned' },
@@ -73,13 +73,51 @@ describe('업무 홈', () => {
 
   it('미등록 연차와 미기록 상태를 실제 값 0과 구분한다', () => {
     render(<WorkspaceHome data={{ workspaceHome: {
-      ...home, today: { ...day, timeline: [], inTime: '미기록' }, availableLeaveDays: null, recentRequests: [],
+      ...home, today: { ...day, timeline: [], inRecordedAt: null }, availableLeaveDays: null, recentRequests: [],
     } }} />);
 
     expect(screen.getByText('미등록')).toBeTruthy();
     expect(screen.queryByText('0일')).toBeNull();
     expect(screen.getByText('표시할 일정이나 출퇴근 기록이 없습니다.')).toBeTruthy();
     expect(screen.getByText('아직 본인 대상 신청이 없습니다.')).toBeTruthy();
+  });
+
+  it('오늘 근무 위젯에서 일정과 출근·퇴근 버튼을 보이고 홈으로 돌아오게 보낸다', () => {
+    render(<WorkspaceHome data={{
+      workspaceHome: { ...home, today: { ...day, inRecordedAt: null } }, clockInCommand: 'in-cmd', clockOutCommand: 'out-cmd',
+    }} />);
+    const today = within(screen.getByRole('region', { name: '오늘 근무' }));
+    expect(today.getByText('09:30 ~ 15:30')).toBeTruthy();
+    expect(today.queryByText('현재 반영 출근', { selector: 'dt' })).toBeNull();
+    const forms = Array.from(document.querySelectorAll<HTMLFormElement>('form[action="/me/attendance/events"]'));
+    expect(forms.map(form => [...new FormData(form).entries()])).toEqual([
+      [['eventKind', 'IN'], ['commandId', 'in-cmd'], ['returnTo', 'home']],
+      [['eventKind', 'OUT'], ['commandId', 'out-cmd'], ['returnTo', 'home']],
+    ]);
+    expect(forms.every(form => form.method === 'post')).toBe(true);
+    expect((today.getByRole('button', { name: '출근' }) as HTMLButtonElement).disabled).toBe(false);
+    expect((today.getByRole('button', { name: '퇴근' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('이미 기록한 구분은 버튼을 막고 원래 기록 시각을 초까지 보인다', () => {
+    render(<WorkspaceHome data={{ workspaceHome: home, clockOutCommand: 'out-cmd' }} />);
+    const today = within(screen.getByRole('region', { name: '오늘 근무' }));
+    expect((today.getByRole('button', { name: '출근 09:28:14' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((today.getByRole('button', { name: '퇴근' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it.each([
+    [403, '허용된 네트워크에서만 출퇴근을 기록할 수 있습니다.'],
+    [409, '오늘 이미 기록했습니다.'],
+    [500, '기록하지 못했습니다. 잠시 후 다시 시도해 주세요.'],
+  ])('기록 실패 %s는 위젯 안에 정해진 문구로 알린다', (clockError, message) => {
+    render(<WorkspaceHome data={{ workspaceHome: home, clockOutCommand: 'out-cmd', clockError }} />);
+    expect(within(screen.getByRole('region', { name: '오늘 근무' })).getByRole('alert').textContent).toBe(message);
+  });
+
+  it('기록 실패가 없으면 안내 문구를 보이지 않는다', () => {
+    render(<WorkspaceHome data={{ workspaceHome: home, clockOutCommand: 'out-cmd' }} />);
+    expect(screen.queryByText(/기록할 수 있습니다|이미 기록했습니다|기록하지 못했습니다/)).toBeNull();
   });
 
   it('저장한 위젯만 표시하고 다시 열었을 때도 계정별로 구성을 복원한다', () => {

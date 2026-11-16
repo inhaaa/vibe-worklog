@@ -75,6 +75,35 @@ class ReactSecurityTest {
     }
 
     @Test
+    void homeClockOffersCommandsOnlyForUnrecordedKindsAndPassesTheErrorStatus() throws Exception {
+        var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
+                Set.of("EMPLOYEE"), Instant.now());
+        when(auth.isCurrent(principal)).thenReturn(true);
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_EMPLOYEE")));
+        var date = LocalDate.of(2026, 11, 6);
+        var in = new kr.tna.clock.ClockData.Event(UUID.randomUUID(), "IN", Instant.parse("2026-11-06T00:28:14Z"), date);
+        var empty = new DayView(new DaySnapshot(principal.employeeId(), date, List.of(), null, null, null, "UNCONFIRMED",
+                0, 0, null, "fixture", List.of()), List.of(), true, true);
+        when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
+                empty, List.of(empty), null, 0, List.of()));
+        mvc.perform(get("/me/home").param("clockError", "403").with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clockInCommand").isString()).andExpect(jsonPath("$.data.clockOutCommand").isString())
+                .andExpect(jsonPath("$.data.clockError").value(403))
+                .andExpect(jsonPath("$.data.workspaceHome.today.inRecordedAt").value(org.hamcrest.Matchers.nullValue()));
+        var recorded = new DayView(new DaySnapshot(principal.employeeId(), date, List.of(in), null, null, null, "UNCONFIRMED",
+                1, 0, null, "fixture", List.of()), List.of(), true, true);
+        when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
+                recorded, List.of(recorded), null, 0, List.of()));
+        mvc.perform(get("/me/home").with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.clockInCommand").doesNotExist()).andExpect(jsonPath("$.data.clockOutCommand").isString())
+                .andExpect(jsonPath("$.data.workspaceHome.today.inRecordedAt").value("2026-11-06T00:28:14Z"))
+                .andExpect(jsonPath("$.data.workspaceHome.today.outRecordedAt").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
     void homeWidgetScopeIsOpaqueAndStableForEachTenantAndAccount() throws Exception {
         var principal = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
                 Set.of("EMPLOYEE"), Instant.now());

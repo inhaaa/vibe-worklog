@@ -116,7 +116,7 @@ public final class Phase6LoadProbe {
             }));
             measurements.add(measure("clockRecord."+suffix, 48, 8, i -> {
                 var group=group(i,tenantCount);
-                clocks.record(group.members().get(i+1),"IN",UUID.randomUUID(),"127.0.0.1");
+                clocks.record(group.members().get(i+1),tenantCount==1?"IN":"OUT",UUID.randomUUID(),"127.0.0.1");
             }));
         }
         measurements.add(measure("recalculate31Days.threeTenants",9,3,i -> {

@@ -110,7 +110,7 @@ describe('개인 홈과 일정', () => {
   it('요약 줄·막대·오른쪽 패널은 이번 달 자료로 예정 근무·연차·검토 중·확인 필요와 선택한 주를 계산한다', () => {
     const work = { workday: true, startTime: '09:00', endTime: '18:00', breaks: [{ startTime: '12:00', endTime: '13:00' }] };
     const entry = (date: string, changes: Record<string, unknown> = {}, requests: unknown[] = []) => ({
-      ...day, today: false, selected: date === '2026-11-10', requests, scheduleText: '09:00–18:00',
+      ...day, today: false, selected: date === '2026-11-10', requests, scheduleText: '09:00 ~ 18:00',
       snapshot: { ...snapshot, workDate: date, dayKind: 'WORKDAY', schedule: work, ...changes },
     });
     const days = [

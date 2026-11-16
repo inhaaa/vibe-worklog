@@ -742,4 +742,10 @@ describe('WorkflowPages', () => {
     expect((await render('clock/history', { ...data, isToday: false })).container.innerHTML).not.toContain('action="/me/attendance/events"');
     expect((await render('clock/history', { ...data, today: '2026-11-02' })).container.innerHTML).not.toContain('action="/me/attendance/events"');
   });
+  it('오늘 이미 기록한 구분은 버튼을 막고 원래 기록 시각을 보인다', async () => {
+    const view = await render('clock/history', { day, today: day.workDate, isToday: true, outCommand: 'out-cmd', eventTimes: {}, confirmationForm });
+    const card = within(view.getByRole('region', { name: '오늘 출퇴근' }));
+    expect((card.getByRole('button', { name: '출근 09:00:00' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((card.getByRole('button', { name: '퇴근 기록' }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });
