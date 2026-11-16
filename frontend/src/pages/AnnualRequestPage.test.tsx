@@ -402,6 +402,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const id=new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('commandId');
   fireEvent.click(view.getByRole('button',{name:'미리보기'}));
   await waitFor(()=>expect(view.getByText(/예상 차감 2일/)).toBeTruthy());
+  expect(view.getByRole('dialog').textContent).not.toContain('정책 v');
   expect(String(fetcher.mock.calls[0][0])).toContain('/me/requests/preview');
   expect(new URLSearchParams(fetcher.mock.calls[0][1].body).get('commandId')).toBe(id);
   expect(location.pathname).toBe('/me/requests');

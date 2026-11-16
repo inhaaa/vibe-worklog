@@ -295,7 +295,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
           </dl>
           <div className="t-request-review-totals">{compose.preview.quantityDays != null && <p className="t-request-review-quantity">예상 차감 {compose.preview.quantityDays}일 <small>선택 묶음 사용 가능 {compose.preview.selectedBucketAvailableDays}일</small></p>}
           <p>조회 시점 오늘 사용 가능 {compose.preview.availableDays}일</p></div>
-          {compose.preview.policy && <p>{compose.preview.policy.name} · 정책 v{compose.preview.policy.revision}</p>}
+          {compose.preview.policy && <p>{compose.preview.policy.name}</p>}
           <p>{compose.preview.message}</p><p className="t-muted">{ready ? '제출·승인 시 다시 검증합니다.' : '입력 또는 근거가 바뀌었습니다. 미리보기를 다시 확인하세요.'}</p>
         </section>}
         {summary}
