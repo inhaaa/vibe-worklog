@@ -471,7 +471,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
   const f = m.adjustment;
   const columns = [
     sheetColumn<LedgerEntry>({ field: 'entryKind', headerName: '종류', minWidth: 160, pinned: 'left' }, entry => entry.entryKind),
-    sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: 'DAY 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
+    sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: '일수 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
     sheetColumn<LedgerEntry>({ field: 'effectiveOn', headerName: '기준일', minWidth: 150 }, entry => fmtDate(entry.effectiveOn)),
     sheetColumn<LedgerEntry>({ colId: 'basis', headerName: '근거·사유', minWidth: 280, flex: 1, valueGetter: ({ data }) => data ? `${data.sourceReference} · ${data.reason}` : '' }, entry => `${entry.sourceReference} · ${entry.reason}`),
   ];

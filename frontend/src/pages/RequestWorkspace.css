@@ -164,7 +164,6 @@
 #tna-app .t-request-embedded { margin:0; padding:0; background:transparent; }
 #tna-app .t-correction-workspace { color:var(--t-ink); min-width:0; }
 #tna-app .t-correction-workspace .t-card { margin:0 0 20px; padding:var(--space-lg) 0; border: 0; border-radius: 0; background: var(--t-paper); border-top: 1px solid var(--t-line); }
-#tna-app .t-correction-workspace .t-muted, #tna-app .t-correction-workspace .hint { color:var(--t-muted); font-size:14px; line-height:1.7; }
 #tna-app .t-correction-workspace .t-correction-form { display:block; max-width:none; margin:0; padding:0; background:none; border:0; }
 #tna-app .t-correction-events { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-sm); padding:0; margin:0; list-style:none; }
 #tna-app .t-correction-events li { display: grid; gap:var(--space-xs); padding:var(--space-md) 0; border: 0; border-radius: 0; background: transparent; font-size: 14px; overflow-wrap: anywhere; border-top: 1px solid var(--t-line); }

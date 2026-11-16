@@ -55,5 +55,6 @@ describe('실제 휴게 행 편집', () => {
     const start = view.getByLabelText('휴게 1 시작') as HTMLInputElement;
     expect(start.getAttribute('step')).toBe('1');
     expect(start.getAttribute('value')).toBe('2026-11-04T12:00:30');
+    expect(view.container.querySelector<HTMLInputElement>('input[type="hidden"][name="actualBreaks"]')!.value).toBe('2026-11-04T12:00:30.125/2026-11-04T13:00');
   });
 });

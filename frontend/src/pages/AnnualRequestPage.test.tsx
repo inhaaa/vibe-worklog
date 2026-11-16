@@ -504,6 +504,17 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(within(view.getByRole('region',{name:'현재 정정 근거'})).getByText(/2026-10-28 09:00:00/)).toBeTruthy();
   expect(view.queryByText('현재 사실 개정 3')).toBeNull();
  });
+ it('정정 모달의 시각 입력은 초 단위이고 원천·서울 표기 없이 빈 기록을 안내한다',()=>{
+  const view=render(<App initial={envelope({}, {...compose,kind:'ATTENDANCE_CORRECTION',correctionForm:{...correction,inAction:'SET',requestedInAt:'2026-11-04T09:00:30.125'}})}/>);
+  fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
+  const input=view.getByLabelText('출근 시각');
+  expect(input.getAttribute('step')).toBe('1');
+  expect(input.getAttribute('value')).toBe('2026-11-04T09:00:30');
+  expect(new FormData(view.getByRole('form',{name:'신청서'}) as HTMLFormElement).get('requestedInAt')).toMatch(/^2026-11-04T09:00:30(?:\.000)?$/); // jsdom은 초 값을 .000까지 직렬화한다
+  const text=view.getByRole('dialog').textContent ?? '';
+  for(const hidden of ['원천','(서울)']) expect(text).not.toContain(hidden);
+  expect(within(view.getByRole('region',{name:'현재 정정 근거'})).getByText('출퇴근 기록이 없습니다.')).toBeTruthy();
+ });
  it('빈 날짜의 422 응답은 연도와 빈 입력을 경고 없이 유지한다',()=>{
   const error=vi.spyOn(console,'error').mockImplementation(()=>{});
   const view=render(<App initial={envelope({}, {...compose,leaveForm:{...leave,from:null,to:null}},'시작일과 종료일을 확인하세요')}/>);
