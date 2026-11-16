@@ -23,7 +23,7 @@
 | 일수 단위 | `DAY` | `일` |
 
 - 프런트 `ui.tsx`의 `fmtDateTime`, `fmtTime`, `duration`과 서버 `SeoulTimeDisplay`(instant·time), `WorktimeController.duration`을 위 형식으로 바꾼다. 표시할 때만 초 미만을 버린다. 저장·계산·합산은 계속 밀리초 정본을 쓴다([계산 규칙](../../rules/calculation.md) 5절 유지). 합계는 밀리초로 더한 뒤 마지막에 한 번만 표시 형식으로 바꾼다.
-- 화면 라벨의 `(서울)`, `Asia/Seoul` 표기를 지운다. 사이드바 하단의 `Asia/Seoul 기준` 한 곳만 남긴다.
+- 직원 화면 6개의 라벨에서 `(서울)`, `Asia/Seoul` 표기를 지운다. 사이드바 하단의 `Asia/Seoul 기준`은 남긴다. 계산 근거 상세·감사·담당자 화면의 표기는 ③·④에서 다룬다.
 - 직원 화면에는 영문 상태·사유 코드(`REVIEW_REQUIRED`, `PARTIAL_TOTAL`, `NOT_CALCULATED` 등), 규칙 버전(`CALC-1`), 사실·검토·결과 버전, 결과 ID를 표시하지 않는다. 계산 근거 상세(`/worktime/results/{id}`)와 감사 화면은 근거 확인용이므로 내용을 유지하고, 시각 형식만 공통 함수에 따라 바뀐다.
 - 시각 입력(`datetime-local`)은 `step="0.001"`을 `step="1"`로 바꾸고, 입력칸에 채우는 기존 값도 초까지만 넣는다. 서버는 지금처럼 초 단위 ISO 값을 받는다.
 - 바꾸지 않는 것: 검토용 Excel 형식(밀리초·`+09:00`, [ADR-0002](../../adr/0002-review-xlsx.md)), 저장값·hidden 값·감사·스냅샷.
