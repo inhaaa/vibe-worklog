@@ -14,13 +14,14 @@ import tools.jackson.databind.json.JsonMapper;
 public final class SeoulTimeDisplay {
     private static final String UNKNOWN = "미확인";
     private static final DateTimeFormatter INSTANT = DateTimeFormatter
-            .ofPattern("uuuu-MM-dd HH:mm:ss.SSS", Locale.ROOT).withZone(ZoneId.of("Asia/Seoul"));
-    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS", Locale.ROOT);
+            .ofPattern("uuuu-MM-dd HH:mm:ss", Locale.ROOT).withZone(ZoneId.of("Asia/Seoul"));
+    private static final DateTimeFormatter MINUTE = DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
     private final JsonMapper json = JsonMapper.builder().build();
 
     public String instant(Instant value) { return value == null ? UNKNOWN : INSTANT.format(value); }
     public String date(LocalDate value) { return value == null ? UNKNOWN : DateTimeFormatter.ISO_LOCAL_DATE.format(value); }
-    public String time(LocalTime value) { return value == null ? UNKNOWN : TIME.format(value); }
+    public String time(LocalTime value) { return value == null ? UNKNOWN : (value.getSecond() == 0 && value.getNano() == 0 ? MINUTE : TIME).format(value); }
 
     public String intervals(String value) {
         if (value == null) return UNKNOWN;

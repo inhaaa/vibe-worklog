@@ -176,7 +176,8 @@ export const fmtDate = (value?: string | null) => (value ? value.slice(0, 10) : 
 export function fmtTime(value?: string | null) {
   if (!value) return '미확인';
   const [clock, fraction = ''] = value.split('.');
-  return `${clock.length === 5 ? `${clock}:00` : clock}.${fraction.padEnd(3, '0').slice(0, 3)}`;
+  const [hour, minute, second = '00'] = clock.split(':');
+  return second === '00' && !/[1-9]/.test(fraction) ? `${hour}:${minute}` : `${hour}:${minute}:${second}`;
 }
 export function fmtDateTime(value?: string | null) {
   if (!value) return '미지정';
@@ -190,14 +191,13 @@ export function fmtDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    fractionalSecondDigits: 3,
     hour12: false,
-  })
-    .format(instant)
-    .replace(',', '.');
+  }).format(instant);
 }
 export function duration(milliseconds?: number | null) {
-  if (milliseconds == null || !Number.isFinite(milliseconds)) return '미확정';
+  if (milliseconds == null || !Number.isFinite(milliseconds)) return '-';
   const seconds = Math.floor(milliseconds / 1000);
-  return `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}.${String(Math.floor(milliseconds % 1000)).padStart(3, '0')}`;
+  return `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
+/** datetime-local 입력값을 1초 단위 입력칸에 맞춘다. 서버 값의 밀리초만 지운다. */
+export const secondsInput = (value?: string | null) => (value ?? '').replace(/(\d{2}:\d{2}:\d{2})\.\d+/g, '$1');

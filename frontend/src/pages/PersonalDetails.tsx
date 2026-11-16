@@ -82,7 +82,6 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
     event.preventDefault(); setTab(next); buttons.current[next]?.focus();
   }
   const entries = m.entries.filter(entry => entry.kind === kinds[tab - 2]);
-  const descriptions = ['개인 정보와 입사 정보를 한눈에 확인하세요.', '소속 변경 이력을 적용 기간별로 확인하세요.', '등록된 가족 관계와 상세 정보를 확인하세요.', '등록된 학력과 전공 정보를 확인하세요.', '보유 자격과 발급 정보를 확인하세요.', '등록된 언어와 평가 정보를 확인하세요.', '등록된 주소와 연락 수단을 확인하세요.'];
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
     <div className="t-personnel-index">
       <p className="t-personnel-index-title">인사기록</p>
@@ -98,7 +97,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
       </div>
     </div>
     <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${tab}`} tabIndex={0} className="t-personnel-tabpanel">
-      <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2><p>{descriptions[tab]}</p></div>
+      <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2></div>
         {tab > 0 && tab < 6 && <span className="t-personal-count">총 {tab === 1 ? m.appointments.length : entries.length}건</span>}
       </div>
       {tab === 0 && <>
@@ -114,7 +113,6 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
             ['보훈여부', status(f.veteranStatus)], ['장애여부', status(f.disabilityStatus)], ['병역여부', status(f.militaryStatus)], ['군별', f.militaryBranch],
           ]} />
         </div>
-        <p className="t-personal-privacy"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 8 3v5c0 5-4 8-8 10-4-2-8-5-8-10V6l8-3Z m-3 9 2 2 4-4" /></svg><span>주민등록번호 <strong>미수집</strong> · 원문 입력·저장하지 않습니다.</span></p>
       </>}
       {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}

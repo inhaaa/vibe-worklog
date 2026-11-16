@@ -18,12 +18,17 @@ public final class WorkspaceController {
     public WorkspaceController(WorkspaceQueries queries) { this.queries = queries; }
 
     @GetMapping("/me/home")
-    ModelAndView home(@AuthenticationPrincipal TnaPrincipal actor) {
+    ModelAndView home(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required = false) Integer clockError) {
         var scope = UUID.nameUUIDFromBytes(("worklog.home-widget:" + actor.tenantId() + ":" + actor.accountId())
                 .getBytes(StandardCharsets.UTF_8));
-        return new ModelAndView("workspace/home")
-                .addObject("workspaceHome", WorkspaceHomeData.from(queries.home(actor)))
-                .addObject("homeWidgetScope", scope.toString());
+        var home = WorkspaceHomeData.from(queries.home(actor));
+        var page = new ModelAndView("workspace/home")
+                .addObject("workspaceHome", home)
+                .addObject("homeWidgetScope", scope.toString())
+                .addObject("clockError", clockError);
+        if (home.today().inRecordedAt() == null) page.addObject("clockInCommand", UUID.randomUUID());
+        if (home.today().outRecordedAt() == null) page.addObject("clockOutCommand", UUID.randomUUID());
+        return page;
     }
 
     @GetMapping("/me/schedule")

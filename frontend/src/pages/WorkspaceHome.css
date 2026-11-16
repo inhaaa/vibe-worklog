@@ -227,15 +227,9 @@
   gap: var(--space-md);
   padding-block: var(--space-xs);
 }
-#tna-app .t-work-home-clock > div + div { padding-inline-start: var(--space-md); border-inline-start: 1px solid var(--t-line); }
-#tna-app .t-work-home-clock dt { color: var(--t-muted); font-size: 14px; }
-#tna-app .t-work-home-clock dd {
-  margin-block-start: var(--space-2xs);
-  font-size: clamp(21px, 2.1vw, 28px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
+#tna-app .t-work-home-clock .t-btn { inline-size: 100%; font-variant-numeric: tabular-nums; }
+#tna-app .t-work-home-panel-date { margin-inline-end: auto; color: var(--t-muted); font-size: 14px; }
+#tna-app .t-work-home .t-work-home-schedule { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 #tna-app .t-work-home .t-work-home-confirmation { margin-block: var(--space-xs) var(--space-md); color: var(--t-muted); font-size: 14px; }
 #tna-app .t-work-home :is(.t-work-home-timeline, .t-work-home-recent) { list-style: none; margin: 0; padding: 0; }
 #tna-app .t-work-home :is(.t-work-home-timeline, .t-work-home-recent) > li { border-block-start: 1px solid var(--t-line); }

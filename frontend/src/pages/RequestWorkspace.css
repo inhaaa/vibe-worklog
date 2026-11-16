@@ -13,14 +13,12 @@
 #tna-app .t-annual-page .t-annual-metrics strong { color: var(--t-ink); font-size: 32px; letter-spacing: -.6px; line-height: 1.3; overflow-wrap: anywhere; font-weight: 600; font-variant-numeric: tabular-nums; }
 #tna-app .t-annual-page .t-annual-metrics .t-request-available { background: var(--t-paper); border-color: var(--t-line); }
 #tna-app .t-annual-page .t-annual-metrics .t-request-available strong { color: var(--t-ink); }
-#tna-app .t-annual-page .t-annual-metrics p { font-size:14px; line-height:1.5; }
 #tna-app .t-annual-page .t-annual-filters { display: grid; grid-template-columns: 120px minmax(150px,1fr) minmax(140px,1fr) auto; gap:var(--space-sm); align-items: end; padding:20px 0; margin-top:var(--space-xs); border-bottom: 1px solid var(--t-line); }
 #tna-app .t-request-filter-field { display:grid; gap:var(--space-xs); min-width:0; }
 #tna-app .t-request-filter-field label { font-size:14px; color:var(--t-muted); font-weight:600; }
 #tna-app .t-annual-page .t-annual-filters .t-input, #tna-app .t-annual-page .t-annual-filters .t-select { width:100%; min-width:0; box-sizing:border-box; }
 #tna-app .t-request-list-head { display:flex; gap:20px; justify-content:space-between; align-items:center; margin-bottom:20px; }
 #tna-app .t-request-list-head h2 { margin:0 0 var(--space-xs); }
-#tna-app .t-request-list-head p { margin:0; }
 #tna-app .t-request-list-search { display:grid; gap:var(--space-xs); min-width:220px; color:var(--t-muted); font-size:14px; }
 #tna-app .t-request-list-search .t-input { width:100%; min-width:0; box-sizing:border-box; }
 #tna-app .t-request-board { margin:0; border: 0; border-radius: 0; }
@@ -154,7 +152,6 @@
 #tna-app .t-request-balance-basis > div { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:var(--space-sm); }
 #tna-app .t-request-balance-basis dt { color:var(--t-muted); font-size:14px; line-height:1.6; }
 #tna-app .t-request-balance-basis dd { margin:0; text-align:right; font-size:14px; font-weight:600; color:var(--t-muted); }
-#tna-app .t-request-balance-basis small { display:block; color:var(--t-muted); font-size:14px; font-weight:400; margin-top:var(--space-2xs); }
 #tna-app .t-request-review-totals { padding:var(--space-md) 0; border: 0; border-radius: 0; background: transparent; border-block: 1px solid var(--t-line); }
 #tna-app .t-request-review-totals p { margin:0; }
 #tna-app .t-request-review-totals p + p { margin-top:var(--space-sm); font-size:16px; color:var(--t-muted); }
@@ -167,7 +164,6 @@
 #tna-app .t-request-embedded { margin:0; padding:0; background:transparent; }
 #tna-app .t-correction-workspace { color:var(--t-ink); min-width:0; }
 #tna-app .t-correction-workspace .t-card { margin:0 0 20px; padding:var(--space-lg) 0; border: 0; border-radius: 0; background: var(--t-paper); border-top: 1px solid var(--t-line); }
-#tna-app .t-correction-workspace .t-muted, #tna-app .t-correction-workspace .hint { color:var(--t-muted); font-size:14px; line-height:1.7; }
 #tna-app .t-correction-workspace .t-correction-form { display:block; max-width:none; margin:0; padding:0; background:none; border:0; }
 #tna-app .t-correction-events { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-sm); padding:0; margin:0; list-style:none; }
 #tna-app .t-correction-events li { display: grid; gap:var(--space-xs); padding:var(--space-md) 0; border: 0; border-radius: 0; background: transparent; font-size: 14px; overflow-wrap: anywhere; border-top: 1px solid var(--t-line); }
@@ -179,9 +175,6 @@
 #tna-app .t-correction-form .checkbox-label { display:flex; align-items:center; gap:var(--space-sm); min-height:44px; font-size:14px; }
 #tna-app .t-correction-form .checkbox-label input { flex:0 0 18px; height:18px; min-height:18px; width:18px; accent-color:var(--t-focus); }
 #tna-app .t-correction-form .t-break-editor { margin:20px 0; }
-#tna-app .t-correction-advanced { margin:20px 0; border: 0; border-radius: 0; padding:0; border-block: 1px solid var(--t-line); }
-#tna-app .t-correction-advanced summary { min-height:44px; padding:var(--space-sm) 0; box-sizing:border-box; color:var(--t-muted); font-size:16px; cursor:pointer; }
-#tna-app .t-correction-advanced .t-request-field { padding:0 0 var(--space-md); }
 #tna-app .t-correction-workspace .t-btn { min-height:44px; }
 #tna-app .t-correction-workspace :is(input,select,textarea,button):focus-visible { outline:3px solid var(--t-focus); outline-offset:3px; }
 #tna-app .t-annual-page .t-annual-metrics .t-card:first-child { padding-left:0; border-left: 0; }
@@ -206,7 +199,6 @@
   #tna-app .t-annual-page .t-annual-metrics .t-card { padding:0 var(--space-md); }
   #tna-app .t-annual-page .t-annual-metrics .t-card:nth-child(odd) { padding-left:0; border-left:0; }
   #tna-app .t-annual-page .t-annual-metrics strong { font-size:22px; }
-  #tna-app .t-annual-page .t-annual-metrics p { font-size:14px; }
   #tna-app .t-annual-page .t-annual-filters { grid-template-columns:repeat(2,minmax(0,1fr)); padding:var(--space-md); }
   #tna-app .t-annual-page .t-annual-filters .t-btn { width:auto; }
   #tna-app .t-request-list-search { min-width:0; }
@@ -270,8 +262,6 @@
 #tna-app .t-correction-events { gap:var(--space-lg); border-block:1px solid var(--t-line); }
 #tna-app .t-correction-events li { padding:var(--space-md) 0; background:transparent; border:0; }
 #tna-app .t-correction-events li + li { border-left:0; }
-#tna-app .t-correction-advanced summary { padding-inline:0; background:transparent; color:var(--t-ink); }
-#tna-app .t-correction-advanced .t-request-field { padding:var(--space-md) var(--space-sm); }
 @media (max-width:600px) {
   #tna-app .t-request-approval-table :is(th,td) { padding-inline:var(--space-xs); }
   #tna-app :is(.t-request-sheet-row,.t-request-correction-inputs) { grid-template-columns:minmax(0,1fr); }

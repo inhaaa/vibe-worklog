@@ -8,28 +8,8 @@ import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 
 interface Profile {
-  employeeNo: string;
   employeeName: string;
-  companyName: string;
-  email: string;
   joinedOn: string;
-  leftOn: string | null;
-  organizationName: string | null;
-  organizationHeadName?: string | null;
-  organizationHeadEligible?: boolean;
-  organizationHeadApproverEligible?: boolean;
-  scheduleName: string | null;
-  approverName: string | null;
-  approverEligible: boolean;
-  approvalPreview?: {
-    source: string;
-    routeName: string | null;
-    approverName: string | null;
-    eligible: boolean;
-    message: string | null;
-  };
-  roles: string[];
-  asOf: string;
 }
 interface AccessList {
   accessRows: {
@@ -164,45 +144,14 @@ function OrganizationFilter({ organizations, organizationId }: {
     </SelectField>
   );
 }
-function ProfilePage({ profile: p, hasHeader, details, birthDate }: { profile: Profile; hasHeader: boolean; details?: PersonalDetailsModel; birthDate?: string | null }) {
-  const entries = [
-    ['이름', p.employeeName],
-    ['사번', p.employeeNo],
-    ['회사', p.companyName],
-    ['본인 계정 이메일', p.email],
-    ['입사일', fmtDate(p.joinedOn)],
-    ['마지막 재직일', p.leftOn ? fmtDate(p.leftOn) : '미정'],
-    ['현재 소속', p.organizationName ?? '미배정'],
-    ...(p.organizationHeadName !== undefined ? [
-      ['현재 조직장', p.organizationHeadName ? `${p.organizationHeadName}${p.organizationHeadEligible ? '' : ' · 재지정 필요'}` : '조직장 미배정'],
-      ['조직장 결재 자격', p.organizationHeadName && p.organizationHeadApproverEligible ? '현재 유효' : '조직장 결재 자격 없음'],
-    ] : []),
-    ['적용 근무', p.scheduleName ?? '미배정'],
-    ['현재 결재 담당', p.approverName
-      ? `${p.approverName} · ${p.approverEligible ? '현재 유효' : '재지정 필요'}`
-      : '미배정'],
-    ...(p.approvalPreview ? [
-      ['적용 결재 경로', `${({ EMPLOYEE_ROUTE: '사원별 결재선', LEGACY: '기존 지정 승인자', ORGANIZATION_ROUTE: '조직별 결재선', NONE: '미배정' } as Record<string, string>)[p.approvalPreview.source] ?? '확인 필요'}${p.approvalPreview.routeName ? ` · ${p.approvalPreview.routeName}` : ''}`],
-      ...(!p.approvalPreview.eligible && p.approvalPreview.message ? [['신청 전 확인', p.approvalPreview.message]] : []),
-    ] : []),
-    ['현재 역할·기능', formatRoles(p.roles)],
-  ];
+function ProfilePage({ details, identity }: {
+  details?: PersonalDetailsModel;
+  identity: { employeeName: string; joinedOn: string; birthDate?: string | null };
+}) {
   return (
     <>
-      <PageHeader title="내 정보" help="현재 계정과 업무 배정 정보를 확인하세요." />
-      {details && <PersonalDetailsTabs model={details} identity={{ employeeName: p.employeeName, joinedOn: p.joinedOn, birthDate }} />}
-      <section className="wl-section t-profile-details" aria-label="본인 정보">
-        <div className="t-personal-panel-heading"><div><h2>계정과 업무 배정</h2><p>현재 적용 중인 근무와 결재 정보를 확인하세요.</p></div></div>
-        <p className="t-profile-asof">조회 기준 (서울): {fmtDateTime(p.asOf)}</p>
-        <dl className="wl-info-grid">
-          {entries.filter(([label]) => !hasHeader || !['이름', '사번', '회사', '입사일', '현재 소속'].includes(label)).map(([label, value]) => (
-            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-          ))}
-        </dl>
-        <p className="t-profile-footnote">
-          공통 업무와 명시적으로 부여된 역할을 함께 사용합니다. 결재 담당 기능은 실제 배정된 신청에 적용됩니다.
-        </p>
-      </section>
+      <PageHeader title="내 정보" />
+      {details && <PersonalDetailsTabs model={details} identity={identity} />}
     </>
   );
 }
@@ -304,20 +253,20 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
               { colId: 'workDate', headerName: '근무일', valueGetter: ({ data }) => data && fmtDate(data.workDate), minWidth: 140, pinned: 'left' },
               { colId: 'status', headerName: '상태·최신성', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${data.current ? '최신' : '미산정·재집계 필요'}`, minWidth: 250 },
               {
-                colId: 'scheduledMillis', headerName: '예정 근무 (시:분:초.밀리초)',
+                colId: 'scheduledMillis', headerName: '예정 근무',
                 valueGetter: ({ data }) => data?.current ? data.scheduledMillis : null,
                 valueFormatter: ({ value }) => duration(value),
                 filterValueGetter: ({ data }) => duration(data?.current ? data.scheduledMillis : null),
                 getQuickFilterText: ({ value }) => duration(value), minWidth: 230, cellClass: 'w-sheet-number',
               },
               {
-                colId: 'actualWorkMillis', headerName: '실근로 (시:분:초.밀리초)',
+                colId: 'actualWorkMillis', headerName: '실근로',
                 valueGetter: ({ data }) => data?.current ? data.actualWorkMillis : null,
                 valueFormatter: ({ value }) => duration(value),
                 filterValueGetter: ({ data }) => duration(data?.current ? data.actualWorkMillis : null),
                 getQuickFilterText: ({ value }) => duration(value), minWidth: 220, cellClass: 'w-sheet-number',
               },
-              { colId: 'leaveDays', headerName: '휴가 (DAY)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
+              { colId: 'leaveDays', headerName: '휴가 (일)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
             ]}
           />
         )}
@@ -363,7 +312,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
             { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
             { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
             { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
-            { field: 'quantityDays', headerName: '조회연도 신청일량 (DAY)', minWidth: 220, cellClass: 'w-sheet-number' },
+            { field: 'quantityDays', headerName: '조회연도 신청일량 (일)', minWidth: 220, cellClass: 'w-sheet-number' },
             { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
             { colId: 'submittedAt', headerName: '제출 시각 (서울)', valueGetter: ({ data }) => data && fmtDateTime(data.submittedAt), minWidth: 240 },
           ]}
@@ -374,9 +323,11 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
 }
 export function IdentityPages({ page, data }: PageProps): React.ReactNode | null {
   switch (page) {
-    case 'workspace/profile':
-      return <ProfilePage profile={data.profile as Profile} hasHeader={Boolean(data.employeeHeader)}
-        details={data.personalDetails as PersonalDetailsModel | undefined} birthDate={(data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate} />;
+    case 'workspace/profile': {
+      const p = data.profile as Profile;
+      return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} identity={{ employeeName: p.employeeName,
+        joinedOn: p.joinedOn, birthDate: (data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate }} />;
+    }
     case 'org/access-list':
       return <AccessListPage model={data as unknown as AccessList} />;
     case 'company/attendance':

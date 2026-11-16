@@ -1,6 +1,7 @@
 package kr.tna.worktime;
 
 import static kr.tna.org.OrgCommands.*;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -66,11 +67,20 @@ public final class WorktimeService {
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
-                return new ResultDetail(storedDay(person,stored,result,currentSource),stored.id().equals(latest.id()),latest.id(),run,
+                boolean employed=employed(person,stored.workDate());
+                return new ResultDetail(storedDay(person,stored,result,currentSource,
+                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),stored.id().equals(latest.id()),latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
         });
+    }
+
+    /** 근무 확인을 할 수 없는 지난 날 중 정정 신청을 안내할 날. 휴가·휴무·재직 밖·대기 정정이 있는 날은 제외한다. */
+    public boolean correctionSuggested(TnaPrincipal actor,LocalDate date) {
+        if(actor==null)throw OrgException.forbidden();
+        return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());var in=input(actor.tenantId(),employee,date);
+            return employed(employee,date)&&!in.day().pendingCorrection()&&calculator.pending(in.day(),LocalDate.now(clock.withZone(SEOUL)),false,null);});
     }
 
     public List<EmployeeChoice> employees(TnaPrincipal actor) {
@@ -97,30 +107,43 @@ public final class WorktimeService {
             var weeks=weeklyPeriods(actor.tenantId(),expandedFrom,expandedTo,all);
             var result=calculator.month(month,selected.stream().map(this::currentResult).toList());
             return new MonthView(month,List.copyOf(selected),List.copyOf(weeks),new PeriodView(from,to.plusDays(1),
-                    selected.stream().allMatch(DayView::current),result,ids(selected)));
+                    selected.stream().allMatch(DayView::current),result,ids(selected),pendingDays(selected)));
         });
     }
     public UUID recalculate(TnaPrincipal actor,UUID employeeId,LocalDate from,LocalDate to,UUID commandId,String reason) {
         range(from,to);UUID target=target(actor,employeeId);String checked=requiredText(reason,500,"재집계 사유"),action="WORKTIME_RECALCULATE";
-        return administration.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,target,from,to,checked),checked,()->{
-            Employee employee=employee(actor.tenantId(),target);UUID runId=UUID.randomUUID();
-            LocalDate start=WorktimeCalculator.weekStart(from),end=WorktimeCalculator.weekStart(to).plusDays(6);
-            changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
-            for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
-                Input input=input(actor.tenantId(),employee,date);DayResult result=calculator.day(input.day());
-                UUID resultId=UUID.randomUUID();long revision=mapper.nextResult(actor.tenantId(),target,date);
-                var refs=new LinkedHashMap<String,Object>();refs.put("clock",input.clock());refs.put("policy",input.policy());
-                refs.put("assessment",input.assessment());refs.put("leaveEffects",input.leave());refs.put("pendingCorrections",input.pending());
-                var employment=new LinkedHashMap<String,Object>();employment.put("joinedOn",employee.joinedOn().toString());
-                employment.put("leftOn",employee.leftOn()==null?null:employee.leftOn().toString());refs.put("employment",employment);
-                changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
-                        input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
-                        json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
-                changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));count++;
-            }
-            changed(mapper.completeRun(actor.tenantId(),runId));
-            return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-1"));
-        });
+        return administration.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,target,from,to,checked),checked,()->
+                calculate(actor,employee(actor.tenantId(),target),from,to,WorktimeCalculator.weekStart(from),WorktimeCalculator.weekStart(to).plusDays(6)));
+    }
+    /**
+     * 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
+     * 같은 확인 명령을 다시 보내도 계산은 한 번이다. 확인 트랜잭션이 커밋된 뒤 별도로 호출한다.
+     */
+    public UUID calculateConfirmedDay(TnaPrincipal actor,LocalDate workDate,UUID confirmationCommandId) {
+        if(actor==null)throw OrgException.forbidden();
+        if(workDate==null||confirmationCommandId==null)throw OrgException.invalid("계산할 근무일을 확인해 주세요.");
+        String action="WORKTIME_AUTO_CALCULATE";
+        UUID commandId=UUID.nameUUIDFromBytes((action+":"+confirmationCommandId).getBytes(StandardCharsets.UTF_8));
+        return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"근무 확인 후 자동 계산","EMPLOYEE",
+                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate,WorktimeCalculator.weekStart(workDate),WorktimeCalculator.weekStart(workDate).plusDays(6)));
+    }
+    private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to,LocalDate start,LocalDate end) {
+        UUID target=employee.id(),runId=UUID.randomUUID();
+        changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
+        for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
+            Input input=input(actor.tenantId(),employee,date);DayResult result=calculator.day(input.day());
+            UUID resultId=UUID.randomUUID();long revision=mapper.nextResult(actor.tenantId(),target,date);
+            var refs=new LinkedHashMap<String,Object>();refs.put("clock",input.clock());refs.put("policy",input.policy());
+            refs.put("assessment",input.assessment());refs.put("leaveEffects",input.leave());refs.put("pendingCorrections",input.pending());
+            var employment=new LinkedHashMap<String,Object>();employment.put("joinedOn",employee.joinedOn().toString());
+            employment.put("leftOn",employee.leftOn()==null?null:employee.leftOn().toString());refs.put("employment",employment);
+            changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
+                    input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
+                    json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
+            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));count++;
+        }
+        changed(mapper.completeRun(actor.tenantId(),runId));
+        return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-1"));
     }
     public UUID reviewPolicy(TnaPrincipal actor,PolicyForm form) {
         if(form==null)throw OrgException.invalid("회사 검토 정보를 입력해 주세요.");period(form.from(),form.to());
@@ -260,28 +283,31 @@ public final class WorktimeService {
     }
     private List<DayView> readDays(UUID tenant,Employee employee,LocalDate from,LocalDate to) {
         var stored=new HashMap<LocalDate,WorktimeMapper.ResultRow>();for(var r:mapper.latest(tenant,employee.id(),from,to))stored.put(r.workDate(),r);
+        LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            Input current=input(tenant,employee,date);var r=stored.get(date);
+            Input current=input(tenant,employee,date);var r=stored.get(date);int leave=current.day().approvedLeaveDays();boolean employed=employed(employee,date);
             if(r==null) {
-                var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,current.day().approvedLeaveDays(),
+                var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,leave,
                         current.clock().inputRevision(),current.clock().reviewRevision(),Set.of("NOT_CALCULATED","LEGAL_OVERTIME_UNDETERMINED"));
-                days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing));
+                days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing,
+                        employed&&calculator.pending(current.day(),today,false,null),leave,employed));
             }else {
                 var result=storedResult(r);
                 boolean matches=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())&&r.sourceFingerprint().equals(current.source());
-                days.add(storedDay(employee,r,result,matches));
+                days.add(storedDay(employee,r,result,matches,employed&&calculator.pending(current.day(),today,matches,result.actualWorkMillis()),leave,employed));
             }
         }return List.copyOf(days);
     }
+    private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}
     private DayResult storedResult(WorktimeMapper.ResultRow r) {
         return new DayResult(r.workDate(),Status.valueOf(r.status()),r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),r.confirmedBreakMillis(),
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
-                r.calculatedAt(),r.sourceFingerprint(),current,result);
+                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,employed);
     }
     private FrozenEvidence frozenEvidence(String value,UUID employeeId,LocalDate date) {
         try {
@@ -354,7 +380,7 @@ public final class WorktimeService {
                 var policy=mapper.policy(tenant,date);if(policy==null||!policy.mondayWeekReviewed())basis=false;
             }
             var result=calculator.week(begin,week.stream().map(this::currentResult).toList(),basis);
-            weeks.add(new PeriodView(begin,end,week.stream().allMatch(DayView::current),result,ids(week)));
+            weeks.add(new PeriodView(begin,end,week.stream().allMatch(DayView::current),result,ids(week),pendingDays(week)));
         }
         return List.copyOf(weeks);
     }
@@ -374,6 +400,7 @@ public final class WorktimeService {
     private UUID target(TnaPrincipal actor,UUID id) {if(actor==null)throw OrgException.forbidden();return id==null?actor.employeeId():id;}
     private Employee employee(UUID tenant,UUID id) {var employee=employees.get(tenant,id);if(employee==null)throw OrgException.notFound();return employee;}
     private static List<UUID> ids(List<DayView> days) {return days.stream().map(DayView::id).filter(java.util.Objects::nonNull).toList();}
+    private static int pendingDays(List<DayView> days) {return (int)days.stream().filter(DayView::pending).count();}
     private static List<Object> row(Object... values) {return Arrays.asList(values);}
     private static void range(LocalDate from,LocalDate to) {if(from==null||to==null||from.isAfter(to)||ChronoUnit.DAYS.between(from,to)>=31||to.equals(LocalDate.MAX))throw OrgException.invalid("31일 이내의 올바른 조회 기간을 입력해 주세요.");}
     private static void period(LocalDate from,LocalDate to) {if(from==null||to!=null&&(to.isBefore(from)||to.equals(LocalDate.MAX)))throw OrgException.invalid("검토 유효기간을 확인해 주세요.");}
