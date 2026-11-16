@@ -511,15 +511,19 @@ function Month({ model: m }: { model: MonthModel }) {
     summary = view.summary;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
   const away = (day: DayView) => day.employed === false;
-  const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null) =>
+  const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
     sheetColumn<DayView>({ colId, headerName, minWidth: 120, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
       valueGetter: ({ data }) => (data ? shown(data, pick(data)) : null),
-      getQuickFilterText: ({ data }) => (data && !away(data) ? duration(shown(data, pick(data))) : '') },
-      day => (away(day) ? '' : duration(shown(day, pick(day)))));
+      getQuickFilterText: ({ data }) => (!data || away(data) ? '' : flagPending && data.pending && shown(data, pick(data)) == null ? '확인 전' : duration(shown(data, pick(data)))) },
+      day => {
+        if (away(day)) return '';
+        const value = shown(day, pick(day));
+        return flagPending && day.pending && value == null ? <span className="w-sheet-pending">확인 전</span> : duration(value);
+      });
   const columns = [
     sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 130, pinned: 'left' },
       day => (day.id ? <a href={`/worktime/results/${day.id}`}>{fmtDate(day.workDate)}</a> : fmtDate(day.workDate))),
-    timeColumn('actualWorkMillis', '실근로', day => day.result.actualWorkMillis),
+    timeColumn('actualWorkMillis', '실근로', day => day.result.actualWorkMillis, true),
     timeColumn('confirmedBreakMillis', '휴게', day => day.result.confirmedBreakMillis),
     timeColumn('over8hMillis', '8시간 초과', day => day.result.over8hMillis),
     sheetColumn<DayView>({ field: 'approvedLeaveDays', headerName: '휴가', minWidth: 90, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',

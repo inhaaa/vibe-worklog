@@ -500,7 +500,10 @@ describe('WorkflowPages', () => {
       .toEqual(['workDate', 'actualWorkMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']);
     expect(within(grid).getByRole('columnheader', { name: /8시간 초과/ })).toBeTruthy();
     expect(grid.querySelector('[row-id="2026-10-26"] [col-id="actualWorkMillis"]')?.textContent).toBe('8:05:10');
-    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="actualWorkMillis"]')?.textContent).toBe('-');
+    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="actualWorkMillis"]')?.textContent).toBe('확인 전');
+    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="actualWorkMillis"] .w-sheet-pending')).toBeTruthy();
+    expect(grid.querySelector('[row-id="2026-10-27"] [col-id="actualWorkMillis"] .w-sheet-pending')?.textContent).toBe('확인 전');
+    expect(grid.querySelector('[row-id="2026-10-27"] [col-id="confirmedBreakMillis"]')?.textContent).toBe('-');
     expect(grid.querySelector('[row-id="2026-10-28"] [col-id="approvedLeaveDays"]')?.textContent).toBe('1');
     expect(within(grid).getByRole('link', { name: '2026-10-26' }).getAttribute('href')).toBe('/worktime/results/result-1');
     expect(within(grid).queryByRole('link', { name: '2026-10-27' })).toBeNull();
@@ -579,6 +582,15 @@ describe('WorkflowPages', () => {
     for (const col of ['actualWorkMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']) expect(cell('2026-10-19', col)).toBe('');
     expect(cell('2026-10-20', 'actualWorkMillis')).toBe('8:00:00');
     expect(cell('2026-10-20', 'approvedLeaveDays')).toBe('-');
+  });
+  it('확인 전이 아닌 미반영 날짜의 실근로는 -로 남는다', async () => {
+    const days = [{ id: null, workDate: '2026-10-20', current: false, pending: false, approvedLeaveDays: 0, employed: true, result }];
+    const period = { current: true, pendingDays: 0, result: { confirmedWorkMillis: 0, unconfirmedDays: 0, over40hMillis: null, reasons: [] } };
+    const view = await render('worktime/month', { admin: false, employeeId: employee.id, employees: [],
+      overview: { month: '2026-10', days, weeks: [], summary: period } });
+    const cell = view.getByRole('grid', { name: '일별 근로시간' }).querySelector('[row-id="2026-10-20"] [col-id="actualWorkMillis"]');
+    expect(cell?.textContent).toBe('-');
+    expect(cell?.querySelector('.w-sheet-pending')).toBeNull();
   });
 
   it('일별 실근로는 표시 문자열이 아닌 밀리초 값으로 정렬한다', async () => {

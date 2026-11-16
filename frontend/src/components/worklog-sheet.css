@@ -64,6 +64,7 @@
 .w-sheet-grid .ag-cell-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-sheet-grid .ag-cell.w-sheet-left { justify-content: flex-start; text-align: left; }
 .w-sheet-grid .ag-cell.w-sheet-number { justify-content: flex-end; text-align: right; }
+.w-sheet-pending { color: var(--warn); font-weight: 600; }
 .w-sheet-grid .ag-cell.w-sheet-center { justify-content: center; text-align: center; }
 .w-sheet-content, .w-sheet-value { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-sheet-grid .ag-cell a { color: var(--link); text-underline-offset: 3px; }
