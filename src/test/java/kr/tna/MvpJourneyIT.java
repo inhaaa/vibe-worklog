@@ -233,6 +233,11 @@ class MvpJourneyIT {
         TnaPrincipal foreign = bootstrap(UUID.randomUUID());
         assertStatus(404, () -> reports.detail(foreign, corrected.id()));
         assertStatus(404, () -> organizations.get(foreign, organization));
+
+        clocks.record(employee, "IN", UUID.randomUUID(), "127.0.0.1");
+        clock.at(leaveDate.plusDays(1), 8, 0);
+        assertFalse(reports.correctionSuggested(employee, leaveDate),
+                "승인된 지난 종일 연차일은 출퇴근 원천이 하나 있어도 정정을 안내하지 않습니다.");
     }
 
     private UUID createEmployee(TnaPrincipal manager, String number, String name) {

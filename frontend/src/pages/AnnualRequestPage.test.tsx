@@ -511,10 +511,43 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const input=view.getByLabelText('출근 시각');
   expect(input.getAttribute('step')).toBe('1');
   expect(input.getAttribute('value')).toBe('2026-11-04T09:00:30');
-  expect(new FormData(view.getByRole('form',{name:'신청서'}) as HTMLFormElement).get('requestedInAt')).toMatch(/^2026-11-04T09:00:30(?:\.000)?$/); // jsdom은 초 값을 .000까지 직렬화한다
+  expect(new FormData(view.getByRole('form',{name:'신청서'}) as HTMLFormElement).getAll('requestedInAt')).toEqual(['2026-11-04T09:00:30.125']);
   const text=view.getByRole('dialog').textContent ?? '';
   for(const hidden of ['원천','(서울)']) expect(text).not.toContain(hidden);
   expect(within(view.getByRole('region',{name:'현재 정정 근거'})).getByText('출퇴근 기록이 없습니다.')).toBeTruthy();
+ });
+ it('정정 재신청의 미리보기와 제출에 복원된 시각과 편집한 시각을 함께 보낸다',async()=>{
+  const kind='ATTENDANCE_CORRECTION';
+  const correctionForm={...correction,predecessorRequestId:'previous-request',reason:'이전 신청 내용 확인',
+   inAction:'SET',requestedInAt:'2026-10-28T09:00:30.125',outAction:'SET',requestedOutAt:'2026-10-28T18:00:30.250'};
+  const fetcher=vi.fn()
+   .mockImplementationOnce((_path, options)=>{
+    const body=new URLSearchParams(options.body);
+    return Promise.resolve(response(preview({kind,correctionForm:{...correctionForm,
+     commandId:body.get('commandId'),requestedInAt:body.get('requestedInAt'),requestedOutAt:body.get('requestedOutAt')}})));
+   })
+   .mockResolvedValueOnce(new Response('unavailable',{status:503}));
+  vi.stubGlobal('fetch',fetcher);
+  const view=render(<App initial={envelope({}, {kind,correctionForm})}/>);
+  const outInput=view.getByLabelText('퇴근 시각') as HTMLInputElement;
+  fireEvent.change(outInput,{target:{value:'2026-10-28T18:00:45'}});
+  const editedTime=outInput.value;
+  expect(editedTime).toMatch(/^2026-10-28T18:00:45(?:\.000)?$/);
+  const form=view.getByRole('form',{name:'신청서'}) as HTMLFormElement;
+  expect(form.checkValidity()).toBe(true);
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  const submitButton=await view.findByRole('button',{name:'신청 제출'});
+  const review=within(view.getByRole('region',{name:'신청 미리보기'}));
+  expect(review.getByText('시각 수정 · 2026-10-28 09:00:30')).toBeTruthy();
+  fireEvent.click(submitButton);
+  await view.findByRole('alert');
+  expect(fetcher.mock.calls.map(([path])=>new URL(path,location.href).pathname)).toEqual(['/me/requests/preview','/me/requests/correction']);
+  for(const [, options] of fetcher.mock.calls){
+   const body=new URLSearchParams(options.body);
+   expect(body.getAll('requestedInAt')).toEqual(['2026-10-28T09:00:30.125']);
+   expect(body.getAll('requestedOutAt')).toEqual([editedTime]);
+   expect(body.get('predecessorRequestId')).toBe('previous-request');
+  }
  });
  it('빈 날짜의 422 응답은 연도와 빈 입력을 경고 없이 유지한다',()=>{
   const error=vi.spyOn(console,'error').mockImplementation(()=>{});

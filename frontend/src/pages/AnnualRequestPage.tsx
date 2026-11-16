@@ -6,6 +6,7 @@ import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
 import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
+import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import { PageHeader } from '../components/PageHeader';
 import { RequestPeriodSheet, requestPeriodIssue } from '../components/RequestPeriodSheet';
 import './RequestWorkspace.css';
@@ -261,7 +262,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
                 </div>
                 <div className="t-request-field">
                   <label htmlFor={`annual-${direction}-time`}>{label} 시각</label>
-                  <input id={`annual-${direction}-time`} className="t-input" type="datetime-local" step="1" name={timeField} value={secondsInput(correction[timeField])} onChange={event => change(timeField, event.target.value)} readOnly={correction[actionField] !== 'SET'} />
+                  <RequestDateTimeInput id={`annual-${direction}-time`} name={timeField} value={correction[timeField]} onChange={value => change(timeField, value)} readOnly={correction[actionField] !== 'SET'} />
                 </div>
               </div>
             </RequestField>;
@@ -287,7 +288,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
           <dl className="wl-info-grid">
             <div><dt>대상 기간</dt><dd>{isLeave?`${fmtDate(leave.from)} ~ ${fmtDate(leave.to)}`:fmtDate(correction.workDate)}</dd></div>
             {!isLeave&&<>
-              {(['in','out'] as const).map(direction=><div key={direction}><dt>{direction==='in'?'제안 출근':'제안 퇴근'}</dt><dd>{actionName(correction[`${direction}Action`])}{correction[`${direction}Action`]==='SET'&&` · ${(direction==='in'?correction.requestedInAt:correction.requestedOutAt)?.replace('T',' ')}`}</dd></div>)}
+              {(['in','out'] as const).map(direction=><div key={direction}><dt>{direction==='in'?'제안 출근':'제안 퇴근'}</dt><dd>{actionName(correction[`${direction}Action`])}{correction[`${direction}Action`]==='SET'&&` · ${secondsInput(direction==='in'?correction.requestedInAt:correction.requestedOutAt).replace('T',' ')}`}</dd></div>)}
               <div><dt>실제 확인</dt><dd>{correction.presenceAsWork?'실제 근로 확인':'실제 근로 미확인'} · {correction.breaksConfirmed?'실제 휴게 확인':'실제 휴게 미확인'}</dd></div>
               <div><dt>휴게 구간</dt><dd>{correction.actualBreaks?correction.actualBreaks.split(',').map((part,index)=><div key={index}>{part.replaceAll('T',' ').replace('/',' → ')}</div>):'휴게 구간 없음'}</dd></div>
             </>}

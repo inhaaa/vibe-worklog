@@ -43,13 +43,15 @@ public class AttendanceController {
     private ModelAndView calendarPage(TnaPrincipal actor,CalendarForm form){return new ModelAndView("clock/calendar").addObject("calendars",settings.calendars(actor)).addObject("form",form!=null?form:new CalendarForm(commands.today(),commands.today().plusDays(30),false,"","","",UUID.randomUUID()));}
     private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
+        boolean canConfirm=clocks.canConfirm(d);
         var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
-                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
+                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday)
+                .addObject("canConfirm",canConfirm);
         page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
                 .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
         var effective=d.effectiveEvents()!=null?d.effectiveEvents():d.events();
         boolean past=d.workDate().isBefore(today)||isToday&&effective.stream().anyMatch(e->"OUT".equals(e.kind()));
-        page.addObject("correctionSuggested",d.confirmation()==null&&past&&worktime.correctionSuggested(actor,d.workDate()));
+        page.addObject("correctionSuggested",d.confirmation()==null&&!canConfirm&&past&&worktime.correctionSuggested(actor,d.workDate()));
         if(isToday)for(String kind:List.of("IN","OUT"))if(d.events().stream().noneMatch(e->kind.equals(e.kind())))
             page.addObject(kind.equals("IN")?"inCommand":"outCommand",UUID.randomUUID());
         return page;

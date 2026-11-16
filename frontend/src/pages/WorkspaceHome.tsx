@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../components/Modal';
 import { ErrorNotice, Form, fmtDateTime } from '../ui';
 import type { PageProps } from '../types';
@@ -39,9 +39,59 @@ const dateLabel = new Intl.DateTimeFormat('ko-KR', {
   month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul',
 });
 const weekdayLabel = new Intl.DateTimeFormat('ko-KR', { weekday: 'short', timeZone: 'Asia/Seoul' });
+const workDateFormat = new Intl.DateTimeFormat('sv-SE', {
+  year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul',
+});
 const seoulDay = (date: string) => new Date(`${date}T00:00:00+09:00`);
 const clockErrorText = (status: number) => status === 403 ? '허용된 네트워크에서만 출퇴근을 기록할 수 있습니다.'
   : status === 409 ? '오늘 이미 기록했습니다.' : '기록하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+const refreshRetryMs = 30_000;
+
+export function useWorkspaceHomeRefresh(data: PageProps['data'] | undefined, refresh: () => boolean) {
+  const workDate = (data?.workspaceHome as HomeView | undefined)?.today.snapshot.workDate;
+  const lastRefresh = useRef(-Infinity);
+
+  useEffect(() => {
+    if (!workDate) return;
+    let timer: number;
+    const checkDate = () => {
+      window.clearTimeout(timer);
+      if (document.visibilityState === 'hidden') return;
+
+      const now = Date.now();
+      const currentDate = workDateFormat.format(now);
+      if (currentDate > workDate) {
+        // 응답이 여전히 지난 날짜이거나 조회가 실패한 경우에도 연속 요청을 피한다.
+        const checkedAt = performance.now();
+        const retryIn = lastRefresh.current + refreshRetryMs - checkedAt;
+        if (retryIn > 0) {
+          timer = window.setTimeout(checkDate, retryIn);
+          return;
+        }
+        timer = window.setTimeout(checkDate, refreshRetryMs);
+        if (refresh()) lastRefresh.current = checkedAt;
+        return;
+      }
+
+      lastRefresh.current = -Infinity;
+      const nextMidnight = seoulDay(currentDate);
+      nextMidnight.setUTCDate(nextMidnight.getUTCDate() + 1);
+      timer = window.setTimeout(checkDate, nextMidnight.getTime() - now);
+    };
+
+    checkDate();
+    document.addEventListener('visibilitychange', checkDate);
+    window.addEventListener('focus', checkDate);
+    window.addEventListener('popstate', checkDate);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', checkDate);
+      window.removeEventListener('focus', checkDate);
+      window.removeEventListener('popstate', checkDate);
+    };
+  }, [workDate, refresh]);
+}
 
 interface ClockCommands { IN?: string; OUT?: string; error?: number }
 

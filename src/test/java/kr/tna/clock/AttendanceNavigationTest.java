@@ -3,14 +3,18 @@ package kr.tna.clock;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
+import kr.tna.schedule.ScheduleData;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.view.RedirectView;
@@ -143,6 +147,37 @@ class AttendanceNavigationTest {
         when(clocks.day(actor, past)).thenReturn(confirmed(day(past)));
         assertEquals(false, controller.history(actor, past).getModel().get("correctionSuggested"));
         verify(worktime, times(1)).correctionSuggested(any(), any());
+    }
+
+    @Test void scheduledBreakOutsidePresenceMakesConfirmationUnavailableOnFirstLoad() {
+        ZoneId seoul = ZoneId.of("Asia/Seoul");
+        LocalDate past = today.minusDays(1);
+        var realValidation = spy(new ClockService(null, null, null, Clock.fixed(today.atStartOfDay(seoul).toInstant(), seoul)));
+        var attendance = new AttendanceController(null, realValidation, commands, worktime);
+        when(commands.today()).thenReturn(today);
+        when(worktime.correctionSuggested(actor, past)).thenReturn(true);
+
+        var schedule = new ScheduleData.Day(past.getDayOfWeek().getValue(), true, LocalTime.of(9, 0), LocalTime.of(18, 0),
+                List.of(new ScheduleData.Break(LocalTime.NOON, LocalTime.of(13, 0))));
+        var in = new ClockData.Event(UUID.randomUUID(), "IN", past.atTime(9, 0).atZone(seoul).toInstant(), past);
+        var earlyOut = new ClockData.Event(UUID.randomUUID(), "OUT", past.atTime(11, 30).atZone(seoul).toInstant(), past);
+        var events = List.of(in, earlyOut);
+        var early = new ClockData.DaySnapshot(actor.employeeId(), past, events, schedule, UUID.randomUUID(), UUID.randomUUID(),
+                "WORKDAY", 2, 0, null, "snapshot-fingerprint", events);
+        doReturn(early).when(realValidation).day(actor, past);
+
+        var model = attendance.history(actor, past).getModel();
+        assertEquals(false, model.get("canConfirm"));
+        assertEquals(true, model.get("correctionSuggested"));
+
+        var out = new ClockData.Event(UUID.randomUUID(), "OUT", past.atTime(13, 0).atZone(seoul).toInstant(), past);
+        var coveredEvents = List.of(in, out);
+        var covered = new ClockData.DaySnapshot(actor.employeeId(), past, coveredEvents, schedule, early.scheduleVersionId(), early.calendarVersionId(),
+                "WORKDAY", 2, 0, null, "snapshot-fingerprint", coveredEvents);
+        doReturn(covered).when(realValidation).day(actor, past);
+        var coveredModel = attendance.history(actor, past).getModel();
+        assertEquals(true, coveredModel.get("canConfirm"));
+        assertEquals(false, coveredModel.get("correctionSuggested"));
     }
 
     private ClockData.DaySnapshot day(LocalDate selected) {

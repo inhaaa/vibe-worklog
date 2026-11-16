@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import './RequestDetail.css';
 import './RequestWorkspace.css';
 import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
+import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
@@ -22,7 +23,6 @@ import {
   fmtTime,
   fmtDateTime,
   duration,
-  secondsInput,
 } from '../ui';
 import type {
   EmployeeChoice,
@@ -346,6 +346,9 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
 }
 function Correction({ model: m }: { model: CorrectionModel }) {
   const f = m.form;
+  const timeFieldId = useId();
+  const [requestedInAt, setRequestedInAt] = useState(f.requestedInAt);
+  const [requestedOutAt, setRequestedOutAt] = useState(f.requestedOutAt);
   const [breaks, setBreaks] = useState(f.actualBreaks ?? '');
   const [dirty, setDirty] = useState(Boolean(f.reason));
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
@@ -389,11 +392,15 @@ function Correction({ model: m }: { model: CorrectionModel }) {
             <SelectField label="출근 변경" name="inAction" value={f.inAction}>
               {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
             </SelectField>
-            <Field label="출근 시각" name="requestedInAt" type="datetime-local" step="1" value={secondsInput(f.requestedInAt)} />
+            <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
+              <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
+            </FormRow>
             <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
               {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
             </SelectField>
-            <Field label="퇴근 시각" name="requestedOutAt" type="datetime-local" step="1" value={secondsInput(f.requestedOutAt)} />
+            <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
+              <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
+            </FormRow>
           </FormTable>
         </section>
         <section className="wl-section">
@@ -1055,9 +1062,9 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
       }));
   const ins = effective.filter(e => e.kind === 'IN'), outs = effective.filter(e => e.kind === 'OUT');
   const canConfirm = d.schedule != null && d.calendarVersionId != null && d.confirmation == null
-    && ins.length === 1 && outs.length === 1
-    && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
-    && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate));
+    && (m.canConfirm ?? (ins.length === 1 && outs.length === 1
+      && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
+      && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate))));
   const needsCorrection = m.correctionSuggested === true && !canConfirm && d.confirmation == null && d.schedule != null && d.calendarVersionId != null;
   return (
     <section className="wl-section">

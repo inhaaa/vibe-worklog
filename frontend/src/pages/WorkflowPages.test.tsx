@@ -396,7 +396,7 @@ describe('WorkflowPages', () => {
     expect(posted.has('breaksConfirmed')).toBe(false);
     expect(posted.get('inAction')).toBe('SET');
     expect(posted.get('outAction')).toBe('KEEP');
-    expect(posted.get('requestedInAt')).toBe('2026-10-26T09:00');
+    expect(posted.get('requestedInAt')).toBe('2026-10-26T09:00:00.123');
     expect(view.getByLabelText('출근 시각').getAttribute('step')).toBe('1');
     for (const label of ['출근 변경', '퇴근 변경']) {
       const options = (view.getByLabelText(label) as HTMLSelectElement).options;
@@ -711,6 +711,19 @@ describe('WorkflowPages', () => {
     expect(await linkOf({ ...broken, confirmation: { id: 'c-1' } })).toBeNull();
     expect(await linkOf({ ...broken, schedule: null })).toBeNull();
     expect(await linkOf({ ...broken, calendarVersionId: null })).toBeNull();
+  });
+  it('실제 기록 구간 밖에 예정 휴게가 있으면 근무 확인 대신 정정을 안내한다', async () => {
+    const events = [
+      { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' },
+      { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T02:30:00.000Z' },
+    ];
+    const view = await render('clock/history', {
+      day: { ...confirmable, events, effectiveEvents: events },
+      eventTimes: {}, confirmationForm, canConfirm: false, correctionSuggested: true,
+    });
+    expect(view.queryByRole('button', { name: '근무 확인' })).toBeNull();
+    expect(view.getByRole('link', { name: '정정 신청' }).getAttribute('href'))
+      .toBe('/me/requests/new?year=2026&kind=ATTENDANCE_CORRECTION&date=2026-10-26');
   });
   it('캘린더·일정 상태를 한국어로 보이고 오늘 카드의 일정은 한 번만 보인다', async () => {
     const text = async (d: unknown) => (await render('clock/history', { day: d, eventTimes: {}, confirmationForm })).container.textContent ?? '';
