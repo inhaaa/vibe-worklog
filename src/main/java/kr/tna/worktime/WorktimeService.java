@@ -76,6 +76,13 @@ public final class WorktimeService {
         });
     }
 
+    /** 근무 확인을 할 수 없는 지난 날 중 정정 신청을 안내할 날. 휴가·휴무·재직 밖·대기 정정이 있는 날은 제외한다. */
+    public boolean correctionSuggested(TnaPrincipal actor,LocalDate date) {
+        if(actor==null)throw OrgException.forbidden();
+        return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());var in=input(actor.tenantId(),employee,date);
+            return employed(employee,date)&&!in.day().pendingCorrection()&&calculator.pending(in.day(),LocalDate.now(clock.withZone(SEOUL)),false,null);});
+    }
+
     public List<EmployeeChoice> employees(TnaPrincipal actor) {
         if(actor==null)throw OrgException.forbidden();
         if(actor.roles().contains("ATTENDANCE_ADMIN"))return administration.read(actor,()->mapper.employees(actor.tenantId()));

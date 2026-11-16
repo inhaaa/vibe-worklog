@@ -275,10 +275,21 @@ class WorktimeServiceIT {
         assertTrue(inside.employed());assertTrue(inside.pending(),"재직 중 계산 전인 날은 계속 확인 전입니다.");
         var month=reports.month(employee,employee.employeeId(),java.time.YearMonth.from(date));
         assertTrue(month.days().stream().filter(d->d.workDate().isBefore(date)).noneMatch(d->d.employed()||d.pending()));
-        assertEquals(month.days().stream().filter(d->d.employed()&&d.pending()).count(),month.summary().pendingDays());
+        assertEquals(month.days().stream().filter(DayView::pending).count(),month.summary().pendingDays());
+        assertTrue(month.summary().pendingDays()>=1,"재직 중 확인 전인 날(오늘 이전의 date)은 세어야 합니다.");
         db.update("UPDATE tna.employee SET joined_on=?,left_on=? WHERE tenant_id=? AND id=?",date.minusYears(1),date.minusDays(2),tenant,employee.employeeId());
         var left=reports.days(manager,employee.employeeId(),date.minusDays(1),date.minusDays(1)).getFirst();
         assertFalse(left.employed());assertFalse(left.pending(),"퇴사 후 근무일도 확인 전이 아닙니다.");
+    }
+    @Test void correctionIsSuggestedOnlyForPastDaysThatCanStillBeCorrected() {
+        assertTrue(reports.correctionSuggested(employee,date.minusDays(1)),"기록 없는 지난 근무일은 정정 안내 대상입니다.");
+        assertFalse(reports.correctionSuggested(employee,date.plusDays(2)),"미래 날짜는 안내하지 않습니다.");
+        var before=clocks.day(employee,date);
+        workflow.submitCorrection(employee,new CorrectionForm(null,date,before.inputRevision(),before.sourceFingerprint(),"KEEP","","SET",date+"T18:00",true,true,date+"T12:00/"+date+"T13:00",null,null,false,"합성 정정 사유",UUID.randomUUID()));
+        assertTrue(reports.correctionSuggested(employee,date.minusDays(1)));
+        assertFalse(reports.correctionSuggested(employee,date),"대기 중인 정정이 있으면 안내하지 않습니다.");
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?",date,tenant,employee.employeeId());
+        assertFalse(reports.correctionSuggested(employee,date.minusDays(1)),"입사 전 날짜는 안내하지 않습니다.");
     }
     private UUID recalculate(){return reports.recalculate(manager,employee.employeeId(),date,date,UUID.randomUUID(),"합성 수동 재집계");}
     private TnaPrincipal member(String name,Set<String> roles) {

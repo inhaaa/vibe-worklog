@@ -684,6 +684,22 @@ describe('WorkflowPages', () => {
     expect(view2.container.textContent).toContain('정정 반영 기록');
     expect(view2.container.textContent).toMatch(/출근 · .*퇴근 · /);
   });
+  it('정정 신청 링크는 서버의 정정 안내 값을 따르고 확인할 수 있는 날에는 보이지 않는다', async () => {
+    const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };
+    const linkOf = async (d: unknown, correctionSuggested: boolean | null = true) =>
+      (await render('clock/history', { day: d, correctionSuggested, eventTimes: {}, confirmationForm })).container.querySelector('a[href^="/me/requests/new"]');
+    const withEvents = (events: unknown[]) => ({ ...confirmable, events, effectiveEvents: events });
+    const broken = withEvents([IN, { ...IN, id: 'in-2' }, OUT]);
+    expect(((await linkOf(broken)) as HTMLAnchorElement | null)?.getAttribute('href'))
+      .toBe('/me/requests/new?year=2026&kind=ATTENDANCE_CORRECTION&date=2026-10-26');
+    expect(await linkOf(withEvents([]))).toBeTruthy();
+    expect(await linkOf(broken, false)).toBeNull();
+    expect(await linkOf(broken, null)).toBeNull();
+    expect(await linkOf(confirmable)).toBeNull();
+    expect(await linkOf({ ...broken, confirmation: { id: 'c-1' } })).toBeNull();
+    expect(await linkOf({ ...broken, schedule: null })).toBeNull();
+    expect(await linkOf({ ...broken, calendarVersionId: null })).toBeNull();
+  });
   it('캘린더·일정 상태를 한국어로 보이고 오늘 카드의 일정은 한 번만 보인다', async () => {
     const text = async (d: unknown) => (await render('clock/history', { day: d, eventTimes: {}, confirmationForm })).container.textContent ?? '';
     const holiday = await text({ ...confirmable, dayKind: 'HOLIDAY' });

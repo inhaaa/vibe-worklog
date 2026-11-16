@@ -44,6 +44,9 @@ public class AttendanceController {
                 .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
         page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
                 .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
+        var effective=d.effectiveEvents()!=null?d.effectiveEvents():d.events();
+        boolean past=d.workDate().isBefore(today)||isToday&&effective.stream().anyMatch(e->"OUT".equals(e.kind()));
+        page.addObject("correctionSuggested",d.confirmation()==null&&past&&worktime.correctionSuggested(actor,d.workDate()));
         if(isToday)page.addObject("inCommand",UUID.randomUUID()).addObject("outCommand",UUID.randomUUID());
         return page;
     }

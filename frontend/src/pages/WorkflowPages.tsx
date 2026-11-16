@@ -1054,6 +1054,7 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
     && ins.length === 1 && outs.length === 1
     && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
     && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate));
+  const needsCorrection = m.correctionSuggested === true && !canConfirm && d.confirmation == null && d.schedule != null && d.calendarVersionId != null;
   return (
     <section className="wl-section">
       {d.schedule == null ? <p className="notice">근무 일정 미배정</p> : showSchedule && <p className="t-muted">{scheduleLine(d)}</p>}
@@ -1070,6 +1071,9 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
         <p className="notice">
           {m.actualWorkMillis != null ? `근무 확인 완료 · 실근로 ${duration(m.actualWorkMillis)}` : '근무 확인 완료 · 실근로는 담당자 재집계 후 표시됩니다.'}
         </p>
+      )}
+      {needsCorrection && (
+        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={`/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`}>정정 신청</a></p>
       )}
       {canConfirm && (
         <Form action="/me/work-confirmations" method="post" className="wl-form">

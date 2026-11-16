@@ -102,6 +102,20 @@ class AttendanceNavigationTest {
         verify(worktime, never()).days(any(), any(), any(), any());
     }
 
+    @Test void correctionSuggestionComesFromTheServerOnlyForUnconfirmedPastDays() {
+        when(commands.today()).thenReturn(today);
+        var past = today.minusDays(1);
+        when(clocks.day(actor, past)).thenReturn(day(past));
+        when(worktime.correctionSuggested(actor, past)).thenReturn(true);
+        assertEquals(true, controller.history(actor, past).getModel().get("correctionSuggested"));
+        verify(worktime).correctionSuggested(actor, past);
+        when(clocks.day(actor, today)).thenReturn(day(today));
+        assertEquals(false, controller.history(actor, today).getModel().get("correctionSuggested"));
+        when(clocks.day(actor, past)).thenReturn(confirmed(day(past)));
+        assertEquals(false, controller.history(actor, past).getModel().get("correctionSuggested"));
+        verify(worktime, times(1)).correctionSuggested(any(), any());
+    }
+
     private ClockData.DaySnapshot day(LocalDate selected) {
         return new ClockData.DaySnapshot(actor.employeeId(), selected, List.of(), null, null, null, "UNKNOWN", 4, 2, null, "snapshot-fingerprint", List.of());
     }

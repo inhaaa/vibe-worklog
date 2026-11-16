@@ -139,6 +139,7 @@ export interface ConfirmationForm {
 export interface ClockModel {
   today?: string;
   isToday?: boolean;
+  correctionSuggested?: boolean;
   inCommand?: string;
   outCommand?: string;
   day: DaySnapshot;
