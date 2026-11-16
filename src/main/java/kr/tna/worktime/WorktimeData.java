@@ -20,7 +20,7 @@ public final class WorktimeData {
     public record AssessmentReview(UUID id,UUID employeeId,int revision,LocalDate validFrom,LocalDate validTo,boolean generalRuleReviewed,String basis,Instant createdAt) { }
     public record DayView(UUID id,UUID runId,UUID employeeId,String employeeNo,String employeeName,
             LocalDate workDate,long resultRevision,String ruleVersion,Instant calculatedAt,String sourceFingerprint,
-            boolean current,WorktimeCalculator.DayResult result,boolean pending,int approvedLeaveDays) { }
+            boolean current,WorktimeCalculator.DayResult result,boolean pending,int approvedLeaveDays,boolean employed) { }
     public record RunEvidence(UUID id,UUID requestedBy,LocalDate fromDate,LocalDate toDate,
             LocalDate expandedFrom,LocalDate expandedTo,String engineVersion,String status,Instant startedAt,Instant finishedAt) { }
     public record PolicyEvidence(UUID id,int revision,LocalDate validFrom,LocalDate validTo,boolean mondayWeekReviewed) { }

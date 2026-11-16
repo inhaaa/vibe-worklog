@@ -510,19 +510,21 @@ function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
+  const away = (day: DayView) => day.employed === false;
   const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null) =>
     sheetColumn<DayView>({ colId, headerName, minWidth: 120, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
       valueGetter: ({ data }) => (data ? shown(data, pick(data)) : null),
-      getQuickFilterText: ({ data }) => (data ? duration(shown(data, pick(data))) : '') },
-      day => duration(shown(day, pick(day))));
+      getQuickFilterText: ({ data }) => (data && !away(data) ? duration(shown(data, pick(data))) : '') },
+      day => (away(day) ? '' : duration(shown(day, pick(day)))));
   const columns = [
     sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 130, pinned: 'left' },
       day => (day.id ? <a href={`/worktime/results/${day.id}`}>{fmtDate(day.workDate)}</a> : fmtDate(day.workDate))),
     timeColumn('actualWorkMillis', '실근로', day => day.result.actualWorkMillis),
     timeColumn('confirmedBreakMillis', '휴게', day => day.result.confirmedBreakMillis),
     timeColumn('over8hMillis', '8시간 초과', day => day.result.over8hMillis),
-    sheetColumn<DayView>({ field: 'approvedLeaveDays', headerName: '휴가', minWidth: 90, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' },
-      day => (day.approvedLeaveDays ? day.approvedLeaveDays : '-')),
+    sheetColumn<DayView>({ field: 'approvedLeaveDays', headerName: '휴가', minWidth: 90, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data && !away(data) ? String(data.approvedLeaveDays) : '') },
+      day => (away(day) ? '' : day.approvedLeaveDays ? day.approvedLeaveDays : '-')),
   ];
   const weekColumns = [
     sheetColumn<PeriodView>({ colId: 'week', headerName: '주간', minWidth: 210, pinned: 'left',

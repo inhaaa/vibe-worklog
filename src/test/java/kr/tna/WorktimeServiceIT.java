@@ -267,6 +267,19 @@ class WorktimeServiceIT {
         assertEquals(month.days().stream().filter(DayView::pending).count(),month.summary().pendingDays());
         assertFalse(month.days().stream().filter(d->d.workDate().equals(date)).findFirst().orElseThrow().pending());
     }
+    @Test void daysOutsideEmploymentAreNotEmployedAndNeverPending() {
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?",date,tenant,employee.employeeId());
+        var before=reports.days(employee,employee.employeeId(),date.minusDays(1),date.minusDays(1)).getFirst();
+        assertFalse(before.employed());assertFalse(before.pending(),"입사 전 근무일은 확인 전이 아닙니다.");
+        var inside=reports.days(employee,employee.employeeId(),date,date).getFirst();
+        assertTrue(inside.employed());assertTrue(inside.pending(),"재직 중 계산 전인 날은 계속 확인 전입니다.");
+        var month=reports.month(employee,employee.employeeId(),java.time.YearMonth.from(date));
+        assertTrue(month.days().stream().filter(d->d.workDate().isBefore(date)).noneMatch(d->d.employed()||d.pending()));
+        assertEquals(month.days().stream().filter(d->d.employed()&&d.pending()).count(),month.summary().pendingDays());
+        db.update("UPDATE tna.employee SET joined_on=?,left_on=? WHERE tenant_id=? AND id=?",date.minusYears(1),date.minusDays(2),tenant,employee.employeeId());
+        var left=reports.days(manager,employee.employeeId(),date.minusDays(1),date.minusDays(1)).getFirst();
+        assertFalse(left.employed());assertFalse(left.pending(),"퇴사 후 근무일도 확인 전이 아닙니다.");
+    }
     private UUID recalculate(){return reports.recalculate(manager,employee.employeeId(),date,date,UUID.randomUUID(),"합성 수동 재집계");}
     private TnaPrincipal member(String name,Set<String> roles) {
         UUID employeeId=UUID.randomUUID(),account=UUID.randomUUID();

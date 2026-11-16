@@ -564,6 +564,23 @@ describe('WorkflowPages', () => {
     expect(changed.textContent).toContain('2026-10-26 09:01:00');
   });
 
+  it('재직 기간 밖 날짜는 값 칸을 비워 둔다', async () => {
+    const days = [
+      { id: null, workDate: '2026-10-19', current: false, pending: false, approvedLeaveDays: 0, employed: false, result },
+      { id: 'result-2', workDate: '2026-10-20', current: true, pending: false, approvedLeaveDays: 0, employed: true,
+        result: { ...result, actualWorkMillis: 28_800_000, confirmedBreakMillis: 3_600_000, over8hMillis: 0 } },
+    ];
+    const period = { current: true, pendingDays: 0, result: { confirmedWorkMillis: 12_000, unconfirmedDays: 1, over40hMillis: null, reasons: [] } };
+    const view = await render('worktime/month', { admin: false, employeeId: employee.id, employees: [],
+      overview: { month: '2026-10', days, weeks: [], summary: period } });
+    const grid = view.getByRole('grid', { name: '일별 근로시간' });
+    const cell = (row: string, col: string) => grid.querySelector(`[row-id="${row}"] [col-id="${col}"]`)?.textContent;
+    expect(cell('2026-10-19', 'workDate')).toBe('2026-10-19');
+    for (const col of ['actualWorkMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']) expect(cell('2026-10-19', col)).toBe('');
+    expect(cell('2026-10-20', 'actualWorkMillis')).toBe('8:00:00');
+    expect(cell('2026-10-20', 'approvedLeaveDays')).toBe('-');
+  });
+
   it('일별 실근로는 표시 문자열이 아닌 밀리초 값으로 정렬한다', async () => {
     const days = [null, 0, 36_000_000, 7_200_000].map((actualWorkMillis, index) => ({
       id: null, workDate: `2026-10-${20 + index}`, current: true, pending: false, approvedLeaveDays: 0,

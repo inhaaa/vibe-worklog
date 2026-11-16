@@ -114,6 +114,6 @@ class AttendanceNavigationTest {
         var result = new kr.tna.worktime.WorktimeCalculator.DayResult(date, kr.tna.worktime.WorktimeCalculator.Status.CALCULATED,
                 null, null, actual, null, null, null, null, null, null, 0, 4, 2, Set.of());
         return new kr.tna.worktime.WorktimeData.DayView(UUID.randomUUID(), UUID.randomUUID(), actor.employeeId(), "E001", "직원",
-                date, 1, "CALC-1", Instant.EPOCH, "a".repeat(64), current, result, false, 0);
+                date, 1, "CALC-1", Instant.EPOCH, "a".repeat(64), current, result, false, 0, true);
     }
 }

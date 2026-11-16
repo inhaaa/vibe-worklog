@@ -229,6 +229,7 @@ export interface DayView {
   current: boolean;
   pending: boolean;
   approvedLeaveDays: number;
+  employed: boolean;
   result: DayResult;
 }
 export interface PeriodResult {

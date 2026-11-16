@@ -67,8 +67,9 @@ public final class WorktimeService {
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
+                boolean employed=employed(person,stored.workDate());
                 return new ResultDetail(storedDay(person,stored,result,currentSource,
-                        calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays()),stored.id().equals(latest.id()),latest.id(),run,
+                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),stored.id().equals(latest.id()),latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
@@ -278,27 +279,28 @@ public final class WorktimeService {
         LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            Input current=input(tenant,employee,date);var r=stored.get(date);int leave=current.day().approvedLeaveDays();
+            Input current=input(tenant,employee,date);var r=stored.get(date);int leave=current.day().approvedLeaveDays();boolean employed=employed(employee,date);
             if(r==null) {
                 var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,leave,
                         current.clock().inputRevision(),current.clock().reviewRevision(),Set.of("NOT_CALCULATED","LEGAL_OVERTIME_UNDETERMINED"));
                 days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing,
-                        calculator.pending(current.day(),today,false,null),leave));
+                        employed&&calculator.pending(current.day(),today,false,null),leave,employed));
             }else {
                 var result=storedResult(r);
                 boolean matches=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())&&r.sourceFingerprint().equals(current.source());
-                days.add(storedDay(employee,r,result,matches,calculator.pending(current.day(),today,matches,result.actualWorkMillis()),leave));
+                days.add(storedDay(employee,r,result,matches,employed&&calculator.pending(current.day(),today,matches,result.actualWorkMillis()),leave,employed));
             }
         }return List.copyOf(days);
     }
+    private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}
     private DayResult storedResult(WorktimeMapper.ResultRow r) {
         return new DayResult(r.workDate(),Status.valueOf(r.status()),r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),r.confirmedBreakMillis(),
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
-                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays);
+                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,employed);
     }
     private FrozenEvidence frozenEvidence(String value,UUID employeeId,LocalDate date) {
         try {
