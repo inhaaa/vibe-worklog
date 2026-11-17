@@ -223,6 +223,24 @@ class ProfileCompanyWebIT {
     }
 
     @Test
+    void companyRequestScopeFiltersBeforePaginationAndRejectsUnknownScope() throws Exception {
+        grantRepresentative();
+        UUID assignment = binding(employee);
+        UUID leave = request(assignment, today, today, "PENDING");
+        mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "LEAVE"))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/id", leave.toString()));
+        var correction = mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "CORRECTION")).andExpect(status().isOk()).andReturn();
+        assertEquals(0, ReactPageAssertions.envelope(correction).at("/data/companyRequests/requests").size());
+        mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "OTHER")).andExpect(status().isBadRequest());
+        mvc.perform(get("/admin/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "LEAVE")).andExpect(status().isForbidden());
+    }
+
+    @Test
     void invalidCompanyFiltersAreRejected() throws Exception {
         grantRepresentative();
         mvc.perform(get("/company/attendance").with(as(representative)).accept(PAGE_JSON)

@@ -3,6 +3,7 @@ package kr.tna.workspace;
 import java.time.YearMonth;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.request.RequestScope;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -37,8 +38,8 @@ public final class ProfileCompanyController {
     @GetMapping("/company/requests")
     ModelAndView requests(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required = false) Integer year,
             @RequestParam(required = false) UUID organizationId, @RequestParam(defaultValue = "") String status,
-            @RequestParam(defaultValue = "0") int page) {
+            @RequestParam(defaultValue = "0") int page, @RequestParam(required = false) String scope) {
         return new ModelAndView("company/requests").addObject("companyRequests",
-                queries.requests(actor, year, organizationId, status, page));
+                queries.requests(actor, year, organizationId, status, page, RequestScope.parse(scope)));
     }
 }

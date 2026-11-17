@@ -99,7 +99,9 @@ public final class LeaveWorkflowService {
     public ApprovalPreview approvalPreview(TnaPrincipal actor) {
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());return routes.resolve(actor,actor.employeeId(),today()).preview();});
     }
-    public List<RequestView> adminRequests(TnaPrincipal actor) {return administration.read(actor,()->mapper.requests(actor.tenantId(),actor.accountId(),actor.employeeId(),"ALL"));}
+    public List<RequestView> adminRequests(TnaPrincipal actor, RequestScope scope) {
+        return administration.read(actor, () -> mapper.adminRequests(actor.tenantId(), scope == null ? "" : scope.name()));
+    }
     public RequestDetail get(TnaPrincipal actor,UUID requestId) {
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());var r=request(actor.tenantId(),requestId);
             if(r.authorAccountId().equals(actor.accountId())||r.targetEmployeeId().equals(actor.employeeId()))return detail(actor.tenantId(),r);

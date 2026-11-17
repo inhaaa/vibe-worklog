@@ -8,6 +8,7 @@ import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
 import { ApprovalStamps } from '../components/ApprovalStamps';
 import { Notice } from '../components/Notice';
 import {
@@ -113,12 +114,17 @@ function storedIntervals(value: string | null): string {
   }
 }
 
+const requestName = (value: string, names: Record<string, string>) => names[value] ?? value;
+const requestKindName = (kind: string) => requestName(kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
+const requestStateName = (status: string) => requestName(status, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
+const requestEffectName = (effect: string) => requestName(effect, { EFFECTIVE: '반영', CANCELED: '취소', SUPERSEDED: '대체', NONE: '미반영' });
+
 function RequestRows({ requests, pagination }: { requests: RequestView[]; pagination?: React.ReactNode }) {
   const columns = [
     sheetColumn<RequestView>({ field: 'targetEmployeeName', headerName: '대상', minWidth: 170, pinned: 'left' }, request => request.targetEmployeeName),
-    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170 }, request => <a href={`/requests/${request.id}`}>{request.kind}</a>),
+    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170, valueGetter: ({ data }) => data && requestKindName(data.kind) }, request => <a href={`/requests/${request.id}`}>{requestKindName(request.kind)}</a>),
     sheetColumn<RequestView>({ field: 'fromDate', headerName: '기간', minWidth: 230, valueGetter: ({ data }) => data ? `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}` : '' }, request => `${fmtDate(request.fromDate)} ~ ${fmtDate(request.toDate)}`),
-    sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${data.status} / ${data.effectStatus}` : '' }, request => `${request.status} / ${request.effectStatus}`),
+    sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${requestStateName(data.status)} / ${requestEffectName(data.effectStatus)}` : '' }, request => `${requestStateName(request.status)} / ${requestEffectName(request.effectStatus)}`),
     sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.approverName),
   ];
   return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." pagination={pagination} />;
@@ -428,7 +434,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
   return (
     <>
       <PageHeader title="기초 잔여 관리" actions={<>
-        <a className="t-btn" href="/admin/requests">고객사 신청·예외 현황</a>
+        <a className="t-btn" href="/admin/requests?scope=LEAVE">휴가 신청 현황</a>
         <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
       </>} />
       <Form action="/admin/leave-balances" method="get" className="wl-querybar">
@@ -1168,12 +1174,16 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/day':
       content = <AttendanceRecord data={data} />;
       break;
+    case 'clock/period':
+      return <div className="t-legacy-page content admin-shell"><AttendancePeriodPage model={data.attendancePeriod as AttendancePeriod}
+        error={typeof data.error === 'string' ? data.error : undefined} /></div>;
     case 'clock/history': {
       const clock = data as unknown as ClockModel;
       const todayCard = clock.isToday && clock.day.workDate === data.today;
       content = (
         <>
-          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요." />
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요."
+            actions={<a className="t-btn" href="/me/attendance?view=period">기간 조회</a>} />
           {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => {

@@ -33,7 +33,34 @@ public class AttendanceController {
     @PostMapping("/admin/networks/{id}/close") ModelAndView closeNetwork(@AuthenticationPrincipal TnaPrincipal actor,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->settings.closeNetwork(actor,id,expectedVersion,reason,commandId),"/admin/networks",()->networkPage(actor,null));}
     @GetMapping("/admin/calendar") ModelAndView calendar(@AuthenticationPrincipal TnaPrincipal actor){return calendarPage(actor,null);}
     @PostMapping("/admin/calendar/versions") ModelAndView calendarVersion(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("form") CalendarForm form,BindingResult b){check(b);return submit(()->settings.calendar(actor,form),"/admin/calendar",()->calendarPage(actor,form));}
-    @GetMapping("/me/attendance") ModelAndView history(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return dayPage(actor,date==null?commands.today():date,null);}
+    @GetMapping("/me/attendance")
+    ModelAndView attendance(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required=false) String view,
+            @RequestParam(required=false) @DateTimeFormat(pattern="uuuu-MM-dd") LocalDate from,
+            @RequestParam(required=false) @DateTimeFormat(pattern="uuuu-MM-dd") LocalDate to,
+            @RequestParam(required=false) String missingOnly) {
+        if (view == null && from == null && to == null && missingOnly == null) return history(actor, date);
+        if (!"period".equals(view) || date != null || (from == null) != (to == null)
+                || (missingOnly != null && !"true".equals(missingOnly))) {
+            throw new OrgException(400, "조회 방식과 시작일·종료일을 확인해 주세요.");
+        }
+        var today = commands.today();
+        boolean missing = "true".equals(missingOnly);
+        var page = new ModelAndView("clock/period");
+        AttendanceHistory.Range range;
+        try {
+            range = AttendanceHistory.Range.of(today, from, to);
+        } catch (OrgException invalid) {
+            page.setStatus(HttpStatusCode.valueOf(422));
+            return page.addObject("attendancePeriod", new AttendanceHistory.Period(today, from, to, missing, List.of()))
+                    .addObject("error", invalid.getMessage());
+        }
+        var rows = worktime.attendanceHistory(actor, range);
+        if (missing) rows = rows.stream().filter(row -> row.recordStatus() == AttendanceHistory.RecordStatus.MISSING).toList();
+        return page.addObject("attendancePeriod", new AttendanceHistory.Period(today, range.from(), range.to(), missing, rows));
+    }
+    ModelAndView history(TnaPrincipal actor, LocalDate date) {return dayPage(actor,date==null?commands.today():date,null);}
     @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,@RequestParam(required=false) String returnTo,HttpServletRequest request){
         if(!"home".equals(returnTo)){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/attendance");}
         try{clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/home");}catch(OrgException e){return redirect("/me/home?clockError="+e.status());}

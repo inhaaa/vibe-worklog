@@ -1,5 +1,7 @@
 package kr.tna.workspace;
 
+import kr.tna.request.RequestScope;
+
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -78,7 +80,7 @@ public final class ProfileCompanyQueries {
     }
 
     public CompanyRequests requests(TnaPrincipal actor, Integer requestedYear, UUID organizationId,
-            String requestedStatus, int page) {
+            String requestedStatus, int page, RequestScope scope) {
         int offset = offset(page);
         String status = requestedStatus == null ? "" : requestedStatus.strip();
         if (!Set.of("", "PENDING", "APPROVED", "REJECTED", "WITHDRAWN").contains(status)) {
@@ -90,8 +92,8 @@ public final class ProfileCompanyQueries {
             year(selectedYear);
             requireOrganization(actor.tenantId(), organizationId);
             var found = mapper.requests(actor.tenantId(), today, organizationId, status,
-                    LocalDate.of(selectedYear, 1, 1), LocalDate.of(selectedYear, 12, 31), offset);
-            return new CompanyRequests(selectedYear, clock.instant(), organizationId, status, page, found.size() > 50,
+                    LocalDate.of(selectedYear, 1, 1), LocalDate.of(selectedYear, 12, 31), offset, scope == null ? "" : scope.name());
+            return new CompanyRequests(selectedYear, clock.instant(), organizationId, status, page, found.size() > 50, scope,
                     List.copyOf(mapper.organizations(actor.tenantId())), List.copyOf(found.subList(0, Math.min(50, found.size()))));
         });
     }

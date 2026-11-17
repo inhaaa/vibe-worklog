@@ -396,8 +396,8 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = await show();
-    fireEvent.click(view.getByRole('button', { name: '인사·조직' }));
-    fireEvent.click(view.getByRole('button', { name: '조직·사원' }));
+    fireEvent.click(view.getByRole('button', { name: '인사관리' }));
+    fireEvent.click(view.getByRole('button', { name: '사원' }));
     fireEvent.click(view.getByRole('link', { name: '인사기본' }));
     await view.findByLabelText('이름 1', {}, { timeout: 5000 });
     await changeCell(view, '이름 1', '직원 편집');

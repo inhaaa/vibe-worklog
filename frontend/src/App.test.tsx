@@ -145,6 +145,8 @@ function assertPageRequest(options: RequestInit | undefined) {
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/initial');
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value: function(this: HTMLDialogElement) { this.open = true; } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value: function(this: HTMLDialogElement) { this.open = false; } });
 });
 afterEach(() => {
   cleanup();
@@ -211,6 +213,28 @@ describe('React 앱 탐색과 제출', () => {
     await screen.findByRole('heading', { name: '신청 상세' });
     expect(screen.getByRole('navigation', { name: '현재 위치' }).textContent).toContain('회사 신청 현황');
   });
+  it('정정 신청 상세 모달을 열어도 배경에 정정 현황 메뉴와 경로를 유지한다', async () => {
+    const listPath = '/admin/requests?scope=CORRECTION';
+    const detailPath = '/requests/r-correction';
+    const title = '출퇴근 정정 현황';
+    const request = { id: 'r-correction', targetEmployeeName: '대상', kind: 'ATTENDANCE_CORRECTION',
+      fromDate: '2026-11-02', toDate: '2026-11-02', status: 'APPROVED', effectStatus: 'EFFECTIVE',
+      quantityDays: 0, approverName: '담당', reason: '합성', version: 0 };
+    const context = { workspacePrincipal: employees.data.workspacePrincipal, workspaceEmployee: employees.data.workspaceEmployee };
+    const detail: PageEnvelope = { page: 'request/detail', csrf, data: {
+      ...context, request, detail: { days: [], history: [], correction: null }, candidates: [], admin: true, pageCommand: 'cmd',
+    } };
+    window.history.replaceState(null, '', listPath);
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(detail, detailPath)));
+    const view = render(<App initial={{ page: 'request/list', csrf, data: { ...context, title, requestScope: 'CORRECTION', requests: [request] } }} />);
+
+    fireEvent.click(await screen.findByRole('link', { name: '출퇴근·휴게 정정' }));
+    await screen.findByRole('dialog');
+    expect(location.pathname).toBe(detailPath);
+    expect(view.container.querySelector(`#workspace-menu a[href="${listPath}"]`)?.getAttribute('aria-current')).toBe('page');
+    expect(view.container.querySelector('.t-location-breadcrumbs [aria-current="page"]')?.textContent).toBe(title);
+  });
+
   it('인사기본의 입사 예정 관리는 독립 페이지로 연다', async () => {
     const path = '/admin/employees/onboarding';
     const result: PageEnvelope = { page: 'org/onboarding', csrf, data: {
@@ -337,7 +361,10 @@ describe('React 앱 탐색과 제출', () => {
     fireEvent.click(screen.getByRole('button', { name: '근태 운영' }));
     fireEvent.click(screen.getByRole('button', { name: '회사 현황' }));
     expect(screen.getByRole('link', { name: '회사 근무현황' }).getAttribute('href')).toBe('/company/attendance');
-    expect(screen.getByRole('link', { name: '회사 신청 현황' }).getAttribute('href')).toBe('/company/requests');
+    expect(screen.getByRole('link', { name: '회사 정정 현황' }).getAttribute('href')).toBe('/company/requests?scope=CORRECTION');
+    fireEvent.click(screen.getByRole('button', { name: '휴가관리' }));
+    fireEvent.click(screen.getByRole('button', { name: '신청·연차' }));
+    expect(screen.getByRole('link', { name: '회사 휴가 신청 현황' }).getAttribute('href')).toBe('/company/requests?scope=LEAVE');
     expect(screen.queryByRole('link', { name: '권한 관리', hidden: true })).toBeNull();
     expect(screen.queryByRole('link', { name: '결재 대기', hidden: true })).toBeNull();
     expect(view.container.querySelector('.t-workspace-name small')?.textContent).toBe('공통 · 대표');

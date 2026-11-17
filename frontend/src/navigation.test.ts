@@ -10,27 +10,29 @@ describe('업무 메뉴 계약', () => {
     expect(getNavigation(['EMPLOYEE'], 'ATTENDANCE_ADMIN').map(group => group.label)).toEqual(['내 업무']);
     expect(getNavigation([], 'ATTENDANCE_ADMIN')).toEqual([]);
   });
-  it('5개 대표메뉴와 승인된 26개 실제 경로를 3단계로 제공한다', () => {
-    expect(getNavigation(allRoles).map(group => group.label)).toEqual(['내 업무', '결재', '인사·조직', '근태 운영', '시스템 설정']);
+  it('업무별 메뉴와 승인된 실제 경로를 3단계로 제공한다', () => {
+    expect(getNavigation(allRoles).map(group => group.label)).toEqual(['내 업무', '결재', '인사관리', '조직관리', '근태 운영', '휴가관리', '시스템 설정']);
     expect(links(allRoles).map(item => item.href)).toEqual([
-      '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests',
+      '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
       '/approvals', '/approvals/completed',
-      '/admin/employees', '/admin/organizations', '/admin/organization-heads', '/company/organizations', '/admin/access',
-      '/company/attendance', '/company/requests', '/admin/attendance', '/admin/requests', '/admin/leave-balances', '/admin/schedules', '/admin/calendar',
-      '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/attendance-types', '/admin/common-codes', '/admin/work-policies', '/admin/networks', '/admin/audit',
+      '/admin/employees', '/admin/organizations', '/admin/organization-heads', '/company/organizations',
+      '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/attendance',
+      '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
+      '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
+      '/admin/access', '/admin/common-codes', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);
-    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(26);
-    expect(links(allRoles).some(item => item.href.includes('?') || item.href === '/me/today')).toBe(false);
+    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(30);
+    expect(links(allRoles).some(item => item.href === '/me/today')).toBe(false);
   });
 
   it('일반 사원은 본인 업무만 보고 허용 자식이 없는 부모는 제거한다', () => {
     expect(getNavigation(['EMPLOYEE']).map(group => group.label)).toEqual(['내 업무']);
-    expect(links(['EMPLOYEE'])).toHaveLength(5);
+    expect(links(['EMPLOYEE'])).toHaveLength(7);
     expect(getNavigation([])).toEqual([]);
   });
 
   it('대표와 결재 담당의 독립 역할을 기존 서버 권한대로 유지한다', () => {
-    expect(links(['COMPANY_REPRESENTATIVE']).map(item => item.href)).toEqual(['/company/organizations', '/company/attendance', '/company/requests']);
+    expect(links(['COMPANY_REPRESENTATIVE']).map(item => item.href)).toEqual(['/company/organizations', '/company/attendance', '/company/requests?scope=CORRECTION', '/company/requests?scope=LEAVE']);
     expect(links(['APPROVER']).map(item => item.href)).toEqual(['/approvals', '/approvals/completed']);
   });
 
@@ -57,8 +59,8 @@ describe('업무 메뉴 계약', () => {
     expect(getNavigationContext('request/detail', '/requests/r-1', { ownRequest: true, request: { status: 'REJECTED' } })?.href).toBe('/me/requests');
     expect(getNavigationContext('request/detail', '/requests/r-1', { employeeHeader: { employeeId: 'e-1' }, request: { targetEmployeeId: 'e-1' }, admin: true })?.href).toBe('/me/requests');
     expect(getNavigationContext('request/detail', '/requests/r-1', { canDecide: true })?.href).toBe('/approvals');
-    expect(getNavigationContext('request/detail', '/requests/r-1', { admin: true })?.href).toBe('/admin/requests');
-    expect(getNavigationContext('request/detail', '/requests/r-1', { navigationFrom: 'https://evil.test/', admin: true })?.href).toBe('/admin/requests');
+    expect(getNavigationContext('request/detail', '/requests/r-1', { admin: true })?.href).toBe('/admin/requests?scope=LEAVE');
+    expect(getNavigationContext('request/detail', '/requests/r-1', { navigationFrom: 'https://evil.test/', admin: true })?.href).toBe('/admin/requests?scope=LEAVE');
   });
 
   it('더 이상 허용되지 않는 진입 메뉴는 사용하지 않는다', () => {
@@ -73,5 +75,45 @@ describe('업무 메뉴 계약', () => {
     expect(getNavigationContext('request/list', '/approvals/completed', { completed: true })?.href).toBe('/approvals/completed');
     expect(getNavigationContext('request/list', '/admin/requests')?.href).toBe('/admin/requests');
     expect(getNavigationContext('error', '/unknown')).toBeUndefined();
+  });
+});
+
+const hrefs = (roles: string[]) => getNavigation(roles)
+  .flatMap(group => group.children.flatMap(section => section.children.map(item => item.href)));
+
+describe('업무별 메뉴', () => {
+  it('직원은 본인 기록에서 정정과 휴가 신청을 각각 찾을 수 있다', () => {
+    expect(hrefs(['EMPLOYEE'])).toEqual(expect.arrayContaining([
+      '/me/attendance', '/me/requests/correction', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
+    ]));
+    expect(getNavigationContext('clock/period', '/me/attendance?view=period')?.itemId).toBe('attendance');
+    expect(getNavigationContext('request/mine', '/me/requests/new?kind=LEAVE_DAY')?.itemId).toBe('new-leave');
+  });
+
+  it('담당자의 휴가·정정 처리와 대표의 읽기 현황을 분리한다', () => {
+    const admin = hrefs(['ATTENDANCE_ADMIN']);
+    expect(admin).toEqual(expect.arrayContaining([
+      '/admin/employees', '/admin/requests?scope=LEAVE', '/admin/requests?scope=CORRECTION', '/admin/access',
+    ]));
+    const representative = hrefs(['COMPANY_REPRESENTATIVE']);
+    expect(representative).toEqual(expect.arrayContaining([
+      '/company/attendance', '/company/requests?scope=LEAVE', '/company/requests?scope=CORRECTION',
+    ]));
+    expect(representative.some(link => link.startsWith('/admin/'))).toBe(false);
+    expect(hrefs(['APPROVER'])).toEqual(['/approvals', '/approvals/completed']);
+  });
+
+  it('관리 목록과 상세의 업무 범위를 유지한다', () => {
+    const leave = '/admin/requests?scope=LEAVE';
+    const correction = '/admin/requests?scope=CORRECTION';
+    expect(getNavigationContext('request/list', leave)?.href).toBe(leave);
+    expect(getNavigationContext('request/list', correction)?.href).toBe(correction);
+    expect(getNavigationContext('request/detail', '/requests/example', {
+      navigationFrom: leave, workspacePrincipal: { roles: ['ATTENDANCE_ADMIN'] }, admin: true,
+      request: { kind: 'CANCEL_LEAVE' },
+    })?.href).toBe(leave);
+    expect(getNavigationContext('request/detail', '/requests/example', {
+      navigationFrom: leave, workspacePrincipal: { roles: ['EMPLOYEE', 'APPROVER'] }, canDecide: true,
+    })?.href).toBe('/approvals');
   });
 });

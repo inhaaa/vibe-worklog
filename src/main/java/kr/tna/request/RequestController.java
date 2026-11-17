@@ -22,7 +22,13 @@ public class RequestController {
     public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock,AnnualRequestService annual){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;this.annual=annual;}
     @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,false,page);}
     @GetMapping("/approvals/completed") ModelAndView completed(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,true,page);}
-    @GetMapping("/admin/requests") ModelAndView adminRequests(@AuthenticationPrincipal TnaPrincipal a){return listing("고객사 신청 현황",flow.adminRequests(a));}
+    @GetMapping("/admin/requests")
+    ModelAndView adminRequests(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required=false) String scope) {
+        var parsed = RequestScope.parse(scope);
+        String title = parsed == null ? "고객사 신청 현황"
+                : parsed == RequestScope.LEAVE ? "휴가 신청 현황" : "출퇴근 정정 현황";
+        return listing(title, flow.adminRequests(actor, parsed)).addObject("requestScope", parsed);
+    }
     @GetMapping("/requests/{id}") ModelAndView detail(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id){return detailPage(a,id);}
     @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b){check(b);return submit(()->flow.submitLeave(a,f),()->minePage(a,f),"/requests/");}
     @GetMapping("/me/requests/correction") ModelAndView correction(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,a.employeeId(),date==null?commands.today():date,false,null);}
