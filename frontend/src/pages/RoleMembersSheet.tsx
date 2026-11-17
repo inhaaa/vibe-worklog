@@ -102,6 +102,13 @@ function MembershipEditor({ model, csrf, reload, actorEmployeeId }: Props) {
     if (problem && !confirming) errorSummary.current?.focus();
   }, [confirming, problem]);
 
+  useEffect(() => {
+    if (!draft.size && !busy) return;
+    const beforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [busy, draft.size]);
+
   function requestAccess() {
     setAccessLost(true);
     setPickerOpen(false);
@@ -211,7 +218,7 @@ function MembershipEditor({ model, csrf, reload, actorEmployeeId }: Props) {
   const confirmTitle = '권한 변경 확인';
   const editBlocked = busy || Boolean(uncertain || problem?.conflict);
   const finish = () => { setReceipt(undefined); reload(); };
-  return <section className="wl-role-members" aria-label="권한별 사원">
+  return <section className="wl-role-members" aria-label="권한별 사원" data-modal-busy={busy ? 'true' : undefined}>
     {!receipt?.affectedSelf && <>
       {refreshRequired && <div className="wl-role-error">
         <p role="status">최신 상태에서 다시 저장할 변경이 없습니다.</p>

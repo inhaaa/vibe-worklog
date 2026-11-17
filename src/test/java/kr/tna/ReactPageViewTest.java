@@ -148,7 +148,7 @@ class ReactPageViewTest {
 
     @Test
     void identityAndCompanyPagesExposeOnlyTheirExplicitSafeModels() throws Exception {
-        var pages = Map.of("workspace/profile", "profile", "org/access-list", "accessRows",
+        var pages = Map.of("workspace/profile", "profile", "org/access-list", "roleDirectory",
                 "company/attendance", "companyAttendance", "company/requests", "companyRequests");
         for (var page : pages.entrySet()) {
             var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);

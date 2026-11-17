@@ -8,7 +8,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
@@ -48,16 +47,6 @@ public final class AccountService {
             requireEmployee(actor.tenantId(), employeeId, false);
             return account(actor.tenantId(), employeeId);
         });
-    }
-
-    public List<AccountAdminMapper.AccessRow> list(TnaPrincipal actor, String query, int page) {
-        int offset = offset(page);
-        String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
-        String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        return commands.read(actor, () -> mapper.directory(actor.tenantId(), search, offset, commands.today()).stream()
-                .map(row -> new AccountAdminMapper.AccessRow(row.employeeId(), row.employeeNo(), row.employeeName(),
-                        row.grantedRoles().isEmpty() ? Set.of() : Set.of(row.grantedRoles().split(",")), row.active()))
-                .toList());
     }
 
     public UUID invite(TnaPrincipal actor, UUID employeeId, InvitationForm form) {

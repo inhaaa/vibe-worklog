@@ -16,10 +16,12 @@ public final class RoleDirectoryService {
     private static final int PAGE_SIZE = 50;
     private final RoleDirectoryMapper mapper;
     private final OrgCommands commands;
+    private final RoleManagementProtection protection;
 
-    public RoleDirectoryService(RoleDirectoryMapper mapper, OrgCommands commands) {
+    public RoleDirectoryService(RoleDirectoryMapper mapper, OrgCommands commands, RoleManagementProtection protection) {
         this.mapper = mapper;
         this.commands = commands;
+        this.protection = protection;
     }
 
     public Directory directory(TnaPrincipal actor, String roleCode, String q, int page) {
@@ -30,7 +32,7 @@ public final class RoleDirectoryService {
         return commands.readShared(actor, () -> {
             var tenant = actor.tenantId();
             var today = commands.today();
-            var protectedIds = protectedEmployeeIds(tenant);
+            var protectedIds = protection.protectedEmployeeIds(tenant);
             Map<String, Long> counts = mapper.roleCounts(tenant).stream()
                     .collect(Collectors.toMap(RoleDirectoryMapper.RoleCount::role, RoleDirectoryMapper.RoleCount::memberCount));
             var roles = Arrays.stream(Role.values())
@@ -53,21 +55,17 @@ public final class RoleDirectoryService {
         return commands.readShared(actor, () -> {
             var tenant = actor.tenantId();
             var today = commands.today();
-            var protectedIds = protectedEmployeeIds(tenant);
+            var protectedIds = protection.protectedEmployeeIds(tenant);
             var rows = mapper.candidates(tenant, role.name(), pattern, today, offset, protectedIds);
             return new Candidates(rows.stream().limit(PAGE_SIZE).map(row -> member(row, true, today, protectedIds)).toList(),
                     page, rows.size() > PAGE_SIZE);
         });
     }
 
-    private Set<UUID> protectedEmployeeIds(UUID tenant) {
-        return Set.of();
-    }
-
     private Member member(EmployeeRow row, boolean roleEditable, LocalDate today, Set<UUID> protectedIds) {
         String restriction = unavailableReason(row, today);
         boolean available = restriction == null;
-        if (protectedIds.contains(row.employeeId())) restriction = "공유 데모 보호";
+        if (protectedIds.contains(row.employeeId())) restriction = RoleManagementProtection.SHARED_DEMO_RESTRICTION;
         return new Member(row.employeeId(), row.employeeNo(), row.employeeName(), row.organizationName(),
                 row.version(), available, roleEditable && restriction == null, restriction);
     }

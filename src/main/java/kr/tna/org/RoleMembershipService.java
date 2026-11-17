@@ -28,11 +28,14 @@ public final class RoleMembershipService {
     private final OrgCommands commands;
     private final EmployeeAdminMapper employees;
     private final AccountAdminMapper accounts;
+    private final RoleManagementProtection protection;
 
-    public RoleMembershipService(OrgCommands commands, EmployeeAdminMapper employees, AccountAdminMapper accounts) {
+    public RoleMembershipService(OrgCommands commands, EmployeeAdminMapper employees, AccountAdminMapper accounts,
+                                 RoleManagementProtection protection) {
         this.commands = commands;
         this.employees = employees;
         this.accounts = accounts;
+        this.protection = protection;
     }
 
     Outcome change(TnaPrincipal actor, String role, Form form) {
@@ -82,6 +85,7 @@ public final class RoleMembershipService {
     private Target target(UUID tenantId, Row row, LocalDate today) {
         Employee employee = employees.get(tenantId, row.employeeId());
         if (employee == null) throw OrgException.notFound();
+        protection.requireMutable(tenantId, employee.id());
         AccountRow account = accounts.account(tenantId, employee.id());
         boolean available = employee.active() && !employee.joinedOn().isAfter(today)
                 && (employee.leftOn() == null || !employee.leftOn().isBefore(today))
