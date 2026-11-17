@@ -20,6 +20,8 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class OrgAdminController {
+    static final String EMPLOYEE_BULK_EDIT_PATH = "/admin/employees/bulk-edit";
+
     private final OrganizationService organizations;
     private final EmployeeService employees;
     private final OrganizationHeadService heads;
@@ -69,6 +71,23 @@ public class OrgAdminController {
 
     @GetMapping("/admin/employees")
     ModelAndView employees(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(required = false) String q, @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) UUID organizationId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) UUID employeeId) {
+        if (q != null || page != null || organizationId != null || status != null) {
+            return employeeList(actor, q == null ? "" : q, page == null ? 0 : page, null,
+                    organizationId, status == null ? "all" : status, employeeId);
+        }
+        if (employeeId != null) {
+            employees.get(actor, employeeId);
+            return new ModelAndView(new RedirectView("/admin/employees/" + employeeId + "/personnel", true));
+        }
+        return new ModelAndView("org/personnel-home");
+    }
+
+    @GetMapping(EMPLOYEE_BULK_EDIT_PATH)
+    ModelAndView employeeBulkEdit(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) UUID organizationId,
             @RequestParam(defaultValue = "all") String status,

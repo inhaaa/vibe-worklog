@@ -507,6 +507,32 @@ class OrgBulkWebIT {
     }
 
     @Test
+    void personnelBulkEditKeepsFiltersAndExistingPostWhileTheOldListStillLoads() throws Exception {
+        var target = member("BULK-ROUTE", Set.of("EMPLOYEE"));
+        String query = "BULK-ROUTE";
+        for (String path : List.of("/admin/employees/bulk-edit", "/admin/employees")) {
+            mvc.perform(authenticated(get(path), manager).param("q", query).param("status", "active")
+                            .param("employeeId", target.employeeId().toString()))
+                    .andExpect(status().isOk()).andExpect(view().name("org/employees"))
+                    .andExpect(ReactPageAssertions.data("/employees/0/id", target.employeeId()))
+                    .andExpect(ReactPageAssertions.data("/selectedEmployee/id", target.employeeId()))
+                    .andExpect(ReactPageAssertions.data("/q", query))
+                    .andExpect(ReactPageAssertions.data("/status", "active"));
+        }
+        var row = employeeRow(target.employeeId(), query, "경로 검증 사원", "UPDATE", 0L);
+        mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(row))
+                        .param("q", query).param("status", "active"))
+                .andExpect(status().isSeeOther())
+                .andExpect(redirectedUrl("/admin/employees/bulk-edit?q=BULK-ROUTE&page=0&saved=&status=active"));
+        mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(row))
+                        .param("q", query).param("status", "active"))
+                .andExpect(status().isConflict()).andExpect(view().name("org/employees"))
+                .andExpect(ReactPageAssertions.data("/q", query))
+                .andExpect(ReactPageAssertions.data("/status", "active"))
+                .andExpect(ReactPageAssertions.data("/employeeSheet/latestRows/0/displayName", "경로 검증 사원"));
+    }
+
+    @Test
     void personnelExportReturnsTheCommittedSelectionOrAllMatchingPagesAndAuditsOnlyAuthorizedDownloads() throws Exception {
         var selected = member("00009", Set.of("EMPLOYEE"));
         database.update("UPDATE tna.employee SET display_name='=2+3' WHERE tenant_id=? AND id=?", tenant, selected.employeeId());

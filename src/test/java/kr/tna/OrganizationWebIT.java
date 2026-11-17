@@ -66,7 +66,7 @@ class OrganizationWebIT {
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(inputAttribute("active", "checked", null));
-        mvc.perform(get("/admin/employees").session(session))
+        mvc.perform(get("/admin/employees/bulk-edit").session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/employees"))
                 .andExpect(inputAttribute("active", "checked", null))
                 .andExpect(ReactPageAssertions.page());

@@ -90,7 +90,7 @@ class EmployeeWorkspaceWebIT {
 
     @Test
     void workspaceUsesRealFirstPageCountsDepartmentsAndExistingRegistrationForm() throws Exception {
-        mvc.perform(get("/admin/employees").session(login("manager@example.test")))
+        mvc.perform(get("/admin/employees/bulk-edit").session(login("manager@example.test")))
                 .andExpect(status().isOk()).andExpect(view().name("org/employees"))
                 .andExpect(model().attribute("employees", hasSize(50)))
                 .andExpect(model().attribute("hasNext", true))

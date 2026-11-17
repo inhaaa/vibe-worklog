@@ -69,9 +69,19 @@ function EmptyDetails({ title }: { title: string }) {
   </div>;
 }
 
-export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDetailsModel; identity: Identity }) {
-  const [tab, setTab] = useState(0), id = useId(), buttons = useRef<(HTMLButtonElement | null)[]>([]);
+export function PersonalDetailsTabs({ model: m, identity, selectedTab, onSelectTab, today, actions, editor }: {
+  model: PersonalDetailsModel; identity: Identity; selectedTab?: number;
+  onSelectTab?: (index: number) => void | boolean; today?: string;
+  actions?: React.ReactNode; editor?: React.ReactNode;
+}) {
+  const [localTab, setLocalTab] = useState(0), id = useId(), buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const tab = selectedTab ?? localTab;
   const f = m.form;
+  function choose(index: number) {
+    if (onSelectTab) return onSelectTab(index) !== false;
+    setLocalTab(index);
+    return true;
+  }
   function move(event: React.KeyboardEvent, index: number) {
     let next = index;
     if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
@@ -79,7 +89,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = tabs.length - 1;
     else return;
-    event.preventDefault(); setTab(next); buttons.current[next]?.focus();
+    event.preventDefault(); if (choose(next)) buttons.current[next]?.focus();
   }
   const entries = m.entries.filter(entry => entry.kind === kinds[tab - 2]);
   return <section className="t-card t-private-personnel" aria-label="상세 인사정보">
@@ -89,7 +99,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
         {tabs.map((label, index) => (
           <button className="t-btn" key={label} type="button" role="tab" id={`${id}-tab-${index}`} aria-controls={`${id}-panel`}
             aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} ref={node => { buttons.current[index] = node; }}
-            onClick={() => setTab(index)} onKeyDown={event => move(event, index)}>
+            onClick={() => choose(index)} onKeyDown={event => move(event, index)}>
             <svg className="t-personnel-tab-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d={tabIcons[label]} /></svg>
             {label}
           </button>
@@ -99,7 +109,9 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
     <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${tab}`} tabIndex={0} className="t-personnel-tabpanel">
       <div className="t-personal-panel-heading"><div><h2>{tabs[tab]}</h2></div>
         {tab > 0 && tab < 6 && <span className="t-personal-count">총 {tab === 1 ? m.appointments.length : entries.length}건</span>}
+        {actions && <div className="t-personnel-tab-actions">{actions}</div>}
       </div>
+      {editor}
       {tab === 0 && <>
         <div className="t-personal-groups">
           <InfoGroup title="신원 정보" icon="identity" values={[
@@ -114,8 +126,8 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
           ]} />
         </div>
       </>}
-      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong>{a.initial && <> <span className="t-tag blue">입사</span></>}</td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
-      {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">{today && a.validFrom > today ? '예정' : '현재'}</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong>{a.initial && <> <span className="t-tag blue">입사</span></>}</td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail?.replace(/^\[worklog:personnel-v1\] /, ''))}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab === 6 && <div className="t-personal-groups">
         <InfoGroup title="주소 정보" icon="address" values={[
           ['우편번호', f.postalCode], ['주소', f.address], ['상세주소', f.addressDetail],

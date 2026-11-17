@@ -2,6 +2,8 @@ package kr.tna.org;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
@@ -77,16 +79,38 @@ public final class EmployeePersonnelService {
 
     public UUID update(TnaPrincipal actor, UUID employeeId, Form form) {
         identityGuard.requireMutable(actor, employeeId);
+        Form checked = validate(form, false);
+        String action = "EMPLOYEE_PERSONNEL_UPDATE";
+        return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
+                fingerprint(action, employeeId, checked.birthDate(), checked.gradeName(), checked.positionName(),
+                        checked.jobName(), checked.employmentStatus(), checked.effectiveFrom(), checked.expectedVersion(),
+                        checked.reason(), checked.photoAction(), checked.photoData()), checked.reason(), () -> {
+                    requireHeader(actor, employeeId, adminPhotoUrl(employeeId));
+                    Stored before = current(actor, employeeId);
+                    checkVersion(checked.expectedVersion(), version(before));
+                    Stored after = next(before, checked);
+                    save(actor, employeeId, after, checked, true);
+                    return new Change(employeeId, audit(before, null, null),
+                            audit(after, checked.employmentStatus(), checked.effectiveFrom()));
+                });
+    }
+
+    private Form validate(Form form, boolean optionalStatus) {
         String grade = optionalName(form.gradeName(), "직급"), position = optionalName(form.positionName(), "직책"),
                 job = optionalName(form.jobName(), "직무");
         if (form.birthDate() != null && (form.birthDate().isAfter(today()) || !validDate(form.birthDate()))) {
             throw OrgException.invalid("생년월일은 오늘 이전의 올바른 날짜로 입력해 주세요.");
         }
-        if (form.effectiveFrom() == null || form.effectiveFrom().isBefore(today()) || !validDate(form.effectiveFrom())) {
-            throw OrgException.invalid("상태 적용일은 오늘 이후의 날짜로 입력해 주세요.");
-        }
-        if (form.employmentStatus() == null || !Set.of("WORKING", "ON_LEAVE", "SUSPENDED", "UNKNOWN").contains(form.employmentStatus())) {
-            throw OrgException.invalid("재직·휴직·정직·상태 미등록 중 하나를 선택해 주세요.");
+        String status = form.employmentStatus();
+        boolean keepStatus = optionalStatus && (status == null || status.isBlank());
+        LocalDate effectiveFrom = keepStatus ? null : form.effectiveFrom();
+        if (!keepStatus) {
+            if (effectiveFrom == null || effectiveFrom.isBefore(today()) || !validDate(effectiveFrom)) {
+                throw OrgException.invalid("상태 적용일은 오늘 이후의 날짜로 입력해 주세요.");
+            }
+            if (status == null || !Set.of("WORKING", "ON_LEAVE", "SUSPENDED", "UNKNOWN").contains(status)) {
+                throw OrgException.invalid("재직·휴직·정직·상태 미등록 중 하나를 선택해 주세요.");
+            }
         }
         if (form.photoAction() == null || !Set.of("KEEP", "REPLACE", "CLEAR").contains(form.photoAction())) {
             throw OrgException.invalid("사진 변경 방법을 확인해 주세요.");
@@ -97,31 +121,64 @@ public final class EmployeePersonnelService {
         if (!"REPLACE".equals(form.photoAction()) && form.photoData() != null && !form.photoData().isEmpty()) {
             throw OrgException.invalid("사진 교체를 선택한 경우에만 새 사진을 입력해 주세요.");
         }
-        String reason = requiredText(form.reason(), 500, "변경 사유");
-        String action = "EMPLOYEE_PERSONNEL_UPDATE";
-        return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
-                fingerprint(action, employeeId, form.birthDate(), grade, position, job, form.employmentStatus(),
-                        form.effectiveFrom(), form.expectedVersion(), reason, form.photoAction(), form.photoData()), reason, () -> {
-                    requireHeader(actor, employeeId, adminPhotoUrl(employeeId));
-                    Stored before = mapper.stored(actor.tenantId(), employeeId);
-                    long version = before == null ? 0 : before.version();
-                    checkVersion(form.expectedVersion(), version);
-                    var photo = switch (form.photoAction()) {
-                        case "REPLACE" -> EmployeePhoto.decode(form.photoData());
-                        case "CLEAR" -> null;
-                        default -> before == null || before.photoBytes() == null ? null
-                                : new EmployeePhoto.Photo(before.photoContentType(), before.photoBytes());
-                    };
-                    var after = new Stored(form.birthDate(), grade, position, job,
-                            photo == null ? null : photo.contentType(), photo == null ? null : photo.bytes(), version + 1);
-                    if (mapper.save(actor.tenantId(), employeeId, after, version, actor.accountId()) != 1) {
-                        throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 인사정보를 확인해 주세요.");
-                    }
-                    mapper.appendStatus(actor.tenantId(), UUID.randomUUID(), employeeId, form.employmentStatus(),
-                            form.effectiveFrom(), after.version(), reason, actor.accountId());
-                    // Private values never become generic audit JSON; only presence and the changed revision do.
-                    return new Change(employeeId, audit(before, null, null), audit(after, form.employmentStatus(), form.effectiveFrom()));
-                });
+        return new Form(form.birthDate(), grade, position, job, keepStatus ? null : status, effectiveFrom,
+                form.expectedVersion(), requiredText(form.reason(), 500, "변경 사유"), form.commandId(),
+                form.photoAction(), form.photoData());
+    }
+
+    Stored current(TnaPrincipal actor, UUID employeeId) {
+        return mapper.stored(actor.tenantId(), employeeId);
+    }
+
+    static long version(Stored stored) {
+        return stored == null ? 0 : stored.version();
+    }
+
+    long saveBasic(TnaPrincipal actor, UUID employeeId, Stored before, Form input) {
+        Form checked = validate(input, true);
+        Stored after = next(before, checked);
+        boolean statusChanged = statusChanged(actor, employeeId, checked);
+        if (!statusChanged && sameBasics(before, after)) return version(before);
+        save(actor, employeeId, after, checked, statusChanged);
+        return after.version();
+    }
+
+    private boolean statusChanged(TnaPrincipal actor, UUID employeeId, Form form) {
+        if (form.employmentStatus() == null) return false;
+        var history = mapper.history(actor.tenantId(), employeeId);
+        if (history.isEmpty()) return !"UNKNOWN".equals(form.employmentStatus()) || !today().equals(form.effectiveFrom());
+        var latest = history.getFirst();
+        LocalDate defaultDate = latest.effectiveFrom().isBefore(today()) ? today() : latest.effectiveFrom();
+        return !latest.employmentStatus().equals(form.employmentStatus()) || !defaultDate.equals(form.effectiveFrom());
+    }
+
+    private static boolean sameBasics(Stored before, Stored after) {
+        return Objects.equals(before == null ? null : before.birthDate(), after.birthDate())
+                && Objects.equals(before == null ? null : before.gradeName(), after.gradeName())
+                && Objects.equals(before == null ? null : before.positionName(), after.positionName())
+                && Objects.equals(before == null ? null : before.jobName(), after.jobName())
+                && Arrays.equals(before == null ? null : before.photoBytes(), after.photoBytes());
+    }
+
+    private static Stored next(Stored before, Form form) {
+        var photo = switch (form.photoAction()) {
+            case "REPLACE" -> EmployeePhoto.decode(form.photoData());
+            case "CLEAR" -> null;
+            default -> before == null || before.photoBytes() == null ? null
+                    : new EmployeePhoto.Photo(before.photoContentType(), before.photoBytes());
+        };
+        return new Stored(form.birthDate(), form.gradeName(), form.positionName(), form.jobName(),
+                photo == null ? null : photo.contentType(), photo == null ? null : photo.bytes(), version(before) + 1);
+    }
+
+    private void save(TnaPrincipal actor, UUID employeeId, Stored after, Form form, boolean appendStatus) {
+        if (mapper.save(actor.tenantId(), employeeId, after, after.version() - 1, actor.accountId()) != 1) {
+            throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 인사정보를 확인해 주세요.");
+        }
+        if (appendStatus) {
+            mapper.appendStatus(actor.tenantId(), UUID.randomUUID(), employeeId, form.employmentStatus(),
+                    form.effectiveFrom(), after.version(), form.reason(), actor.accountId());
+        }
     }
 
     private Header requireHeader(TnaPrincipal actor, UUID employeeId, String photoUrl) {

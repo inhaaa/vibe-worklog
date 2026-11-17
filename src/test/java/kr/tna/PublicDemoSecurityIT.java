@@ -103,6 +103,38 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
     }
 
     @Test
+    void sharedEmployeesRejectAllPersonnelTabWritesAndLegacyAssignmentsWithoutChanges() throws Exception {
+        var session = publicLogin("198.51.100.245");
+        var before = demoState();
+        String today = LocalDate.now(ZoneId.of("Asia/Seoul")).toString();
+        String organizationId = UUID.randomUUID().toString();
+        for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+            String path = "/admin/employees/" + employee;
+            for (String tab : List.of("basic", "appointments", "family", "education", "qualification", "language", "contact")) {
+                var request = post(path + "/personnel/tabs/" + tab).session(session).with(csrf())
+                        .param("reason", "공유 사원 인사정보 보호 검증").param("commandId", UUID.randomUUID().toString());
+                switch (tab) {
+                    case "basic" -> request.param("employeeVersion", "0").param("personnelVersion", "0").param("detailsVersion", "0")
+                            .param("displayName", "변경 차단할 합성 사원").param("joinedOn", "2026-01-01").param("photoAction", "CLEAR");
+                    case "appointments" -> request.param("employeeVersion", "0").param("organizationId", organizationId)
+                            .param("validFrom", today);
+                    case "family" -> request.param("detailsVersion", "0").param("relationship", "CHILD").param("count", "1")
+                            .param("effectiveFrom", today);
+                    case "contact" -> request.param("detailsVersion", "0").param("address", "변경 차단할 합성 주소");
+                    default -> request.param("detailsVersion", "0").param("title", "변경 차단할 합성 이력")
+                            .param("effectiveFrom", today);
+                }
+                publicMvc.perform(request).andExpect(status().isForbidden());
+            }
+            publicMvc.perform(post(path + "/assignments").session(session).with(csrf())
+                            .param("expectedVersion", "0").param("organizationId", organizationId).param("validFrom", today)
+                            .param("reason", "공유 사원 소속 보호 검증").param("commandId", UUID.randomUUID().toString()))
+                    .andExpect(status().isForbidden());
+        }
+        assertEquals(before, demoState());
+    }
+
+    @Test
     void directPersonalServicesRejectAllFiveSharedEmployeesBeforeAnyWrites() throws Exception {
         var session = publicLogin("198.51.100.243");
         var context = (SecurityContext) session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
@@ -284,7 +316,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
 
     private List<List<String>> demoState() {
         List<List<String>> state = new ArrayList<>();
-        for (String table : List.of("employee", "employee_personnel", "employee_employment_status", "employee_personal_details",
+        for (String table : List.of("employee", "employee_assignment", "employee_personnel", "employee_employment_status", "employee_personal_details",
                 "employee_personal_entry", "tenant_account", "role_grant", "account_token", "org_audit_event")) {
             state.add(demoDb().queryForList("SELECT row_to_json(record)::text FROM tna." + table
                     + " record WHERE tenant_id=? ORDER BY row_to_json(record)::text", String.class, LocalDemoLogin.TENANT_ID));

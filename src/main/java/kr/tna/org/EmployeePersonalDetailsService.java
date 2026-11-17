@@ -1,6 +1,7 @@
 package kr.tna.org;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
@@ -42,8 +43,7 @@ public final class EmployeePersonalDetailsService {
         if (personnel.header(actor.tenantId(), employeeId, commands.today(), actor.authenticatedAt(), "") == null) {
             throw OrgException.notFound();
         }
-        Form stored = mapper.stored(actor.tenantId(), employeeId);
-        Form form = copy(stored, stored == null ? 0 : stored.expectedVersion(), "", UUID.randomUUID());
+        Form form = current(actor, employeeId);
         return new View(employeeId, form.expectedVersion(), form, form,
                 mapper.entries(actor.tenantId(), employeeId), mapper.appointments(actor.tenantId(), employeeId),
                 new EntryForm("FAMILY", "", "", commands.today(), null, form.expectedVersion(), "", UUID.randomUUID()));
@@ -52,6 +52,17 @@ public final class EmployeePersonalDetailsService {
     public UUID update(TnaPrincipal actor, UUID employeeId, Form form) {
         identityGuard.requireMutable(actor, employeeId);
         requireAdminRole(actor);
+        Form checked = validate(form);
+        return commands.execute(actor, checked.commandId(), "EMPLOYEE_PERSONAL_DETAILS_UPDATE", "EMPLOYEE",
+                fingerprint(employeeId, checked), checked.reason(), () -> {
+                    View current = load(actor, employeeId);
+                    checkVersion(checked.expectedVersion(), current.version());
+                    save(actor, employeeId, checked, current.version());
+                    return new Change(employeeId, new Audit(current.version(), "BASIC"), new Audit(current.version() + 1, "BASIC"));
+                });
+    }
+
+    private Form validate(Form form) {
         var checked = new Form(choice(form.admissionType(), Set.of("UNKNOWN", "NEW", "EXPERIENCED", "TRANSFER")),
                 form.recognizedMonths(), date(form.groupJoinedOn()), text(form.englishName(), 120),
                 choice(form.maritalStatus(), Set.of("UNKNOWN", "YES", "NO")), date(form.marriedOn()),
@@ -67,13 +78,45 @@ public final class EmployeePersonalDetailsService {
         if (checked.marriedOn() != null && (!"YES".equals(checked.maritalStatus()) || checked.marriedOn().isAfter(commands.today()))) {
             throw OrgException.invalid("결혼일자는 기혼인 경우 오늘 이전의 날짜로 입력해 주세요.");
         }
-        return commands.execute(actor, checked.commandId(), "EMPLOYEE_PERSONAL_DETAILS_UPDATE", "EMPLOYEE",
-                fingerprint(employeeId, checked), checked.reason(), () -> {
-                    View current = load(actor, employeeId);
-                    checkVersion(checked.expectedVersion(), current.version());
-                    save(actor, employeeId, checked, current.version());
-                    return new Change(employeeId, new Audit(current.version(), "BASIC"), new Audit(current.version() + 1, "BASIC"));
-                });
+        return checked;
+    }
+
+    Form current(TnaPrincipal actor, UUID employeeId) {
+        Form stored = mapper.stored(actor.tenantId(), employeeId);
+        return copy(stored, stored == null ? 0 : stored.expectedVersion(), "", UUID.randomUUID());
+    }
+
+    long saveBasic(TnaPrincipal actor, UUID employeeId, Form before, Form input) {
+        Form checked = validate(input);
+        var after = new Form(checked.admissionType(), checked.recognizedMonths(), checked.groupJoinedOn(),
+                checked.englishName(), checked.maritalStatus(), checked.marriedOn(), checked.veteranStatus(),
+                checked.disabilityStatus(), checked.militaryStatus(), checked.militaryBranch(), before.mobilePhone(),
+                before.postalCode(), before.address(), before.addressDetail(), before.contactEmail(),
+                before.expectedVersion(), before.reason(), before.commandId());
+        return saveIfChanged(actor, employeeId, before, after);
+    }
+
+    long saveContact(TnaPrincipal actor, UUID employeeId, Form before, Map<String, String> draft) {
+        var after = new Form(before.admissionType(), before.recognizedMonths(), before.groupJoinedOn(), before.englishName(),
+                before.maritalStatus(), before.marriedOn(), before.veteranStatus(), before.disabilityStatus(),
+                before.militaryStatus(), before.militaryBranch(),
+                contact(draft, "mobilePhone", before.mobilePhone(), 40),
+                contact(draft, "postalCode", before.postalCode(), 20), contact(draft, "address", before.address(), 200),
+                contact(draft, "addressDetail", before.addressDetail(), 200),
+                contact(draft, "contactEmail", before.contactEmail(), 254),
+                before.expectedVersion(), before.reason(), before.commandId());
+        return saveIfChanged(actor, employeeId, before, after);
+    }
+
+    private long saveIfChanged(TnaPrincipal actor, UUID id, Form before, Form after) {
+        long version = before.expectedVersion();
+        if (before.equals(after)) return version;
+        save(actor, id, after, version);
+        return version + 1;
+    }
+
+    private static String contact(Map<String, String> draft, String key, String current, int limit) {
+        return draft.containsKey(key) ? text(draft.get(key), limit) : current;
     }
 
     public UUID append(TnaPrincipal actor, UUID employeeId, EntryForm form) {

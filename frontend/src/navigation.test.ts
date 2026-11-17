@@ -15,13 +15,18 @@ describe('업무 메뉴 계약', () => {
     expect(links(allRoles).map(item => item.href)).toEqual([
       '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
       '/approvals', '/approvals/completed',
-      '/admin/employees', '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
+      '/admin/employees', '/admin/employees/bulk-edit', '/admin/employees/onboarding',
+      '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
       '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/attendance',
       '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
       '/admin/access', '/admin/common-codes', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);
-    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(30);
+    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(32);
+    expect(getNavigationContext('org/personnel-home', '/admin/employees')?.href).toBe('/admin/employees');
+    expect(getNavigationContext('org/employees', '/admin/employees/bulk-edit')?.href).toBe('/admin/employees/bulk-edit');
+    expect(getNavigationContext('org/onboarding', '/admin/employees/onboarding')?.href).toBe('/admin/employees/onboarding');
+    expect(getNavigationContext('org/onboarding', '/admin/employees/onboarding')?.breadcrumbs.at(-1)?.label).toBe('입사 예정 관리');
     expect(links(allRoles).some(item => item.href === '/me/today')).toBe(false);
   });
 
@@ -37,7 +42,7 @@ describe('업무 메뉴 계약', () => {
   });
 
   it.each([
-    ['org/personnel', '/admin/employees/e-1/personnel', {}, '/admin/employees', '인사정보 등록'],
+    ['org/personnel', '/admin/employees/e-1/personnel', {}, '/admin/employees', '사원 인사정보'],
     ['org/access', '/admin/employees/e-1/access', {}, '/admin/access', '계정·권한'],
     ['org/organization', '/admin/organizations/o-1', {}, '/admin/organizations', '조직 상세'],
     ['schedule/detail', '/admin/schedules/s-1', {}, '/admin/schedules', '근무 템플릿'],
@@ -93,7 +98,7 @@ describe('업무별 메뉴', () => {
   it('담당자의 휴가·정정 처리와 대표의 읽기 현황을 분리한다', () => {
     const admin = hrefs(['ATTENDANCE_ADMIN']);
     expect(admin).toEqual(expect.arrayContaining([
-      '/admin/employees', '/admin/requests?scope=LEAVE', '/admin/requests?scope=CORRECTION', '/admin/access',
+      '/admin/employees/bulk-edit', '/admin/requests?scope=LEAVE', '/admin/requests?scope=CORRECTION', '/admin/access',
     ]));
     const representative = hrefs(['COMPANY_REPRESENTATIVE']);
     expect(representative).toEqual(expect.arrayContaining([

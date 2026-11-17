@@ -82,13 +82,41 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('조직·사원 시트 편집', () => {
+  it('인사정보 일괄관리에서는 검색·초기화·페이지를 전용 조회 주소에 연결하고 기존 저장과 상세 링크를 유지한다', async () => {
+    history.replaceState(null, '', '/admin/employees/bulk-edit');
+    const view = render(<App initial={page('employees')} />);
+    expect(view.getByRole('heading', { name: '인사정보 일괄관리' })).toBeTruthy();
+    const search = view.getByRole('search', { name: '사원 검색' });
+    expect(search.getAttribute('action')).toBe('/admin/employees/bulk-edit');
+    expect(within(search).getByRole('link', { name: '초기화' }).getAttribute('href')).toBe('/admin/employees/bulk-edit');
+    const next = within(view.getByRole('navigation', { name: '사원 페이지' })).getByRole('link', { name: '다음' });
+    const nextUrl = new URL(next.getAttribute('href')!, location.origin);
+    expect(nextUrl.pathname).toBe('/admin/employees/bulk-edit');
+    expect(Object.fromEntries(nextUrl.searchParams)).toMatchObject({ q: '개발', organizationId: 'o-1', status: 'active', page: '2' });
+    const form = new FormData(bulkForm(view, 'employees'));
+    expect(Object.fromEntries(form)).toMatchObject({ q: '개발', organizationId: 'o-1', status: 'active', page: '1' });
+    expect((await view.findByRole('link', { name: '인사정보' })).getAttribute('href')).toBe('/admin/employees/e-1/personnel');
+  });
+
+  it('인사정보 일괄관리 메뉴는 모달 대신 전체 페이지를 연다', async () => {
+    const path = '/admin/employees/bulk-edit';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page('employees'), 200, path)));
+    const view = render(<App initial={page()} />);
+    fireEvent.click(view.getByRole('button', { name: '인사관리' }));
+    fireEvent.click(view.getByRole('button', { name: '사원' }));
+    fireEvent.click(view.getByRole('link', { name: '인사정보 일괄관리' }));
+    await waitFor(() => expect(location.pathname).toBe(path));
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(view.getByRole('heading', { name: '인사정보 일괄관리' })).toBeTruthy();
+  });
+
   it('인사기본 시트에서 입사 예정 관리와 선택 사원 Excel을 열고 확정 입사일을 편집하지 않는다', async () => {
     const view = render(<App initial={page('employees', {
       personnelAsOf: '2026-11-17',
       personnelBasics: { 'e-1': { onboardingId: 'planned-one', gradeName: '선임',
         positionName: '팀원', jobName: '개발', employmentStatus: 'ACTIVE' } },
     })} />);
-    expect(view.getByRole('link', { name: '입사 예정 관리' }).getAttribute('href')).toBe('/admin/employees/onboarding');
+    expect(within(view.getByRole('main')).getByRole('link', { name: '입사 예정 관리' }).getAttribute('href')).toBe('/admin/employees/onboarding');
     expect(await view.findByRole('link', { name: '최초 발령 보기' })).toHaveProperty('pathname', '/admin/employees/onboarding/planned-one');
     const joinDate = await view.findByLabelText('입사일 1');
     fireEvent.keyDown(joinDate, { key: 'F2' });
@@ -187,7 +215,7 @@ describe('조직·사원 시트 편집', () => {
     const view = await show(page('employees'));
     expect(view.getByLabelText('사번 1').getAttribute('aria-readonly')).toBe('true');
     expect(view.queryByRole('button', { name: '행 추가' })).toBeNull();
-    expect(view.getByRole('link', { name: '입사 예정 관리' })).toHaveProperty('pathname', '/admin/employees/onboarding');
+    expect(within(view.getByRole('main')).getByRole('link', { name: '입사 예정 관리' })).toHaveProperty('pathname', '/admin/employees/onboarding');
   });
 
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
@@ -310,7 +338,7 @@ describe('조직·사원 시트 편집', () => {
     await changeCell(view, '조직 이름 1', '중복팀');
     await save(view, '업무 검토');
     await waitFor(() => expect(view.getByRole('button', { name: /조직 이름을 확인해 주세요/ })).toBeTruthy());
-    expect(view.getByText('비활성 예정')).toBeTruthy();
+    expect(await view.findByText('비활성 예정')).toBeTruthy();
     expect(cellValue(view, '조직 코드 2')).toBe('저장 시 자동 발급');
     expect(cellValue(view, '조직 이름 2')).toBe('신규팀');
     await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 이름 2')));

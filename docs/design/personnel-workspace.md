@@ -1,5 +1,7 @@
 # 업무별 메뉴·공통 사원 헤더·인사정보 등록
 
+> 2026-11-17 후속. 담당자의 사원 검색 헤더, 탭별 편집·파일, 기존 일괄관리 시트는 [담당자 인사기본 상세 명세](../superpowers/specs/2026-11-17-admin-personnel-workspace-design.md)와 [구현·검증 계획](../superpowers/plans/2026-11-17-admin-personnel-workspace.md)을 따른다.
+
 기준일: 2026-11-02, Asia/Seoul. 사용자가 [화면 개편 설계](../superpowers/specs/2026-11-01-workspace-navigation-employee-header-design.md)의 인사정보 등록까지 포함한 구현·테스트를 승인했다. [실행 계획](../superpowers/plans/2026-11-02-workspace-personnel-ui.md)과 실제 [검증 보고서](../quality/personnel-workspace.md)를 구분한다.
 
 ## 업무 메뉴와 진입

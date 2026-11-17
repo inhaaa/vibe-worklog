@@ -247,7 +247,7 @@ describe('React 앱 탐색과 제출', () => {
       employeeSheet: { commandId: 'sheet-command', reason: '', rows: [], latestRows: [], errors: [] },
     } }} />);
 
-    fireEvent.click(screen.getByRole('link', { name: '입사 예정 관리' }));
+    fireEvent.click(within(screen.getByRole('main')).getByRole('link', { name: '입사 예정 관리' }));
     await screen.findByRole('heading', { name: '입사 예정 관리', level: 1 });
     expect(location.pathname).toBe(path);
     expect(screen.queryByRole('dialog')).toBeNull();

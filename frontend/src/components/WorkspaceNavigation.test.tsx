@@ -90,6 +90,6 @@ describe('업무 트리', () => {
     expect(crumb.textContent).toContain('인사관리');
     expect(crumb.textContent).toContain('사원');
     expect(screen.getByRole('link', { name: '인사기본' }).getAttribute('href')).toBe('/admin/employees');
-    expect(screen.getByText('인사정보 등록').getAttribute('aria-current')).toBe('page');
+    expect(screen.getByText('사원 인사정보').getAttribute('aria-current')).toBe('page');
   });
 });

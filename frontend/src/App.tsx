@@ -31,8 +31,8 @@ import './design/workspace.css';
 import './design/screens.css';
 
 function isTaskUrl(url: URL) {
-  if (url.pathname === '/admin/employees/onboarding') return false;
-  return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
+  if (url.pathname === '/admin/employees/onboarding' || url.pathname === '/admin/employees/bulk-edit') return false;
+  return /^\/admin\/employees\/[^/]+(?:\/(?:access|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
     || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId') && url.searchParams.get('chart') !== 'true')
     || /^\/(?:me\/requests\/(?:new|correction)|admin\/requests\/exceptions\/new|admin\/approval-route-assignments)$/.test(url.pathname)
@@ -57,10 +57,11 @@ const publicPages = new Set([
 const titles: Record<string, string> = {
   today: '출퇴근 기록',
   'workspace/home': '홈',
-  'org/personnel': '인사정보 등록',
+  'org/personnel': '인사기본',
+  'org/personnel-home': '인사기본',
   'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
-  'org/employees': '직원 목록',
+  'org/employees': '인사정보 일괄관리',
   'org/employee': '직원 상세',
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
@@ -248,7 +249,7 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {page !== 'workspace/home' && headerEmployee && (
+        {page !== 'workspace/home' && page !== 'org/personnel-home' && !data.adminPersonnel && headerEmployee && (
           <EmployeeHeader variant={page === 'workspace/profile' || page === 'org/personnel' ? 'card' : 'line'}
             employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />
         )}

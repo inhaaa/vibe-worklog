@@ -114,7 +114,7 @@ class SeoulTimeDisplayWebIT {
     }
 
     @Test void visibleEmployeeDatesRemainIsoUnderAnotherRequestLocale()throws Exception{
-        mvc.perform(get("/admin/employees").session(customer(manager)).locale(Locale.GERMANY))
+        mvc.perform(get("/admin/employees/bulk-edit").session(customer(manager)).locale(Locale.GERMANY))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/employees/0/joinedOn", "2020-01-02"));
     }
 

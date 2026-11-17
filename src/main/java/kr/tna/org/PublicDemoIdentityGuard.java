@@ -14,9 +14,15 @@ public final class PublicDemoIdentityGuard {
     }
 
     public void requireMutable(TnaPrincipal actor, UUID employeeId) {
-        if (demo.publicDemo() && actor != null && employeeId != null && LocalDemoLogin.TENANT_ID.equals(actor.tenantId())
-                && LocalDemoLogin.SHARED_EMPLOYEE_IDS.contains(employeeId)) {
+        if (protects(actor, employeeId)) {
             throw new OrgException(403, "공유 데모 계정의 사원 정보와 계정은 변경할 수 없습니다.");
         }
     }
+
+    boolean protects(TnaPrincipal actor, UUID employeeId) {
+        return demo.publicDemo() && actor != null && employeeId != null && LocalDemoLogin.TENANT_ID.equals(actor.tenantId())
+                && LocalDemoLogin.SHARED_EMPLOYEE_IDS.contains(employeeId);
+    }
+
+    boolean publicDemo() { return demo.publicDemo(); }
 }

@@ -168,9 +168,11 @@ public final class OrgBulkController {
         return page;
     }
     private static ModelAndView redirect(String kind, Context context) {
-        var uri = UriComponentsBuilder.fromPath("/admin/" + kind).queryParam("q", context.q())
+        boolean employees = kind.equals("employees");
+        String path = employees ? OrgAdminController.EMPLOYEE_BULK_EDIT_PATH : "/admin/organizations";
+        var uri = UriComponentsBuilder.fromPath(path).queryParam("q", context.q())
                 .queryParam("page", context.page()).queryParam("saved", "");
-        if (kind.equals("employees")) {
+        if (employees) {
             uri.queryParam("status", context.status());
             if (context.organizationId() != null) uri.queryParam("organizationId", context.organizationId());
         } else {

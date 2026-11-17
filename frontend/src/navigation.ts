@@ -41,7 +41,9 @@ const navigation: NavigationGroup[] = [
   ] },
   { id: 'people', label: '인사관리', children: [
     { id: 'personnel', label: '사원', children: [
-      item('employees', '인사기본', '/admin/employees', admin, 'org/employees', 'org/employee', 'org/personnel', 'org/onboarding'),
+      item('employees', '인사기본', '/admin/employees', admin, 'org/personnel-home', 'org/employee', 'org/personnel'),
+      item('employee-bulk-edit', '인사정보 일괄관리', '/admin/employees/bulk-edit', admin, 'org/employees'),
+      item('employee-onboarding', '입사 예정 관리', '/admin/employees/onboarding', admin, 'org/onboarding'),
     ] },
   ] },
   { id: 'organizations', label: '조직관리', children: [
@@ -107,8 +109,8 @@ export function getNavigation(roles: readonly string[], selectedRole?: string): 
 }
 
 const detailTitles: Record<string, string> = {
-  'org/employee': '사원 상세', 'org/personnel': '인사정보 등록', 'org/organization': '조직 상세',
-  'org/onboarding': '입사 예정 관리', 'org/access': '계정·권한', 'schedule/form': '근무 템플릿 등록', 'schedule/detail': '근무 템플릿',
+  'org/employee': '사원 상세', 'org/personnel': '사원 인사정보', 'org/organization': '조직 상세',
+  'org/access': '계정·권한', 'schedule/form': '근무 템플릿 등록', 'schedule/detail': '근무 템플릿',
   'schedule/assignment': '근무 배정', 'request/detail': '신청 상세', 'request/correction': '기록 정정 신청',
   'request/ledger': '연차 원장', 'request/attributions': '기초 묶음 귀속연도',
   'worktime/result': '계산 근거', 'worktime/audit-detail': '감사 상세',

@@ -76,8 +76,9 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
   const unsaved = dirty.length > 0 || reason.length > 0;
   const reasonError = errors.find(error => error.field === 'reason')?.message;
-  const path = organization ? '/admin/organizations' : '/admin/employees';
-  const title = organization ? '조직 관리' : '인사기본';
+  const path = organization ? '/admin/organizations' : '/admin/employees/bulk-edit';
+  const bulkPath = organization ? '/admin/organizations/bulk' : '/admin/employees/bulk';
+  const title = organization ? '조직 관리' : '인사정보 일괄관리';
   const label = organization ? '조직' : '사원';
   const exportIds = rows.flatMap(row => row.id && selected.has(row.clientRowId) ? [row.id] : []);
   const renew = () => setCommandId(crypto.randomUUID());
@@ -224,7 +225,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
         {!organization && <><label className="t-sr-only" htmlFor="sheet-org">현재 소속</label><select id="sheet-org" className="t-select" name="organizationId" defaultValue={m.organizationId ?? ''}><option value="">전체 소속</option>{m.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><label className="t-sr-only" htmlFor="sheet-status">활성 상태</label><select id="sheet-status" className="t-select" name="status" defaultValue={m.status ?? 'all'}><option value="all">전체 상태</option><option value="active">활성</option><option value="inactive">비활성</option></select></>}
         <div className="wl-querybar-actions"><a className="t-btn wl-query-reset" href={path}>초기화</a><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </form>
-      <Form id={formId} action={`${path}/bulk`} onSubmit={submit} className="t-sheet-form">
+      <Form id={formId} action={bulkPath} onSubmit={submit} className="t-sheet-form">
         <input type="hidden" name="commandId" value={commandId} /><input type="hidden" name="rows" value={JSON.stringify(dirty.map(row => serialize(row, organization)))} />
         <input type="hidden" name="q" value={m.q} /><input type="hidden" name="page" value={m.page} />
         {!organization && <><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><input type="hidden" name="status" value={m.status ?? 'all'} /></>}

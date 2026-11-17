@@ -4,6 +4,7 @@ import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDateTime, Form
 import { employmentStatusName } from '../components/EmployeeHeader';
 import { PageHeader } from '../components/PageHeader';
 import { PersonalDetailsEditor, PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
+import { AdminPersonnelPage } from './AdminPersonnelPage';
 export interface PersonnelForm {
   birthDate: string | null; gradeName: string | null; positionName: string | null; jobName: string | null;
   employmentStatus: string; effectiveFrom: string; expectedVersion: number; reason: string;
@@ -13,7 +14,9 @@ export interface PersonnelModel {
   employeeId: string; version: number; today: string; form: PersonnelForm; currentForm?: PersonnelForm;
   statusHistory: { id: string; employmentStatus: string; effectiveFrom: string; revision: number; reason: string; createdAt: string }[];
 }
-export function PersonnelPage({ page, data, busy = false }: PageProps) {
+export function PersonnelPage(props: PageProps) {
+  const { page, data, busy = false } = props;
+  if (page === 'org/personnel-home' || (page === 'org/personnel' && data.adminPersonnel)) return <AdminPersonnelPage {...props} />;
   if (page !== 'org/personnel') return null;
   const personnel = data.personnel as PersonnelModel;
   const details = data.personalDetails as PersonalDetailsModel | undefined;

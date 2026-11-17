@@ -139,7 +139,7 @@ function Detail({ model: m, row }: { model: Model; row: Row }) {
     {row.state === 'CONFIRMED' && row.employeeId && <section className="wl-section">
       <h2>최초 발령</h2>
       <p>입사 · {row.joinedOn} · 사번 {row.employeeNo}</p>
-      <a className="t-btn" href={`/admin/employees/${row.employeeId}`}>사원 상세</a>{' '}
+      <a className="t-btn" href={`/admin/employees/${row.employeeId}/personnel`}>확정 사원 인사기본</a>{' '}
       {row.joinedOn > m.today && <p>계정 초대는 입사일부터 할 수 있습니다.</p>}
       {m.inviteEligible && <a className="t-btn" href={`/admin/employees/${row.employeeId}/access`}>계정 초대</a>}
     </section>}

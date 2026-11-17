@@ -65,7 +65,8 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
             String path = request.getRequestURI();
             if (path.startsWith("/me/") && !"workspace/home".equals(view.getViewName())) {
                 view.addObject("employeeHeader", personnel.selfHeader(principal));
-            } else if (path.matches("/admin/employees/[0-9a-fA-F-]{36}(?:/.*)?")) {
+            } else if (!view.getModel().containsKey("employeeHeader")
+                    && path.matches("/admin/employees/[0-9a-fA-F-]{36}(?:/.*)?")) {
                 UUID employeeId = UUID.fromString(path.split("/")[3]);
                 view.addObject("employeeHeader", personnel.header(principal, employeeId));
             }

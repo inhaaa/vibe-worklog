@@ -146,7 +146,7 @@ function EmployeeFields({ form, editing = false }: { form: EmployeeForm; editing
 
 function EmployeesPage({ model: m }: { model: EmployeesModel }) {
   const listHref = (page: number, employeeId?: string) =>
-    queryHref('/admin/employees', {
+    queryHref('/admin/employees/bulk-edit', {
       q: m.q,
       page,
       organizationId: m.organizationId,
@@ -183,7 +183,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
             </p>
           </header>
           <form
-            action="/admin/employees"
+            action="/admin/employees/bulk-edit"
             method="get"
             className="t-toolbar"
             role="search"
@@ -228,7 +228,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
             <button type="submit" className="t-btn primary">
               검색
             </button>
-            <a href="/admin/employees" className="t-btn secondary">
+            <a href="/admin/employees/bulk-edit" className="t-btn secondary">
               전체 보기
             </a>
           </form>
@@ -355,7 +355,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title={m.employee.displayName} actions={<>
-        <a className="t-btn" href="/admin/employees">사원 목록으로</a>
+        <a className="t-btn" href="/admin/employees/bulk-edit">사원 목록으로</a>
         <a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a>
         <a className="t-btn" href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
         <a className="t-btn" href={`${employeePath}/schedule`}>고정 근무 템플릿 배정</a>
