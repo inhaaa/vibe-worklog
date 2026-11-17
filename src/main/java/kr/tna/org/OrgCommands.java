@@ -4,8 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -37,6 +39,8 @@ public final class OrgCommands {
     }
 
     public LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))); }
+
+    Instant creationTime() { return clock.instant().truncatedTo(ChronoUnit.MILLIS); }
 
     public <T> T read(TnaPrincipal actor, Supplier<T> action) {
         if (actor == null) throw OrgException.forbidden();

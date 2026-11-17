@@ -2,7 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime, FormTable } from '../ui';
-import type { Employee, Organization } from './AdminTypes';
+import type { Employee, Organization, OrganizationForm } from './AdminTypes';
+import { OrganizationCreateForm } from './AdminPages';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { Modal } from '../components/Modal';
@@ -20,6 +21,8 @@ interface RowError { clientRowId: string; field: string; message: string }
 interface SheetModel { commandId: string; reason: string; rows: Row[]; latestRows: (Employee | Organization)[]; errors: RowError[] }
 interface SheetPageModel {
   organizationSheet?: SheetModel; employeeSheet?: SheetModel;
+  form?: OrganizationForm; organizationCreateFailed?: boolean;
+  createdOrganizations?: { clientRowId: string; id: string; code: string }[];
   options: Organization[]; q: string; page: number; hasNext: boolean;
   organizationId?: string | null; status?: string;
   employeeOrganizations?: Record<string, string>; error?: string | null;
@@ -47,6 +50,7 @@ function serialize(row: Row, organization: boolean) {
     expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation,
   };
   for (const field of fields(organization)) result[field] = (row as unknown as Record<string, unknown>)[field];
+  if (organization && row.operation === 'CREATE') result.code = '';
   return result;
 }
 function queryHref(path: string, values: Record<string, string | number | null | undefined>) {
@@ -91,7 +95,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
     const base = { clientRowId: crypto.randomUUID(), operation: 'CREATE' as const, active: true };
     setRows(current => [...current, { ...base, code: '', name: '', parentId: null }]);
     renew();
-    setTimeout(() => sheet.current?.focusCell(base.clientRowId, 'code'), 0);
+    setTimeout(() => sheet.current?.focusCell(base.clientRowId, 'name'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row =>
@@ -165,7 +169,11 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const columns = [
     sheetStateColumn<Row>(row => sheetStateOf(row, changed(row, row.id ? latest.get(row.id) : undefined, organization))),
     sheetEditorColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left' },
-      (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: organization })),
+      (row, index) => organization ? {
+        ...input(row, index, 'code', '조직 코드'),
+        value: row.id ? String(businessValue(row, 'code')) : '저장 시 자동 발급',
+        readOnly: true,
+      } : input(row, index, 'employeeNo', '사번', { fixed: true, maxLength: 40 })),
     sheetEditorColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180 },
       (row, index) => input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })),
     ...(organization ? [
@@ -195,7 +203,19 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
       <a className="t-btn" href="/admin/employees/onboarding">입사 예정 관리</a>
       {!m.publicDemo && <button className="t-btn" type="button" onClick={() => setExporting(true)}>인사기본 Excel</button>}
     </>} />
+    {organization && m.form && <details className="wl-section" open={m.organizationCreateFailed || undefined}>
+      <summary>조직 단건 등록</summary>
+      {m.organizationCreateFailed && <ErrorNotice message={m.error} />}
+      {unsaved && <p className="hint">시트 변경을 먼저 저장하거나 취소하세요.</p>}
+      <OrganizationCreateForm form={m.form} options={m.options} disabled={unsaved} />
+    </details>}
     <section className="wl-section">
+      {organization && Boolean(m.createdOrganizations?.length) && <div className="notice" role="status">
+        <strong>발급한 조직 코드</strong>
+        <ul>{m.createdOrganizations!.map(result => <li key={result.clientRowId}>
+          <a href={`${path}/${result.id}`}>{result.code}</a>
+        </li>)}</ul>
+      </div>}
       {!organization && m.personnelAsOf && <p className="t-muted">조회 기준일 {m.personnelAsOf}</p>}
       <form action={path} method="get" className="wl-querybar" role="search" aria-label={`${label} 검색`}>
         <label htmlFor="sheet-q">{label} 검색</label><input id="sheet-q" className="t-input" name="q" type="search" defaultValue={m.q} maxLength={120} placeholder={organization ? '코드 또는 이름' : '사번 또는 이름'} />
@@ -206,7 +226,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
         <input type="hidden" name="commandId" value={commandId} /><input type="hidden" name="rows" value={JSON.stringify(dirty.map(row => serialize(row, organization)))} />
         <input type="hidden" name="q" value={m.q} /><input type="hidden" name="page" value={m.page} />
         {!organization && <><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><input type="hidden" name="status" value={m.status ?? 'all'} /></>}
-        {!reasonError && (m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
+        {!m.organizationCreateFailed && !reasonError && (m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
         <WorklogSheet ref={sheet} label={`${label} 편집 시트`} title={`${label} 목록`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected}
           selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}

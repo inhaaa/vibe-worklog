@@ -465,16 +465,11 @@ function OrganizationFields({
         id="organization-code"
         label="조직 코드"
         name="code"
-        value={form.code}
+        value={organizationId ? form.code : ''}
         maxLength={40}
-        readOnly={Boolean(organizationId)}
-        required={!organizationId}
+        readOnly
+        placeholder={organizationId ? undefined : '저장 시 자동 발급'}
       />
-      <p className="hint">
-        {organizationId
-          ? '등록한 코드는 변경할 수 없습니다.'
-          : '등록 후 코드는 변경할 수 없습니다.'}
-      </p>
       <Field
         id="organization-name"
         label="조직 이름"
@@ -524,6 +519,16 @@ function OrganizationFields({
       </FormTable>
     </>
   );
+}
+
+export function OrganizationCreateForm({ form, options, disabled }: Pick<OrganizationsModel, 'form' | 'options'> & { disabled?: boolean }) {
+  return <Form action="/admin/organizations" method="post" className="wl-form"
+    onSubmit={event => { if (disabled) event.preventDefault(); }}>
+    <OrganizationFields form={form} options={options} />
+    <div className="wl-form-actions">
+      <button className="t-btn primary" type="submit" disabled={disabled}>조직 등록</button>
+    </div>
+  </Form>;
 }
 
 function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
@@ -587,12 +592,7 @@ function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
       <section className="panel" aria-labelledby="organization-create-title">
         <h2 id="organization-create-title">조직 등록</h2>
         <ErrorNotice message={m.error} />
-        <Form action="/admin/organizations" method="post" className="admin-form">
-          <OrganizationFields form={m.form} options={m.options} />
-          <div className="actions">
-            <button type="submit">조직 등록</button>
-          </div>
-        </Form>
+        <OrganizationCreateForm form={m.form} options={m.options} />
       </section>
     </div>
   );

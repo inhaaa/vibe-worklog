@@ -144,10 +144,13 @@ describe('조직·사원 시트 편집', () => {
   it('새 행은 저장 전 추가·제거하며 취소는 조회값으로 복원한다', async () => {
     const view = await show();
     fireEvent.click(view.getByRole('button', { name: '행 추가' }));
-    const code = await changeCell(view, '조직 코드 2', 'HR');
-    expect(code.hasAttribute('readonly')).toBe(false);
+    const code = await view.findByLabelText('조직 코드 2');
+    expect(code.textContent).toBe('저장 시 자동 발급');
+    expect(code.getAttribute('aria-readonly')).toBe('true');
+    fireEvent.keyDown(code.closest('.ag-cell')!, { key: 'F2' });
+    expect(view.getByLabelText('조직 코드 2')).not.toBeInstanceOf(HTMLInputElement);
     await changeCell(view, '조직 이름 2', '인사팀');
-    expect(postedRows(view)[0]).toMatchObject({ operation: 'CREATE', code: 'HR', name: '인사팀' });
+    expect(postedRows(view)[0]).toMatchObject({ operation: 'CREATE', code: '', name: '인사팀' });
     fireEvent.click(view.getByLabelText('2행 선택'));
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.queryByLabelText('조직 코드 2')).toBeNull();
@@ -155,6 +158,29 @@ describe('조직·사원 시트 편집', () => {
     fireEvent.click(view.getByRole('button', { name: '변경 취소' }));
     expect(cellValue(view, '조직 이름 1')).toBe('개발팀');
     expect(postedRows(view)).toEqual([]);
+  });
+
+  it('현재 필터에 없는 신규 조직도 저장 결과에서 코드와 상세 링크를 제공한다', async () => {
+    const view = await show(page('organizations', {
+      createdOrganizations: [{ clientRowId: 'new-row', id: 'new-id', code: '20260002' }],
+    }));
+    const result = view.getByRole('link', { name: '20260002' });
+    expect(result).toHaveProperty('pathname', '/admin/organizations/new-id');
+    expect(view.queryByText('인사팀')).toBeNull();
+  });
+
+  it('조직 관리 목록에서 단건 등록을 열고 코드 칸을 읽기 전용으로 표시한다', async () => {
+    const view = await show();
+    const summary = view.getByText('조직 단건 등록');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
+    const field = within(details).getByRole('textbox', { name: '조직 코드' }) as HTMLInputElement;
+    expect(field.readOnly).toBe(true);
+    expect(field.value).toBe('');
+    expect(field.placeholder).toBe('저장 시 자동 발급');
+    expect(within(details).getByRole('button', { name: '조직 등록' })).toBeTruthy();
   });
 
   it('사원 등록은 입사 예정 흐름에서 시작하고 기존 사번은 읽기 전용이다', async () => {
@@ -276,17 +302,18 @@ describe('조직·사원 시트 편집', () => {
   it('422는 전체 입력·삭제예정·행 식별자를 복원하고 오류 필드로 초점을 보낸다', async () => {
     const initial = page();
     const failed = page('organizations', { organizationSheet: {
-      commandId: 'posted-command', reason: '업무 검토', rows: [{ ...orgRow, name: '중복팀', operation: 'DEACTIVATE' }, { clientRowId: 'new-row', operation: 'CREATE', code: 'NEW', name: '신규팀', parentId: null, active: true }],
-      latestRows: [organization], errors: [{ clientRowId: 'new-row', field: 'code', message: '조직 코드가 중복됩니다.' }],
+      commandId: 'posted-command', reason: '업무 검토', rows: [{ ...orgRow, name: '중복팀', operation: 'DEACTIVATE' }, { clientRowId: 'new-row', operation: 'CREATE', code: '', name: '신규팀', parentId: null, active: true }],
+      latestRows: [organization], errors: [{ clientRowId: 'new-row', field: 'name', message: '조직 이름을 확인해 주세요.' }],
     } });
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
     const view = await show(initial);
     await changeCell(view, '조직 이름 1', '중복팀');
     await save(view, '업무 검토');
-    await waitFor(() => expect(view.getByRole('button', { name: /조직 코드가 중복됩니다/ })).toBeTruthy());
+    await waitFor(() => expect(view.getByRole('button', { name: /조직 이름을 확인해 주세요/ })).toBeTruthy());
     expect(view.getByText('비활성 예정')).toBeTruthy();
-    expect(cellValue(view, '조직 코드 2')).toBe('NEW');
-    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 코드 2')));
+    expect(cellValue(view, '조직 코드 2')).toBe('저장 시 자동 발급');
+    expect(cellValue(view, '조직 이름 2')).toBe('신규팀');
+    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 이름 2')));
     expect(new FormData(bulkForm(view)).get('commandId')).toBe('posted-command');
     expect(postedRows(view).map(row => row.clientRowId)).toEqual(['row-org', 'new-row']);
   });

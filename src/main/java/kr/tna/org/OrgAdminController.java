@@ -39,8 +39,11 @@ public class OrgAdminController {
 
     @GetMapping("/admin/organizations")
     ModelAndView organizations(@AuthenticationPrincipal TnaPrincipal actor,
-            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
-        return organizationList(actor, q, page, null);
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) UUID createdCommand) {
+        var view = organizationList(actor, q, page, null);
+        if (createdCommand != null) view.addObject("createdOrganizations", organizations.creationResults(actor, createdCommand));
+        return view;
     }
 
     @PostMapping("/admin/organizations")
@@ -110,6 +113,7 @@ public class OrgAdminController {
                 .addObject("organizationSheet", BulkData.organizations(UUID.randomUUID(), "",
                         list.stream().limit(50).toList(), List.of(), List.of()))
                 .addObject("organizationHeadsById", heads.organizationSheetHeads(actor))
+                .addObject("organizationCreateFailed", form != null)
                 .addObject("form", form != null ? form : new OrgData.OrganizationForm(
                         "", "", null, true, null, "", UUID.randomUUID()));
         return options(view, actor);

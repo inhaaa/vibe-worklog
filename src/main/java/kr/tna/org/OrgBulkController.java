@@ -173,6 +173,8 @@ public final class OrgBulkController {
         if (kind.equals("employees")) {
             uri.queryParam("status", context.status());
             if (context.organizationId() != null) uri.queryParam("organizationId", context.organizationId());
+        } else {
+            uri.queryParam("createdCommand", context.commandId());
         }
         var redirect = new RedirectView(uri.build().encode().toUriString(), true);
         redirect.setStatusCode(HttpStatus.SEE_OTHER);

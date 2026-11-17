@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.sql.Types;
+import java.time.Instant;
 import java.util.UUID;
 import javax.sql.DataSource;
 import kr.tna.common.tenant.TenantTransactions;
@@ -76,15 +77,16 @@ class UuidMappingIT {
     void organizationUuidWritesAndNullableRecordFieldsPreserveThePostgresUuidType() {
         UUID parent = UUID.randomUUID();
         UUID child = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-01-01T02:03:04.567Z");
         var jdbc = new JdbcTemplate(application);
         transactions.execute(DatabaseFixture.TENANT_A, () -> {
             assertEquals(1, organizations.insert(DatabaseFixture.TENANT_A,
                     new Organization(parent, "U-" + parent, "합성 상위 조직", null, true, 0),
-                    DatabaseFixture.ACCOUNT_A));
+                    DatabaseFixture.ACCOUNT_A, createdAt));
             assertNull(organizations.find(DatabaseFixture.TENANT_A, parent).parentId());
             assertEquals(1, organizations.insert(DatabaseFixture.TENANT_A,
                     new Organization(child, "U-" + child, "합성 하위 조직", parent, true, 0),
-                    DatabaseFixture.ACCOUNT_A));
+                    DatabaseFixture.ACCOUNT_A, createdAt));
             assertEquals(parent, organizations.find(DatabaseFixture.TENANT_A, child).parentId());
             assertEquals(1, organizations.update(DatabaseFixture.TENANT_A,
                     new Organization(child, "U-" + child, "합성 하위 조직", null, true, 0),

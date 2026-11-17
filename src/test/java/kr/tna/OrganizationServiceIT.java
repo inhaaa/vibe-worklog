@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgData.OrganizationForm;
 import kr.tna.org.OrgException;
 import kr.tna.org.OrganizationService;
@@ -30,6 +31,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 class OrganizationServiceIT {
     @Autowired OrganizationService organizations;
+    @Autowired OrgCommands commands;
     private JdbcTemplate admin;
 
     @DynamicPropertySource
@@ -57,17 +59,27 @@ class OrganizationServiceIT {
     }
 
     @Test
+    void blankOrganizationCodeUsesThePersistedSeoulCreationYear() {
+        UUID id = organizations.create(actor(), form("", "자동 코드 조직", null, true, null));
+        String code = organizations.get(actor(), id).code();
+        Integer year = admin.queryForObject("""
+                SELECT EXTRACT(YEAR FROM created_at AT TIME ZONE 'Asia/Seoul')::int
+                FROM tna.organization WHERE tenant_id=? AND id=?
+                """, Integer.class, DatabaseFixture.TENANT_A, id);
+        assertTrue(code.matches(year + "[0-9]{4}"));
+    }
+
+    @Test
     void createNormalizesInputAndReplaysOneAuditedEffect() {
-        String code = code();
         UUID command = UUID.randomUUID();
-        var first = new OrganizationForm("  " + code + "  ", "  연구 조직  ", null,
+        var first = new OrganizationForm("  ", "  연구 조직  ", null,
                 true, null, "  신규 조직 등록  ", command);
         UUID id = organizations.create(actor(), first);
-        UUID replayed = organizations.create(actor(), new OrganizationForm(code, "연구 조직", null,
+        UUID replayed = organizations.create(actor(), new OrganizationForm(null, "연구 조직", null,
                 true, null, "신규 조직 등록", command));
         assertEquals(id, replayed);
         var saved = organizations.get(actor(), id);
-        assertEquals(code, saved.code());
+        assertTrue(saved.code().matches("[0-9]{8}"));
         assertEquals("연구 조직", saved.name());
         assertTrue(saved.active());
         assertEquals(0, saved.version());
@@ -75,7 +87,7 @@ class OrganizationServiceIT {
         assertEquals("신규 조직 등록", admin.queryForObject("""
                 SELECT reason FROM tna.org_audit_event WHERE tenant_id = ? AND command_id = ?
                 """, String.class, DatabaseFixture.TENANT_A, command));
-        assertStatus(409, () -> organizations.create(actor(), new OrganizationForm(code, "다른 이름", null,
+        assertStatus(409, () -> organizations.create(actor(), new OrganizationForm(null, "다른 이름", null,
                 true, null, "신규 조직 등록", command)));
         assertEquals("연구 조직", organizations.get(actor(), id).name());
         assertEquals(1, auditCount(command));
@@ -102,25 +114,43 @@ class OrganizationServiceIT {
     }
 
     @Test
-    void codesAreUniqueWithinTenantAndCannotBeReusedAfterDeactivation() {
+    void successBeforeAutomaticCodesStillReplaysWithItsOriginalInput() {
         String code = code();
-        UUID inactive = organizations.create(actor(), form(code, "비활성 조직", null, false, null));
-        assertStatus(409, () -> organizations.create(actor(), form(code, "코드 중복", null, true, null)));
-        UUID otherTenant = organizations.create(otherActor(), form(code, "다른 고객사", null, true, null));
+        String name = "전환 전에 저장한 조직";
+        String reason = "수동 코드 등록";
+        UUID id = seedOrganization(actor(), code, name, true), command = UUID.randomUUID();
+        var beforeRollout = organizations.get(actor(), id);
+        commands.execute(actor(), command, "ORGANIZATION_CREATE", "ORGANIZATION",
+                OrgCommands.fingerprint("ORGANIZATION_CREATE", null, code, name, null, true, null, reason),
+                reason, () -> new OrgCommands.Change(id, null, beforeRollout));
+        assertEquals(id, organizations.create(actor(), new OrganizationForm(" " + code + " ", name, null,
+                true, null, reason, command)));
+        assertEquals(code, organizations.get(actor(), id).code());
+        assertEquals(1, auditCount(command));
+        assertStatus(422, () -> organizations.create(actor(), form(code, "새 수동 코드 등록", null, true, null)));
+    }
+
+    @Test
+    void storedCodesAreTenantScopedAndCanBeUpdatedWithoutSupplyingCode() {
+        String code = code();
+        UUID inactive = seedOrganization(actor(), code, "비활성 조직", false);
+        UUID otherTenant = seedOrganization(otherActor(), code, "다른 고객사", true);
         assertNotEquals(inactive, otherTenant);
         assertStatus(404, () -> organizations.get(actor(), otherTenant));
         assertStatus(404, () -> organizations.update(actor(), otherTenant,
                 form(code, "타 고객사 변경 시도", null, true, 0L)));
+        assertEquals(inactive, organizations.update(actor(), inactive, form(null, "보관 조직", null, false, 0L)));
+        assertEquals(code, organizations.get(actor(), inactive).code());
         assertFalse(organizations.get(actor(), inactive).active());
     }
 
     @Test
     void parentsMustBeActiveAndBelongToTheSameTenant() {
-        UUID foreign = organizations.create(otherActor(), form(code(), "다른 고객사 부모", null, true, null));
+        UUID foreign = organizations.create(otherActor(), form(null, "다른 고객사 부모", null, true, null));
         UUID inactive = create("비활성 부모", null, false);
-        assertStatus(404, () -> organizations.create(actor(), form(code(), "자식", foreign, true, null)));
-        assertStatus(422, () -> organizations.create(actor(), form(code(), "자식", inactive, true, null)));
-        assertStatus(422, () -> organizations.create(actor(), form(code(), "비활성 자식", inactive, false, null)));
+        assertStatus(404, () -> organizations.create(actor(), form(null, "자식", foreign, true, null)));
+        assertStatus(422, () -> organizations.create(actor(), form(null, "자식", inactive, true, null)));
+        assertStatus(422, () -> organizations.create(actor(), form(null, "비활성 자식", inactive, false, null)));
         UUID child = create("부모 없는 조직", null, true);
         var saved = organizations.get(actor(), child);
         assertStatus(404, () -> organizations.update(actor(), child,
@@ -200,10 +230,10 @@ class OrganizationServiceIT {
     void searchIsTenantScopedAndUsesLiteralTextWithFiftyRowPages() {
         String prefix = "search_" + UUID.randomUUID().toString().substring(0, 8) + "%";
         for (int index = 0; index < 52; index++) {
-            organizations.create(actor(), form(prefix + index, "검색 " + index, null, true, null));
+            seedOrganization(actor(), prefix + index, "검색 " + index, true);
         }
-        organizations.create(actor(), form(code(), prefix.replace("_", "X").replace("%", "Y"), null, true, null));
-        organizations.create(otherActor(), form(prefix + "foreign", "타 고객사", null, true, null));
+        seedOrganization(actor(), code(), prefix.replace("_", "X").replace("%", "Y"), true);
+        seedOrganization(otherActor(), prefix + "foreign", "타 고객사", true);
         var first = organizations.list(actor(), "  " + prefix + "  ", 0);
         var second = organizations.list(actor(), prefix, 1);
         assertEquals(51, first.size());
@@ -219,11 +249,13 @@ class OrganizationServiceIT {
     @Test
     void validationUsesUnicodeCodePointsAndRequiresReasonAndVersion() {
         String code = "😀".repeat(8) + UUID.randomUUID().toString().replace("-", "");
-        UUID id = organizations.create(actor(), form(code, "😀".repeat(120), null, true, null));
+        UUID id = seedOrganization(actor(), code, "과거 조직", true);
+        organizations.update(actor(), id, form(code, "😀".repeat(120), null, true, 0L));
         assertEquals(code, organizations.get(actor(), id).code());
-        assertStatus(422, () -> organizations.create(actor(), form("x".repeat(41), "조직", null, true, null)));
-        assertStatus(422, () -> organizations.create(actor(), form(code(), " ", null, true, null)));
-        assertStatus(422, () -> organizations.create(actor(), new OrganizationForm(code(), "조직", null,
+        assertEquals(120, organizations.get(actor(), id).name().codePointCount(0, 240));
+        assertStatus(422, () -> organizations.create(actor(), form(null, "😀".repeat(121), null, true, null)));
+        assertStatus(422, () -> organizations.create(actor(), form(null, " ", null, true, null)));
+        assertStatus(422, () -> organizations.create(actor(), new OrganizationForm(null, "조직", null,
                 true, null, " ", UUID.randomUUID())));
         assertStatus(422, () -> organizations.update(actor(), id, form(code, "조직", null, true, null)));
     }
@@ -267,7 +299,16 @@ class OrganizationServiceIT {
     }
 
     private UUID create(String name, UUID parent, boolean active) {
-        return organizations.create(actor(), form(code(), name, parent, active, null));
+        return organizations.create(actor(), form(null, name, parent, active, null));
+    }
+
+    private UUID seedOrganization(TnaPrincipal actor, String code, String name, boolean active) {
+        UUID id = UUID.randomUUID();
+        admin.update("""
+                INSERT INTO tna.organization(tenant_id,id,code,name,active,created_by,updated_by)
+                VALUES (?,?,?,?,?,?,?)
+                """, actor.tenantId(), id, code, name, active, actor.accountId(), actor.accountId());
+        return id;
     }
 
     private void changeActive(UUID id, boolean active) {
