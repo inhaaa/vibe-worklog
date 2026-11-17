@@ -44,6 +44,8 @@ public class SecurityConfiguration {
         http.authenticationManager(new ProviderManager(provider))
                 .authorizeHttpRequests(authorize -> {
                     if (localDemo.publicDemo()) {
+                        authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
+                                "/admin/employees/onboarding/**", "/admin/employees/exports").denyAll();
                         for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
                             String identity = "/admin/employees/" + employeeId;
                             authorize.requestMatchers(new RegexRequestMatcher(identity

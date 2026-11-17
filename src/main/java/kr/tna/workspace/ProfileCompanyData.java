@@ -1,5 +1,7 @@
 package kr.tna.workspace;
 
+import kr.tna.request.RequestScope;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -37,5 +39,5 @@ public final class ProfileCompanyData {
             String effectStatus, Instant submittedAt) { }
 
     public record CompanyRequests(int year, Instant asOf, UUID organizationId, String status, int page,
-            boolean hasNext, List<OrganizationItem> organizations, List<CompanyRequest> requests) { }
+            boolean hasNext, RequestScope scope, List<OrganizationItem> organizations, List<CompanyRequest> requests) { }
 }

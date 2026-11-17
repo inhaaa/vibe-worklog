@@ -62,6 +62,12 @@ public interface LeaveWorkflowMapper {
     RequestView findRequest(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select(REQUEST_SELECT+" WHERE r.tenant_id=#{tenantId} AND (#{mode}='ALL' OR (#{mode}='MINE' AND(r.author_account_id=#{accountId} OR r.target_employee_id=#{employeeId})) OR (#{mode}='INBOX' AND r.current_approver_id=#{employeeId})) ORDER BY r.submitted_at DESC,r.id")
     List<RequestView> requests(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId,@Param("employeeId") UUID employeeId,@Param("mode") String mode);
+    String SCOPE_FILTER = """
+        AND (#{scope}='' OR (#{scope}='LEAVE' AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE'))
+                         OR (#{scope}='CORRECTION' AND r.kind='ATTENDANCE_CORRECTION'))
+        """;
+    @Select(REQUEST_SELECT + " WHERE r.tenant_id=#{tenantId} " + SCOPE_FILTER + " ORDER BY r.submitted_at DESC,r.id")
+    List<RequestView> adminRequests(@Param("tenantId") UUID tenantId, @Param("scope") String scope);
     @Select(REQUEST_SELECT+"""
         WHERE r.tenant_id=#{tenantId} AND (
           (NOT #{completed} AND r.current_approver_id=#{employeeId} AND r.status='PENDING') OR

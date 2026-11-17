@@ -128,6 +128,21 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
     }
 
     @Test
+    void publicOnboardingIsReadOnlyAndPersonnelExportIsForbidden() throws Exception {
+        var session = publicLogin("198.51.100.243");
+        String onboarding = "/admin/employees/onboarding";
+        publicMvc.perform(get(onboarding).session(session))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/onboarding/publicDemo", true));
+        String draft = onboarding + "/" + UUID.randomUUID();
+        for (String path : List.of(onboarding, draft + "/changes", draft + "/confirm",
+                draft + "/withdraw", "/admin/employees/exports")) {
+            publicMvc.perform(post(path).session(session).with(csrf()))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
     void sharedApproverSingleEncodedAndBulkPathsCannotChangeItsIdentity() throws Exception {
         var session = publicLogin("198.51.100.246");
         var before = demoState();

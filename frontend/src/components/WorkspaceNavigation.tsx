@@ -19,7 +19,7 @@ const groupIcons: Record<string, string> = {
 function NavigationIcon({ path, className }: { path: string; className: string }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d={path} /></svg>;
 }
-export function WorkspaceNavigation({ roles, page, data, pathname = location.pathname, onNavigate }: NavigationProps) {
+export function WorkspaceNavigation({ roles, page, data, pathname = location.pathname + location.search, onNavigate }: NavigationProps) {
   const context = getNavigationContext(page, pathname, data);
   const current = `${page}/${pathname}/${context?.groupId ?? ''}/${context?.sectionId ?? ''}/${context?.itemId ?? ''}`;
   const ancestors = [context?.groupId, context?.sectionId].filter((id): id is string => Boolean(id));
@@ -62,7 +62,7 @@ export function WorkspaceNavigation({ roles, page, data, pathname = location.pat
     </nav>
   );
 }
-export function Breadcrumbs({ page, data, pathname = location.pathname }: Omit<NavigationProps, 'roles' | 'onNavigate'>) {
+export function Breadcrumbs({ page, data, pathname = location.pathname + location.search }: Omit<NavigationProps, 'roles' | 'onNavigate'>) {
   const context = getNavigationContext(page, pathname, data);
   const crumbs = page === 'workspace/home' ? [{ label: '홈', href: undefined }] : context?.breadcrumbs;
   if (!crumbs) return null;

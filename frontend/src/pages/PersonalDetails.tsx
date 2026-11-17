@@ -19,7 +19,7 @@ interface EntryForm {
 }
 export interface PersonalDetailsModel {
   employeeId: string; version: number; form: PersonalDetailsForm; currentForm?: PersonalDetailsForm;
-  entries: Entry[]; appointments: { id: string; organizationName: string; validFrom: string; validTo: string | null }[];
+  entries: Entry[]; appointments: { id: string; organizationName: string; validFrom: string; validTo: string | null; initial?: boolean }[];
   entryForm?: EntryForm;
 }
 interface Identity { employeeName: string; joinedOn: string; birthDate?: string | null }
@@ -114,7 +114,7 @@ export function PersonalDetailsTabs({ model: m, identity }: { model: PersonalDet
           ]} />
         </div>
       </>}
-      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
+      {tab === 1 && (m.appointments.length ? <div className="t-personal-table"><table aria-label="발령내역"><thead><tr><th scope="col">발령일</th><th scope="col">종료일 (미포함)</th><th scope="col">소속</th></tr></thead><tbody>{m.appointments.map(a => <tr key={a.id}><td data-label="발령일">{a.validFrom}</td><td data-label="종료일 (미포함)">{a.validTo ?? <span className="t-personal-current">현재</span>}</td><td data-label="소속"><strong>{a.organizationName}</strong>{a.initial && <> <span className="t-tag blue">입사</span></>}</td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab >= 2 && tab <= 5 && (entries.length ? <div className="t-personal-table"><table aria-label={tabs[tab]}><thead><tr><th scope="col">항목</th><th scope="col">상세</th><th scope="col">적용일</th><th scope="col">종료일</th><th scope="col">이력 버전</th></tr></thead><tbody>{entries.map(e => <tr key={e.id}><td data-label="항목"><strong>{e.title}</strong></td><td data-label="상세">{display(e.detail)}</td><td data-label="적용일">{e.effectiveFrom}</td><td data-label="종료일">{display(e.effectiveTo)}</td><td data-label="이력 버전"><span className="t-personal-version">{e.revision}</span></td></tr>)}</tbody></table></div> : <EmptyDetails title={tabs[tab]} />)}
       {tab === 6 && <div className="t-personal-groups">
         <InfoGroup title="주소 정보" icon="address" values={[

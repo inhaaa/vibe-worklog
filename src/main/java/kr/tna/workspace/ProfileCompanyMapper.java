@@ -97,9 +97,11 @@ public interface ProfileCompanyMapper {
             WHERE r.tenant_id=#{tenantId} AND r.from_date<=#{to} AND r.to_date>=#{from}
               AND (#{organizationId}::uuid IS NULL OR ea.organization_id=#{organizationId})
               AND (#{status}='' OR r.status=#{status})
+              AND (#{scope}='' OR (#{scope}='LEAVE' AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE'))
+                               OR (#{scope}='CORRECTION' AND r.kind='ATTENDANCE_CORRECTION'))
             ORDER BY r.submitted_at DESC,r.id LIMIT 51 OFFSET #{offset}
             """)
     List<CompanyRequest> requests(@Param("tenantId") UUID tenantId, @Param("today") LocalDate today,
             @Param("organizationId") UUID organizationId, @Param("status") String status,
-            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset);
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset, @Param("scope") String scope);
 }

@@ -55,6 +55,7 @@ interface CompanyAttendance {
   }[];
 }
 interface CompanyRequests {
+  scope?: "LEAVE" | "CORRECTION" | null;
   year: number;
   asOf: string;
   organizationId: string | null;
@@ -277,11 +278,12 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
 function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
   return (
     <>
-      <PageHeader title="회사 신청 현황" help={<>
+      <PageHeader title={m.scope === "LEAVE" ? "회사 휴가 신청 현황" : m.scope === "CORRECTION" ? "회사 정정 현황" : "회사 신청 현황"} help={<>
         <p>조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
         <p>조직은 서울 기준 오늘의 소속입니다. 신청일량은 조회연도에 포함된 일량이며 취소 신청은 원신청을 기준으로 합니다.</p>
       </>} />
       <Form action="/company/requests" method="get" className="wl-querybar">
+        {m.scope && <input type="hidden" name="scope" value={m.scope} />}
         <Field label="조회연도 (서울)" name="year" type="number" value={m.year} min={1} max={9999} required />
         <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
         <SelectField label="신청 상태" name="status" value={m.status}>
@@ -303,7 +305,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
           emptyMessage="조회된 신청이 없습니다."
           pagination={<Pagination
             path="/company/requests"
-            values={{ year: m.year, organizationId: m.organizationId, status: m.status }}
+            values={{ year: m.year, organizationId: m.organizationId, status: m.status, scope: m.scope ?? null }}
             page={m.page}
             hasNext={m.hasNext}
           />}

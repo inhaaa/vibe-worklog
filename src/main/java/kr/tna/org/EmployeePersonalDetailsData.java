@@ -25,7 +25,7 @@ public final class EmployeePersonalDetailsData {
     public record Entry(UUID id, String kind, String title, String detail, LocalDate effectiveFrom,
             LocalDate effectiveTo, long revision) { }
 
-    public record Appointment(UUID id, String organizationName, LocalDate validFrom, LocalDate validTo) { }
+    public record Appointment(UUID id, String organizationName, LocalDate validFrom, LocalDate validTo, boolean initial) { }
 
     public record View(UUID employeeId, long version, Form form, Form currentForm,
             List<Entry> entries, List<Appointment> appointments, EntryForm entryForm) { }

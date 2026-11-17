@@ -7,9 +7,9 @@ afterEach(cleanup);
 describe('업무 트리', () => {
   it('현재 상세의 조상은 열리고 실제 링크만 현재 페이지로 표시한다', () => {
     render(<WorkspaceNavigation roles={['EMPLOYEE', 'ATTENDANCE_ADMIN']} page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
-    expect(screen.getByRole('button', { name: '인사·조직' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('button', { name: '조직·사원' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('link', { name: '사원 관리' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('button', { name: '인사관리' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: '사원' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('link', { name: '인사기본' }).getAttribute('aria-current')).toBe('page');
     expect(screen.queryByRole('link', { name: '홈' })).toBeNull();
     expect(screen.queryByRole('tree')).toBeNull();
   });
@@ -17,9 +17,9 @@ describe('업무 트리', () => {
   it('현재 업무의 조상 강조는 접힘과 무관하게 유지되고 화면 이동을 따른다', () => {
     const roles = ['EMPLOYEE', 'ATTENDANCE_ADMIN'];
     const view = render(<WorkspaceNavigation roles={roles} page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
-    const people = screen.getByRole('button', { name: '인사·조직' });
+    const people = screen.getByRole('button', { name: '인사관리' });
     expect(people.getAttribute('data-active')).toBe('true');
-    expect(screen.getByRole('button', { name: '조직·사원' }).getAttribute('data-active')).toBe('true');
+    expect(screen.getByRole('button', { name: '사원' }).getAttribute('data-active')).toBe('true');
     expect(screen.getByRole('button', { name: '근태 운영' }).getAttribute('data-active')).toBe('false');
     fireEvent.click(people);
     expect(people.getAttribute('aria-expanded')).toBe('false');
@@ -70,7 +70,7 @@ describe('업무 트리', () => {
   it('링크 선택 시 상위 모바일 패널의 닫기 동작을 호출하고 query를 추가하지 않는다', () => {
     const close = vi.fn();
     render(<WorkspaceNavigation roles={['EMPLOYEE']} page="request/mine" pathname="/me/requests" onNavigate={close} />);
-    const link = screen.getByRole('link', { name: '내 근태현황·신청' });
+    const link = screen.getByRole('link', { name: '내 신청 이력' });
     expect(link.getAttribute('href')).toBe('/me/requests');
     link.addEventListener('click', event => event.preventDefault());
     fireEvent.click(link);
@@ -79,17 +79,17 @@ describe('업무 트리', () => {
 
   it('같은 메뉴의 다른 상세로 이동해도 현재 조상을 다시 연다', () => {
     const view = render(<WorkspaceNavigation roles={['ATTENDANCE_ADMIN']} page="org/employee" pathname="/admin/employees/e-1" />);
-    fireEvent.click(screen.getByRole('button', { name: '인사·조직' }));
+    fireEvent.click(screen.getByRole('button', { name: '인사관리' }));
     view.rerender(<WorkspaceNavigation roles={['ATTENDANCE_ADMIN']} page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
-    expect(screen.getByRole('button', { name: '인사·조직' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: '인사관리' }).getAttribute('aria-expanded')).toBe('true');
   });
 
   it('브레드크럼은 3단계 실제 경로와 상세 제목을 제공한다', () => {
     render(<Breadcrumbs page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
     const crumb = screen.getByRole('navigation', { name: '현재 위치' });
-    expect(crumb.textContent).toContain('인사·조직');
-    expect(crumb.textContent).toContain('조직·사원');
-    expect(screen.getByRole('link', { name: '사원 관리' }).getAttribute('href')).toBe('/admin/employees');
+    expect(crumb.textContent).toContain('인사관리');
+    expect(crumb.textContent).toContain('사원');
+    expect(screen.getByRole('link', { name: '인사기본' }).getAttribute('href')).toBe('/admin/employees');
     expect(screen.getByText('인사정보 등록').getAttribute('aria-current')).toBe('page');
   });
 });

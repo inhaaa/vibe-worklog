@@ -10,6 +10,7 @@ import { CorePages } from './pages/CorePages';
 import { WorkspaceHome, useWorkspaceHomeRefresh } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
@@ -30,6 +31,7 @@ import './design/workspace.css';
 import './design/screens.css';
 
 function isTaskUrl(url: URL) {
+  if (url.pathname === '/admin/employees/onboarding') return false;
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
     || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId'))
@@ -80,6 +82,8 @@ const titles: Record<string, string> = {
   'clock/calendar': '근무일·휴일',
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
+  'clock/period': '출퇴근 기간 조회',
+  'org/onboarding': '입사 예정 관리',
   'request/mine': '내 근태현황·신청',
   'request/attributions': '기초 묶음 귀속연도',
   'request/detail': '신청 상세',
@@ -129,12 +133,14 @@ function Icon({ name }: { name: string }) {
 function Workspace({
   data,
   page,
+  pageUrl,
   title,
   children,
   busy,
 }: {
   data: Record<string, unknown>;
   page: string;
+  pageUrl: string;
   title: string;
   children: ReactNode;
   busy: boolean;
@@ -148,7 +154,7 @@ function Workspace({
   const demo = data.workspaceDemo === true;
   const workspaceName = demo ? 'WorkLog 데모' : (employee?.companyName ?? '워크스페이스');
   const [selectedRole, setSelectedRole] = useState(() => {
-    const href = getNavigationContext(page, location.pathname, data)?.href;
+    const href = getNavigationContext(page, pageUrl, data)?.href;
     return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value
       ?? (demo && roles.includes('ATTENDANCE_ADMIN') ? 'ATTENDANCE_ADMIN' : undefined);
   });
@@ -183,7 +189,7 @@ function Workspace({
             </small>
           </span>
         </div>
-        <WorkspaceNavigation roles={getWorkspaceMenuRoles(roles, activeRole)} page={page} data={data} onNavigate={() => setOpen(false)} />
+        <WorkspaceNavigation roles={getWorkspaceMenuRoles(roles, activeRole)} page={page} data={data} pathname={pageUrl} onNavigate={() => setOpen(false)} />
         <div className="t-sidebar-bottom">
           {demo && (
             <>
@@ -218,7 +224,7 @@ function Workspace({
             <Icon name="menu" />
           </button>
           {brand}
-          <Breadcrumbs page={page} data={data} />
+          <Breadcrumbs page={page} data={data} pathname={pageUrl} />
         </div>
         <div className="t-profile">
           <ThemeSwitcher />
@@ -259,6 +265,7 @@ function Content(props: PageProps) {
       <CorePages {...props} />
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
+      {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
       <ApprovalRoutePages {...props} />
       <CodePages {...props} />
       <AnnualRequestPage {...props} />
@@ -289,7 +296,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const pending = useRef<AbortController | null>(null);
   const currentUrl = useRef(location.href);
   const navigationFrom = useRef<string | undefined>(undefined);
-  navigationFrom.current = getNavigationContext(envelope.page, new URL(currentUrl.current).pathname, envelope.data)?.href;
+  const activeUrl = new URL(currentUrl.current);
+  navigationFrom.current = getNavigationContext(envelope.page, activeUrl.pathname + activeUrl.search, envelope.data)?.href;
   const historyPosition = useRef<number>(Number.isInteger(history.state?.worklogPosition) ? history.state.worklogPosition : 0);
   const restoringHistory = useRef(false);
   const historyState = (position: number, source?: string) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position, worklogNavigationFrom: source ?? null });
@@ -603,7 +611,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   };
   const submit = (event: SubmitEvent<HTMLDivElement>) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented || form.hasAttribute('data-native-submit')) return;
     const native = event.nativeEvent as globalThis.SubmitEvent;
     const submitter = native.submitter as HTMLButtonElement | null;
     const url = new URL(submitter?.getAttribute('formaction') || form.action, location.href);
@@ -668,6 +676,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
           <Workspace
             data={base.data}
             page={base.page}
+            pageUrl={background?.url ?? currentUrl.current}
             title={titles[base.page] ?? '업무'}
             busy={busy}
           >

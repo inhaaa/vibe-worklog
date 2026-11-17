@@ -9,7 +9,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.ModelAndView;
 
-@ControllerAdvice(assignableTypes = {EmployeePersonnelController.class, OrgAdminController.class, OrgBulkController.class, AccountAdminController.class, OrganizationHeadController.class, kr.tna.approval.ApprovalRouteController.class, kr.tna.codes.CodeController.class, InvitationController.class, kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class, kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class, kr.tna.request.LeaveAttributionController.class, kr.tna.request.AnnualRequestController.class, kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class, kr.tna.workspace.ProfileCompanyController.class})
+@ControllerAdvice(assignableTypes = {EmployeePersonnelController.class, EmployeeOnboardingController.class,
+        OrgAdminController.class, OrgBulkController.class, AccountAdminController.class, OrganizationHeadController.class,
+        kr.tna.approval.ApprovalRouteController.class, kr.tna.codes.CodeController.class, InvitationController.class,
+        kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class,
+        kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class,
+        kr.tna.request.LeaveAttributionController.class, kr.tna.request.AnnualRequestController.class,
+        kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class,
+        kr.tna.workspace.ProfileCompanyController.class})
 public class OrgErrorAdvice {
     @ExceptionHandler(OrgException.class)
     ModelAndView domain(OrgException exception) { return problem(exception.status(), exception.getMessage()); }

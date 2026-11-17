@@ -5,6 +5,8 @@ import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateT
 import type { Employee, Organization } from './AdminTypes';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { Modal } from '../components/Modal';
+import { employmentStatusName } from '../components/EmployeeHeader';
 import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
 import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
@@ -23,6 +25,9 @@ interface SheetPageModel {
   employeeOrganizations?: Record<string, string>; error?: string | null;
   organizationHeadsById?: Record<string, { employeeName: string; eligible: boolean; approverEligible: boolean }>;
   employeeContext?: Record<string, { organizationName: string | null; organizationHeadName: string | null; organizationHeadEligible: boolean; organizationHeadApproverEligible: boolean; scheduleName: string | null }>;
+  personnelBasics?: Record<string, { onboardingId?: string | null; gradeName?: string | null; positionName?: string | null; jobName?: string | null; employmentStatus?: string | null }>;
+  personnelAsOf?: string;
+  publicDemo?: boolean;
 }
 const fields = (organization: boolean) => organization
   ? ['code', 'name', 'parentId', 'active'] as const
@@ -57,6 +62,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
   const [confirming, setConfirming] = useState(() => (model.errors ?? []).some(error => error.field === 'reason'));
+  const [exporting, setExporting] = useState(false);
   const formId = useId();
   const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(row => [row.id, row])), [model.latestRows]);
@@ -65,8 +71,9 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const unsaved = dirty.length > 0 || reason.length > 0;
   const reasonError = errors.find(error => error.field === 'reason')?.message;
   const path = organization ? '/admin/organizations' : '/admin/employees';
-  const title = organization ? '조직 관리' : '사원 관리';
+  const title = organization ? '조직 관리' : '인사기본';
   const label = organization ? '조직' : '사원';
+  const exportIds = rows.flatMap(row => row.id && selected.has(row.clientRowId) ? [row.id] : []);
   const renew = () => setCommandId(crypto.randomUUID());
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -82,11 +89,9 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   }
   function add() {
     const base = { clientRowId: crypto.randomUUID(), operation: 'CREATE' as const, active: true };
-    setRows(current => [...current, organization
-      ? { ...base, code: '', name: '', parentId: null }
-      : { ...base, employeeNo: '', displayName: '', joinedOn: '', leftOn: null }]);
+    setRows(current => [...current, { ...base, code: '', name: '', parentId: null }]);
     renew();
-    setTimeout(() => sheet.current?.focusCell(base.clientRowId, organization ? 'code' : 'employeeNo'), 0);
+    setTimeout(() => sheet.current?.focusCell(base.clientRowId, 'code'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row =>
@@ -134,6 +139,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   function employeeCell(row: Row, previous: Employee | Organization | undefined) {
     if (!row.id) return '저장 후 배정';
     const context = m.employeeContext?.[row.id];
+    const onboardingId = m.personnelBasics?.[row.id]?.onboardingId;
     const name = businessValue(previous ?? row, 'displayName');
     return <div className="t-sheet-links">
       <span>{context?.organizationName ?? m.employeeOrganizations?.[row.id] ?? '소속 미배정'}</span>
@@ -143,7 +149,17 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
       <a href={`/admin/employees/${row.id}/schedule`} aria-label={`${name} 근무 배정`}>근무 배정</a>
       <a href={`/admin/employees/${row.id}/access`}>계정·권한</a>
       <a href={`/admin/employees/${row.id}/personnel`}>인사정보</a>
+      {onboardingId && <a href={`/admin/employees/onboarding/${onboardingId}`}>최초 발령 보기</a>}
     </div>;
+  }
+  function displayedEmployment(row: Row) {
+    const stored = row.id ? latest.get(row.id) as Employee | undefined : undefined;
+    if (m.personnelAsOf && stored) {
+      if (!stored.active || (stored.leftOn && stored.leftOn < m.personnelAsOf)) return '비활성';
+      if (stored.joinedOn > m.personnelAsOf) return '입사 예정';
+    }
+    const state = row.id ? m.personnelBasics?.[row.id]?.employmentStatus : null;
+    return state ? employmentStatusName(state) : '미등록';
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
   const columns = [
@@ -160,9 +176,14 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
       })),
       sheetColumn<Row>({ colId: 'organizationHead', headerName: '조직장', minWidth: 190, valueGetter: ({ data }) => data?.id ? m.organizationHeadsById?.[data.id]?.employeeName ?? '' : '' }, row => headCell(row)),
     ] : [
-      sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })),
+      sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true, fixed: Boolean(row.id && m.personnelBasics?.[row.id]?.onboardingId) })),
       sheetEditorColumn<Row>({ colId: 'leftOn', headerName: '마지막 재직일', minWidth: 160 }, (row, index) => input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })),
       sheetColumn<Row>({ colId: 'assignments', headerName: '현재 소속·배정', minWidth: 270, flex: 1, valueGetter: ({ data }) => data?.id ? m.employeeContext?.[data.id]?.organizationName ?? m.employeeOrganizations?.[data.id] ?? '' : '' }, row => employeeCell(row, row.id ? latest.get(row.id) : undefined)),
+      sheetColumn<Row>({ colId: 'employmentStatus', headerName: '재직 상태', minWidth: 120, valueGetter: ({ data }) => data ? displayedEmployment(data) : '' }, displayedEmployment),
+      ...([['gradeName', '직급'], ['positionName', '직책'], ['jobName', '직무']] as const).map(([field, headerName]) => {
+        const value = (row: Row) => row.id ? m.personnelBasics?.[row.id]?.[field] ?? '미등록' : '미등록';
+        return sheetColumn<Row>({ colId: field, headerName, minWidth: 120, valueGetter: ({ data }) => data ? value(data) : '' }, value);
+      }),
     ]),
     sheetColumn<Row>({ colId: 'active', field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
   ];
@@ -170,9 +191,12 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
     <PageHeader title={title} help={<>
       <p>여러 행을 편집하고 한 번에 저장하세요.</p>
       <p id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
-      {!organization && <p>신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
-    </>} actions={<a className="t-btn" href="/company/organizations">조직도</a>} />
+    </>} actions={organization ? <a className="t-btn" href="/company/organizations">조직도</a> : <>
+      <a className="t-btn" href="/admin/employees/onboarding">입사 예정 관리</a>
+      {!m.publicDemo && <button className="t-btn" type="button" onClick={() => setExporting(true)}>인사기본 Excel</button>}
+    </>} />
     <section className="wl-section">
+      {!organization && m.personnelAsOf && <p className="t-muted">조회 기준일 {m.personnelAsOf}</p>}
       <form action={path} method="get" className="wl-querybar" role="search" aria-label={`${label} 검색`}>
         <label htmlFor="sheet-q">{label} 검색</label><input id="sheet-q" className="t-input" name="q" type="search" defaultValue={m.q} maxLength={120} placeholder={organization ? '코드 또는 이름' : '사번 또는 이름'} />
         {!organization && <><label className="t-sr-only" htmlFor="sheet-org">현재 소속</label><select id="sheet-org" className="t-select" name="organizationId" defaultValue={m.organizationId ?? ''}><option value="">전체 소속</option>{m.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><label className="t-sr-only" htmlFor="sheet-status">활성 상태</label><select id="sheet-status" className="t-select" name="status" defaultValue={m.status ?? 'all'}><option value="all">전체 상태</option><option value="active">활성</option><option value="inactive">비활성</option></select></>}
@@ -186,9 +210,9 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
         <WorklogSheet ref={sheet} label={`${label} 편집 시트`} title={`${label} 목록`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected}
           selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
-          emptyMessage={`조회된 ${label}이 없습니다. 행 추가 버튼으로 새 행을 추가하세요.`}
+          emptyMessage={organization ? '조회된 조직이 없습니다. 행 추가 버튼으로 새 행을 추가하세요.' : '조회된 사원이 없습니다.'}
           actions={<div className="w-sheet-tools" role="group" aria-label={`${label} 시트 편집`}>
-            <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">행 추가</button>
+            {organization && <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">행 추가</button>}
             <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
             <span className="w-sheet-divider" aria-hidden="true" />
             <button className="t-btn" type="button" onClick={cancel} disabled={!unsaved}>변경 취소</button>
@@ -200,6 +224,25 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
     </section>
     {confirming && <SheetSaveDialog formId={formId} label="일괄 변경 사유" reason={reason} error={reasonError} counts={sheetChangeCounts(dirty)}
       busy={busy} onReasonChange={changeReason} onClose={() => setConfirming(false)} />}
+    {exporting && <Modal title="인사기본 Excel" size="s" onClose={() => setExporting(false)}>
+      {unsaved ? <p>먼저 시트의 변경 사항을 저장하거나 취소하세요.</p> : <>
+        <p>저장된 사원 정보만 다운로드합니다.</p>
+        <Form action="/admin/employees/exports" data-native-submit="true">
+          <input type="hidden" name="scope" value="SELECTED" />
+          {exportIds.map(id => <input key={id} type="hidden" name="employeeIds" value={id} />)}
+          <button className="t-btn" type="submit" disabled={!exportIds.length}>선택한 사원 다운로드</button>
+        </Form>
+        <Form action="/admin/employees/exports" data-native-submit="true">
+          <input type="hidden" name="scope" value="FILTERED" />
+          <input type="hidden" name="q" value={m.q} />
+          <input type="hidden" name="organizationId" value={m.organizationId ?? ''} />
+          <input type="hidden" name="status" value={m.status ?? 'all'} />
+          <p>현재 조회 조건에 맞는 모든 페이지의 사원, 최대 1,000행을 포함합니다.</p>
+          <label><input type="checkbox" required /> 전체 다운로드 범위를 확인했습니다.</label>
+          <button className="t-btn" type="submit">현재 조회 조건 전체 다운로드</button>
+        </Form>
+      </>}
+    </Modal>}
   </section>;
 }
 

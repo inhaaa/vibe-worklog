@@ -73,7 +73,7 @@ describe('WorkflowPages', () => {
     const view = domRender(<WorkflowPages page="request/list" data={{ title: '고객사 신청 현황', requests: [request] }} csrf={csrf} reload={() => {}} />);
     expect(await view.findByRole('grid', { name: '근태 신청 목록' })).toBeTruthy();
     expect(view.container.querySelector('[row-id="request-1"]')).toBeTruthy();
-    expect(view.getByRole('link', { name: 'LEAVE_DAY' }).getAttribute('href')).toBe('/requests/request-1');
+    expect(view.getByRole('link', { name: '종일 연차' }).getAttribute('href')).toBe('/requests/request-1');
     expect(view.container.textContent).toContain(request.targetEmployeeName);
     expect(view.container.querySelector('script')).toBeNull();
   });

@@ -82,6 +82,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('조직·사원 시트 편집', () => {
+  it('인사기본 시트에서 입사 예정 관리와 선택 사원 Excel을 열고 확정 입사일을 편집하지 않는다', async () => {
+    const view = render(<App initial={page('employees', {
+      personnelAsOf: '2026-11-17',
+      personnelBasics: { 'e-1': { onboardingId: 'planned-one', gradeName: '선임',
+        positionName: '팀원', jobName: '개발', employmentStatus: 'ACTIVE' } },
+    })} />);
+    expect(view.getByRole('link', { name: '입사 예정 관리' }).getAttribute('href')).toBe('/admin/employees/onboarding');
+    expect(await view.findByRole('link', { name: '최초 발령 보기' })).toHaveProperty('pathname', '/admin/employees/onboarding/planned-one');
+    const joinDate = await view.findByLabelText('입사일 1');
+    fireEvent.keyDown(joinDate, { key: 'F2' });
+    expect(view.getByLabelText('입사일 1')).not.toBeInstanceOf(HTMLInputElement);
+    fireEvent.click(view.getByRole('button', { name: '인사기본 Excel' }));
+    const dialog = view.getByRole('dialog', { name: '인사기본 Excel' });
+    expect(within(dialog).getByRole('button', { name: '선택한 사원 다운로드' })).toHaveProperty('disabled', true);
+    expect(dialog.querySelector('form[data-native-submit]')).toHaveProperty('action', expect.stringContaining('/admin/employees/exports'));
+  });
+
   it('편집 전에는 텍스트 셀을 표시하고 저장된 조직 코드는 클릭·F2로 편집하지 않는다', async () => {
     const view = await show();
     const region = view.getByRole('region', { name: '조직 편집 시트' });
@@ -140,18 +157,11 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toEqual([]);
   });
 
-  it('신규 사번을 비워도 저장하며 기존 사번은 읽기 전용이다', async () => {
+  it('사원 등록은 입사 예정 흐름에서 시작하고 기존 사번은 읽기 전용이다', async () => {
     const view = await show(page('employees'));
     expect(view.getByLabelText('사번 1').getAttribute('aria-readonly')).toBe('true');
-    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
-    const number = await openCell(view, '사번 2') as HTMLInputElement;
-    expect(number.required).toBe(false);
-    fireEvent.keyDown(number, { key: 'Enter' });
-    await waitFor(() => expect(number.isConnected).toBe(false));
-    await changeCell(view, '이름 2', '자동 사원');
-    await changeCell(view, '입사일 2', '2026-11-03');
-    expect(view.getByText(/사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급/)).toBeTruthy();
-    expect(postedRows(view, 'employees')[0]).toMatchObject({ employeeNo: '', joinedOn: '2026-11-03', operation: 'CREATE' });
+    expect(view.queryByRole('button', { name: '행 추가' })).toBeNull();
+    expect(view.getByRole('link', { name: '입사 예정 관리' })).toHaveProperty('pathname', '/admin/employees/onboarding');
   });
 
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
@@ -386,7 +396,9 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = await show();
-    fireEvent.click(view.getByRole('link', { name: '사원 관리' }));
+    fireEvent.click(view.getByRole('button', { name: '인사관리' }));
+    fireEvent.click(view.getByRole('button', { name: '사원' }));
+    fireEvent.click(view.getByRole('link', { name: '인사기본' }));
     await view.findByLabelText('이름 1', {}, { timeout: 5000 });
     await changeCell(view, '이름 1', '직원 편집');
     const backRestored = restoredAt('/admin/employees');

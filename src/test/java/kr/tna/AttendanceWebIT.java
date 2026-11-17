@@ -37,6 +37,32 @@ class AttendanceWebIT {
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/isToday",false))
                 .andExpect(model().attributeDoesNotExist("inCommand","outCommand"));
     }
+    @Test void attendancePeriodUsesTheSignedInEmployeeAndOmitsWriteCommands() throws Exception {
+        var session = login(true);
+        mvc.perform(get("/me/attendance").session(session).param("view", "period")
+                        .param("from", "2026-01-01").param("to", "2026-01-03")
+                        .param("employeeId", DatabaseFixture.EMPLOYEE_B.toString()).param("tenantId", DatabaseFixture.TENANT_B.toString()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/attendancePeriod/from", "2026-01-01"))
+                .andExpect(ReactPageAssertions.data("/attendancePeriod/rows/0/workDate", "2026-01-03"))
+                .andExpect(ReactPageAssertions.data("/attendancePeriod/rows/2/workDate", "2026-01-01"))
+                .andExpect(model().attributeDoesNotExist("inCommand", "outCommand", "confirmationForm"))
+                .andExpect(result -> {
+                    var data = ReactPageAssertions.envelope(result).at("/data/attendancePeriod");
+                    assertEquals(3, data.get("rows").size());
+                    assertFalse(data.toString().contains(DatabaseFixture.EMPLOYEE_B.toString()));
+                    assertFalse(data.toString().contains(DatabaseFixture.TENANT_B.toString()));
+                });
+        mvc.perform(get("/me/attendance").session(session).param("view", "period")
+                        .param("from", "2024-02-29").param("to", "2024-05-30"))
+                .andExpect(status().isOk())
+                .andExpect(result -> assertEquals(92, ReactPageAssertions.envelope(result)
+                        .at("/data/attendancePeriod/rows").size()));
+        mvc.perform(get("/me/attendance").session(session).param("view", "period")
+                        .param("from", "2024-02-28").param("to", "2024-05-30"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(result -> assertEquals(0, ReactPageAssertions.envelope(result)
+                        .at("/data/attendancePeriod/rows").size()));
+    }
     @Test void forwardedHeaderCannotBypassNetworkPolicy() throws Exception {
         var s=login(false);mvc.perform(post("/me/attendance/events").session(s).with(csrf()).header("X-Forwarded-For","127.0.0.1")
             .with(r->{r.setRemoteAddr("198.51.100.7");return r;}).param("eventKind","IN").param("commandId",UUID.randomUUID().toString()))

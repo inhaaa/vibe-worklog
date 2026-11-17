@@ -13,6 +13,16 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface EmployeeAdminMapper {
+    String DIRECTORY_FILTER = """
+              AND (e.employee_no ILIKE #{search} OR e.display_name ILIKE #{search})
+              AND (#{status}='all' OR e.active=(#{status}='active'))
+              AND (CAST(#{organizationId} AS uuid) IS NULL OR EXISTS (
+                  SELECT 1 FROM tna.employee_assignment a
+                  WHERE a.tenant_id=e.tenant_id AND a.employee_id=e.id
+                    AND a.organization_id=#{organizationId} AND #{today}>=a.valid_from
+                    AND (a.valid_to IS NULL OR a.valid_to>#{today})))
+            """;
+
     @Select("""
             SELECT a.employee_id FROM tna.tenant_account a
             WHERE a.tenant_id=#{tenantId} AND a.active AND a.credential_set
@@ -37,18 +47,63 @@ public interface EmployeeAdminMapper {
             SELECT e.id,e.employee_no,e.display_name,e.joined_on,e.left_on,e.active,e.version
             FROM tna.employee e
             WHERE e.tenant_id=#{tenantId}
-              AND (e.employee_no ILIKE #{search} OR e.display_name ILIKE #{search})
-              AND (#{status}='all' OR e.active=(#{status}='active'))
-              AND (CAST(#{organizationId} AS uuid) IS NULL OR EXISTS (
-                  SELECT 1 FROM tna.employee_assignment a
-                  WHERE a.tenant_id=e.tenant_id AND a.employee_id=e.id
-                    AND a.organization_id=#{organizationId} AND a.valid_from<=#{today}
-                    AND (a.valid_to IS NULL OR a.valid_to>#{today})))
+            """ + DIRECTORY_FILTER + """
             ORDER BY e.employee_no,e.id LIMIT 51 OFFSET #{offset}
             """)
     List<Employee> directory(@Param("tenantId") UUID tenantId, @Param("search") String search,
                              @Param("offset") int offset, @Param("organizationId") UUID organizationId,
                              @Param("status") String status, @Param("today") LocalDate today);
+
+    record PersonnelBasic(UUID employeeId, UUID onboardingId, String gradeName, String positionName,
+                          String jobName, String employmentStatus) { }
+
+    @Select("""
+            <script>
+            SELECT e.id AS employee_id,b.id AS onboarding_id,p.grade_name,p.position_name,p.job_name,s.employment_status
+            FROM tna.employee e
+            LEFT JOIN tna.employee_onboarding b ON b.tenant_id=e.tenant_id AND b.employee_id=e.id AND b.state='CONFIRMED'
+            LEFT JOIN tna.employee_personnel p ON p.tenant_id=e.tenant_id AND p.employee_id=e.id
+            LEFT JOIN LATERAL (
+                SELECT x.employment_status FROM tna.employee_employment_status x
+                WHERE x.tenant_id=e.tenant_id AND x.employee_id=e.id AND #{today}>=x.effective_from
+                ORDER BY x.effective_from DESC,x.revision DESC LIMIT 1
+            ) s ON TRUE
+            WHERE e.tenant_id=#{tenantId} AND e.id IN
+            <foreach collection="employeeIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    List<PersonnelBasic> personnelBasics(@Param("tenantId") UUID tenantId,
+            @Param("employeeIds") List<UUID> employeeIds, @Param("today") LocalDate today);
+
+    @Select("""
+            <script>
+            SELECT e.id AS employee_id,e.employee_no,e.display_name,e.joined_on,e.left_on,e.active,
+                   o.code AS organization_code,o.name AS organization_name,t.name AS schedule_name,
+                   p.grade_name,p.position_name,p.job_name
+            FROM tna.employee e
+            LEFT JOIN tna.employee_assignment a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
+              AND #{today}>=a.valid_from AND (a.valid_to IS NULL OR a.valid_to>#{today})
+            LEFT JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
+            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
+              AND #{today}>=sa.valid_from AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
+            LEFT JOIN tna.schedule_version v ON v.tenant_id=sa.tenant_id AND v.id=sa.schedule_version_id
+            LEFT JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
+            LEFT JOIN tna.employee_personnel p ON p.tenant_id=e.tenant_id AND p.employee_id=e.id
+            WHERE e.tenant_id=#{tenantId}
+            <choose>
+            <when test="employeeIds != null">
+              AND e.id IN <foreach collection="employeeIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            </when>
+            <otherwise>
+            """ + DIRECTORY_FILTER + """
+            </otherwise>
+            </choose>
+            ORDER BY e.employee_no,e.id LIMIT 1001
+            </script>
+            """)
+    List<PersonnelExportService.Row> personnelExport(@Param("tenantId") UUID tenantId,
+            @Param("employeeIds") List<UUID> employeeIds, @Param("search") String search,
+            @Param("organizationId") UUID organizationId, @Param("status") String status, @Param("today") LocalDate today);
 
     @Select("""
             <script>

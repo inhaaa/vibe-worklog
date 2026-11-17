@@ -6,6 +6,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -18,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipInputStream;
 import kr.tna.common.auth.TnaPrincipal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -394,6 +397,55 @@ class OrgBulkWebIT {
                         .param("rows", "[{\"operation\":\"CREATE\",\"operation\":\"DEACTIVATE\"}]"))
                 .andExpect(status().isBadRequest());
         assertEquals(0, count("tna.org_audit_event"));
+    }
+
+    @Test
+    void personnelExportReturnsTheCommittedSelectionOrAllMatchingPagesAndAuditsOnlyAuthorizedDownloads() throws Exception {
+        var selected = member("00009", Set.of("EMPLOYEE"));
+        database.update("UPDATE tna.employee SET display_name='=2+3' WHERE tenant_id=? AND id=?", tenant, selected.employeeId());
+        database.update("""
+                INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on,active,created_by,updated_by)
+                SELECT ?,gen_random_uuid(),'SHEET-'||n,'필터 '||n,?,true,?,? FROM generate_series(1,52) n
+                """, tenant, today, manager.accountId(), manager.accountId());
+        String path = "/admin/employees/exports";
+        var selection = mvc.perform(authenticated(post(path), manager).with(csrf())
+                        .param("scope", "SELECTED").param("employeeIds", selected.employeeId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=personnel.xlsx"))
+                .andReturn();
+        String selectedSheet = worksheet(selection);
+        assertTrue(selectedSheet.contains("00009") && selectedSheet.contains("=2+3"));
+        assertFalse(selectedSheet.contains("<f") || selectedSheet.contains("SHEET-"));
+
+        String filteredSheet = worksheet(mvc.perform(authenticated(post(path), manager).with(csrf())
+                        .param("scope", "FILTERED").param("q", "SHEET-").param("status", "active"))
+                .andExpect(status().isOk()).andReturn());
+        assertEquals(54, filteredSheet.split("<row r=", -1).length - 1);
+        assertFalse(filteredSheet.contains("00009"));
+        mvc.perform(authenticated(post(path), selected).with(csrf()).param("scope", "FILTERED"))
+                .andExpect(status().isForbidden());
+        mvc.perform(authenticated(post(path), manager).param("scope", "FILTERED"))
+                .andExpect(status().isForbidden());
+        mvc.perform(authenticated(post(path), manager).with(csrf()).param("scope", "SELECTED")
+                        .param("employeeIds", selected.employeeId().toString(), UUID.randomUUID().toString()))
+                .andExpect(status().isNotFound());
+        assertEquals(List.of("1", "52"), database.queryForList("""
+                SELECT after_state->>'rowCount' FROM tna.org_audit_event
+                WHERE tenant_id=? AND action='PERSONNEL_EXPORT' ORDER BY (after_state->>'rowCount')::integer
+                """, String.class, tenant));
+    }
+
+    private String worksheet(MvcResult result) throws Exception {
+        try (var zip = new ZipInputStream(new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+                if (entry.getName().equals("xl/worksheets/sheet1.xml")) {
+                    return new String(zip.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+        }
+        throw new AssertionError("워크시트가 없습니다.");
     }
 
     @Test

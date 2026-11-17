@@ -7,6 +7,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,11 +23,18 @@ public class OrgAdminController {
     private final OrganizationService organizations;
     private final EmployeeService employees;
     private final OrganizationHeadService heads;
+    private final OrgCommands commands;
+    private final EmployeeAdminMapper employeeMapper;
+    private final boolean publicDemo;
 
-    public OrgAdminController(OrganizationService organizations, EmployeeService employees, OrganizationHeadService heads) {
+    public OrgAdminController(OrganizationService organizations, EmployeeService employees, OrganizationHeadService heads,
+            OrgCommands commands, EmployeeAdminMapper employeeMapper, Environment environment) {
         this.organizations = organizations;
         this.employees = employees;
         this.heads = heads;
+        this.commands = commands;
+        this.employeeMapper = employeeMapper;
+        this.publicDemo = environment.acceptsProfiles(Profiles.of("public-demo"));
     }
 
     @GetMapping("/admin/organizations")
@@ -137,11 +146,16 @@ public class OrgAdminController {
 
     ModelAndView employeeContext(ModelAndView view, TnaPrincipal actor, List<OrgData.Employee> employees) {
         var contexts = new LinkedHashMap<UUID, OrganizationHeadData.EmployeeContext>();
+        var basics = new LinkedHashMap<UUID, EmployeeAdminMapper.PersonnelBasic>();
+        var asOf = commands.today();
         for (int offset = 0; offset < employees.size(); offset += 50) {
             var ids = employees.subList(offset, Math.min(offset + 50, employees.size())).stream().map(OrgData.Employee::id).toList();
             contexts.putAll(heads.employeeSheetContext(actor, ids));
+            commands.read(actor, () -> employeeMapper.personnelBasics(actor.tenantId(), ids, asOf))
+                    .forEach(detail -> basics.put(detail.employeeId(), detail));
         }
-        return view.addObject("employeeContext", contexts);
+        return view.addObject("employeeContext", contexts).addObject("personnelBasics", basics)
+                .addObject("personnelAsOf", asOf).addObject("publicDemo", publicDemo);
     }
 
     private ModelAndView employeeDetail(TnaPrincipal actor, UUID id,
