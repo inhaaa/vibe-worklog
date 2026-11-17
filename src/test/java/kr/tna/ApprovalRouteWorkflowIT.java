@@ -2,9 +2,12 @@ package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.net.URI;
 import java.time.*;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -117,6 +120,67 @@ class ApprovalRouteWorkflowIT {
         assertEquals(403,assertThrows(OrgException.class,()->flow.decide(head,request,new DecisionForm("REJECT",1L,"이전 담당",UUID.randomUUID()))).status());
         flow.decide(direct,request,new DecisionForm("REJECT",1L,"새 담당 반려",UUID.randomUUID()));
         assertEquals("REJECTED",flow.get(worker,request).request().status());
+    }
+
+    @Test
+    void aHeadChangeFromTheChartUpdatesOnlyNewRequestsForANewlyCodedOrganization() throws Exception {
+        String originalCode = db.queryForObject("SELECT code FROM tna.organization WHERE tenant_id=? AND id=?",
+                String.class, tenant, organization);
+        var created = mvc.perform(post("/admin/organizations").with(as(admin)).with(csrf())
+                        .param("name", "신규 합성 조직").param("active", "true")
+                        .param("reason", "조직 자동 코드 검증").param("commandId", UUID.randomUUID().toString()))
+                .andExpect(status().isSeeOther()).andReturn().getResponse().getRedirectedUrl();
+        assertNotNull(created);
+        String createdPath = URI.create(created).getPath();
+        UUID createdOrganization = UUID.fromString(createdPath.substring(createdPath.lastIndexOf('/') + 1));
+        assertEquals(today.getYear() + "0001", db.queryForObject(
+                "SELECT code FROM tna.organization WHERE tenant_id=? AND id=?", String.class, tenant, createdOrganization));
+        assertEquals(originalCode, db.queryForObject(
+                "SELECT code FROM tna.organization WHERE tenant_id=? AND id=?", String.class, tenant, organization));
+
+        db.update("UPDATE tna.employee_assignment SET organization_id=? WHERE tenant_id=? AND id=?",
+                createdOrganization, tenant, membership);
+        var anotherWorker = member("다른 신청자", Set.of("EMPLOYEE"));
+        db.update("""
+                INSERT INTO tna.employee_assignment
+                  (tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by)
+                VALUES (?,?,?,?,?,'새 조직의 소속',?,?)
+                """, tenant, UUID.randomUUID(), anotherWorker.employeeId(), createdOrganization,
+                today.minusMonths(1), admin.accountId(), admin.accountId());
+        assignment(route("ORGANIZATION_HEAD", null), "ORGANIZATION", createdOrganization);
+
+        mvc.perform(post("/admin/organization-heads/commands").with(as(admin)).with(csrf())
+                        .param("operation", "ASSIGN").param("organizationId", createdOrganization.toString())
+                        .param("employeeId", head.employeeId().toString()).param("validFrom", today.toString())
+                        .param("lastDay", today.plusDays(2).toString()).param("reason", "최초 조직장")
+                        .param("expectedVersion", "0").param("commandId", UUID.randomUUID().toString()))
+                .andExpect(status().isSeeOther());
+        UUID originalHeadAssignment = db.queryForObject("""
+                SELECT id FROM tna.organization_head_assignment WHERE tenant_id=? AND organization_id=?
+                """, UUID.class, tenant, createdOrganization);
+        UUID existingRequest = correction(worker, worker.employeeId(), false);
+        var originalSnapshot = db.queryForMap("""
+                SELECT * FROM tna.approval_route_snapshot WHERE tenant_id=? AND request_id=?
+                """, tenant, existingRequest);
+        assertEquals(originalHeadAssignment, originalSnapshot.get("organization_head_assignment_id"));
+
+        mvc.perform(post("/admin/organization-heads/commands").with(as(admin)).with(csrf())
+                        .param("operation", "REPLACE").param("organizationId", createdOrganization.toString())
+                        .param("assignmentId", originalHeadAssignment.toString())
+                        .param("employeeId", direct.employeeId().toString()).param("validFrom", today.toString())
+                        .param("lastDay", today.plusDays(2).toString()).param("reason", "같은 날 후임 배정")
+                        .param("expectedVersion", "1").param("commandId", UUID.randomUUID().toString()))
+                .andExpect(status().isSeeOther());
+
+        var nextDay = clocks.day(anotherWorker, yesterday);
+        UUID nextRequest = flow.submitCorrection(anotherWorker, form(anotherWorker.employeeId(),
+                nextDay.inputRevision(), nextDay.sourceFingerprint(), false, UUID.randomUUID()));
+        assertEquals(direct.employeeId(), flow.get(anotherWorker, nextRequest).request().currentApproverId());
+        assertEquals("PENDING", flow.get(worker, existingRequest).request().status());
+        assertEquals(head.employeeId(), flow.get(worker, existingRequest).request().currentApproverId());
+        assertEquals(originalSnapshot, db.queryForMap("""
+                SELECT * FROM tna.approval_route_snapshot WHERE tenant_id=? AND request_id=?
+                """, tenant, existingRequest));
     }
     @Test void retriedCommandCreatesOnlyOneRequestAndSnapshot() {
         assignment(route("DIRECT_EMPLOYEE",direct.employeeId()),"EMPLOYEE",worker.employeeId());

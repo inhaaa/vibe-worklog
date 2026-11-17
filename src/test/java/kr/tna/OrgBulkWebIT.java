@@ -22,6 +22,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipInputStream;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.BulkData;
+import kr.tna.org.OrgCommands;
+import kr.tna.org.OrgData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
 class OrgBulkWebIT {
     private static final JsonMapper JSON = JsonMapper.builder().build();
     @Autowired MockMvc mvc;
+    @Autowired OrgCommands commands;
     private JdbcTemplate database;
     private UUID tenant;
     private TnaPrincipal manager;
@@ -71,10 +75,60 @@ class OrgBulkWebIT {
     }
 
     @Test
+    void blankOrganizationCodesGetAvailableNumbersAndReceiptOutsideTheFilter() throws Exception {
+        String year = Integer.toString(today.getYear());
+        organization(year + "0001", null);
+        organization(year + "9999", null);
+        database.update("UPDATE tna.organization SET active=false WHERE tenant_id=? AND code=?", tenant, year + "0001");
+        var first = organizationRow(null, "", "신규 운영팀", null, "CREATE", null);
+        var second = organizationRow(null, "", "신규 기획팀", null, "CREATE", null);
+        second.remove("code");
+        var existing = organization("ROOT", null);
+        var update = organizationRow(existing, "", "이름을 바꾼 조직", null, "UPDATE", 0L);
+        var command = UUID.randomUUID();
+
+        var saved = mvc.perform(bulk("organizations", manager, command, List.of(first, second, update))
+                        .param("q", "검색 결과에 없는 조직").param("page", "2"))
+                .andExpect(status().isSeeOther()).andReturn();
+        var location = java.net.URI.create(saved.getResponse().getRedirectedUrl());
+        var mapping = result(command);
+        mvc.perform(authenticated(get(location), manager)).andExpect(status().isOk())
+                .andExpect(model().attribute("organizations", List.of()))
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/0/clientRowId", first.get("clientRowId")))
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/0/id", mapping.at("/rows/0/id").asString()))
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/0/code", year + "0002"))
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/1/code", year + "0003"))
+                .andExpect(result -> assertEquals(2, ReactPageAssertions.envelope(result).at("/data/createdOrganizations").size()));
+        assertEquals("ROOT", database.queryForObject("SELECT code FROM tna.organization WHERE id=?", String.class, existing));
+    }
+
+    @Test
+    void exhaustingOrganizationCodesRollsBackAllNewRowsAndPointsToTheFailedRow() throws Exception {
+        String year = Integer.toString(today.getYear());
+        database.update("""
+                INSERT INTO tna.organization(tenant_id,id,code,name,active,created_by,updated_by)
+                SELECT ?,gen_random_uuid(),? || lpad(sequence::text,4,'0'),'발급 번호가 있는 기존 조직',false,?,?
+                FROM generate_series(2,9999) AS sequence
+                """, tenant, year, manager.accountId(), manager.accountId());
+        var first = organizationRow(null, "", "마지막 번호 후보", null, "CREATE", null);
+        var second = organizationRow(null, "", "한도 초과 조직", null, "CREATE", null);
+        mvc.perform(bulk("organizations", manager, UUID.randomUUID(), List.of(first, second)))
+                .andExpect(status().is(422))
+                .andExpect(ReactPageAssertions.data("/organizationSheet/errors/0/clientRowId", second.get("clientRowId")))
+                .andExpect(ReactPageAssertions.data("/organizationSheet/errors/0/field", "code"));
+        assertEquals(9_998, count("tna.organization"));
+        assertEquals(0, count("tna.org_audit_event"));
+        mvc.perform(bulk("organizations", manager, UUID.randomUUID(), List.of(first)))
+                .andExpect(status().isSeeOther());
+        assertEquals(1, database.queryForObject("SELECT count(*) FROM tna.organization WHERE tenant_id=? AND code=?",
+                Integer.class, tenant, year + "0001"));
+    }
+
+    @Test
     void fiftyOrganizationCreatesCommitOneBatchAndReplayTheSameSafeIdVersionMapping() throws Exception {
         UUID command = UUID.randomUUID();
         var rows = new ArrayList<Map<String, Object>>();
-        for (int index = 0; index < 50; index++) rows.add(organizationRow(null, "O" + index, "조직 " + index, null, "CREATE", null));
+        for (int index = 0; index < 50; index++) rows.add(organizationRow(null, "", "조직 " + index, null, "CREATE", null));
         mvc.perform(bulk("organizations", manager, command, rows)).andExpect(status().isSeeOther());
         JsonNode original = result(command);
         assertEquals(50, original.get("rows").size());
@@ -101,7 +155,7 @@ class OrgBulkWebIT {
         var organizations = new ArrayList<Map<String, Object>>();
         var employees = new ArrayList<Map<String, Object>>();
         for (int index = 0; index < 51; index++) {
-            organizations.add(organizationRow(null, "O" + index, "초과 조직", null, "CREATE", null));
+            organizations.add(organizationRow(null, "", "초과 조직", null, "CREATE", null));
             employees.add(employeeRow(null, "E" + index, "초과 사원", "CREATE", null));
         }
         mvc.perform(bulk("organizations", manager, UUID.randomUUID(), organizations)).andExpect(status().is(422))
@@ -298,8 +352,8 @@ class OrgBulkWebIT {
 
     @Test
     void replayIncludesNormalizedRowOrderAndTheOriginalAdministrator() throws Exception {
-        var first = organizationRow(null, "A", "첫 조직", null, "CREATE", null);
-        var second = organizationRow(null, "B", "둘째 조직", null, "CREATE", null);
+        var first = organizationRow(null, "", "첫 조직", null, "CREATE", null);
+        var second = organizationRow(null, "", "둘째 조직", null, "CREATE", null);
         UUID command = UUID.randomUUID();
         mvc.perform(bulk("organizations", manager, command, List.of(first, second))).andExpect(status().isSeeOther());
         var original = result(command);
@@ -311,6 +365,59 @@ class OrgBulkWebIT {
         mvc.perform(bulk("organizations", other, command, List.of(first, second))).andExpect(status().isConflict());
         assertEquals(2, count("tna.organization"));
         assertEquals(3, count("tna.org_audit_event"));
+    }
+
+    @Test
+    void oldManualBatchReplaysAndReportsOnlyItsNewOrganizationsToItsAdministrator() throws Exception {
+        var row = organizationRow(null, "ROOT", "원본 ROOT", null, "CREATE", null);
+        var clientRowId = (String) row.get("clientRowId");
+        UUID id = organization("ROOT", null), command = UUID.randomUUID();
+        String action = "ORGANIZATION_BULK", reason = "합성 시트 원자 저장";
+        var oldRequest = new BulkData.OrganizationRow(clientRowId, null, null, BulkData.Operation.CREATE,
+                "ROOT", "원본 ROOT", null, true);
+        commands.executeBatch(manager, command, action, "ORGANIZATION",
+                OrgCommands.fingerprint(action, reason, JSON.writeValueAsString(List.of(oldRequest))), reason,
+                () -> List.of(new BulkData.Change(clientRowId, id, 0, null,
+                        new OrgData.Organization(id, "ROOT", "원본 ROOT", null, true, 0))));
+        var response = mvc.perform(bulk("organizations", manager, command, List.of(row)))
+                .andExpect(status().isSeeOther()).andReturn();
+        var location = java.net.URI.create(response.getResponse().getRedirectedUrl());
+        mvc.perform(authenticated(get(location), manager)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/0/code", "ROOT"))
+                .andExpect(ReactPageAssertions.data("/createdOrganizations/0/id", id));
+        var other = member("OTHER-ADMIN", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
+        mvc.perform(authenticated(get(location), other)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/createdOrganizations", List.of()));
+        assertEquals(1, count("tna.organization"));
+        assertEquals(2, count("tna.org_audit_event"));
+    }
+
+    @Test
+    void simultaneousSingleAndBulkOrganizationCreatesGetDistinctCodes() throws Exception {
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var first = authenticated(post("/admin/organizations"), manager).with(csrf())
+                .param("name", "동시 단건").param("active", "true")
+                .param("commandId", UUID.randomUUID().toString()).param("reason", "합성 동시 등록");
+        var second = bulk("organizations", manager, UUID.randomUUID(),
+                List.of(organizationRow(null, "", "동시 시트", null, "CREATE", null)));
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var single = executor.submit(() -> createAtTheSameTime(first, ready, start));
+            var batch = executor.submit(() -> createAtTheSameTime(second, ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+            assertEquals(List.of(303, 303), List.of(single.get(20, TimeUnit.SECONDS), batch.get(20, TimeUnit.SECONDS)));
+        }
+        String prefix = Integer.toString(today.getYear());
+        assertEquals(List.of(prefix + "0001", prefix + "0002"), database.queryForList(
+                "SELECT code FROM tna.organization WHERE tenant_id=? ORDER BY code", String.class, tenant));
+    }
+
+    private int createAtTheSameTime(MockHttpServletRequestBuilder request, CountDownLatch ready, CountDownLatch start)
+            throws Exception {
+        ready.countDown();
+        assertTrue(start.await(10, TimeUnit.SECONDS));
+        return mvc.perform(request).andReturn().getResponse().getStatus();
     }
 
     @Test
@@ -356,17 +463,17 @@ class OrgBulkWebIT {
     }
 
     @Test
-    void duplicateCodeAndEmployeeNumberErrorsIdentifyTheActualSecondDirtyRow() {
+    void manualOrganizationCodeAndDuplicateEmployeeNumberErrorsIdentifyTheActualSecondDirtyRow() {
         organization("DUP", null);
         member("DUP", Set.of("EMPLOYEE"));
-        var firstOrganization = organizationRow(null, "UNIQUE", "정상 첫 조직", null, "CREATE", null);
-        var duplicateOrganization = organizationRow(null, "DUP", "중복 둘째 조직", null, "CREATE", null);
+        var firstOrganization = organizationRow(null, "", "정상 첫 조직", null, "CREATE", null);
+        var manualOrganization = organizationRow(null, "DUP", "코드를 보낸 둘째 조직", null, "CREATE", null);
         var firstEmployee = employeeRow(null, "UNIQUE", "정상 첫 사원", "CREATE", null);
         var duplicateEmployee = employeeRow(null, "DUP", "중복 둘째 사원", "CREATE", null);
         assertAll(
-                () -> mvc.perform(bulk("organizations", manager, UUID.randomUUID(), List.of(firstOrganization, duplicateOrganization)))
-                        .andExpect(status().isConflict())
-                        .andExpect(ReactPageAssertions.data("/organizationSheet/errors/0/clientRowId", duplicateOrganization.get("clientRowId")))
+                () -> mvc.perform(bulk("organizations", manager, UUID.randomUUID(), List.of(firstOrganization, manualOrganization)))
+                        .andExpect(status().is(422))
+                        .andExpect(ReactPageAssertions.data("/organizationSheet/errors/0/clientRowId", manualOrganization.get("clientRowId")))
                         .andExpect(ReactPageAssertions.data("/organizationSheet/errors/0/field", "code")),
                 () -> mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(firstEmployee, duplicateEmployee)))
                         .andExpect(status().isConflict())
@@ -450,7 +557,7 @@ class OrgBulkWebIT {
 
     @Test
     void everyBulkRequiresCsrfAndAdministratorWhileForeignTargetsStayHidden() throws Exception {
-        var row = organizationRow(null, "ORG", "허용 안 된 조직", null, "CREATE", null);
+        var row = organizationRow(null, "", "허용 안 된 조직", null, "CREATE", null);
         mvc.perform(authenticated(post("/admin/organizations/bulk"), manager)
                 .param("commandId", UUID.randomUUID().toString()).param("reason", "CSRF 검증")
                 .param("rows", JSON.writeValueAsString(List.of(row)))).andExpect(status().isForbidden());

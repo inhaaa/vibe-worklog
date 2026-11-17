@@ -9,6 +9,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 public final class OrgData {
     private OrgData() { }
     public record Organization(UUID id, String code, String name, UUID parentId, boolean active, long version) { }
+    public record CreatedOrganization(String clientRowId, UUID id, String code) { }
     public record Employee(UUID id, String employeeNo, String displayName, LocalDate joinedOn,
                            LocalDate leftOn, boolean active, long version) { }
     public record EmployeeOrganization(UUID employeeId, String organizationName) { }

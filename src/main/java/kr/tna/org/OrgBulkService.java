@@ -40,7 +40,7 @@ public final class OrgBulkService {
     public Result organizations(TnaPrincipal actor, Form<OrganizationRow> form) {
         String reason = validate(form);
         List<OrganizationRow> rows = form.rows().stream().map(row -> new OrganizationRow(row.clientRowId(), row.id(),
-                row.expectedVersion(), row.operation(), text(row, "code", () -> requiredText(row.code(), 40, "조직 코드")),
+                row.expectedVersion(), row.operation(), text(row, "code", () -> OrganizationCodes.normalize(row.code())),
                 text(row, "name", () -> requiredText(row.name(), 120, "조직 이름")), row.parentId(),
                 row.operation() != Operation.DEACTIVATE && row.active())).toList();
         String action = "ORGANIZATION_BULK";
@@ -48,6 +48,8 @@ public final class OrgBulkService {
                 fingerprint(action, reason, json.writeValueAsString(rows)), reason, () -> {
                     Map<UUID, Organization> before = organizations.options(actor.tenantId()).stream()
                             .collect(Collectors.toMap(Organization::id, value -> value));
+                    var createdAt = commands.creationTime();
+                    var codes = new OrganizationCodes(createdAt, before.values().stream().map(Organization::code).toList());
                     Map<UUID, Organization> after = new HashMap<>(before);
                     Map<UUID, OrganizationRow> changed = new LinkedHashMap<>();
                     for (var row : rows) {
@@ -55,10 +57,13 @@ public final class OrgBulkService {
                         if (row.id() != null && old == null) throw OrgException.notFound();
                         if (old != null) {
                             text(row, "expectedVersion", () -> { checkVersion(row.expectedVersion(), old.version()); return old; });
-                            if (!old.code().equals(row.code())) throw issue(row, "code", 422, "조직 코드는 변경할 수 없습니다.");
+                            if (row.code() != null && !old.code().equals(row.code())) {
+                                throw issue(row, "code", 422, "조직 코드는 변경할 수 없습니다.");
+                            }
                         }
                         UUID id = old == null ? UUID.randomUUID() : old.id();
-                        after.put(id, new Organization(id, row.code(), row.name(), row.parentId(), row.active(),
+                        String code = old == null ? text(row, "code", () -> codes.issue(row.code())) : old.code();
+                        after.put(id, new Organization(id, code, row.name(), row.parentId(), row.active(),
                                 old == null ? 0 : old.version() + 1));
                         changed.put(id, row);
                     }
@@ -66,7 +71,7 @@ public final class OrgBulkService {
                     var changes = new ArrayList<BulkData.Change>();
                     for (var entry : changed.entrySet()) {
                         Organization old = before.get(entry.getKey()), current = after.get(entry.getKey());
-                        if (old == null) changed(organizations.insert(actor.tenantId(), current, actor.accountId()));
+                        if (old == null) changed(organizations.insert(actor.tenantId(), current, actor.accountId(), createdAt));
                         else changed(organizations.update(actor.tenantId(), new Organization(current.id(), current.code(), current.name(),
                                 current.parentId(), current.active(), old.version()), actor.accountId()));
                         changes.add(new BulkData.Change(entry.getValue().clientRowId(), current.id(), current.version(), old, current));
@@ -190,12 +195,6 @@ public final class OrgBulkService {
 
     private void validateOrganizations(TnaPrincipal actor, Map<UUID, Organization> before, Map<UUID, Organization> after,
                                        Map<UUID, OrganizationRow> changed) {
-        for (var entry : changed.entrySet()) {
-            Organization current = after.get(entry.getKey());
-            if (after.values().stream().anyMatch(value -> !value.id().equals(current.id()) && value.code().equals(current.code()))) {
-                throw issue(entry.getValue(), "code", 409, "이미 사용 중인 조직 코드입니다.");
-            }
-        }
         for (var entry : changed.entrySet()) {
             Organization old = before.get(entry.getKey()), current = after.get(entry.getKey());
             if (current.parentId() != null) {

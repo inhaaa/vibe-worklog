@@ -15,7 +15,7 @@ describe('업무 메뉴 계약', () => {
     expect(links(allRoles).map(item => item.href)).toEqual([
       '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
       '/approvals', '/approvals/completed',
-      '/admin/employees', '/admin/organizations', '/admin/organization-heads', '/company/organizations',
+      '/admin/employees', '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
       '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/attendance',
       '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
