@@ -13,6 +13,24 @@ public final class OrganizationHeadData {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate validFrom,
             Long expectedVersion, String reason, UUID commandId) { }
 
+    public enum HeadOperation { ASSIGN, REPLACE, CHANGE_END, RESCHEDULE, CANCEL }
+
+    public record HeadCommand(HeadOperation operation, UUID organizationId, UUID assignmentId, UUID employeeId,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate validFrom,
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate lastDay,
+            Boolean endToday, Long expectedVersion, String reason, UUID commandId) {
+        boolean endsToday() { return Boolean.TRUE.equals(endToday); }
+    }
+
+    public record HeadPeriod(UUID employeeId, String employeeName, LocalDate validFrom, LocalDate lastDay) { }
+
+    public record Vacancy(LocalDate from, LocalDate through) { }
+
+    public record HeadPreview(HeadPeriod before, HeadPeriod after, LocalDate previousLastDay, HeadPeriod next,
+            Vacancy vacancy, Vacancy additionalVacancy) { }
+
+    public record HeadOverview(HeadPeriod current, HeadPeriod next) { }
+
     public record OrganizationOption(UUID id, String code, String name, boolean active, long version) { }
 
     public record Candidate(UUID id, String employeeNo, String employeeName, LocalDate joinedOn, LocalDate leftOn) { }

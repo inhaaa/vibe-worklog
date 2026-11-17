@@ -47,7 +47,7 @@ const navigation: NavigationGroup[] = [
   { id: 'organizations', label: '조직관리', children: [
     { id: 'organization', label: '조직', children: [
       item('organizations', '조직 관리', '/admin/organizations', admin, 'org/organizations', 'org/organization'),
-      item('organization-heads', '조직장 배정', '/admin/organization-heads', admin, 'org/organization-heads'),
+      item('organization-heads', '조직장 배정', '/admin/organization-heads?chart=true', admin, 'org/organization-heads'),
       item('organization-chart', '조직도', '/company/organizations', company, 'company/organizations'),
     ] },
   ] },

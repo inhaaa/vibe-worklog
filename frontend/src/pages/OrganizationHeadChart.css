@@ -1,0 +1,50 @@
+.wl-head-chart,
+.wl-head-editor,
+.wl-head-preview {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wl-head-chart,
+.wl-head-editor,
+.wl-head-preview {
+  margin-block: var(--space-md);
+}
+
+.wl-head-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-sm);
+  margin-block: var(--space-sm);
+}
+
+.wl-head-summary dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.wl-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-block: var(--space-sm);
+}
+
+.wl-head-history {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.wl-head-history > li {
+  display: grid;
+  gap: var(--space-xs);
+  border-block-end: 1px solid var(--t-line);
+  padding-block: var(--space-sm);
+}
+
+@media (max-width: 650px) {
+  .wl-head-actions > button {
+    min-height: 44px;
+  }
+}

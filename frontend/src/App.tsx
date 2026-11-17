@@ -33,7 +33,7 @@ function isTaskUrl(url: URL) {
   if (url.pathname === '/admin/employees/onboarding') return false;
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
-    || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId'))
+    || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId') && url.searchParams.get('chart') !== 'true')
     || /^\/(?:me\/requests\/(?:new|correction)|admin\/requests\/exceptions\/new|admin\/approval-route-assignments)$/.test(url.pathname)
     || (url.pathname === '/admin/work-policies' && url.searchParams.has('employeeId'))
     || /^\/requests\/[^/]+$/.test(url.pathname)
@@ -361,7 +361,9 @@ export function App({ initial }: { initial: PageEnvelope }) {
         const result = await fetchPage(url, { ...options, signal: controller.signal });
         if (requestId !== serial.current) return;
         const formError = options.method?.toUpperCase() === 'POST' && result.status >= 400;
-        const destination = new URL(formError ? currentUrl.current : result.url, location.href);
+        const headChartUrl = result.envelope.data.headChartUrl;
+        const previewUrl = result.envelope.data.headPreview && typeof headChartUrl === 'string' ? headChartUrl : result.url;
+        const destination = new URL(formError ? currentUrl.current : previewUrl, location.href);
         const requested = new URL(url, location.href);
         if (destination.pathname === requested.pathname && destination.search === requested.search)
           destination.hash = requested.hash;

@@ -305,6 +305,150 @@ class OrganizationHeadWebIT {
         return mvc.perform(form("/admin/organization-heads", from, version, command).param("employeeId", person.toString()));
     }
 
+    @Test
+    void chartCommandPreviewsAndSavesOneDayWithoutMovingTheMemberQuery() throws Exception {
+        UUID command = UUID.randomUUID();
+        mvc.perform(chartCommand("ASSIGN", 0, command).param("employeeId", head.toString())
+                        .param("validFrom", today.toString()).param("lastDay", today.toString()).param("intent", "PREVIEW"))
+                .andExpect(status().isOk()).andExpect(view().name("company/organizations"))
+                .andExpect(ReactPageAssertions.data("/headPreview/after/lastDay", today.toString()))
+                .andExpect(ReactPageAssertions.data("/companyOrganizations/q", "MEMBER"))
+                .andExpect(ReactPageAssertions.data("/companyOrganizations/page", 1));
+        assertEquals(0, count("organization_head_assignment"));
+        var result = mvc.perform(chartCommand("ASSIGN", 0, command).param("employeeId", head.toString())
+                        .param("validFrom", today.toString()).param("lastDay", today.toString()))
+                .andExpect(status().isSeeOther()).andReturn();
+        assertEquals(today.plusDays(1), toDate(head));
+        mvc.perform(get(result.getResponse().getRedirectedUrl()).with(as(admin)).accept(JSON))
+                .andExpect(status().isOk()).andExpect(view().name("company/organizations"))
+                .andExpect(ReactPageAssertions.data("/companyOrganizations/page", 1))
+                .andExpect(ReactPageAssertions.data("/organizationHeads/history/0/employeeId", head.toString()));
+        mvc.perform(chartCommand("ASSIGN", 0, command).param("employeeId", head.toString())
+                        .param("validFrom", today.toString()).param("lastDay", today.toString()))
+                .andExpect(status().isSeeOther());
+        assertEquals(1, count("org_audit_event"));
+    }
+
+    @Test
+    void replacementPreservesTheLaterReservationAndReportsTheNewVacancy() throws Exception {
+        set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        set(secondHead, today.plusDays(10), 1, UUID.randomUUID()).andExpect(status().isSeeOther());
+        UUID replacement = employee.employeeId();
+        LocalDate from = today.plusDays(3), last = today.plusDays(5);
+        mvc.perform(chartCommand("REPLACE", 2, UUID.randomUUID()).param("assignmentId", assignmentId(head).toString())
+                        .param("employeeId", replacement.toString()).param("validFrom", from.toString()).param("lastDay", last.toString())
+                        .param("intent", "PREVIEW"))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/headPreview/previousLastDay", from.minusDays(1).toString()))
+                .andExpect(ReactPageAssertions.data("/headPreview/vacancy/from", last.plusDays(1).toString()))
+                .andExpect(ReactPageAssertions.data("/headPreview/vacancy/through", today.plusDays(9).toString()));
+        mvc.perform(chartCommand("REPLACE", 2, UUID.randomUUID()).param("assignmentId", assignmentId(head).toString())
+                        .param("employeeId", replacement.toString()).param("validFrom", from.toString()).param("lastDay", last.toString()))
+                .andExpect(status().isSeeOther());
+        assertEquals(from, toDate(head));
+        assertEquals(last.plusDays(1), toDate(replacement));
+        assertNull(toDate(secondHead));
+        assertEquals(3, count("org_audit_event"));
+    }
+
+    @Test
+    void upcomingReservationsCanBeMovedAndCanceledWhilePastAndOverlappingChangesAreRejected() throws Exception {
+        set(head, today.plusDays(10), 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        UUID original = assignmentId(head);
+        mvc.perform(chartCommand("RESCHEDULE", 1, UUID.randomUUID()).param("assignmentId", original.toString())
+                        .param("employeeId", secondHead.toString()).param("validFrom", today.plusDays(8).toString())
+                        .param("lastDay", today.plusDays(9).toString()))
+                .andExpect(status().isSeeOther());
+        assertNotNull(db.queryForObject("SELECT superseded_at FROM tna.organization_head_assignment WHERE tenant_id=? AND id=?",
+                java.sql.Timestamp.class, tenant, original));
+        mvc.perform(chartCommand("ASSIGN", 2, UUID.randomUUID()).param("employeeId", head.toString())
+                        .param("validFrom", today.plusDays(7).toString()).param("lastDay", today.plusDays(8).toString()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(ReactPageAssertions.data("/headCommand/lastDay", today.plusDays(8).toString()))
+                .andExpect(ReactPageAssertions.data("/companyOrganizations/page", 1));
+        mvc.perform(chartCommand("CANCEL", 2, UUID.randomUUID()).param("assignmentId", assignmentId(secondHead).toString()))
+                .andExpect(status().isSeeOther());
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.organization_head_assignment WHERE tenant_id=? AND superseded_at IS NULL", Integer.class, tenant));
+        assertEquals(2, count("organization_head_assignment"));
+    }
+
+    @Test
+    void chartEndDateIncludesTheLastDayAndTodayCanBecomeVacant() throws Exception {
+        set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        UUID assignment = assignmentId(head);
+        mvc.perform(chartCommand("CHANGE_END", 1, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(2).toString()))
+                .andExpect(status().isSeeOther());
+        assertEquals(today.plusDays(3), toDate(head));
+        mvc.perform(chartCommand("CHANGE_END", 2, UUID.randomUUID()).param("assignmentId", assignment.toString()).param("endToday", "true"))
+                .andExpect(status().isSeeOther());
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.organization_head_assignment WHERE tenant_id=? AND superseded_at IS NULL", Integer.class, tenant));
+    }
+
+    @Test
+    void inactiveOrganizationAndEmployeeCanShortenOrEndButCannotExtendTheExistingPeriod() throws Exception {
+        set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        UUID assignment = assignmentId(head);
+        mvc.perform(chartCommand("CHANGE_END", 1, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(2).toString()))
+                .andExpect(status().isSeeOther());
+        db.update("UPDATE tna.organization SET active=false WHERE tenant_id=? AND id=?", tenant, organization);
+        mvc.perform(chartCommand("CHANGE_END", 2, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(3).toString()))
+                .andExpect(status().isUnprocessableEntity());
+        mvc.perform(chartCommand("CHANGE_END", 2, UUID.randomUUID()).param("assignmentId", assignment.toString()))
+                .andExpect(status().isUnprocessableEntity());
+        db.update("UPDATE tna.employee SET active=false WHERE tenant_id=? AND id=?", tenant, head);
+        mvc.perform(chartCommand("CHANGE_END", 2, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(1).toString()))
+                .andExpect(status().isSeeOther());
+        assertEquals(today.plusDays(2), toDate(head));
+        mvc.perform(chartCommand("CHANGE_END", 3, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("endToday", "true"))
+                .andExpect(status().isSeeOther());
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.organization_head_assignment WHERE tenant_id=? AND superseded_at IS NULL", Integer.class, tenant));
+    }
+
+    @Test
+    void chartShowsTheEmploymentLimitAndPreservesAStaleDraftWithoutLeakingManagement() throws Exception {
+        UUID leaving = person("LEAVING", today.minusYears(1), today.plusDays(2), true);
+        mvc.perform(chartCommand("ASSIGN", 0, UUID.randomUUID()).param("employeeId", leaving.toString())
+                        .param("validFrom", today.toString()).param("intent", "PREVIEW"))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/headPreview/after/lastDay", today.plusDays(2).toString()));
+        mvc.perform(chartCommand("ASSIGN", 0, UUID.randomUUID()).param("employeeId", leaving.toString())
+                        .param("validFrom", today.toString()).param("lastDay", today.plusDays(3).toString()))
+                .andExpect(status().isUnprocessableEntity());
+        set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        mvc.perform(chartCommand("ASSIGN", 0, UUID.randomUUID()).param("employeeId", secondHead.toString())
+                        .param("validFrom", today.toString()).param("lastDay", today.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(ReactPageAssertions.data("/headCommand/employeeId", secondHead.toString()))
+                .andExpect(ReactPageAssertions.data("/companyOrganizations/q", "MEMBER"))
+                .andExpect(ReactPageAssertions.data("/organizationHeads/form/expectedVersion", 1));
+        var representative = member("REP", Set.of("EMPLOYEE", "COMPANY_REPRESENTATIVE"));
+        var view = mvc.perform(get("/company/organizations").with(as(representative)).accept(JSON))
+                .andExpect(status().isOk()).andReturn();
+        assertFalse(ReactPageAssertions.envelope(view).at("/data").has("organizationHeads"));
+        mvc.perform(get("/admin/organization-heads").with(as(representative)).accept(JSON)
+                        .param("organizationId", organization.toString()).param("chart", "true"))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/admin/organization-heads/commands").with(as(representative)).with(csrf()).accept(JSON))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/admin/organization-heads/commands").with(as(admin)).accept(JSON)).andExpect(status().isForbidden());
+    }
+
+    private MockHttpServletRequestBuilder chartCommand(String operation, long version, UUID command) {
+        return post("/admin/organization-heads/commands").with(as(admin)).with(csrf()).accept(JSON)
+                .param("organizationId", organization.toString()).param("operation", operation).param("q", "MEMBER").param("page", "1")
+                .param("expectedVersion", Long.toString(version)).param("reason", REASON).param("commandId", command.toString());
+    }
+
+    private UUID assignmentId(UUID person) {
+        return db.queryForObject("SELECT id FROM tna.organization_head_assignment WHERE tenant_id=? AND employee_id=? AND superseded_at IS NULL",
+                UUID.class, tenant, person);
+    }
+
     private org.springframework.test.web.servlet.ResultActions end(LocalDate from, long version, UUID command) throws Exception {
         return mvc.perform(form("/admin/organization-heads/end", from, version, command));
     }

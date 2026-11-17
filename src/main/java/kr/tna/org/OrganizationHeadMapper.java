@@ -74,6 +74,14 @@ public interface OrganizationHeadMapper {
     int close(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("date") LocalDate date,
             @Param("version") long version, @Param("actorId") UUID actorId);
 
+    @Update("""
+            UPDATE tna.organization_head_assignment
+            SET valid_to=#{to},version=version+1,updated_at=CURRENT_TIMESTAMP,updated_by=#{actorId}
+            WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{version} AND superseded_at IS NULL
+            """)
+    int changeEnd(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("to") LocalDate to,
+            @Param("version") long version, @Param("actorId") UUID actorId);
+
     @Insert("""
             INSERT INTO tna.organization_head_assignment
               (tenant_id,id,organization_id,employee_id,valid_from,valid_to,reason,created_by,updated_by)

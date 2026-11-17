@@ -517,6 +517,41 @@ function featurePage(name: string, data: Record<string, unknown>, roles = ['EMPL
   return { page: name, data: { workspacePrincipal: { roles }, workspaceEmployee: { employeeName: '직원', companyName: '합성회사' }, ...data }, csrf };
 }
 describe('조직장·조직도', () => {
+  it('담당자는 조직도 안에서 조회 문맥을 유지하며 종료일을 포함해 조직장 배정을 미리 본다', async () => {
+    const view = await show(featurePage('company/organizations', { companyOrganizations, organizationHeads }));
+    expect(view.getByRole('heading', { name: '조직도' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '조직장 배정' }));
+    const form = view.container.querySelector('main form[action="/admin/organization-heads/commands"]') as HTMLFormElement;
+    expect(form).toBeTruthy();
+    expect(view.getByLabelText('종료일 (마지막 담당일)')).toBeTruthy();
+    expect(view.getByRole('button', { name: '미리보기' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '배정 저장' })).toBeNull();
+    const body = new FormData(form);
+    expect(body.get('q')).toBe('김 & 개발');
+    expect(body.get('page')).toBe('1');
+    expect(body.get('organizationId')).toBe('o-1');
+  });
+
+  it('제시된 마지막 담당일을 넣고 날짜를 다시 편집하면 새 미리보기를 요구한다', async () => {
+    const view = await show(featurePage('company/organizations', {
+      companyOrganizations, organizationHeads,
+      headCommand: { ...headForm, operation: 'ASSIGN', lastDay: null },
+      headPreview: {
+        after: { employeeName: '김직원', validFrom: '2026-10-27', lastDay: '2026-10-29' },
+        vacancy: { from: '2026-10-30', through: '2026-10-31' },
+      },
+    }));
+    expect(view.getByRole('heading', { name: '변경 미리보기' })).toBeTruthy();
+    expect(view.getByText('2026-10-30 ~ 2026-10-31')).toBeTruthy();
+    const date = view.getByLabelText('종료일 (마지막 담당일)') as HTMLInputElement;
+    expect(date.value).toBe('2026-10-29');
+    expect(view.getByRole('button', { name: '배정 저장' })).toBeTruthy();
+    fireEvent.change(date, { target: { value: '2026-10-28' } });
+    expect(date.value).toBe('2026-10-28');
+    expect(view.queryByRole('button', { name: '배정 저장' })).toBeNull();
+    expect(view.getByRole('button', { name: '미리보기' })).toBeTruthy();
+  });
+
   it('조직장 이력과 선택 조직 직원을 공통 조회 그리드로 표시한다', async () => {
     const heads = await show(featurePage('org/organization-heads', { organizationHeads }));
     expect(heads.getByRole('region', { name: '조직장 배정 이력' }).querySelector('.ag-root-wrapper')).toBeTruthy();
@@ -552,7 +587,7 @@ describe('조직장·조직도', () => {
     expect(new FormData(end).has('employeeId')).toBe(false);
     expect(assign.querySelector('input[type="date"]')?.getAttribute('min')).toBe('2026-10-27');
     expect(view.getByText(/조직장 배정으로 관리·결재 권한/)).toBeTruthy();
-    expect(view.getByRole('link', { name: '조직장 배정' }).getAttribute('href')).toBe('/admin/organization-heads');
+    expect(view.getByRole('link', { name: '조직장 배정' }).getAttribute('href')).toBe('/admin/organization-heads?chart=true');
   });
   it('조직장 이력·부재와 결재 적격성을 구분하고 오류 입력을 보존한다', async () => {
     const view = await show(featurePage('org/organization-heads', { error: '재직 기간을 확인하세요.', organizationHeads: { ...organizationHeads, form: { ...headForm, employeeId: 'missing', reason: '기존 입력' } } }));
