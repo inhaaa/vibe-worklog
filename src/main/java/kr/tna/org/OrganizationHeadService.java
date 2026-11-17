@@ -39,12 +39,14 @@ public final class OrganizationHeadService {
                 var organization = id == null ? null : requireOrganization(actor.tenantId(), id);
                 var history = organization == null ? List.<HeadAssignment>of()
                         : List.copyOf(mapper.history(actor.tenantId(), organization.id(), today));
+                var endChanges = organization == null ? List.<HeadEndChange>of()
+                        : List.copyOf(mapper.endChanges(actor.tenantId(), organization.id()));
                 var current = history.stream().filter(row -> row.supersededAt() == null && !row.validFrom().isAfter(today)
                         && (row.validTo() == null || row.validTo().isAfter(today))).findFirst().orElse(null);
                 var form = draft != null ? draft : new HeadForm(id, current == null ? null : current.employeeId(),
                         today, organization == null ? null : organization.version(), "", UUID.randomUUID());
                 return new ManagementView(clock.instant(), today, id, organizations,
-                        List.copyOf(mapper.candidates(actor.tenantId(), today, query)), history, form, query);
+                        List.copyOf(mapper.candidates(actor.tenantId(), today, query)), history, endChanges, form, query);
             });
         });
     }

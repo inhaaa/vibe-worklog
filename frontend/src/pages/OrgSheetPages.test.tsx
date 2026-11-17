@@ -552,6 +552,20 @@ describe('조직장·조직도', () => {
     expect(view.getByRole('button', { name: '미리보기' })).toBeTruthy();
   });
 
+  it('조직도 이력에서 종료일 변경의 이전 날짜와 새 날짜 및 변경 사유를 확인한다', async () => {
+    const view = await show(featurePage('company/organizations', {
+      companyOrganizations,
+      organizationHeads: { ...organizationHeads, endChanges: [{
+        id: 'end-1', reason: '근무 일정 <조정>', occurredAt: '2026-10-26T15:00:00Z',
+        validFrom: '2026-10-01', beforeValidTo: '2026-11-03', afterValidTo: '2026-11-01',
+      }] },
+    }));
+    const record = view.getByRole('region', { name: '종료일 변경 기록' });
+    expect(record.textContent).toContain('변경 전 마지막 담당일 2026-11-02');
+    expect(record.textContent).toContain('변경 후 마지막 담당일 2026-10-31');
+    expect(record.textContent).toContain('변경 사유 근무 일정 <조정>');
+  });
+
   it('조직장 이력과 선택 조직 직원을 공통 조회 그리드로 표시한다', async () => {
     const heads = await show(featurePage('org/organization-heads', { organizationHeads }));
     expect(heads.getByRole('region', { name: '조직장 배정 이력' }).querySelector('.ag-root-wrapper')).toBeTruthy();

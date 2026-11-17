@@ -386,6 +386,39 @@ class OrganizationHeadWebIT {
     }
 
     @Test
+    void chartEndChangesReadPriorAndNewBoundariesWithReasonOnlyForSelectedOrganization() throws Exception {
+        set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
+        UUID assignment = assignmentId(head);
+        mvc.perform(chartCommand("CHANGE_END", 1, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(2).toString()))
+                .andExpect(status().isSeeOther());
+        mvc.perform(chartCommand("CHANGE_END", 2, UUID.randomUUID()).param("assignmentId", assignment.toString())
+                        .param("lastDay", today.plusDays(1).toString())
+                        .with(request -> { request.setParameter("reason", "합성 종료일 조정"); return request; }))
+                .andExpect(status().isSeeOther());
+        var chart = mvc.perform(get("/admin/organization-heads").with(as(admin)).accept(JSON)
+                        .param("organizationId", organization.toString()).param("chart", "true"))
+                .andExpect(status().isOk()).andReturn();
+        var changes = ReactPageAssertions.envelope(chart).at("/data/organizationHeads/endChanges");
+        assertEquals(2, changes.size());
+        var adjusted = changes.valueStream().filter(row -> row.get("reason").asString().equals("합성 종료일 조정")).findFirst().orElseThrow();
+        assertEquals(today.toString(), adjusted.get("validFrom").asString());
+        assertEquals(today.plusDays(3).toString(), adjusted.get("beforeValidTo").asString());
+        assertEquals(today.plusDays(2).toString(), adjusted.get("afterValidTo").asString());
+
+        var other = mvc.perform(get("/admin/organization-heads").with(as(admin)).accept(JSON)
+                        .param("organizationId", organization("OTHER").toString()).param("chart", "true"))
+                .andExpect(status().isOk()).andReturn();
+        assertTrue(ReactPageAssertions.envelope(other).at("/data/organizationHeads/endChanges").isEmpty());
+        var representative = member("REP", Set.of("EMPLOYEE", "COMPANY_REPRESENTATIVE"));
+        var visible = mvc.perform(get("/company/organizations").with(as(representative)).accept(JSON)
+                        .param("organizationId", organization.toString()))
+                .andExpect(status().isOk()).andReturn();
+        assertFalse(visible.getResponse().getContentAsString().contains("endChanges"));
+        assertFalse(visible.getResponse().getContentAsString().contains("합성 종료일 조정"));
+    }
+
+    @Test
     void inactiveOrganizationAndEmployeeCanShortenOrEndButCannotExtendTheExistingPeriod() throws Exception {
         set(head, today, 0, UUID.randomUUID()).andExpect(status().isSeeOther());
         UUID assignment = assignmentId(head);

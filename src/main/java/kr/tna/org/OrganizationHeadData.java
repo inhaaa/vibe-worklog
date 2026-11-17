@@ -39,9 +39,12 @@ public final class OrganizationHeadData {
             String employeeName, LocalDate validFrom, LocalDate validTo, Instant supersededAt,
             String reason, long version, boolean eligible, boolean approverEligible) { }
 
+    public record HeadEndChange(UUID id, String reason, Instant occurredAt, String validFrom,
+            String beforeValidTo, String afterValidTo) { }
+
     public record ManagementView(Instant asOf, LocalDate today, UUID organizationId,
             List<OrganizationOption> organizations, List<Candidate> candidates, List<HeadAssignment> history,
-            HeadForm form, String q) { }
+            List<HeadEndChange> endChanges, HeadForm form, String q) { }
 
     public record OrganizationNode(UUID id, String code, String name, UUID parentId, boolean active,
             String headEmployeeNo, String headEmployeeName, boolean headEligible, boolean headApproverEligible) { }

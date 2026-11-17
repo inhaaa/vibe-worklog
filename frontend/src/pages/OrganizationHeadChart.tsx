@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Field, Form, FormRow, FormTable, SelectField, TextAreaField } from '../ui';
+import { Check, Field, Form, FormRow, FormTable, SelectField, TextAreaField, fmtDateTime } from '../ui';
 import './OrganizationHeadChart.css';
 
 export const chartPath = '/admin/organization-heads';
@@ -22,8 +22,13 @@ interface HeadAssignment extends Omit<HeadPeriod, 'lastDay'> {
   id: string; employeeId: string; employeeNo: string; validTo: string | null; supersededAt: string | null;
   reason: string; eligible: boolean; approverEligible: boolean;
 }
+interface HeadEndChange {
+  id: string; reason: string; occurredAt: string; validFrom: string;
+  beforeValidTo: string | null; afterValidTo: string | null;
+}
 export interface HeadChartData {
   today: string; candidates: Candidate[]; history: HeadAssignment[];
+  endChanges?: HeadEndChange[];
   form: { commandId: string; expectedVersion: number | null };
 }
 interface Props {
@@ -173,7 +178,7 @@ export function OrganizationHeadChart({ chart, organization, data, command, prev
         </div>
       </Form>
     </div>}
-    <details open={Boolean(current || saved || draft)}>
+    <details open={Boolean(current || saved || draft || data.endChanges?.length)}>
       <summary>배정·변경 이력</summary>
       {history.length ? <ul className="wl-head-history">
         {history.map(row => {
@@ -192,6 +197,19 @@ export function OrganizationHeadChart({ chart, organization, data, command, prev
           </li>;
         })}
       </ul> : <p>등록된 조직장이 없습니다.</p>}
+      {Boolean(data.endChanges?.length) && <section aria-labelledby="head-end-change-history">
+        <h3 id="head-end-change-history">종료일 변경 기록</h3>
+        <p className="hint">최근 최대 30건</p>
+        <ul className="wl-head-history">
+          {data.endChanges?.map(change => <li key={change.id}>
+            <time dateTime={change.occurredAt}>{fmtDateTime(change.occurredAt)}</time>
+            <span>변경 전 마지막 담당일 {lastDay(change.beforeValidTo) ?? '종료일 미지정'}</span>
+            <span>변경 후 마지막 담당일 {change.afterValidTo === change.validFrom
+              ? '배정 시작일부터 미배정' : lastDay(change.afterValidTo) ?? '종료일 미지정'}</span>
+            <span>변경 사유 {change.reason}</span>
+          </li>)}
+        </ul>
+      </section>}
     </details>
   </section>;
 }

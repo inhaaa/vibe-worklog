@@ -53,6 +53,19 @@ public interface OrganizationHeadMapper {
     List<HeadAssignment> history(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId,
             @Param("today") LocalDate today);
 
+    @Select("""
+            SELECT id,reason,occurred_at,before_state ->> 'validFrom' AS valid_from,
+              before_state ->> 'validTo' AS before_valid_to,
+              CASE WHEN action='ORGANIZATION_HEAD_END' THEN after_state ->> 'validTo'
+                ELSE COALESCE(after_state #>> '{assignment,validTo}', after_state ->> 'previousEndBoundary')
+              END AS after_valid_to
+            FROM tna.org_audit_event
+            WHERE tenant_id=#{tenantId} AND target_kind='ORGANIZATION' AND target_id=#{organizationId}
+              AND action IN ('ORGANIZATION_HEAD_CHANGE_END_PERIOD','ORGANIZATION_HEAD_END')
+            ORDER BY occurred_at DESC,id DESC LIMIT 30
+            """)
+    List<HeadEndChange> endChanges(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId);
+
     @Select(HISTORY_SELECT + " AND h.superseded_at IS NULL AND h.valid_from<=#{date} AND (h.valid_to IS NULL OR h.valid_to>#{date})")
     HeadAssignment covering(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId,
             @Param("date") LocalDate date, @Param("today") LocalDate today);
