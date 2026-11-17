@@ -37,7 +37,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("workspace/profile", "profile", "personalDetails"), page("workspace/home", "workspaceHome", "homeWidgetScope",
                     "clockInCommand", "clockOutCommand", "clockError"),
             page("company/attendance", "companyAttendance"), page("company/requests", "companyRequests"),
-            page("org/access-list", "accessRows", "q", "page", "hasNext"),
+            page("org/access-list", "roleDirectory", "accessRows", "q", "page", "hasNext"),
             page("org/problem", "status", "message", "traceId"),
             page("org/organizations", "organizations", "hasNext", "q", "page", "form", "options", "orgNames",
                     "organizationSheet", "organizationHeadsById", "organizationCreateFailed", "createdOrganizations"),

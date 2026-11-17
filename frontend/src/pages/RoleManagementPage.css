@@ -1,0 +1,44 @@
+.role-management {
+  display: grid;
+  grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.role-management-roles ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--g200);
+  border-radius: var(--r-pop);
+  background: var(--g50);
+}
+
+.role-management-roles li + li { margin-top: 2px; }
+
+.role-management-roles a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: var(--r-ctl);
+  color: var(--g800);
+  text-decoration: none;
+}
+
+.role-management-roles a:hover { background: var(--g100); }
+.role-management-roles a[aria-current="page"] { background: var(--g200); font-weight: 700; }
+.role-management-roles a:focus-visible { outline: 2px solid var(--g800); outline-offset: -2px; }
+
+.role-management-sheet { min-width: 0; }
+.role-management-sheet .wl-querybar { margin-bottom: 10px; }
+.role-management-count, .role-management-default { margin: 0 0 10px; color: var(--g700); font-size: 13px; }
+.role-management-sheet .pagination { margin-top: 10px; }
+
+@media (max-width: 740px) {
+  .role-management { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .role-management-roles ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+  .role-management-roles li + li { margin: 0; }
+}
