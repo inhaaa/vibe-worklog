@@ -26,7 +26,7 @@ import static kr.tna.org.OrgCommands.*;
 
 @Service
 public final class AccountService {
-    private static final Set<String> SUPPORTED_ROLES = Set.of("EMPLOYEE", "APPROVER", "ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE");
+    static final Set<String> SUPPORTED_ROLES = Set.of("EMPLOYEE", "APPROVER", "ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE");
     private static final SecureRandom RANDOM = new SecureRandom();
     private final AccountAdminMapper mapper;
     private final EmployeeAdminMapper employees;
