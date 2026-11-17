@@ -211,6 +211,24 @@ describe('React 앱 탐색과 제출', () => {
     await screen.findByRole('heading', { name: '신청 상세' });
     expect(screen.getByRole('navigation', { name: '현재 위치' }).textContent).toContain('회사 신청 현황');
   });
+  it('인사기본의 입사 예정 관리는 독립 페이지로 연다', async () => {
+    const path = '/admin/employees/onboarding';
+    const result: PageEnvelope = { page: 'org/onboarding', csrf, data: {
+      workspacePrincipal: employees.data.workspacePrincipal, workspaceEmployee: employees.data.workspaceEmployee,
+      onboarding: { today: '2026-11-17', rows: [], page: 0, organizations: [], scheduleVersions: [], form: { commandId: 'cmd' } },
+    } };
+    window.history.replaceState(null, '', '/admin/employees');
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(result, path)));
+    render(<App initial={{ ...employees, data: { ...employees.data,
+      employeeSheet: { commandId: 'sheet-command', reason: '', rows: [], latestRows: [], errors: [] },
+    } }} />);
+
+    fireEvent.click(screen.getByRole('link', { name: '입사 예정 관리' }));
+    await screen.findByRole('heading', { name: '입사 예정 관리', level: 1 });
+    expect(location.pathname).toBe(path);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('데모 계정 선택 아이콘은 로그아웃 바로 앞에서 접근할 수 있다', () => {
     const view = render(<App initial={{ ...today, data: { ...today.data, workspaceDemo: true } }} />);
     const switchAccount = screen.getByRole('link', { name: '다른 테스트 사원 로그인' });

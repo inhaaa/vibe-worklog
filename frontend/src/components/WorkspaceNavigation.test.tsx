@@ -9,7 +9,7 @@ describe('업무 트리', () => {
     render(<WorkspaceNavigation roles={['EMPLOYEE', 'ATTENDANCE_ADMIN']} page="org/personnel" pathname="/admin/employees/e-1/personnel" />);
     expect(screen.getByRole('button', { name: '인사·조직' }).getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', { name: '조직·사원' }).getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('link', { name: '사원 관리' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: '인사기본' }).getAttribute('aria-current')).toBe('page');
     expect(screen.queryByRole('link', { name: '홈' })).toBeNull();
     expect(screen.queryByRole('tree')).toBeNull();
   });
@@ -89,7 +89,7 @@ describe('업무 트리', () => {
     const crumb = screen.getByRole('navigation', { name: '현재 위치' });
     expect(crumb.textContent).toContain('인사·조직');
     expect(crumb.textContent).toContain('조직·사원');
-    expect(screen.getByRole('link', { name: '사원 관리' }).getAttribute('href')).toBe('/admin/employees');
+    expect(screen.getByRole('link', { name: '인사기본' }).getAttribute('href')).toBe('/admin/employees');
     expect(screen.getByText('인사정보 등록').getAttribute('aria-current')).toBe('page');
   });
 });

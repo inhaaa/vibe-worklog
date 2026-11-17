@@ -28,7 +28,8 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, CompanyAuthenticationProvider provider,
-                                          AuthStore authStore, Clock clock, LocalDemoLogin localDemo) throws Exception {
+                                          AuthStore authStore, Clock clock, LocalDemoLogin localDemo,
+                                          org.springframework.core.env.Environment environment) throws Exception {
         AuthenticationEntryPoint entryPoint = (request, response, exception) -> {
             response.setHeader("Cache-Control", "no-store");
             if (ReactPageResponse.problem(request, response, 401, "로그인이 필요합니다. 다시 로그인해 주세요.")) return;
@@ -44,6 +45,10 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> {
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
+                    }
+                    if (environment.matchesProfiles("public-demo")) {
+                        authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
+                                "/admin/employees/onboarding/**", "/admin/employees/exports").denyAll();
                     }
                     authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/react/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()

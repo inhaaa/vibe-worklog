@@ -21,10 +21,12 @@ import static kr.tna.org.OrgCommands.*;
 public final class EmployeeService {
     private final EmployeeAdminMapper mapper;
     private final OrgCommands commands;
+    private final EmployeeOnboardingMapper onboarding;
 
-    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands) {
+    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands, EmployeeOnboardingMapper onboarding) {
         this.mapper = mapper;
         this.commands = commands;
+        this.onboarding = onboarding;
     }
 
     public List<Employee> list(TnaPrincipal actor, String query, int page) {
@@ -99,6 +101,9 @@ public final class EmployeeService {
                     checkVersion(form.expectedVersion(), before.version());
                     if (!before.employeeNo().equals(values.employeeNo())) {
                         throw OrgException.invalid("사번은 등록 후 변경할 수 없습니다.");
+                    }
+                    if (!before.joinedOn().equals(values.joinedOn()) && onboarding.isConfirmedEmployee(actor.tenantId(), id)) {
+                        throw OrgException.invalid("최초 발령이 확정된 사원의 입사일은 변경할 수 없습니다.");
                     }
                     boolean employmentChanged = before.active() != values.active()
                             || !before.joinedOn().equals(values.joinedOn())

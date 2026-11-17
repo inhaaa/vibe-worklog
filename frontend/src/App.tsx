@@ -10,6 +10,7 @@ import { CorePages } from './pages/CorePages';
 import { WorkspaceHome, useWorkspaceHomeRefresh } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
@@ -29,6 +30,7 @@ import './design/workspace.css';
 import './design/screens.css';
 
 function isTaskUrl(url: URL) {
+  if (url.pathname === '/admin/employees/onboarding') return false;
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
     || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId'))
@@ -79,6 +81,7 @@ const titles: Record<string, string> = {
   'clock/calendar': '근무일·휴일',
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
+  'org/onboarding': '입사 예정 관리',
   'request/mine': '내 근태현황·신청',
   'request/attributions': '기초 묶음 귀속연도',
   'request/detail': '신청 상세',
@@ -259,6 +262,7 @@ function Content(props: PageProps) {
       <CorePages {...props} />
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
+      {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
       <ApprovalRoutePages {...props} />
       <CodePages {...props} />
       <AnnualRequestPage {...props} />
@@ -603,7 +607,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   };
   const submit = (event: SubmitEvent<HTMLDivElement>) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented || form.hasAttribute('data-native-submit')) return;
     const native = event.nativeEvent as globalThis.SubmitEvent;
     const submitter = native.submitter as HTMLButtonElement | null;
     const url = new URL(submitter?.getAttribute('formaction') || form.action, location.href);

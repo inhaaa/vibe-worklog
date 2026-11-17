@@ -26,10 +26,13 @@ public final class OrgBulkService {
     private final OrgCommands commands;
     private final OrganizationAdminMapper organizations;
     private final EmployeeAdminMapper employees;
+    private final EmployeeOnboardingMapper onboarding;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public OrgBulkService(OrgCommands commands, OrganizationAdminMapper organizations, EmployeeAdminMapper employees) {
+    public OrgBulkService(OrgCommands commands, OrganizationAdminMapper organizations, EmployeeAdminMapper employees,
+                          EmployeeOnboardingMapper onboarding) {
         this.commands = commands; this.organizations = organizations; this.employees = employees;
+        this.onboarding = onboarding;
     }
 
     public Result organizations(TnaPrincipal actor, Form<OrganizationRow> form) {
@@ -99,6 +102,9 @@ public final class OrgBulkService {
                         if (old != null) {
                             text(row, "expectedVersion", () -> { checkVersion(row.expectedVersion(), old.version()); return old; });
                             if (!old.employeeNo().equals(row.employeeNo())) throw issue(row, "employeeNo", 422, "사번은 등록 후 변경할 수 없습니다.");
+                            if (!old.joinedOn().equals(row.joinedOn()) && onboarding.isConfirmedEmployee(actor.tenantId(), old.id())) {
+                                throw issue(row, "joinedOn", 422, "최초 발령이 확정된 사원의 입사일은 변경할 수 없습니다.");
+                            }
                         }
                         UUID id = old == null ? UUID.randomUUID() : old.id();
                         String number = row.employeeNo() == null

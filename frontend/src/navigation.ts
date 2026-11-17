@@ -37,7 +37,7 @@ const navigation: NavigationGroup[] = [
   ] },
   { id: 'people', label: '인사·조직', children: [
     { id: 'organization', label: '조직·사원', children: [
-      item('employees', '사원 관리', '/admin/employees', admin, 'org/employees', 'org/employee', 'org/personnel'),
+      item('employees', '인사기본', '/admin/employees', admin, 'org/employees', 'org/employee', 'org/personnel', 'org/onboarding'),
       item('organizations', '조직 관리', '/admin/organizations', admin, 'org/organizations', 'org/organization'),
       item('organization-heads', '조직장 배정', '/admin/organization-heads', admin, 'org/organization-heads'),
       item('organization-chart', '조직도', '/company/organizations', company, 'company/organizations'),
@@ -96,7 +96,7 @@ export function getNavigation(roles: readonly string[], selectedRole?: string): 
 
 const detailTitles: Record<string, string> = {
   'org/employee': '사원 상세', 'org/personnel': '인사정보 등록', 'org/organization': '조직 상세',
-  'org/access': '계정·권한', 'schedule/form': '근무 템플릿 등록', 'schedule/detail': '근무 템플릿',
+  'org/onboarding': '입사 예정 관리', 'org/access': '계정·권한', 'schedule/form': '근무 템플릿 등록', 'schedule/detail': '근무 템플릿',
   'schedule/assignment': '근무 배정', 'request/detail': '신청 상세', 'request/correction': '기록 정정 신청',
   'request/ledger': '연차 원장', 'request/attributions': '기초 묶음 귀속연도',
   'worktime/result': '계산 근거', 'worktime/audit-detail': '감사 상세',
