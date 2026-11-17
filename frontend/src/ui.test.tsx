@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { Check, CsrfContext, Field, Form, fmtDate, fmtTime, fmtDateTime, duration } from './ui';
+import { Check, CsrfContext, Field, Form, fmtDate, fmtTime, fmtDateTime, duration, secondsInput } from './ui';
 
 describe('공통 폼과 표시 계약', () => {
   it('서버 CSRF 이름과 토큰을 POST 폼에 넣고 사용자 입력은 이스케이프한다', () => {
@@ -24,12 +24,20 @@ describe('공통 폼과 표시 계약', () => {
     expect(html).toContain('name="_roles" value="on"');
     expect(html).toContain('value="ATTENDANCE_ADMIN"');
   });
-  it('업무 날짜는 시간대 변환 없이 표시하고 시각은 서울 기준이다', () => {
+  it('업무 날짜는 시간대 변환 없이 표시하고 시각은 서울 기준 초까지만 보인다', () => {
     expect(fmtDate('2026-01-01')).toBe('2026-01-01');
-    expect(fmtTime('09:00:30.125')).toBe('09:00:30.125');
-    expect(fmtDateTime('2026-01-01T23:30:00Z')).toContain('2026');
-    expect(fmtDateTime('2026-01-01T23:30:00Z')).toContain('08:30');
-    expect(duration(null)).toBe('미확정');
-    expect(duration(3_600_000)).toBe('1:00:00.000');
+    expect(fmtDateTime('2026-11-11T08:09:58.315Z')).toBe('2026-11-11 17:09:58');
+    expect(fmtDateTime('2026-12-31T15:00:00.999Z')).toBe('2027-01-01 00:00:00');
+    expect(fmtTime('09:00:00.000')).toBe('09:00');
+    expect(fmtTime('09:00')).toBe('09:00');
+    expect(fmtTime('09:00:30.125')).toBe('09:00:30');
+    expect(fmtTime('09:00:00.500')).toBe('09:00:00');
+    expect(fmtTime(null)).toBe('미확인');
+    expect(duration(29_398_999)).toBe('8:09:58');
+    expect(duration(0)).toBe('0:00:00');
+    expect(duration(null)).toBe('-');
+    expect(secondsInput('2026-11-04T18:00:30.125')).toBe('2026-11-04T18:00:30');
+    expect(secondsInput('2026-11-04T12:00/2026-11-04T13:00:00.000')).toBe('2026-11-04T12:00/2026-11-04T13:00:00');
+    expect(secondsInput(null)).toBe('');
   });
 });

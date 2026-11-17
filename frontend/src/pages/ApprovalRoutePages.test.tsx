@@ -272,12 +272,6 @@ describe('결재선 React 관리', () => {
     expect((view.getByLabelText('배정·해제 사유') as HTMLTextAreaElement).value).toBe('입력 보존');
   });
 
-  it('내 정보에 실제 선택 경로와 신청 차단 사유를 표시한다', async () => {
-    const view = await show(<App initial={{ page: 'workspace/profile', csrf, data: { ...principal, profile: { employeeNo: 'E001', employeeName: '김직원', companyName: '합성회사', email: 'e@example.test', joinedOn: '2026-10-01', leftOn: null, organizationName: '개발팀', scheduleName: null, approverName: null, approverEligible: false, roles: ['EMPLOYEE'], asOf: '2026-10-28T00:00:00Z', approvalPreview: { source: 'ORGANIZATION_ROUTE', routeName: '팀 결재', approverName: null, eligible: false, message: '조직장 공석으로 재지정이 필요합니다.' } } } }} />);
-    expect(view.getByText('조직별 결재선 · 팀 결재')).toBeTruthy();
-    expect(view.getByText('조직장 공석으로 재지정이 필요합니다.')).toBeTruthy();
-  });
-
   it('신청 상세의 최초 해석과 현재 담당을 구분한다', async () => {
     const request = { id: 'r-1', targetEmployeeName: '김직원', kind: 'LEAVE_DAY', fromDate: '2026-11-01', toDate: '2026-11-01', quantityDays: 1, status: 'PENDING', effectStatus: 'NONE', version: 2, reason: '연차', approverName: '현재담당', originalRequestId: null };
     const view = await show(<App initial={{ page: 'request/detail', csrf, data: { ...principal, request, detail: { days: [], correction: null, history: [], routeSnapshot: { routeCode: 'TEAM', routeName: '팀 결재', revision: 2, scopeKind: 'ORGANIZATION', approverKind: 'ORGANIZATION_HEAD', organizationName: '개발팀', resolvedApproverName: '최초조직장', resolvedAt: '2026-10-28T00:00:00Z' } }, admin: false, canDecide: false, pageCommand: 'decision-command' } }} />);

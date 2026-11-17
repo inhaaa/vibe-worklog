@@ -9,6 +9,10 @@ import kr.tna.common.web.SeoulTimeDisplay;
 import kr.tna.clock.AttendanceSettingsData.*;
 import kr.tna.clock.ClockData.*;
 import kr.tna.org.*;
+import kr.tna.worktime.WorktimeData.DayView;
+import kr.tna.worktime.WorktimeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,25 +24,42 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class AttendanceController {
+    private static final Logger LOG = LoggerFactory.getLogger(AttendanceController.class);
     private static final SeoulTimeDisplay TIME_DISPLAY = new SeoulTimeDisplay();
-    private final AttendanceSettingsService settings;private final ClockService clocks;private final OrgCommands commands;
-    public AttendanceController(AttendanceSettingsService settings,ClockService clocks,OrgCommands commands){this.settings=settings;this.clocks=clocks;this.commands=commands;}
+    private final AttendanceSettingsService settings;private final ClockService clocks;private final OrgCommands commands;private final WorktimeService worktime;
+    public AttendanceController(AttendanceSettingsService settings,ClockService clocks,OrgCommands commands,WorktimeService worktime){this.settings=settings;this.clocks=clocks;this.commands=commands;this.worktime=worktime;}
     @GetMapping("/admin/networks") ModelAndView networks(@AuthenticationPrincipal TnaPrincipal actor){return networkPage(actor,null);}
     @PostMapping("/admin/networks/changes") ModelAndView addNetwork(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("form") NetworkForm form,BindingResult b){check(b);return submit(()->settings.addNetwork(actor,form),"/admin/networks",()->networkPage(actor,form));}
     @PostMapping("/admin/networks/{id}/close") ModelAndView closeNetwork(@AuthenticationPrincipal TnaPrincipal actor,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->settings.closeNetwork(actor,id,expectedVersion,reason,commandId),"/admin/networks",()->networkPage(actor,null));}
     @GetMapping("/admin/calendar") ModelAndView calendar(@AuthenticationPrincipal TnaPrincipal actor){return calendarPage(actor,null);}
     @PostMapping("/admin/calendar/versions") ModelAndView calendarVersion(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("form") CalendarForm form,BindingResult b){check(b);return submit(()->settings.calendar(actor,form),"/admin/calendar",()->calendarPage(actor,form));}
     @GetMapping("/me/attendance") ModelAndView history(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return dayPage(actor,date==null?commands.today():date,null);}
-    @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,HttpServletRequest request){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/attendance");}
-    @PostMapping("/me/work-confirmations") ModelAndView confirm(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("confirmationForm") ConfirmationForm form,BindingResult b){check(b);return submit(()->clocks.confirm(actor,form),"/me/attendance?date="+form.workDate(),()->dayPage(actor,form.workDate(),form));}
+    @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,@RequestParam(required=false) String returnTo,HttpServletRequest request){
+        if(!"home".equals(returnTo)){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/attendance");}
+        try{clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/home");}catch(OrgException e){return redirect("/me/home?clockError="+e.status());}
+    }
+    @PostMapping("/me/work-confirmations") ModelAndView confirm(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("confirmationForm") ConfirmationForm form,BindingResult b){check(b);return submit(()->{UUID id=clocks.confirm(actor,form);calculate(actor,form);return id;},"/me/attendance?date="+form.workDate(),()->dayPage(actor,form.workDate(),form));}
     private ModelAndView networkPage(TnaPrincipal actor,NetworkForm form){return new ModelAndView("clock/networks").addObject("pageCommand",UUID.randomUUID()).addObject("networks",settings.networks(actor)).addObject("form",form!=null?form:new NetworkForm("","",false,"",UUID.randomUUID()));}
     private ModelAndView calendarPage(TnaPrincipal actor,CalendarForm form){return new ModelAndView("clock/calendar").addObject("calendars",settings.calendars(actor)).addObject("form",form!=null?form:new CalendarForm(commands.today(),commands.today().plusDays(30),false,"","","",UUID.randomUUID()));}
     private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
+        boolean canConfirm=clocks.canConfirm(d);
         var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
-                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
-        if(isToday)page.addObject("inCommand",UUID.randomUUID()).addObject("outCommand",UUID.randomUUID());
+                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday)
+                .addObject("canConfirm",canConfirm);
+        page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
+                .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
+        var effective=d.effectiveEvents()!=null?d.effectiveEvents():d.events();
+        boolean past=d.workDate().isBefore(today)||isToday&&effective.stream().anyMatch(e->"OUT".equals(e.kind()));
+        page.addObject("correctionSuggested",d.confirmation()==null&&!canConfirm&&past&&worktime.correctionSuggested(actor,d.workDate()));
+        if(isToday)for(String kind:List.of("IN","OUT"))if(d.events().stream().noneMatch(e->kind.equals(e.kind())))
+            page.addObject(kind.equals("IN")?"inCommand":"outCommand",UUID.randomUUID());
         return page;
+    }
+    /** 확인은 이미 저장됐다. 계산 실패는 그날을 확인 전으로 남기고 담당자 재집계로 복구한다. */
+    private void calculate(TnaPrincipal actor,ConfirmationForm form){
+        try{worktime.calculateConfirmedDay(actor,form.workDate(),form.commandId());}
+        catch(RuntimeException failed){LOG.warn("event=worktime_auto_calculate outcome=failed status={} cause={}",failed instanceof OrgException e?e.status():500,failed.getClass().getSimpleName());}
     }
     public static ConfirmationForm confirmation(DaySnapshot d){return new ConfirmationForm(d.workDate(),d.inputRevision(),d.reviewRevision(),false,false,d.sourceFingerprint(),UUID.randomUUID());}
     public static Map<UUID,String> times(DaySnapshot d){Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));return values;}

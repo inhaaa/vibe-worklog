@@ -7,7 +7,7 @@ import { AdminPages } from './pages/AdminPages';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
-import { WorkspaceHome } from './pages/WorkspaceHome';
+import { WorkspaceHome, useWorkspaceHomeRefresh } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
@@ -413,7 +413,9 @@ export function App({ initial }: { initial: PageEnvelope }) {
         else if (historyMode === 'none' && Number.isInteger(history.state?.worklogPosition)) historyPosition.current = history.state.worklogPosition;
         currentUrl.current = destination.href;
         setEnvelope(detailSource ? { ...result.envelope, data: { ...result.envelope.data, navigationFrom: detailSource } } : result.envelope);
-        setRevision((value) => value + 1);
+        const refreshingHome = historyMode === 'replace' && currentPage.current.envelope.page === 'workspace/home'
+          && result.envelope.page === 'workspace/home';
+        if (!refreshingHome) setRevision((value) => value + 1);
         modalDirty.current = formError;
       } catch (error) {
         if (requestId !== serial.current || controller.signal.aborted) return;
@@ -514,6 +516,15 @@ export function App({ initial }: { initial: PageEnvelope }) {
       pending.current?.abort();
     };
   }, [navigate, restoreBackground]);
+
+  const refreshHome = useCallback(() => {
+    // 모달을 닫으면 배경 화면이 브라우저의 뒤로 가기보다 먼저 복원될 수 있다.
+    if (backgroundRef.current || posting.current || location.href !== currentUrl.current) return false;
+    void navigate('/me/home', {}, 'replace');
+    return true;
+  }, [navigate]);
+  useWorkspaceHomeRefresh(!busy && !background && envelope.page === 'workspace/home' ? envelope.data : undefined, refreshHome);
+
   useEffect(() => {
     const dialog = document.querySelector('.t-modal');
     if (!background || !dialog) { setModalWorking(false); return; }

@@ -83,6 +83,8 @@ public final class ClockService {
             if(matched==null)throw OrgException.forbidden();
             UUID network=UUID.fromString(matched);
             LocalDate date=now.atZone(SEOUL).toLocalDate();
+            if(mapper.recorded(actor.tenantId(),actor.employeeId(),date,kind))
+                throw OrgException.conflict(kind.equals("IN")?"오늘 출근은 이미 기록했습니다.":"오늘 퇴근은 이미 기록했습니다.");
             Event event=new Event(UUID.randomUUID(),kind,now,date);
             changed(mapper.event(actor.tenantId(),actor.employeeId(),event,commandId,address,network));
             changed(mapper.advanceInput(actor.tenantId(),actor.employeeId(),date));
@@ -98,20 +100,12 @@ public final class ClockService {
             DaySnapshot day=snapshot(actor.tenantId(),actor.employeeId(),form.workDate());
             checkVersion(form.baseInputRevision(),day.inputRevision());checkVersion(form.expectedReviewRevision(),day.reviewRevision());
             if(!day.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("기록·일정·휴일이 변경되었습니다. 최신 내용을 확인해 주세요.");
-            if(day.workDate().isAfter(LocalDate.now(clock.withZone(SEOUL)))||!form.presenceAsWork()||!form.breaksMatch())
+            Instant now=clock.instant();
+            if(day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())||!form.presenceAsWork()||!form.breaksMatch())
                 throw OrgException.invalid("실제 근로·예정 휴게가 일치하는지 확인하고 차이가 있으면 정정을 신청해 주세요.");
-            var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
-            var outs=day.effectiveEvents().stream().filter(e->e.kind().equals("OUT")).toList();
-            if(ins.size()!=1||outs.size()!=1||day.schedule()==null||day.calendarVersionId()==null)
-                throw OrgException.invalid("유일한 출퇴근과 유효 일정·휴일 확인이 필요합니다. 누락·중복은 정정을 신청해 주세요.");
-            Instant start=ins.getFirst().occurredAt(),end=outs.getFirst().occurredAt();
-            if(!start.isBefore(end)||!start.atZone(SEOUL).toLocalDate().equals(day.workDate())
-                    ||!end.atZone(SEOUL).toLocalDate().equals(day.workDate())||end.isAfter(clock.instant()))
-                throw OrgException.invalid("확인할 수 없는 출퇴근 구간입니다. 정정을 신청해 주세요.");
-            List<Interval> breaks=day.schedule().breaks().stream().map(b->new Interval(
-                    day.workDate().atTime(b.startTime()).atZone(SEOUL).toInstant(),day.workDate().atTime(b.endTime()).atZone(SEOUL).toInstant())).toList();
-            if(breaks.stream().anyMatch(b->b.startAt().isBefore(start)||b.endAt().isAfter(end)))
-                throw OrgException.invalid("예정 휴게가 실제 출퇴근 구간 밖입니다. 실제 휴게 정정을 신청해 주세요.");
+            var check=confirmationCheck(day,now);
+            if(check.error()!=null)throw OrgException.invalid(check.error());
+            var breaks=check.breaks();
             changed(mapper.advanceReview(actor.tenantId(),actor.employeeId(),day.workDate(),day.inputRevision(),day.reviewRevision()));
             UUID id=UUID.randomUUID();Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
             changed(mapper.insertConfirmation(actor.tenantId(),id,actor.employeeId(),day.workDate(),day.inputRevision(),day.reviewRevision()+1,
@@ -119,6 +113,27 @@ public final class ClockService {
             return new Change(id,null,new Confirmation(id,day.inputRevision(),day.reviewRevision()+1,true,true,day.sourceFingerprint(),breaks,at));
         });
     }
+    public boolean canConfirm(DaySnapshot day) {
+        Instant now=clock.instant();
+        return day.confirmation()==null&&!day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())
+                &&confirmationCheck(day,now).error()==null;
+    }
+    private static ConfirmationCheck confirmationCheck(DaySnapshot day,Instant now) {
+        var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
+        var outs=day.effectiveEvents().stream().filter(e->e.kind().equals("OUT")).toList();
+        if(ins.size()!=1||outs.size()!=1||day.schedule()==null||day.calendarVersionId()==null)
+            return new ConfirmationCheck(List.of(),"유일한 출퇴근과 유효 일정·휴일 확인이 필요합니다. 누락·중복은 정정을 신청해 주세요.");
+        Instant start=ins.getFirst().occurredAt(),end=outs.getFirst().occurredAt();
+        if(!start.isBefore(end)||!start.atZone(SEOUL).toLocalDate().equals(day.workDate())
+                ||!end.atZone(SEOUL).toLocalDate().equals(day.workDate())||end.isAfter(now))
+            return new ConfirmationCheck(List.of(),"확인할 수 없는 출퇴근 구간입니다. 정정을 신청해 주세요.");
+        List<Interval> breaks=day.schedule().breaks().stream().map(b->new Interval(
+                day.workDate().atTime(b.startTime()).atZone(SEOUL).toInstant(),day.workDate().atTime(b.endTime()).atZone(SEOUL).toInstant())).toList();
+        if(breaks.stream().anyMatch(b->b.startAt().isBefore(start)||b.endAt().isAfter(end)))
+            return new ConfirmationCheck(List.of(),"예정 휴게가 실제 출퇴근 구간 밖입니다. 실제 휴게 정정을 신청해 주세요.");
+        return new ConfirmationCheck(breaks,null);
+    }
+    private record ConfirmationCheck(List<Interval> breaks,String error) { }
     private List<Event> project(ClockMapper.CorrectionRow correction,LocalDate date) {
         try {
             var before=json.readTree(correction.beforeSnapshot());

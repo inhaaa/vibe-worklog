@@ -83,6 +83,24 @@ class AttendanceServiceIT {
     }
 
     @Test
+    void eachKindIsRecordedOncePerWorkDayButTheSameCommandStillReplays() {
+        UUID command=UUID.randomUUID();UUID id=clocks.record(actor,"IN",command,"127.0.0.1");
+        assertEquals(id,clocks.record(actor,"IN",command,"127.0.0.1"));
+        var second=assertThrows(OrgException.class,()->clocks.record(actor,"IN",UUID.randomUUID(),"127.0.0.1"));
+        assertEquals(409,second.status());assertEquals("오늘 출근은 이미 기록했습니다.",second.getMessage());
+        assertEquals(1,clocks.day(actor,TODAY).events().size());
+        assertEquals(1,clocks.day(actor,TODAY).inputRevision());
+    }
+
+    @Test
+    void outCanBeRecordedWithoutInButOnlyOnce() {
+        assertNotNull(clocks.record(actor,"OUT",UUID.randomUUID(),"127.0.0.1"));
+        var second=assertThrows(OrgException.class,()->clocks.record(actor,"OUT",UUID.randomUUID(),"127.0.0.1"));
+        assertEquals(409,second.status());assertEquals("오늘 퇴근은 이미 기록했습니다.",second.getMessage());
+        var day=clocks.day(actor,TODAY);assertEquals(1,day.events().size());assertEquals("OUT",day.events().getFirst().kind());
+    }
+
+    @Test
     void validatesNumericAddressAndCurrentAllowedNetwork() {
         for(String address:List.of("localhost","127.0.0.1:8080","127.000.0.1","[::1]","::1%eth0","256.0.0.1")) {
             assertStatus(422,()->clocks.record(actor,"IN",UUID.randomUUID(),address));
@@ -212,7 +230,9 @@ class AttendanceServiceIT {
         transactions.execute(tenant,()->{
             assertEquals(network.toString(),mapper.network(tenant,"127.0.0.1",Instant.now()));
             var event=new Event(UUID.randomUUID(),"IN",Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS),TODAY);
+            assertFalse(mapper.recorded(tenant,actor.employeeId(),TODAY,"IN"));
             assertEquals(1,mapper.event(tenant,actor.employeeId(),event,UUID.randomUUID(),"127.0.0.1",network));
+            assertTrue(mapper.recorded(tenant,actor.employeeId(),TODAY,"IN"));assertFalse(mapper.recorded(tenant,actor.employeeId(),TODAY,"OUT"));
             assertEquals(1,mapper.advanceInput(tenant,actor.employeeId(),TODAY));
             return null;
         });

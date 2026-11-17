@@ -516,10 +516,6 @@ function Schedule({ data }: PageProps) {
               );
             })}
           </div>
-          <p className="t-calendar-note">
-            일정은 예정 정보입니다. 연차의 대기·승인·취소와 실제 근로 확인은 구분합니다. 각 날짜의
-            신청 전체는 날짜 상세에서 확인하세요.
-          </p>
         </section>
         {(todo.length > 0 || weekTally.workDays + weekTally.leaveDays + weekTally.offDays > 0) && (
           <aside className="wl-side" aria-label="주간 근무와 처리할 일">
@@ -596,12 +592,8 @@ function Schedule({ data }: PageProps) {
               )) : <p className="t-muted">이 날짜에 조회된 본인 대상 신청이 없습니다.</p>}
             </div>
           </div>
-          <p className="t-subtle">
-            예정 근무와 휴게를 실제 시간으로 확정하지 않습니다. 대기 정정은 승인된 사실과
-            구분합니다.
-          </p>
           <div className="t-attendance-detail-actions">
-            <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>원천·정정 반영 내역</a>
+            <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>출퇴근 기록</a>
             <a className="t-btn secondary" href="/me/requests">휴가·정정 신청</a>
           </div>
         </section>

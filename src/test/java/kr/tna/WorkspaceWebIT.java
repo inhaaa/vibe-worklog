@@ -141,13 +141,17 @@ class WorkspaceWebIT {
         var result = mvc.perform(get("/me/attendance").session(session))
                 .andExpect(status().isOk()).andReturn();
         var data = ReactPageAssertions.envelope(result).get("data");
+        assertTrue(data.at("/inCommand").isMissingNode() && data.at("/outCommand").isMissingNode(), "이미 기록한 구분은 다시 누를 수 없어야 합니다.");
+        var home = ReactPageAssertions.envelope(mvc.perform(get("/me/home").session(session)).andExpect(status().isOk()).andReturn()).get("data");
+        assertTrue(home.at("/clockInCommand").isMissingNode() && home.at("/clockOutCommand").isMissingNode());
+        assertEquals(today.atTime(9, 17).atZone(ZoneId.of("Asia/Seoul")).toInstant().toString(), home.at("/workspaceHome/today/inRecordedAt").asString());
         assertTrue(data.at("/day/confirmation").isNull());
         assertEquals(2, data.at("/day/events").size());
         assertEquals(2, data.at("/day/effectiveEvents").size());
         var day = (DaySnapshot) result.getModelAndView().getModel().get("day");
         for (var event : day.events()) {
-            String expected = event.kind().equals("IN") ? "09:17:00.000" : "18:41:00.000";
-            assertTrue(data.at("/eventTimes/" + event.id()).asString().contains(expected));
+            String expected = today + (event.kind().equals("IN") ? " 09:17:00" : " 18:41:00");
+            assertEquals(expected, data.at("/eventTimes/" + event.id()).asString());
         }
         assertEquals(day.events(), day.effectiveEvents());
         assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=?",

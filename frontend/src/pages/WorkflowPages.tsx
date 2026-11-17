@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import './RequestDetail.css';
 import './RequestWorkspace.css';
 import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
+import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
@@ -21,6 +22,7 @@ import {
   fmtDate,
   fmtTime,
   fmtDateTime,
+  duration,
 } from '../ui';
 import type {
   EmployeeChoice,
@@ -37,6 +39,7 @@ import type {
   LedgerEntry,
   MonthModel,
   DayView,
+  PeriodView,
   PoliciesModel,
   ResultModel,
   AuditModel,
@@ -62,7 +65,6 @@ const EmployeeOptions = ({ employees }: { employees: EmployeeChoice[] }) => (
 const Reason = ({ label = '사유', value }: { label?: string; value?: string }) => (
   <TextAreaField label={label} name="reason" value={value} maxLength={500} required />
 );
-const Reasons = ({ reasons }: { reasons?: string[] }) => <>{(reasons ?? []).join(' · ')}</>;
 const Summary = ({ entries }: { entries: Record<string, string> }) => (
   <dl className="wl-form-table">
     {Object.entries(entries ?? {}).map(([key, value]) => (
@@ -73,7 +75,6 @@ const Summary = ({ entries }: { entries: Record<string, string> }) => (
     ))}
   </dl>
 );
-const rawMillis = (value: number | null | undefined) => (value == null ? '미확정' : value);
 function previousDay(iso: string): string {
   const value = new Date(`${iso}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() - 1);
@@ -132,12 +133,12 @@ function Mine({ model: m }: { model: MineModel }) {
       </p>
       <section className="panel">
         <h2>연차 잔여와 대기량</h2>
-        <p>정수 DAY 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
+        <p>정수 일 단위 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
         <ul>
           {m.buckets.map((b) => (
             <li key={b.id}>
               {bucketPeriod(b)} · 현재 잔여 {b.balanceDays} / 사용 가능 {b.availableDays} / 대기{' '}
-              {b.pendingDays} DAY
+              {b.pendingDays}일
             </li>
           ))}
         </ul>
@@ -151,7 +152,7 @@ function Mine({ model: m }: { model: MineModel }) {
             <option value="">선택하세요</option>
             {m.buckets.map((b) => (
               <option key={b.id} value={b.id}>
-                {bucketPeriod(b)} / 사용 가능 {b.availableDays} DAY
+                {bucketPeriod(b)} / 사용 가능 {b.availableDays}일
               </option>
             ))}
           </SelectField>
@@ -193,7 +194,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const approvalTone = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
   return (
     <div className="t-request-detail-page">
-      <PageHeader title="신청 상세" help="신청 내용과 실제 처리 이력을 확인하세요. 시각 기준: Asia/Seoul (서울)"
+      <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
@@ -210,26 +211,23 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
           <dl className="wl-form-table">
-            <dt>결재선 버전</dt><dd>{d.routeSnapshot.routeCode} · {d.routeSnapshot.routeName} · v{d.routeSnapshot.revision}</dd>
             <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
             <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
             {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
             <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
-            <dt>해석 시각 (서울)</dt><dd>{fmtDateTime(d.routeSnapshot.resolvedAt)}</dd>
           </dl>
-          <p className="hint">제출 당시 해석은 보존됩니다. 이후 명시 재할당은 처리 이력에서 확인하세요.</p>
         </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
         <section className="t-card t-request-detail-summary" aria-labelledby="request-record-application-title">
           <div className="t-request-detail-summary-head">
             <div><h2 id="request-record-application-title">신청서</h2><p className="t-request-detail-person">{r.targetEmployeeName} · {kindName}</p></div>
             <span className="t-request-detail-status" data-status={r.status} aria-label="현재 상태">{statusName(r.status)}</span>
           </div>
-          <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong><span>신청 버전 v{r.version}</span></p>
+          <p className="t-request-detail-effect">현재 효력 <strong>{effectName}</strong></p>
           <div className="t-request-detail-overview">
             <section className="t-request-detail-fact">
               <h3>신청 기간</h3>
               <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
-              {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays} DAY</p>}
+              {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
             </section>
             <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
             <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
@@ -239,11 +237,11 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
         </section>
       </div>
       <div className="t-request-detail-columns">
-        {(d.days.length > 0 || d.correction || d.attendancePolicy) && <div className="t-request-detail-main">
+        {(d.days.length > 0 || d.correction) && <div className="t-request-detail-main">
           {d.days.length > 0 && <section className="t-card">
             <h2>날짜별 산정</h2>
             <ul className="t-request-detail-days">
-              {d.days.map((day, i) => <li key={`${day.leaveDate}-${i}`}><span>{fmtDate(day.leaveDate)}</span>{r.kind === 'LEAVE_DAY' && <strong>{day.quantityDays} DAY</strong>}{day.zeroReason && <span className="t-muted">{zeroReason(day.zeroReason)}</span>}</li>)}
+              {d.days.map((day, i) => <li key={`${day.leaveDate}-${i}`}><span>{fmtDate(day.leaveDate)}</span>{r.kind === 'LEAVE_DAY' && <strong>{day.quantityDays}일</strong>}{day.zeroReason && <span className="t-muted">{zeroReason(day.zeroReason)}</span>}</li>)}
             </ul>
           </section>}
           {d.correction && <section className="t-card">
@@ -253,19 +251,6 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
               <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
             </dl>
-            <Notice>원천 기록은 보존하며 승인된 최신 정정 효과만 적용합니다.</Notice>
-          </section>}
-          {d.attendancePolicy && <section className="t-card t-request-route">
-            <h2>제출 당시 근태정책</h2>
-            <dl className="wl-form-table">
-              <dt>근태코드·버전</dt><dd>{d.attendancePolicy.code} · {d.attendancePolicy.name} · v{d.attendancePolicy.revision}</dd>
-              <dt>정책 적용 시작</dt><dd>{fmtDate(d.attendancePolicy.effectiveFrom)}</dd>
-              <dt>단위</dt><dd>{label(d.attendancePolicy.unit, { DAY: '종일(DAY)', HOUR: '시간(HOUR)', NONE: '해당 없음' })}</dd>
-              <dt>유급 구분</dt><dd>{label(d.attendancePolicy.payKind, { PAID: '유급', UNPAID: '무급', UNSPECIFIED: '미확인' })} (정책 메타데이터)</dd>
-              <dt>차감 규칙</dt><dd>{label(d.attendancePolicy.deductionRule, { LEAVE_DAY: '승인 시 연차 DAY 차감', NONE: '차감 없음' })}</dd>
-              <dt>정책 근거</dt><dd>{d.attendancePolicy.basis}</dd>
-            </dl>
-            <p className="hint">제출 당시 불변 정책입니다. 이후 비활성·새 버전을 소급하지 않습니다. 근무 인정시간은 산정 미지원입니다.</p>
           </section>}
         </div>}
         <div className="t-request-detail-side">
@@ -361,29 +346,30 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
 }
 function Correction({ model: m }: { model: CorrectionModel }) {
   const f = m.form;
+  const timeFieldId = useId();
+  const [requestedInAt, setRequestedInAt] = useState(f.requestedInAt);
+  const [requestedOutAt, setRequestedOutAt] = useState(f.requestedOutAt);
   const [breaks, setBreaks] = useState(f.actualBreaks ?? '');
   const [dirty, setDirty] = useState(Boolean(f.reason));
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요. 시각 기준은 Asia/Seoul (서울)입니다." />
+      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요." />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
         </p>
       )}
-      <section className="wl-section t-correction-source" aria-label="현재 원천 기록">
-        <h2>현재 원천 기록</h2>
-        <p className="hint">{fmtDate(m.day.workDate)} · 승인 전 원천은 유지됩니다.</p>
+      <section className="wl-section t-correction-source" aria-label="현재 출퇴근 기록">
+        <h2>현재 출퇴근 기록</h2>
         <ul className="t-correction-events">
           {m.day.events.map((e) => (
             <li key={e.id}>
               <span>{e.kind === 'IN' ? '출근' : e.kind === 'OUT' ? '퇴근' : e.kind}</span><strong>{m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}</strong>
             </li>
           ))}
-          {!m.day.events.length && <li>조회된 원천 기록이 없습니다. 확인된 실제 근거로만 정정하세요.</li>}
+          {!m.day.events.length && <li>출퇴근 기록이 없습니다.</li>}
         </ul>
-        <p className="hint">원천은 수정·삭제하지 않으며 승인된 정정 효과를 추가합니다.</p>
       </section>
       <Form
         action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
@@ -399,24 +385,26 @@ function Correction({ model: m }: { model: CorrectionModel }) {
         {hidden('commandId', f.commandId)}
         {hidden('exceptional', m.exceptional)}
         {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
+        {hidden('replacesRequestId', f.replacesRequestId)}
         <section className="wl-section">
           <h2>출퇴근 변경</h2>
-          <p className="hint">유지·시각 수정·누락 정정 중 필요한 항목을 선택하세요.</p>
           <FormTable columns={2}>
             <SelectField label="출근 변경" name="inAction" value={f.inAction}>
               {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
             </SelectField>
-            <Field label="제안 출근 시각 (서울)" name="requestedInAt" type="datetime-local" step="0.001" value={f.requestedInAt} />
+            <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
+              <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
+            </FormRow>
             <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
               {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
             </SelectField>
-            <Field label="제안 퇴근 시각 (서울)" name="requestedOutAt" type="datetime-local" step="0.001" value={f.requestedOutAt} />
+            <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
+              <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
+            </FormRow>
           </FormTable>
-          <p className="hint">시각 수정일 때만 제안 시각을 입력하세요. 유지·누락으로 정정할 때는 제안 시각을 비워 주세요.</p>
         </section>
         <section className="wl-section">
           <h2>실제 근로·휴게와 사유</h2>
-          <p className="hint">실제 확인한 근거를 기준으로 작성해 주세요.</p>
           <FormTable>
             <FormRow label="실제 확인">
               <Check name="presenceAsWork" label="제안 구간의 실제 근로를 확인했습니다" checked={f.presenceAsWork} />
@@ -426,15 +414,11 @@ function Correction({ model: m }: { model: CorrectionModel }) {
               <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
             </FormRow>
           </FormTable>
-          <details className="t-correction-advanced"><summary>기존 승인 정정을 다시 변경하는 경우</summary><FormTable><Field label="변경할 현재 승인 정정 ID (있으면)" name="replacesRequestId" value={f.replacesRequestId ?? ''} /></FormTable></details>
           <FormTable>
             <Reason label="정정 사유와 사실 근거" value={f.reason} />
-            <p className="hint">
-              민감정보를 적지 마세요. 확인되지 않은 실제 근로는 정상0시간으로 간주하지 않습니다.
-            </p>
           </FormTable>
         </section>
-        <div className="wl-form-actions"><span className="wl-modal-note">작성자·대상자와 다른 승인자가 내용을 검토합니다.</span><button className="t-btn primary">정정 심사 요청</button></div>
+        <div className="wl-form-actions"><button className="t-btn primary">정정 심사 요청</button></div>
       </Form>
     </div>
   );
@@ -461,7 +445,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
           {m.buckets.map((b) => (
             <li key={b.id}>
               <a href={`/admin/leave-balances/buckets/${b.id}`}>
-                {bucketPeriod(b)} / 잔여 {b.balanceDays} <abbr title="일">DAY</abbr> / 대기 {b.pendingDays} <abbr title="일">DAY</abbr>
+                {bucketPeriod(b)} / 잔여 {b.balanceDays}일 / 대기 {b.pendingDays}일
               </a>
             </li>
           ))}
@@ -480,7 +464,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
             <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
             <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
             <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
-            <Field label="기초 일수 (정수 DAY)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="기초 일수 (정수)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
             <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
             <Reason label="등록 사유" value={f.reason} />
           </FormTable>
@@ -494,7 +478,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
   const f = m.adjustment;
   const columns = [
     sheetColumn<LedgerEntry>({ field: 'entryKind', headerName: '종류', minWidth: 160, pinned: 'left' }, entry => entry.entryKind),
-    sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: 'DAY 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
+    sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: '일수 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
     sheetColumn<LedgerEntry>({ field: 'effectiveOn', headerName: '기준일', minWidth: 150 }, entry => fmtDate(entry.effectiveOn)),
     sheetColumn<LedgerEntry>({ colId: 'basis', headerName: '근거·사유', minWidth: 280, flex: 1, valueGetter: ({ data }) => data ? `${data.sourceReference} · ${data.reason}` : '' }, entry => `${entry.sourceReference} · ${entry.reason}`),
   ];
@@ -517,7 +501,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
           <FormTable>
-            <Field label="조정 DAY (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="조정 일수 (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
             <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
             <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
             <Reason label="조정 사유" value={f.reason} />
@@ -532,21 +516,40 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
+  const shown = (day: DayView, value: number | null) => (day.current ? value : null);
+  const away = (day: DayView) => day.employed === false;
+  const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
+    sheetColumn<DayView>({ colId, headerName, minWidth: 120, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      valueGetter: ({ data }) => (data ? shown(data, pick(data)) : null),
+      getQuickFilterText: ({ data }) => (!data || away(data) ? '' : flagPending && data.pending && shown(data, pick(data)) == null ? '확인 전' : duration(shown(data, pick(data)))) },
+      day => {
+        if (away(day)) return '';
+        const value = shown(day, pick(day));
+        return flagPending && day.pending && value == null ? <span className="w-sheet-pending">확인 전</span> : duration(value);
+      });
   const columns = [
-    sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 145, pinned: 'left' }, day => fmtDate(day.workDate)),
-    sheetColumn<DayView>({ colId: 'state', headerName: '상태·최신성', minWidth: 230, valueGetter: ({ data }) => data ? `${data.result.status} / ${data.current ? '최신' : '미산정·재집계 필요'}` : '' }, day => `${day.result.status} / ${day.current ? '최신' : '미산정·재집계 필요'}`),
-    sheetColumn<DayView>({ colId: 'actualTime', headerName: '실근로 (시:분:초.밀리초)', minWidth: 210, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter', valueGetter: ({ data }) => data?.result.actualWorkMillis ?? null, getQuickFilterText: ({ data }) => data ? m.actualTimes?.[data.workDate] ?? '미확정' : '' }, day => m.actualTimes?.[day.workDate] ?? '미확정'),
-    sheetColumn<DayView>({ colId: 'actualWorkMillis', field: 'result.actualWorkMillis', headerName: '실근로 ms', minWidth: 150, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.actualWorkMillis)),
-    sheetColumn<DayView>({ colId: 'confirmedBreakMillis', field: 'result.confirmedBreakMillis', headerName: '휴게 ms', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.confirmedBreakMillis)),
-    sheetColumn<DayView>({ colId: 'over8hMillis', field: 'result.over8hMillis', headerName: '일8시간 초과 ms', minWidth: 175, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => rawMillis(day.result.over8hMillis)),
-    sheetColumn<DayView>({ colId: 'leaveDays', field: 'result.leaveDays', headerName: '휴가 DAY', minWidth: 130, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, day => day.result.leaveDays),
-    sheetColumn<DayView>({ colId: 'evidence', headerName: '근거·예외·버전', minWidth: 310, flex: 1, valueGetter: ({ data }) => data ? `${data.result.reasons.join(' · ')} · ${data.ruleVersion} · 결과 v${data.resultRevision} · ${data.id ?? ''} · 사실 ${data.result.inputRevision} / 검토 ${data.result.reviewRevision}` : '' }, day => <div className="reason-cell">
-      <p><Reasons reasons={day.result.reasons} /></p>
-      <p>{day.ruleVersion} · 결과 v{day.resultRevision} · {day.id}</p>
-      {day.id && <p><a href={`/worktime/results/${day.id}`}>계산 근거 상세</a></p>}
-      <p>사실 {day.result.inputRevision} / 검토 {day.result.reviewRevision}</p>
-    </div>),
+    sheetColumn<DayView>({ field: 'workDate', headerName: '근무일', minWidth: 130, pinned: 'left' },
+      day => (day.id ? <a href={`/worktime/results/${day.id}`}>{fmtDate(day.workDate)}</a> : fmtDate(day.workDate))),
+    timeColumn('actualWorkMillis', '실근로', day => day.result.actualWorkMillis, true),
+    timeColumn('confirmedBreakMillis', '휴게', day => day.result.confirmedBreakMillis),
+    timeColumn('over8hMillis', '8시간 초과', day => day.result.over8hMillis),
+    sheetColumn<DayView>({ field: 'approvedLeaveDays', headerName: '휴가', minWidth: 90, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data && !away(data) ? String(data.approvedLeaveDays) : '') },
+      day => (away(day) ? '' : day.approvedLeaveDays ? day.approvedLeaveDays : '-')),
   ];
+  const weekColumns = [
+    sheetColumn<PeriodView>({ colId: 'week', headerName: '주간', minWidth: 210, pinned: 'left',
+      valueGetter: ({ data }) => (data ? `${data.from} ~ ${previousDay(data.to)}` : '') }, week => `${week.from} ~ ${previousDay(week.to)}`),
+    sheetColumn<PeriodView>({ colId: 'confirmedWorkMillis', field: 'result.confirmedWorkMillis', headerName: '실근로', minWidth: 120,
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data ? duration(data.result.confirmedWorkMillis) : '') }, week => duration(week.result.confirmedWorkMillis)),
+    sheetColumn<PeriodView>({ field: 'pendingDays', headerName: '확인 전', minWidth: 100, cellClass: 'w-sheet-number',
+      filter: 'agNumberColumnFilter', getQuickFilterText: ({ data }) => (data ? `${data.pendingDays}일` : '') }, week => `${week.pendingDays}일`),
+    sheetColumn<PeriodView>({ colId: 'over40hMillis', field: 'result.over40hMillis', headerName: '40시간 초과', minWidth: 130,
+      cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter',
+      getQuickFilterText: ({ data }) => (data ? duration(data.result.over40hMillis) : '') }, week => duration(week.result.over40hMillis)),
+  ];
+  const leaveDays = view.days.reduce((sum, day) => sum + day.approvedLeaveDays, 0);
   const periodFields = (
     <>
       {hidden('employeeId', m.employeeId)}
@@ -556,13 +559,9 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="일·주·월 근로시간 검토" help="법정 적합성·급여 확정 자료가 아닌 검토용 결과입니다. 미확정은0시간으로 바꾸지 않으며, 확인된 부분합과 구분합니다." />
-      <Form
-        action={m.admin ? '/admin/attendance' : '/me/worktime'}
-        method="get"
-        className="wl-querybar"
-      >
-        <Field label="기준 월 (서울)" name="month" type="month" value={view.month} required />
+      <PageHeader title="근로시간" />
+      <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
+        <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
           <SelectField label="대상 사원" name="employeeId" value={m.employeeId}>
             <EmployeeOptions employees={m.employees} />
@@ -570,34 +569,16 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
+      <dl className="wl-summary" aria-label="월 요약">
+        <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
+        <div data-tone={summary.pendingDays ? 'warn' : undefined}><dt>확인 전</dt><dd>{summary.pendingDays}일</dd></div>
+        <div><dt>휴가</dt><dd>{leaveDays}일</dd></div>
+      </dl>
       <section className="wl-section">
-        <h2>월 요약</h2>
-        <p>
-          확인된 실근로 부분합 {m.totalTime ?? '미확정'} / 미확정 {summary.result.unconfirmedDays}일
-        </p>
-        <p>{summary.current ? '입력·규칙 최신' : '미산정 또는 재집계 필요'}</p>
-        <p>
-          <Reasons reasons={summary.result.reasons} />
-        </p>
-        <p>
-          실제 휴게·일정·캘린더·법 적용 검토가 없는 결과는 확인이 필요합니다. 법정 최종 가산 연장은
-          자동 확정하지 않습니다.
-        </p>
+        <WorklogSheet label="일별 근로시간" title="일별" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
       <section className="wl-section">
-        <WorklogSheet label="일별 계산 결과" title="일 결과" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
-      </section>
-      <section className="wl-section">
-        <h2>월 경계를 포함한 주간 참고량</h2>
-        <ul className="wl-rows">
-          {view.weeks.map((w) => (
-            <li key={w.from}>
-              {w.from} ~ {previousDay(w.to)} · 확인 부분합 {w.result.confirmedWorkMillis} ms /
-              미확정 {w.result.unconfirmedDays}일 / 주40시간 초과{' '}
-              {rawMillis(w.result.over40hMillis)} ms / {w.current ? '최신' : '재집계 필요'}
-            </li>
-          ))}
-        </ul>
+        <WorklogSheet label="주간 근로시간" title="주간" rows={view.weeks} columns={weekColumns} getRowId={week => week.from} scope="all" />
       </section>
       {m.admin && (
         <section className="wl-section">
@@ -615,13 +596,7 @@ function Month({ model: m }: { model: MonthModel }) {
           <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
             {hidden('commandId', m.exportCommand)}
-            <FormTable>
-              <Field label="검토용 출력 사유" name="reason" maxLength={500} required />
-              <p>
-                결과 ID·입력/규칙 버전·필터를 고정한 검토 스냅샷입니다. 자유 사유·이메일·IP는 포함하지
-                않습니다.
-              </p>
-            </FormTable>
+            <FormTable><Field label="검토용 출력 사유" name="reason" maxLength={500} required /></FormTable>
             <div className="wl-form-actions"><button className="t-btn">검토용 XLSX 다운로드</button></div>
           </Form>
         </section>
@@ -793,21 +768,21 @@ function Result({ model: m }: { model: ResultModel }) {
     day = d.day,
     run = d.run;
   const times = m.times ?? {
-    소정근로: '미확정',
-    체류: '미확정',
-    '확인 실근로': '미확정',
-    '확인 휴게': '미확정',
-    '일정 밖': '미확정',
-    '일8시간 초과 참고': '미확정',
-    야간: '미확정',
-    휴일: '미확정',
-    '법정 최종 연장': '미확정',
+    소정근로: '-',
+    체류: '-',
+    '확인 실근로': '-',
+    '확인 휴게': '-',
+    '일정 밖': '-',
+    '일8시간 초과 참고': '-',
+    야간: '-',
+    휴일: '-',
+    '법정 최종 연장': '-',
   };
   return (
     <section className="t-record-detail" aria-label="계산 근거 상세">
       <PageHeader title="계산 근거 상세" help={<>
         <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
-        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초.밀리초. 날짜와 실제 발생 시각은 구분합니다.</p>
+        <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초. 날짜와 실제 발생 시각은 구분합니다.</p>
       </>} actions={<>
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
         {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
@@ -863,7 +838,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
         <p>
-          미확정은 실제0시간과 다릅니다. 야간·휴일·초과 참고량을 더해 총 실근로로 만들지 않습니다.
+          '-'는 미확정이며 실제 0시간과 다릅니다. 야간·휴일·초과 참고량을 더해 총 실근로로 만들지 않습니다.
         </p>
       </section>
       {run && (
@@ -1060,109 +1035,82 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
   );
 }
 
-export function AttendanceRecord({ data }: { data: Record<string, unknown> }): React.ReactNode {
+const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
+function scheduleLine(day: DaySnapshot) {
+  if (day.schedule == null) return null;
+  const head = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
+    : `예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`;
+  const line = [head, ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  return day.calendarVersionId == null ? `${line} · 캘린더 미확인` : line;
+}
+export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
     d = m.day,
     f = m.confirmationForm;
+  const time = (event: ClockEvent) => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt);
   const columns = [
-    sheetColumn<ClockEvent>({ field: 'kind', headerName: '원천 사건', minWidth: 150, pinned: 'left', valueGetter: ({ data }) => data ? data.kind === 'IN' ? '출근' : '퇴근' : '' }, event => event.kind === 'IN' ? '출근' : '퇴근'),
-    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '서버 저장 시각 (서울)', minWidth: 250, flex: 1, valueGetter: ({ data }) => data ? m.eventTimes?.[data.id] ?? fmtDateTime(data.occurredAt) : '' }, event => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt)),
+    sheetColumn<ClockEvent>({ field: 'kind', headerName: '구분', minWidth: 120, pinned: 'left', valueGetter: ({ data }) => data ? eventName(data.kind) : '' }, event => eventName(event.kind)),
+    sheetColumn<ClockEvent>({ field: 'occurredAt', headerName: '시각', minWidth: 200, flex: 1, valueGetter: ({ data }) => data ? time(data) : '' }, time),
   ];
+  const effective = d.effectiveEvents ?? d.events;
   const changedEvents =
     d.effectiveEvents != null &&
     (d.events.length !== d.effectiveEvents.length ||
       d.events.some((e, i) => {
-        const effective = d.effectiveEvents?.[i];
-        return (
-          e.id !== effective?.id ||
-          e.kind !== effective?.kind ||
-          e.occurredAt !== effective?.occurredAt
-        );
+        const after = d.effectiveEvents?.[i];
+        return e.id !== after?.id || e.kind !== after?.kind || e.occurredAt !== after?.occurredAt;
       }));
+  const ins = effective.filter(e => e.kind === 'IN'), outs = effective.filter(e => e.kind === 'OUT');
+  const canConfirm = d.schedule != null && d.calendarVersionId != null && d.confirmation == null
+    && (m.canConfirm ?? (ins.length === 1 && outs.length === 1
+      && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
+      && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate))));
+  const needsCorrection = m.correctionSuggested === true && !canConfirm && d.confirmation == null && d.schedule != null && d.calendarVersionId != null;
   return (
     <section className="wl-section">
-      <h2>출근 기록·실제 근로 확인</h2>
-      <p>
-        {fmtDate(d.workDate)} · Asia/Seoul · 사실 v{d.inputRevision} / 검토 v{d.reviewRevision}
-      </p>
-      {d.schedule == null ? (
-        <p className="notice">근무 일정 미배정 · 확인 필요</p>
-      ) : (
-        <p>
-          {d.schedule.workday
-            ? `예정 근무 ${fmtTime(d.schedule.startTime)}~${fmtTime(d.schedule.endTime)}`
-            : '소정 비근로일'}
-        </p>
-      )}
-      <p>캘린더: {d.dayKind}</p>
-      <p>
-        체류시간을 실제 근로로 자동 확정하지 않습니다. 중복·역전·자정 통과 기록은 정정 검토가
-        필요합니다.
-      </p>
-      <WorklogSheet title="원천 출퇴근 기록" label="원천 출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
+      {d.schedule == null ? <p className="notice">근무 일정 미배정</p> : showSchedule && <p className="t-muted">{scheduleLine(d)}</p>}
+      <WorklogSheet title="출퇴근 기록" label="출퇴근 기록" rows={d.events} columns={columns} getRowId={event => event.id} scope="all" />
       {changedEvents && (
         <div className="notice">
-          <h3>승인 정정 반영값 · 원천은 별도 보존</h3>
+          <h3>정정 반영 기록</h3>
           <ul>
-            {d.effectiveEvents?.map((e) => (
-              <li key={e.id}>
-                {e.kind} · {m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}
-              </li>
-            ))}
+            {d.effectiveEvents?.map(e => <li key={e.id}>{eventName(e.kind)} · {time(e)}</li>)}
           </ul>
         </div>
       )}
       {d.confirmation && (
-        <p className="notice">현재 사실의 실제 근로·휴게 일치 확인이 저장되었습니다.</p>
-      )}
-      <Form action="/me/work-confirmations" method="post" className="wl-form">
-        {hidden('workDate', f.workDate)}
-        {hidden('baseInputRevision', f.baseInputRevision)}
-        {hidden('expectedReviewRevision', f.expectedReviewRevision)}
-        {hidden('sourceFingerprint', f.sourceFingerprint)}
-        {hidden('commandId', f.commandId)}
-        <h3>퇴근 후 본인 확인</h3>
-        <p>
-          원천 한 쌍·같은 날짜·일정·캘린더가 유효해야 합니다. 실제가 다르면 확인하지 말고 정정
-          신청을 사용하세요.
+        <p className="notice">
+          {m.actualWorkMillis != null ? `근무 확인 완료 · 실근로 ${duration(m.actualWorkMillis)}` : '근무 확인 완료 · 실근로는 담당자 재집계 후 표시됩니다.'}
         </p>
-        {d.schedule && (
-          <ul>
-            {d.schedule.breaks.map((b, i) => (
-              <li key={i}>
-                예정 휴게 {fmtTime(b.startTime)} ~ {fmtTime(b.endTime)}
-              </li>
-            ))}
-          </ul>
-        )}
-        <FormTable>
-          <FormRow label="본인 확인" required>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="presenceAsWork"
-                value="true"
-                defaultChecked={f.presenceAsWork}
-                required
-              />
-              출퇴근 사이에서 휴게를 제외한 실제 근로가 일치합니다
-            </label>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                name="breaksMatch"
-                value="true"
-                defaultChecked={f.breaksMatch}
-                required
-              />
-              실제 휴게가 표시된 예정 휴게와 일치합니다
-            </label>
-          </FormRow>
-        </FormTable>
-        <div className="wl-form-actions">
-          <button type="submit" className="t-btn primary">현재 사실 확인 저장</button>
-        </div>
-      </Form>
+      )}
+      {needsCorrection && (
+        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={`/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`}>정정 신청</a></p>
+      )}
+      {canConfirm && (
+        <Form action="/me/work-confirmations" method="post" className="wl-form">
+          {hidden('workDate', f.workDate)}
+          {hidden('baseInputRevision', f.baseInputRevision)}
+          {hidden('expectedReviewRevision', f.expectedReviewRevision)}
+          {hidden('sourceFingerprint', f.sourceFingerprint)}
+          {hidden('commandId', f.commandId)}
+          <h3>근무 확인</h3>
+          <FormTable>
+            <FormRow label="근무 확인" required>
+              <label className="checkbox-label">
+                <input type="checkbox" name="presenceAsWork" value="true" defaultChecked={f.presenceAsWork} required />
+                휴게를 뺀 실제 근로가 맞습니다
+              </label>
+              <label className="checkbox-label">
+                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required />
+                휴게가 예정과 같습니다
+              </label>
+            </FormRow>
+          </FormTable>
+          <div className="wl-form-actions">
+            <button type="submit" className="t-btn primary">근무 확인</button>
+          </div>
+        </Form>
+      )}
     </section>
   );
 }
@@ -1220,34 +1168,35 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/day':
       content = <AttendanceRecord data={data} />;
       break;
-    case 'clock/history':
+    case 'clock/history': {
+      const clock = data as unknown as ClockModel;
+      const todayCard = clock.isToday && clock.day.workDate === data.today;
       content = (
         <>
-          <PageHeader title="출퇴근 기록" help="출퇴근 시각과 실제 근로를 확인하세요." />
-          {(data as unknown as ClockModel).isToday && (data as unknown as ClockModel).day.workDate === data.today && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
-            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong><p className="t-muted">서울 현재 시각으로 기록됩니다.</p></div>
-            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => <Form key={kind} action="/me/attendance/events">
-              {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
-              <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!(kind === 'IN' ? data.inCommand : data.outCommand)}>{kind === 'IN' ? '출근 기록' : '퇴근 기록'}</button>
-            </Form>)}</div>
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요." />
+          {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
+            <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
+            <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => {
+              const name = kind === 'IN' ? '출근' : '퇴근', recorded = clock.day.events.find(e => e.kind === kind);
+              return <Form key={kind} action="/me/attendance/events">
+                {hidden('eventKind', kind)}{hidden('commandId', kind === 'IN' ? data.inCommand as string : data.outCommand as string)}
+                <button className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!!recorded || !(kind === 'IN' ? data.inCommand : data.outCommand)}>
+                  {recorded ? `${name} ${fmtDateTime(recorded.occurredAt).slice(11)}` : `${name} 기록`}</button>
+              </Form>;
+            })}</div>
           </section>}
           <Form action="/me/attendance" method="get" className="wl-querybar">
-            <Field
-              label="기준일"
-              name="date"
-              type="date"
-              value={(data as unknown as ClockModel).day.workDate}
-              required
-            />
+            <Field label="기준일" name="date" type="date" value={clock.day.workDate} required />
             <div className="wl-querybar-actions">
               <a className="t-btn wl-query-reset" href="/me/attendance">오늘</a>
               <button className="t-btn wl-query-submit" type="submit">조회</button>
             </div>
           </Form>
-          <AttendanceRecord data={data} />
+          <AttendanceRecord data={data} showSchedule={!todayCard} />
         </>
       );
       break;
+    }
     default:
       return null;
   }

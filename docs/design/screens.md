@@ -37,10 +37,10 @@
 | UI-02 `/invite/{companyCode}` | 초대 대상 | 초대 검증·비밀번호 설정·이용 안내 | 토큰 tenant/계정/목적 결속·만료·재사용 검증 |
 | UI-03 `/password-reset` | 미인증 | 회사 코드·이메일, 재설정 접수/새 비밀번호 | 존재 여부 비노출, 만료 토큰 안내 |
 | UI-04 `/me/today` | 직원 | 큰 날짜·예정/현재 반영 타임라인·출퇴근·확인할 일·7일 주간 띠·접이식 원천 비교와 실제 근로/휴게 확인 | 본인만, 기존 명령·IP 검증 유지, 기록 존재를 완료로 판정하지 않음 |
-| UI-05 `/me/attendance` | 직원 | 일·주·월 목록, 원천·유효 기록·정책·결과 버전 | 본인만, 누락·미확정·오래됨을 별도 표시 |
+| UI-05 `/me/attendance` | 직원 | 기준일 출퇴근 기록(구분·시각)·예정 근무·근무 확인과 확인 뒤 그날 실근로. 오늘 카드의 출근·퇴근 버튼은 그 구분의 원래 기록이 있으면 비활성이고 기록 시각(`HH:mm:ss`)을 보인다 | 본인만, 확인할 수 없는 날(누락·중복·역전·자정 통과)은 확인 양식을 보이지 않음, 이미 기록한 구분은 명령 ID를 주지 않음 |
 | UI-06 `/me/requests` | 직원·겸임자 | 신청 종류·기간·상태·승인자·원신청 연결 | 본인만, 대기 철회·승인 후 취소 요청 구별 |
 | UI-07 `/me/requests/new/leave` | 직원 | 단일 기초 묶음·종일 날짜 범위·일정별 대상일·근거·잔여·대기량·사유 | 묶음 경계 분리, 대기는 예약 아님, 전체0·중복·미확인 안내 |
-| UI-08 `/me/requests/new/correction` | 직원 | 근무일·기존/요청 시각·휴게 확인 구간·사유·근거 | base input revision 고정, 원천보존·승인전 미반영 표시 |
+| UI-08 `/me/requests/new/correction` | 직원 | 근무일·기존/요청 시각·휴게 확인 구간·사유·근거 | base input revision 고정, 현재 승인 정정 ID는 서버가 채워 hidden으로 보냄 |
 | UI-09 `/requests/{id}` | 신청자·현재 승인자·담당자 허용 범위 | 불변 신청·상태/결정 이력·현재 효과·취소 연결 | 타 고객사 비노출, 결정 버튼은 지정 승인자만 |
 | UI-10 `/approvals`, `/approvals/completed` | 승인자 | 본인 배정 대기 목록과 본인이 승인·반려한 이력의 분리 조회, 각각50행 페이지 | 현재 APPROVER·실제 배정/본인 결정 범위, 철회는 본인 결재 이력에서 제외, 자기 결재 서버 차단 |
 | UI-11 `/admin/employees` | 근태 담당자 | 이름/사번·현재 소속·활성 상태 필터, 현재 페이지 최대50명 통계·선택 상세, 기존 등록·수정·역할·초대·승인자 연결 | tenant·조직·현재 필터/페이지의 사원 범위 재검증, 활성과 재직 기간 구분 |
@@ -71,7 +71,7 @@
 | GET `/admin/approval-route-assignments?scopeKind&employeeId&organizationId`, `approvalRouteAssignments` | 사원 또는 조직 선택, 불변 버전·적용일·사유, 현재/예정/종료/대체 이력 |
 | POST `/admin/approval-route-assignments`, `/admin/approval-route-assignments/end` | 대상 XOR·특정 버전·오늘 이후 적용일·대상 expectedVersion·commandId·사유. 배정/교체 또는 구간 종료 |
 | GET `/approvals?page`, `/approvals/completed?page` | 현재 지정 대기함과 본인 APPROVED/REJECTED 결정 목록을 각각50행 조회 |
-| GET `/me/profile`, `profile.approvalPreview` | 현재 선택 경로·실제 담당자·부적격/미배정 안내 |
+| GET `/me/profile`, `profile.approvalPreview` | 현재 선택 경로·실제 담당자·부적격/미배정 안내. 서버는 계속 보내지만 내 정보 화면은 표시하지 않으며 결재선은 신청 모달에서 확인한다 |
 | GET `/requests/{id}`, `detail.routeSnapshot` | 최초 결재선 버전·당시 소속 참조·최초 담당자·해석 시각, 현재 담당자와 별도 재할당 이력 |
 
 정의 변경은 새 불변 버전을 만들고 기존 배정을 자동 교체하지 않는다. 409/422에는 편집·비활성 예정·행/명령 식별자와 최신 원본을 보존하며 명시 확인 후에만 새 버전 기준으로 재시도한다. 배정 폼도 입력과 사유를 유지하고 충돌한 대상 버전은 명시 확인으로 갱신한다. 현재 저장된 배정을 그대로 조회한 상태는 미저장으로 표시하지 않으며 입력 버튼은 작성 내용을 지우지 않고 초점을 옮긴다. 메뉴·검색·페이지 이동 시 미저장 손실 확인과 공통 전송 잠금을 유지한다.
@@ -115,6 +115,8 @@
 
 홈은 실제 저장된 본인 이름·오늘 snapshot·원장 잔여·대기/최근 신청·주간 날짜별 상태를 표시한다. 시안의 인명·연차8일·32시간을 업무 값으로 고정하지 않으며 자료가 없으면 미등록·미배정·미확인으로 안내한다.
 
+홈(`/me/home`)의 '오늘 근무' 위젯은 출퇴근 위젯이다([설계](../superpowers/specs/2026-11-16-home-clock-widget-design.md)). 일정 한 줄(`09:30 ~ 15:30` 또는 서버 일정 문구)과 `출근`·`퇴근` 버튼을 보이고, 버튼은 `eventKind`·`commandId`·`returnTo=home`으로 POST `/me/attendance/events`에 보낸다. 오늘 그 구분의 원래 기록이 있으면 버튼은 비활성이고 기록 시각을 `HH:mm:ss`로 보인다. 퇴근은 출근 없이도 누를 수 있다. `clockError`가 있으면 위젯 안에 403 "허용된 네트워크에서만 출퇴근을 기록할 수 있습니다.", 409 "오늘 이미 기록했습니다.", 그 밖은 "기록하지 못했습니다. 잠시 후 다시 시도해 주세요."를 보인다. 확인 문구·타임라인·기록 상세 링크는 유지한다.
+
 기존 공통 shell 안에 큰 서울 기준 날짜·본인 이름 → 하루 흐름 타임라인과 출퇴근·확인할 일 → 7일 주간 띠 → 최근 신청 → 접이식 원천·현재 반영 비교와 실제 근로·휴게 확인을 배치한다. 주간 날짜는 기존 본인 달력의 `month`·`date`로 연결한다. 소개·일정·직원 목록과 다른 업무 화면의 디자인·공통 메뉴는 유지한다.
 
 타임라인은 근무일에 존재하는 예정 근무·휴게 시작/종료와 현재 반영 `effectiveEvents`를 서울 시각으로 정렬하고 예정·현재 반영을 제목과 설명으로 구분한다. 없는 시각을 0시로 채우지 않고 같은 시각·중복 항목도 보존한다. 접이식 비교는 원천과 현재 반영 기록을 분리하며 정정 때문에 원천을 덮어쓰지 않는다. 타임라인의 정렬·기록 존재는 실제 근로·휴게·지각·연장·완료 판정이 아니다.
@@ -123,7 +125,7 @@
 
 현재 고객사·근무일·시간대·적용 일정·마지막 서버 저장 결과·네트워크 상태·처리 메시지·내역/정정 연결을 계속 제공한다. 출근/퇴근은 기존 POST 폼·CSRF·명령 ID·서버 시각·권한 및 허용 IP 검증을 사용한다. 브라우저가 표시한 현재 시각은 참고이며 저장 시각은 서버 응답으로 교체한다. 요청 중 버튼을 잠가도 서버 중복 검증은 별도로 수행한다.
 
-퇴근 후 현재 사실 개정의 출퇴근 구간과 예정 휴게를 보여 주고 실제 근로·휴게가 같은지 본인이 확인한다. 일치 확인은 검토 개정만 갱신하고 재집계 필요를 표시한다. 다르면 정정 신청으로 실제 구간을 제출하며, 확인 전 실근로를 정상 확정하지 않는다.
+퇴근 후 현재 사실 개정의 출퇴근 구간과 예정 휴게를 보여 주고 실제 근로·휴게가 같은지 본인이 확인한다. 일치 확인은 검토 개정만 갱신하고 재집계 필요를 표시한 뒤, 같은 요청에서 그날이 속한 주를 자동 계산한다. 다르면 정정 신청으로 실제 구간을 제출하며, 확인 전 실근로를 정상 확정하지 않는다.
 
 통신 실패면 `처리 여부 확인 필요`를 표시하고 기존 명령 키로 재확인한다. 저장 성공 응답을 받기 전 완료로 표시하지 않는다. IP 거부 때 우회 버튼·임의 시각 제출은 제공하지 않는다. 날짜 변경 후에도 이전 기록과 근무일을 명확히 표시한다.
 
@@ -170,11 +172,12 @@ XLSX에는 고객사·필터·기간·생성 시각·시간대·단위·결과 �
 | POST `/invite/{companyCode}/accept` | 목적별 토큰·새 비밀번호 | 토큰 소비·계정 활성화·안전한 로그인 연결 | 만료·재사용·소속 불일치 |
 | POST `/password-reset/request` | 회사 코드·이메일 | 존재 여부와 무관한 동일 접수 화면 | 429 |
 | POST `/password-reset/complete` | 회사 코드·토큰·새 비밀번호 | 일회성 소비·기존 세션 폐기 | 만료·재사용·용도 불일치 |
-| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전 | 401·422 |
+| GET `/me/today`, `/me/attendance` | 기준일 또는 from/to·page | 본인 기록·일정·상태·버전, 확인한 날만 현재 결과의 실근로(`actualWorkMillis`, 없으면 null). 오늘의 `inCommand`·`outCommand`는 원래 기록이 없는 구분에만 준다 | 401·422 |
+| GET `/me/home` | 선택 `clockError`(정수 상태) | 홈 위젯 자료, 오늘 원래 출근·퇴근 시각(`inRecordedAt`·`outRecordedAt`, 없으면 null), 기록 안 한 구분에만 `clockInCommand`·`clockOutCommand`, 받은 `clockError` | 401 |
 | GET `/me/schedule` | 선택 `month=YYYY-MM`·`date=YYYY-MM-DD` | 본인 월 달력·선택 날짜 SSR, 기존 일정·휴일·신청 효력 | 인증/현재 권한·날짜 형식·월/날짜 불일치 |
 | GET `/admin/employees` | `q`·`page`·`organizationId`·`status`·`employeeId` | 현재 페이지 최대50명·활성/비활성 수·선택 상세·기존 등록 폼 | 권한 없음·허용 외 상태·tenant/조직/선택 페이지 범위 밖 |
-| POST `/me/attendance/events` | eventKind(IN/OUT)·commandId | 서버 시각·저장 원천 ID·근무일/검토 상태 | IP 거부·중복 충돌·재직 불가 |
-| POST `/me/work-confirmations` | workDate·baseInputRevision·expectedReviewRevision·실제 근로/예정 휴게 일치 확인·commandId | 본인 확인 증거·검토 개정 증가·재집계 필요 표시 | 미퇴근·오래된 사실/검토 개정·불일치는 정정 안내 |
+| POST `/me/attendance/events` | eventKind(IN/OUT)·commandId·선택 `returnTo=home` | 서버 시각·저장 원천 ID·근무일/검토 상태. 같은 근무일의 출근·퇴근은 각 1회만 저장하고 같은 명령 재전송은 한 건이다. `/me/attendance`로, `returnTo=home`이면 `/me/home`으로 돌아가며 다른 값은 무시한다 | IP 거부(403)·같은 날 같은 구분 재기록(409 "오늘 출근/퇴근은 이미 기록했습니다.")·재직 불가. `returnTo=home`이면 오류 화면 대신 `/me/home?clockError=<상태>` |
+| POST `/me/work-confirmations` | workDate·baseInputRevision·expectedReviewRevision·실제 근로/예정 휴게 일치 확인·commandId | 본인 확인 증거·검토 개정 증가·재집계 필요 표시. 저장 뒤 그날이 속한 주를 계산(`WORKTIME_AUTO_CALCULATE`)하며 계산이 실패해도 확인은 유지 | 미퇴근·오래된 사실/검토 개정·불일치는 정정 안내 |
 | POST `/me/attendance/{workDate}/confirm` | baseInputRevision·expectedReviewRevision·실제 근로 일치·예정 휴게 일치·commandId | 사실개정 유지·검토개정 증가·확인자/시각/증거·재집계 필요 | 사실 입력 변경·사실 차이(정정 안내)·미퇴근 |
 | GET `/me/requests`, `/requests/{id}` | 상태·기간·page 또는 ID | 허용 범위 신청·이력·효과 | 404 |
 | POST `/me/requests/leave` | bucketId·from/to·사유·commandId | 단일 묶음의 날짜별 DAY·PENDING ID | 묶음 경계·일정/근거 미확인·총0·중복 |
@@ -225,7 +228,7 @@ GET 목록 화면에는 동일 기능의 검색 폼과 접근 가능한 다음 �
 
 감사 목록은50건 고정·시각/ID 내림차순이며 before/after 커서를 함께 보내지 않는다. 같은 시각과 새 기록이 있어도 이전/다음 범위는 키셋으로 찾으며 전체 원장의 고정 스냅샷으로 표현하지 않는다. 상세는 개인정보/비밀정보가 없는 타입 검증 업무 요약만 전개하고 명시적 참조 해제를 값 누락과 구분한다. 목록과 상세 모두 열람 감사 저장 실패 시 결과를 정상 반환하지 않는다.
 
-표시 구현은 `SeoulTimeDisplay`를 공통으로 사용한다. 화면의 날짜는 ISO, Instant는 서울 `uuuu-MM-dd HH:mm:ss.SSS`, 새 XLSX는 밀리초·`+09:00`을 유지한다. HTML 입력/hidden 값과 저장된 Instant·근무일·원천·이전 XLSX 스냅샷은 바꾸지 않는다. 실제 휴게 JSON은 구간의 날짜·시각만 보여 주며 손상 근거를 원문으로 반사하지 않는다.
+표시 구현은 `SeoulTimeDisplay`를 공통으로 사용한다. 화면의 날짜는 ISO, Instant는 서울 `uuuu-MM-dd HH:mm:ss`(화면은 초까지만 표시, 저장·계산은 밀리초 유지), 새 XLSX는 밀리초·`+09:00`을 유지한다. HTML 입력/hidden 값과 저장된 Instant·근무일·원천·이전 XLSX 스냅샷은 바꾸지 않는다. 실제 휴게 JSON은 구간의 날짜·시각만 보여 주며 손상 근거를 원문으로 반사하지 않는다.
 
 ## 공통코드·근태코드 4단계 구현 계약
 

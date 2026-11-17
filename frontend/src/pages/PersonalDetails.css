@@ -1,7 +1,7 @@
 @layer legacy {
 /* Hallmark · shape: app screen · genre: modern-minimal · theme: charcoal and blue by request · signature: personnel sheet · v2.0.0 */
 /* Open groups keep field labels and values together as the record reflows. */
-#tna-app :is(.t-private-personnel, .t-profile-details) {
+#tna-app .t-private-personnel {
   --personal-ink: var(--t-ink);
   --personal-muted: var(--t-muted);
   --personal-line: var(--t-line);
@@ -87,11 +87,6 @@
   font-size: var(--text-xl);
   letter-spacing: -.025em;
 }
-#tna-app .t-personal-panel-heading p {
-  margin: var(--space-2xs) 0 0;
-  color: var(--personal-muted);
-  font-size: 14px;
-}
 #tna-app .t-personal-count {
   padding: var(--space-2xs) var(--space-sm);
   border-radius: 999px;
@@ -125,33 +120,28 @@
   color: var(--personal-accent);
 }
 #tna-app .t-personal-group-icon svg { width: 18px; height: 18px; }
-#tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info {
+#tna-app .t-private-personnel .t-person-info {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md) var(--space-lg);
   margin: 0;
 }
-#tna-app .t-profile-details .t-person-info {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  padding-block: var(--space-md);
-  border-block: 1px solid var(--personal-line);
-}
-#tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info > div {
+#tna-app .t-private-personnel .t-person-info > div {
   min-width: 0;
   margin: 0;
 }
-#tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info :is(dt, dd) {
+#tna-app .t-private-personnel .t-person-info :is(dt, dd) {
   margin: 0;
   overflow-wrap: anywhere;
   line-height: 1.5;
 }
-#tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info dt {
+#tna-app .t-private-personnel .t-person-info dt {
   margin-bottom: var(--space-2xs);
   color: var(--personal-muted);
   font-size: var(--text-sm);
   word-break: keep-all;
 }
-#tna-app :is(.t-private-personnel, .t-profile-details) .t-person-info dd {
+#tna-app .t-private-personnel .t-person-info dd {
   color: var(--personal-ink);
   font-size: var(--text-md);
   font-weight: 600;
@@ -161,25 +151,6 @@
   color: var(--personal-muted);
   font-weight: 400;
 }
-#tna-app .t-personal-privacy {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-xs);
-  margin: 0;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: 10px;
-  background: var(--personal-label);
-  color: var(--personal-muted);
-  font-size: 14px;
-  line-height: 1.7;
-}
-#tna-app .t-personal-privacy svg {
-  height: 18px;
-  margin-top: var(--space-2xs);
-  flex: 0 0 18px;
-  color: var(--personal-accent);
-}
-#tna-app .t-personal-privacy strong { color: var(--personal-ink); }
 #tna-app .t-personal-table table {
   width: 100%;
   min-width: 0;
@@ -241,8 +212,6 @@
 #tna-app .t-personal-empty svg { width: 22px; height: 22px; }
 #tna-app .t-personal-empty p { margin: 0; font-size: 16px; font-weight: 600; color: var(--personal-ink); }
 #tna-app .t-personal-empty small { font-size: 14px; color: var(--personal-muted); }
-#tna-app .t-profile-asof { margin: 0 0 var(--space-md); color: var(--personal-muted); font-size: 14px; }
-#tna-app .t-profile-footnote { margin: var(--space-md) 0 0; color: var(--personal-muted); font-size: 14px; }
 #tna-app .t-personnel-tabs [role="tab"]:active { background: var(--personal-selection); }
 @media (hover: hover) {
   #tna-app .t-personnel-tabs [role="tab"]:hover { filter: none; }

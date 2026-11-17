@@ -159,6 +159,19 @@ public final class WorktimeCalculator {
         return result!=null && result.inputRevision()==inputRevision && result.reviewRevision()==reviewRevision;
     }
 
+    /**
+     * 확인 전: 지난 날(오늘은 퇴근 기록 뒤)인데 실근로가 표시되지 않는 날.
+     * 기록 없이 0시간으로 확정되는 확정 비근무일·승인 휴가일만 제외하며, 그 판단은 {@link #day} 규칙을 그대로 쓴다.
+     */
+    public boolean pending(DayInput input, LocalDate today, boolean current, Long actualWorkMillis) {
+        boolean out = input.events().stream().anyMatch(event -> event.kind()==EventKind.OUT);
+        if (input.workDate().isAfter(today) || input.workDate().equals(today) && !out) return false;
+        if (current && actualWorkMillis!=null) return false;
+        if (!input.events().isEmpty()) return true;
+        try { return day(input).actualWorkMillis()==null; }
+        catch (IllegalArgumentException invalid) { return true; }
+    }
+
     private PeriodResult period(LocalDate start,LocalDate end,List<DayResult> input,boolean week,boolean basisReviewed) {
         var byDate=new HashMap<LocalDate,DayResult>();
         for (var day:input) {

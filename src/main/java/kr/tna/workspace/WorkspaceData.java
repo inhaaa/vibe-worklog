@@ -56,7 +56,7 @@ public final class WorkspaceData {
             if (!schedule.workday()) return "소정 비근로일";
             var format = DateTimeFormatter.ofPattern("HH:mm");
             return schedule.startTime() == null || schedule.endTime() == null ? "근무 시각 미확인"
-                    : format.format(schedule.startTime()) + "–" + format.format(schedule.endTime());
+                    : format.format(schedule.startTime()) + " ~ " + format.format(schedule.endTime());
         }
         public String calendarText() {
             return switch (snapshot.dayKind()) {

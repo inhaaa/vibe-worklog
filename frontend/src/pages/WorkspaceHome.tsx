@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../components/Modal';
+import { ErrorNotice, Form, fmtDateTime } from '../ui';
 import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
 import './WorkspaceHome.css';
@@ -20,8 +21,8 @@ interface HomeDay {
 
 interface HomeToday extends HomeDay {
   confirmationText: string;
-  inTime: string;
-  outTime: string;
+  inRecordedAt: string | null;
+  outRecordedAt: string | null;
   timeline: { time: string; title: string; kind: string }[];
 }
 
@@ -38,7 +39,61 @@ const dateLabel = new Intl.DateTimeFormat('ko-KR', {
   month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul',
 });
 const weekdayLabel = new Intl.DateTimeFormat('ko-KR', { weekday: 'short', timeZone: 'Asia/Seoul' });
+const workDateFormat = new Intl.DateTimeFormat('sv-SE', {
+  year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Seoul',
+});
 const seoulDay = (date: string) => new Date(`${date}T00:00:00+09:00`);
+const clockErrorText = (status: number) => status === 403 ? '허용된 네트워크에서만 출퇴근을 기록할 수 있습니다.'
+  : status === 409 ? '오늘 이미 기록했습니다.' : '기록하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+
+const refreshRetryMs = 30_000;
+
+export function useWorkspaceHomeRefresh(data: PageProps['data'] | undefined, refresh: () => boolean) {
+  const workDate = (data?.workspaceHome as HomeView | undefined)?.today.snapshot.workDate;
+  const lastRefresh = useRef(-Infinity);
+
+  useEffect(() => {
+    if (!workDate) return;
+    let timer: number;
+    const checkDate = () => {
+      window.clearTimeout(timer);
+      if (document.visibilityState === 'hidden') return;
+
+      const now = Date.now();
+      const currentDate = workDateFormat.format(now);
+      if (currentDate > workDate) {
+        // 응답이 여전히 지난 날짜이거나 조회가 실패한 경우에도 연속 요청을 피한다.
+        const checkedAt = performance.now();
+        const retryIn = lastRefresh.current + refreshRetryMs - checkedAt;
+        if (retryIn > 0) {
+          timer = window.setTimeout(checkDate, retryIn);
+          return;
+        }
+        timer = window.setTimeout(checkDate, refreshRetryMs);
+        if (refresh()) lastRefresh.current = checkedAt;
+        return;
+      }
+
+      lastRefresh.current = -Infinity;
+      const nextMidnight = seoulDay(currentDate);
+      nextMidnight.setUTCDate(nextMidnight.getUTCDate() + 1);
+      timer = window.setTimeout(checkDate, nextMidnight.getTime() - now);
+    };
+
+    checkDate();
+    document.addEventListener('visibilitychange', checkDate);
+    window.addEventListener('focus', checkDate);
+    window.addEventListener('popstate', checkDate);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', checkDate);
+      window.removeEventListener('focus', checkDate);
+      window.removeEventListener('popstate', checkDate);
+    };
+  }, [workDate, refresh]);
+}
+
+interface ClockCommands { IN?: string; OUT?: string; error?: number }
 
 const iconPaths = {
   calendar: 'M4 6h16v14H4z M8 4v4m8-4v4M4 11h16',
@@ -88,10 +143,15 @@ export function WorkspaceHome({ data, busy }: Pick<PageProps, 'data' | 'busy'>) 
   if (!home) return <section className="t-work-home"><h1>홈</h1><p>업무 현황을 확인하려면 화면을 새로 고쳐 주세요.</p></section>;
   const scope = typeof data.homeWidgetScope === 'string' ? data.homeWidgetScope : '';
   const storageKey = scope ? `worklog-home-widgets:${scope}` : undefined;
-  return <HomeDashboard key={storageKey} home={home} storageKey={storageKey} busy={busy} />;
+  const clock: ClockCommands = {
+    IN: typeof data.clockInCommand === 'string' ? data.clockInCommand : undefined,
+    OUT: typeof data.clockOutCommand === 'string' ? data.clockOutCommand : undefined,
+    error: typeof data.clockError === 'number' ? data.clockError : undefined,
+  };
+  return <HomeDashboard key={storageKey} home={home} clock={clock} storageKey={storageKey} busy={busy} />;
 }
 
-function HomeDashboard({ home, storageKey, busy }: { home: HomeView; storageKey?: string; busy?: boolean }) {
+function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; clock: ClockCommands; storageKey?: string; busy?: boolean }) {
   const [visible, setVisible] = useState(() => readWidgets(storageKey));
   const [draft, setDraft] = useState<readonly WidgetId[] | null>(null);
   const [localOnly, setLocalOnly] = useState(false);
@@ -181,11 +241,22 @@ function HomeDashboard({ home, storageKey, busy }: { home: HomeView; storageKey?
 
       {(showAttendance || showRequests) && <div className="t-work-home-columns">
         {showAttendance && <section className="t-work-home-panel" aria-labelledby="home-work-heading">
-          <div className="t-work-home-panel-heading"><h2 id="home-work-heading"><span className="t-work-home-widget-icon"><Icon name="clock" /></span>오늘 근무</h2><a href="/me/attendance">기록 상세 <Icon name="arrow" /></a></div>
-          <dl className="t-work-home-clock">
-            <div><dt>현재 반영 출근</dt><dd>{today.inTime}</dd></div>
-            <div><dt>현재 반영 퇴근</dt><dd>{today.outTime}</dd></div>
-          </dl>
+          <div className="t-work-home-panel-heading"><h2 id="home-work-heading"><span className="t-work-home-widget-icon"><Icon name="clock" /></span>오늘 근무</h2>
+            <time className="t-work-home-panel-date" dateTime={date}>{date.slice(5).replace('-', '.')}</time><a href="/me/attendance">기록 상세 <Icon name="arrow" /></a></div>
+          <p className="t-work-home-schedule">{today.scheduleText}</p>
+          {clock.error != null && <ErrorNotice message={clockErrorText(clock.error)} />}
+          <div className="t-work-home-clock">
+            {(['IN', 'OUT'] as const).map(kind => {
+              const name = kind === 'IN' ? '출근' : '퇴근', recordedAt = kind === 'IN' ? today.inRecordedAt : today.outRecordedAt;
+              return <Form key={kind} action="/me/attendance/events">
+                <input type="hidden" name="eventKind" value={kind} />
+                <input type="hidden" name="commandId" value={clock[kind] ?? ''} />
+                <input type="hidden" name="returnTo" value="home" />
+                <button type="submit" className={`t-btn${kind === 'IN' ? ' primary' : ''}`} disabled={!!recordedAt || !clock[kind]}>
+                  {recordedAt ? `${name} ${fmtDateTime(recordedAt).slice(11)}` : name}</button>
+              </Form>;
+            })}
+          </div>
           <p className="t-work-home-confirmation">{today.confirmationText}</p>
           {today.timeline.length > 0 ? <ol className="t-work-home-timeline" role="list">
             {today.timeline.map((entry, index) => <li key={`${entry.time}-${entry.title}-${index}`}>

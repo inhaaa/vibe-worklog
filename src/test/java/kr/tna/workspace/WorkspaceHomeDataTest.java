@@ -2,6 +2,7 @@ package kr.tna.workspace;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.clock.ClockData.Confirmation;
@@ -9,6 +10,7 @@ import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.clock.ClockData.Event;
 import kr.tna.org.EmployeeOverview;
 import kr.tna.request.RequestData.RequestView;
+import kr.tna.schedule.ScheduleData;
 import kr.tna.workspace.WorkspaceData.DayView;
 import kr.tna.workspace.WorkspaceData.HomeView;
 import kr.tna.workspace.WorkspaceData.RequestItem;
@@ -37,7 +39,8 @@ class WorkspaceHomeDataTest {
         var view = new HomeView(new EmployeeOverview("가상 직원", "가상 회사"), today, List.of(today), 0L, 1L, List.of(item));
 
         var json = JsonMapper.builder().build().valueToTree(WorkspaceHomeData.from(view));
-        assertEquals("09:00", json.at("/today/inTime").asString());
+        assertEquals(now.toString(), json.at("/today/inRecordedAt").asString());
+        assertTrue(json.at("/today/outRecordedAt").isNull());
         assertEquals("현재 반영 출근", json.at("/today/timeline/0/title").asString());
         assertEquals(1, json.at("/today/snapshot").size());
         assertTrue(json.at("/week/0/requests/0/effectiveLeave").asBoolean());
@@ -47,5 +50,14 @@ class WorkspaceHomeDataTest {
         assertFalse(json.toString().contains("source-fingerprint"));
         assertFalse(json.toString().contains("민감 신청 사유"));
         assertFalse(json.toString().contains(employee.toString()));
+    }
+
+    @Test
+    void scheduleTextSeparatesStartAndEndWithATilde() {
+        var date = LocalDate.of(2026, 11, 6);
+        var schedule = new ScheduleData.Day(5, true, LocalTime.of(9, 30), LocalTime.of(15, 30), List.of());
+        var day = new DaySnapshot(UUID.randomUUID(), date, List.of(), schedule, null, null, "WORKDAY",
+                0L, 0L, null, "fixture", List.of());
+        assertEquals("09:30 ~ 15:30", new DayView(day, List.of(), true, true).scheduleText());
     }
 }

@@ -57,30 +57,12 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
-  attendancePolicy?: {
-    id: string;
-    typeId: string;
-    code: string;
-    systemKind: string | null;
-    revision: number;
-    effectiveFrom: string;
-    enabled: boolean;
-    name: string;
-    unit: string;
-    payKind: string;
-    deductionRule: string;
-    recognitionRule: string;
-    basis: string;
-  } | null;
   routeSnapshot?: {
-    routeCode: string;
     routeName: string;
-    revision: number;
     scopeKind: string;
     approverKind: string;
     organizationName: string | null;
     resolvedApproverName: string;
-    resolvedAt: string;
   } | null;
 }
 export interface RequestDetailModel {
@@ -157,11 +139,14 @@ export interface ConfirmationForm {
 export interface ClockModel {
   today?: string;
   isToday?: boolean;
+  canConfirm?: boolean;
+  correctionSuggested?: boolean;
   inCommand?: string;
   outCommand?: string;
   day: DaySnapshot;
   eventTimes: Record<string, string>;
   confirmationForm: ConfirmationForm;
+  actualWorkMillis?: number | null;
 }
 export interface CorrectionForm {
   targetEmployeeId: string | null;
@@ -244,6 +229,9 @@ export interface DayView {
   ruleVersion: string;
   calculatedAt: string;
   current: boolean;
+  pending: boolean;
+  approvedLeaveDays: number;
+  employed: boolean;
   result: DayResult;
 }
 export interface PeriodResult {
@@ -256,6 +244,7 @@ export interface PeriodView {
   from: string;
   to: string;
   current: boolean;
+  pendingDays: number;
   result: PeriodResult;
 }
 export interface MonthModel {
@@ -263,8 +252,6 @@ export interface MonthModel {
   employeeId: string;
   employees: EmployeeChoice[];
   admin: boolean;
-  actualTimes: Record<string, string>;
-  totalTime: string;
   from: string;
   to: string;
   calculateCommand: string;

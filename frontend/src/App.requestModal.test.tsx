@@ -23,12 +23,26 @@ function response(data: PageEnvelope, path: string, status = 200) {
   Object.defineProperty(result, 'url', { value:new URL(path, location.href).href });
   return result;
 }
+function home(workDate: string): PageEnvelope {
+  return {
+    page: 'workspace/home', csrf, data: {
+      ...shared, clockInCommand: workDate,
+      workspaceHome: {
+        employee: shared.workspaceEmployee, week: [], availableLeaveDays: 0, pendingRequests: 0, recentRequests: [],
+        today: {
+          snapshot: { workDate }, scheduleText: '근무 일정 미배정', calendarText: '캘린더 미확인',
+          confirmationText: '실제 근로 미확인', timeline: [], requests: [],
+        },
+      },
+    },
+  };
+}
 beforeEach(() => {
   history.replaceState(null, '', '/me/requests?year=2026');
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable:true, value:function(this:HTMLDialogElement) { this.open = true; } });
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable:true, value:function(this:HTMLDialogElement) { this.open = false; } });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function open(fetcher: ReturnType<typeof vi.fn<typeof fetch>>) {
   vi.stubGlobal('fetch', fetcher);
   render(<App initial={envelope()} />);
@@ -44,6 +58,52 @@ function write(dialog: HTMLElement) {
 }
 
 describe('신청 공통 모달 통합', () => {
+  it('홈에서 연 신청 모달을 자정 이후 닫으면 이력을 복원한 뒤 홈을 갱신한다', async () => {
+    history.replaceState(null, '', '/me/home?clockError=409');
+    vi.setSystemTime(new Date('2026-11-04T14:59:59Z'));
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(envelope(compose), '/me/requests/new'))
+      .mockResolvedValueOnce(response(home('2026-11-05'), '/me/home'));
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={home('2026-11-04')} />);
+    fireEvent.click(screen.getByRole('link', { name:'근태 신청' }));
+    const dialog = await screen.findByRole('dialog', { name:'근태 신청' });
+
+    vi.setSystemTime(new Date('2026-11-04T15:00:00Z'));
+    fireEvent.focus(window);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fireEvent.click(dialog.querySelector<HTMLButtonElement>('.t-modal-close')!);
+    expect(location.pathname).toBe('/me/requests/new');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await waitFor(() => expect(screen.getByText('11.05').getAttribute('datetime')).toBe('2026-11-05'));
+    expect(location.pathname + location.search).toBe('/me/home');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('홈이 자정에 갱신되어도 위젯 설정의 선택과 초점을 유지한다', async () => {
+    history.replaceState(null, '', '/me/home');
+    vi.setSystemTime(new Date('2026-11-04T14:59:59Z'));
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(response(home('2026-11-05'), '/me/home')));
+    render(<App initial={home('2026-11-04')} />);
+    fireEvent.click(screen.getByRole('button', { name: '위젯 설정' }));
+    const dialog = screen.getByRole('dialog', { name: '위젯 설정' });
+    const leave = within(dialog).getByRole<HTMLInputElement>('checkbox', { name: /사용 가능 연차/ });
+    leave.focus();
+    fireEvent.click(leave);
+
+    vi.setSystemTime(new Date('2026-11-04T15:00:00Z'));
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.getByText('11.05').getAttribute('datetime')).toBe('2026-11-05'));
+    expect(screen.getByRole('dialog', { name: '위젯 설정' })).toBe(dialog);
+    expect(document.activeElement).toBe(leave);
+    expect(leave.checked).toBe(false);
+    fireEvent.click(within(dialog).getByRole('button', { name: '구성 저장' }));
+    expect(screen.queryByText('0일')).toBeNull();
+  });
+
   it('작성창을 하나만 열고 X로 닫으면 배경의 검색·URL·초점을 보존한다', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(envelope(compose),'/me/requests/new?year=2026'));
     const { dialog, search, trigger } = await open(fetcher);
@@ -122,7 +182,7 @@ describe('신청 공통 모달 통합', () => {
     expect(receipt.getByText('신청을 접수했습니다.')).toBeTruthy();
     expect(receipt.getByRole('link',{name:'생성한 신청 상세'}).getAttribute('href')).toBe('/requests/created-request');
     expect(within(screen.getByRole('region',{name:'내 대상 신청 이력'})).getByText('합성 휴가')).toBeTruthy();
-    expect(screen.getByText('4 DAY')).toBeTruthy();
+    expect(screen.getByText('4일')).toBeTruthy();
     expect(fetcher).toHaveBeenCalledTimes(4);
     expect(String(fetcher.mock.calls[2][0])).toContain('/me/requests/leave');
     expect(new URLSearchParams(fetcher.mock.calls[2][1]?.body as URLSearchParams).get('_csrf')).toBe(csrf.token);

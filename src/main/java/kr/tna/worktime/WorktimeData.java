@@ -20,7 +20,7 @@ public final class WorktimeData {
     public record AssessmentReview(UUID id,UUID employeeId,int revision,LocalDate validFrom,LocalDate validTo,boolean generalRuleReviewed,String basis,Instant createdAt) { }
     public record DayView(UUID id,UUID runId,UUID employeeId,String employeeNo,String employeeName,
             LocalDate workDate,long resultRevision,String ruleVersion,Instant calculatedAt,String sourceFingerprint,
-            boolean current,WorktimeCalculator.DayResult result) { }
+            boolean current,WorktimeCalculator.DayResult result,boolean pending,int approvedLeaveDays,boolean employed) { }
     public record RunEvidence(UUID id,UUID requestedBy,LocalDate fromDate,LocalDate toDate,
             LocalDate expandedFrom,LocalDate expandedTo,String engineVersion,String status,Instant startedAt,Instant finishedAt) { }
     public record PolicyEvidence(UUID id,int revision,LocalDate validFrom,LocalDate validTo,boolean mondayWeekReviewed) { }
@@ -29,7 +29,7 @@ public final class WorktimeData {
     public record ResultDetail(DayView day,boolean latestVersion,UUID latestResultId,RunEvidence run,
             kr.tna.clock.ClockData.DaySnapshot clock,PolicyEvidence policy,AssessmentEvidence assessment,
             EmploymentEvidence employment,List<String> leaveEffects,List<String> pendingCorrections,boolean completeEvidence) { }
-    public record PeriodView(LocalDate from,LocalDate to,boolean current,WorktimeCalculator.PeriodResult result,List<UUID> dayResultIds) { }
+    public record PeriodView(LocalDate from,LocalDate to,boolean current,WorktimeCalculator.PeriodResult result,List<UUID> dayResultIds,int pendingDays) { }
     public record MonthView(YearMonth month,List<DayView> days,List<PeriodView> weeks,PeriodView summary) { }
     public record AuditPage(List<AuditRow> rows,UUID previousCursor,UUID nextCursor) { }
     public record AuditDetail(UUID id,UUID commandId,UUID requestTraceId,UUID actorAccountId,String action,

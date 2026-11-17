@@ -49,7 +49,7 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
           <div className="t-approval-person"><span className="t-approval-avatar" aria-hidden="true">{r.targetEmployeeName.slice(0,1)}</span><div><h2>{r.targetEmployeeName}</h2><p>신청 대상</p></div></div>
           <dl className="t-approval-facts">
             <div><dt>대상 기간</dt><dd>{fmtDate(r.fromDate)} <span aria-hidden="true">~</span> {fmtDate(r.toDate)}</dd></div>
-            {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays} DAY</dd></div>}
+            {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays}일</dd></div>}
           </dl>
           <p className="t-approval-reason">{r.reason}</p>
           <div className="t-approval-meta"><span>현재 결재 담당 <strong>{r.approverName || '미지정'}</strong></span><span>현재 효력 <strong>{effectName(r.effectStatus)}</strong></span></div>

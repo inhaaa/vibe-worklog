@@ -110,7 +110,7 @@ describe('개인 홈과 일정', () => {
   it('요약 줄·막대·오른쪽 패널은 이번 달 자료로 예정 근무·연차·검토 중·확인 필요와 선택한 주를 계산한다', () => {
     const work = { workday: true, startTime: '09:00', endTime: '18:00', breaks: [{ startTime: '12:00', endTime: '13:00' }] };
     const entry = (date: string, changes: Record<string, unknown> = {}, requests: unknown[] = []) => ({
-      ...day, today: false, selected: date === '2026-11-10', requests, scheduleText: '09:00–18:00',
+      ...day, today: false, selected: date === '2026-11-10', requests, scheduleText: '09:00 ~ 18:00',
       snapshot: { ...snapshot, workDate: date, dayKind: 'WORKDAY', schedule: work, ...changes },
     });
     const days = [
@@ -140,6 +140,9 @@ describe('개인 홈과 일정', () => {
     expect(bar('2026-11-14', '.t-attendance-plan')?.getAttribute('data-kind')).toBe('off');
     expect(bar('2026-11-09', '.t-attendance-plan')?.getAttribute('data-kind')).toBe('work');
     expect(view.getByRole('link', { name: '근태 신청' }).getAttribute('href')).toBe('/me/requests/new?year=2026');
+    expect(view.container.textContent).not.toContain('일정은 예정 정보입니다');
+    expect(view.container.textContent).not.toContain('예정 근무와 휴게를 실제 시간으로 확정하지 않습니다');
+    expect(view.getByRole('link', { name: '출퇴근 기록' }).getAttribute('href')).toBe('/me/attendance?date=2026-11-10');
   });
   it('달력은 기존 7열·빈칸·주말·오늘·선택·미확인 표시와 날짜 접근성 계약을 유지한다', async () => {
     const pending = {

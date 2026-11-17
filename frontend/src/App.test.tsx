@@ -64,7 +64,7 @@ const snapshot = {
   dayKind: 'UNCONFIRMED',
   sourceFingerprint: 'source',
 };
-const today: PageEnvelope = {
+const today = {
   page: 'today',
   csrf,
   data: {
@@ -103,7 +103,21 @@ const today: PageEnvelope = {
       recentRequests: [],
     },
   },
-};
+} satisfies PageEnvelope;
+
+function homeOn(workDate: string, inRecordedAt: string | null = null): PageEnvelope {
+  const home = today.data.workspaceHome;
+  return {
+    ...today,
+    page: 'workspace/home',
+    data: {
+      ...today.data,
+      workspaceHome: { ...home, today: { ...home.today, snapshot: { ...snapshot, workDate }, inRecordedAt } },
+      clockInCommand: inRecordedAt ? undefined : `${workDate}-in`,
+      clockOutCommand: `${workDate}-out`,
+    },
+  };
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -136,6 +150,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   window.history.replaceState(null, '', '/');
@@ -342,7 +357,8 @@ describe('React 앱 탐색과 제출', () => {
 
   it('상단 WorkLog 로고는 업무 메뉴를 열지 않고 홈으로 이동한다', async () => {
     window.history.replaceState(null, '', '/admin/employees');
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response({ ...today, page: 'workspace/home' }, '/me/home'));
+    vi.setSystemTime(new Date('2026-10-26T01:00:00Z'));
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response(homeOn('2026-10-26'), '/me/home'));
     vi.stubGlobal('fetch', fetcher);
     render(<App initial={employees} />);
     const menu = screen.getByRole('button', { name: '업무 메뉴 열기' });
@@ -369,9 +385,56 @@ describe('React 앱 탐색과 제출', () => {
   });
 
   it('홈에는 인사 헤더 없이 근무 대시보드만 표시한다', () => {
-    render(<App initial={{ ...today, page: 'workspace/home' }} />);
+    vi.setSystemTime(new Date('2026-10-26T01:00:00Z'));
+    render(<App initial={homeOn('2026-10-26')} />);
     expect(screen.getByRole('heading', { name: '민감직원님, 안녕하세요' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: '사원 인사정보' })).toBeNull();
+  });
+
+  it.each(['서울 자정', '비활성 탭에서 복귀'])('%s에 홈의 근무일과 출퇴근 명령을 새로 받는다', async trigger => {
+    window.history.replaceState(null, '', '/me/home?clockError=409');
+    const historyLength = window.history.length;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-12-31T14:59:59Z'));
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response(homeOn('2027-01-01'), '/me/home'));
+    vi.stubGlobal('fetch', fetcher);
+    const previous = homeOn('2026-12-31', '2026-12-31T00:00:00Z');
+    render(<App initial={{ ...previous, data: { ...previous.data, clockError: 409 } }} />);
+
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '출근 09:00:00' }).disabled).toBe(true);
+    expect(screen.getByRole('alert').textContent).toBe('오늘 이미 기록했습니다.');
+    expect(fetcher).not.toHaveBeenCalled();
+    if (trigger === '서울 자정') {
+      await act(async () => { await vi.advanceTimersByTimeAsync(999); });
+      expect(fetcher).not.toHaveBeenCalled();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } else {
+      visibility.mockReturnValue('hidden');
+      fireEvent(document, new Event('visibilitychange'));
+      vi.setSystemTime(new Date('2027-01-01T01:00:00Z'));
+      expect(fetcher).not.toHaveBeenCalled();
+      visibility.mockReturnValue('visible');
+    }
+    await act(async () => {
+      fireEvent(document, new Event('visibilitychange'));
+      fireEvent.focus(window);
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(new URL(String(fetcher.mock.calls[0][0]), location.href).pathname).toBe('/me/home');
+    expect(new URL(String(fetcher.mock.calls[0][0]), location.href).search).toBe('');
+    assertPageRequest(fetcher.mock.calls[0][1]);
+    expect(history.length).toBe(historyLength);
+    const attendance = within(screen.getByRole('region', { name: '오늘 근무' }));
+    expect(attendance.queryByRole('alert')).toBeNull();
+    expect(attendance.getByText('01.01').getAttribute('datetime')).toBe('2027-01-01');
+    for (const [name, kind] of [['출근', 'in'], ['퇴근', 'out']]) {
+      const button = attendance.getByRole<HTMLButtonElement>('button', { name });
+      expect(button.disabled).toBe(false);
+      expect(new FormData(button.form!).get('commandId')).toBe(`2027-01-01-${kind}`);
+    }
   });
 
   it('대표는 회사 현황을 조회하며 관리자·결재 기능을 자동으로 얻지 않는다', () => {
