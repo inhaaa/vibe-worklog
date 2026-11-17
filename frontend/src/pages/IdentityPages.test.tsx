@@ -13,6 +13,13 @@ const profile = {
 };
 const organization = { id: 'o-1', code: 'DEV', name: '개발팀' };
 const employee = { id: 'e-1', employeeNo: 'E001', employeeName: '김직원', organizationName: '개발팀' };
+const roleMember = { employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', organizationName: '개발팀',
+  version: 1, available: true, editable: true, restriction: null };
+const unavailableMember = { ...roleMember, employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원',
+  available: false, editable: false, restriction: '계정 비활성' };
+const roleDirectory = { roles: [{ code: 'APPROVER', label: '결재 담당', editable: true, memberCount: 54 }],
+  role: 'APPROVER', members: [roleMember, unavailableMember], actorEmployeeId: 'admin',
+  q: '', page: 0, hasNext: false, total: 2 };
 const attendance = {
   month: '2026-10', asOf: profile.asOf, organizationId: 'o-1', employeeId: 'e-1', q: '김 & 개발', page: 1, hasNext: true,
   organizations: [organization], employees: [employee], selectedEmployee: employee,
@@ -65,38 +72,35 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(view.getAllByRole('tab')).toHaveLength(7);
   });
 
-  it('권한 목록의 검색·페이지 조건과 기존 단건 권한 관리 연결을 제공한다', async () => {
-    const view = await show('org/access-list', { accessRows: [{ employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', roles: profile.roles, active: true }, { employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원', roles: ['EMPLOYEE'], active: false }], q: '김 & 개발', page: 1, hasNext: true });
+  it('선택 권한의 검색·페이지 조건과 기존 단건 권한 관리 연결을 제공한다', async () => {
+    const view = await show('org/access-list', { roleDirectory: { ...roleDirectory, q: '김 & 개발', page: 1, hasNext: true } });
     expect((view.getByLabelText('사번·이름 검색') as HTMLInputElement).value).toBe('김 & 개발');
     expect(view.getByRole('link', { name: '김직원 권한 관리' }).getAttribute('href')).toBe('/admin/employees/e-1/access');
     const next = new URL(view.getByRole('link', { name: '다음' }).getAttribute('href')!, location.origin);
     expect(next.searchParams.get('q')).toBe('김 & 개발');
     expect(next.searchParams.get('page')).toBe('2');
-    expect(view.container.querySelector('main')?.textContent).toContain('공통 · 관리자 · 대표 · 결재 담당 가능');
-    expect(view.container.querySelector('main')?.textContent).toContain('비활성');
+    expect(next.searchParams.get('role')).toBe('APPROVER');
+    expect(view.container.querySelector('main')?.textContent).toContain('계정 비활성');
     expect(view.container.querySelector('main form[method="post"]')).toBeNull();
-    expect(view.getByRole('grid', { name: '계정별 권한' })).toBeTruthy();
+    expect(view.getByRole('grid', { name: '권한 사원 시트' })).toBeTruthy();
     expect(view.container.querySelector('[row-id="e-2"]')?.textContent).toContain('박직원');
   });
 
   it('권한 검색 결과가 없으면 빈 상태를 표시한다', async () => {
-    const view = await show('org/access-list', { accessRows: [], q: '', page: 0, hasNext: false });
-    expect(view.getByText('조회된 계정이 없습니다.')).toBeTruthy();
+    const view = await show('org/access-list', { roleDirectory: { ...roleDirectory, members: [], total: 0 } });
+    expect(view.getByText('선택한 권한의 사원이 없습니다.')).toBeTruthy();
     expect(view.queryByRole('link', { name: '다음' })).toBeNull();
     expect(view.queryByRole('link', { name: '이전' })).toBeNull();
   });
 
   it('권한 시트 정렬·표시 필터 후에도 해당 사원의 관리 링크를 보존한다', async () => {
     const view = await show('org/access-list', {
-      accessRows: [
-        { employeeId: 'e-2', employeeNo: 'E002', employeeName: '박직원', roles: ['EMPLOYEE'], active: false },
-        { employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', roles: profile.roles, active: true },
-      ], q: '', page: 0, hasNext: false,
+      roleDirectory: { ...roleDirectory, members: [unavailableMember, roleMember] },
     });
-    const grid = view.getByRole('grid', { name: '계정별 권한' });
+    const grid = view.getByRole('grid', { name: '권한 사원 시트' });
     fireEvent.click(within(grid).getByRole('columnheader', { name: /이름/ }).querySelector('.ag-header-cell-label')!);
     await waitFor(() => expect(grid.querySelector('[row-id]')?.getAttribute('row-id')).toBe('e-1'));
-    fireEvent.change(view.getByLabelText('계정별 권한 현재 페이지 필터'), { target: { value: '비활성' } });
+    fireEvent.change(view.getByLabelText('권한 사원 시트 현재 페이지 필터'), { target: { value: '비활성' } });
     await waitFor(() => expect(view.queryByRole('link', { name: '김직원 권한 관리' })).toBeNull());
     expect(view.getByRole('link', { name: '박직원 권한 관리' }).getAttribute('href')).toBe('/admin/employees/e-2/access');
     expect(grid.querySelector('[row-id="e-2"]')).not.toBeNull();

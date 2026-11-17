@@ -10,7 +10,8 @@ const workspace: PageEnvelope = {
   data: {
     workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] },
     workspaceEmployee: { employeeName: '합성담당자', companyName: '합성회사' },
-    accessRows: [], q: '', page: 0, hasNext: false,
+    roleDirectory: { roles: [{ code: 'ATTENDANCE_ADMIN', label: '담당자', editable: true, memberCount: 0 }],
+      role: 'ATTENDANCE_ADMIN', members: [], q: '', page: 0, hasNext: false, total: 0 },
   },
 };
 const login: PageEnvelope = { page: 'login', data: { localDemo: false }, csrf };

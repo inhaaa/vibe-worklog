@@ -121,7 +121,11 @@ export function sheetEditorColumn<T>(column: ColDef<T>, field: EditorField<T>): 
   };
 }
 
-export interface WorklogSheetHandle { focusCell: (rowId: string, field?: string) => void; validate: () => boolean }
+export interface WorklogSheetHandle {
+  focusCell: (rowId: string, field?: string) => void;
+  validate: () => boolean;
+  hiddenChangeCount: () => number;
+}
 export interface SheetFieldError { clientRowId: string; field: string; message: string }
 interface Props<T> {
   label: string;
@@ -250,7 +254,7 @@ export function WorklogSheet<T>({ label, title, count, actions, pagination, rows
     if (next.length) focusCell(next[0].clientRowId, next[0].field);
     return next.length === 0;
   }
-  useImperativeHandle(ref, () => ({ focusCell, validate }));
+  useImperativeHandle(ref, () => ({ focusCell, validate, hiddenChangeCount: () => hiddenChanged }));
   useEffect(() => {
     setValidationErrors(current => {
       const next = current.flatMap(error => {

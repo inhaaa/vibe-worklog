@@ -1,9 +1,7 @@
 package kr.tna.org;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -13,21 +11,6 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface AccountAdminMapper {
-    @Select("""
-            SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,
-                coalesce(string_agg(g.role,',' ORDER BY g.role) FILTER (WHERE g.active),'') AS granted_roles,
-                e.active AND e.joined_on<=#{today} AND (e.left_on IS NULL OR e.left_on>=#{today})
-                  AND coalesce(a.active AND a.credential_set,false) AS active
-            FROM tna.employee e
-            LEFT JOIN tna.tenant_account a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
-            LEFT JOIN tna.role_grant g ON g.tenant_id=a.tenant_id AND g.account_id=a.id
-            WHERE e.tenant_id=#{tenantId} AND (e.employee_no ILIKE #{search} OR e.display_name ILIKE #{search})
-            GROUP BY e.id,e.employee_no,e.display_name,e.active,e.joined_on,e.left_on,a.active,a.credential_set
-            ORDER BY e.employee_no,e.id LIMIT 51 OFFSET #{offset}
-            """)
-    List<DirectoryRow> directory(@Param("tenantId") UUID tenantId, @Param("search") String search,
-                                @Param("offset") int offset, @Param("today") LocalDate today);
-
     @Select("""
             SELECT id,employee_id,email,active,credential_set,auth_version
             FROM tna.tenant_account WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId}
@@ -82,6 +65,4 @@ public interface AccountAdminMapper {
 
     record AccountRow(UUID id, UUID employeeId, String email, boolean active,
                       boolean credentialSet, long authVersion) { }
-    record DirectoryRow(UUID employeeId, String employeeNo, String employeeName, String grantedRoles, boolean active) { }
-    record AccessRow(UUID employeeId, String employeeNo, String employeeName, Set<String> roles, boolean active) { }
 }

@@ -194,6 +194,16 @@ public interface EmployeeAdminMapper {
     boolean hasOtherPermanentAdmin(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
                                     @Param("today") LocalDate today);
 
+    @Select("""
+            SELECT EXISTS (
+                SELECT 1 FROM tna.employee e
+                JOIN tna.tenant_account a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
+                JOIN tna.role_grant r ON r.tenant_id=a.tenant_id AND r.account_id=a.id
+                WHERE e.tenant_id=#{tenantId} AND e.active AND a.active AND a.credential_set
+                  AND e.joined_on<=#{today} AND e.left_on IS NULL AND r.active AND r.role='ATTENDANCE_ADMIN')
+            """)
+    boolean hasPermanentAdmin(@Param("tenantId") UUID tenantId, @Param("today") LocalDate today);
+
     @Select("SELECT active FROM tna.organization WHERE tenant_id=#{tenantId} AND id=#{id}")
     Boolean organizationActive(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
 

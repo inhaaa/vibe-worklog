@@ -305,6 +305,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const hasUnsaved = () => backgroundRef.current
     ? modalDirty.current || Boolean(document.querySelector('.t-modal [data-unsaved-changes="true"]'))
     : Boolean(document.querySelector('[data-unsaved-changes="true"]'));
+  const hasPendingSave = useCallback(() => posting.current || Boolean(document.querySelector('[data-modal-busy="true"]')), []);
   const restoreBackground = useCallback(() => {
     const saved = backgroundRef.current;
     if (!saved) return;
@@ -338,7 +339,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       discardConfirmed = false,
       openAsTask = true,
     ) => {
-      if (posting.current && options.method?.toUpperCase() !== 'POST') {
+      if (hasPendingSave() && options.method?.toUpperCase() !== 'POST') {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
@@ -464,7 +465,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         if (requestId === serial.current) setBusy(false);
       }
     },
-    [restoreBackground],
+    [hasPendingSave, restoreBackground],
   );
   useEffect(() => {
     history.replaceState(historyState(historyPosition.current, navigationFrom.current), '', currentUrl.current);
@@ -481,7 +482,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         else history.pushState(historyState(historyPosition.current), '', currentUrl.current);
         return;
       }
-      if (saved && location.href === saved.url && !posting.current) {
+      if (saved && location.href === saved.url && !hasPendingSave()) {
         if (hasUnsaved() && !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) {
           restoringHistory.current = true;
           history.forward();
@@ -493,14 +494,14 @@ export function App({ initial }: { initial: PageEnvelope }) {
       const current = new URL(currentUrl.current);
       if (current.pathname === location.pathname && current.search === location.search) {
         currentUrl.current = location.href;
-        if (!posting.current) {
+        if (!hasPendingSave()) {
           ++serial.current;
           pending.current?.abort();
           setBusy(false);
         }
         return;
       }
-      if (posting.current) {
+      if (hasPendingSave()) {
         history.pushState(null, '', currentUrl.current);
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
@@ -525,7 +526,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       window.removeEventListener('popstate', back);
       pending.current?.abort();
     };
-  }, [navigate, restoreBackground]);
+  }, [hasPendingSave, navigate, restoreBackground]);
 
   const refreshHome = useCallback(() => {
     // 모달을 닫으면 배경 화면이 브라우저의 뒤로 가기보다 먼저 복원될 수 있다.
@@ -619,7 +620,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
     const url = new URL(submitter?.getAttribute('formaction') || form.action, location.href);
     if (url.origin !== location.origin) return;
     event.preventDefault();
-    if (posting.current) return;
+    if (hasPendingSave()) return;
     const method = (submitter?.getAttribute('formmethod') || form.method || 'get').toUpperCase();
     const formData = new FormData(form);
     if (submitter?.name) formData.append(submitter.name, submitter.value);

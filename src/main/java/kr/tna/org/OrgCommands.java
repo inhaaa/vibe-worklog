@@ -53,6 +53,15 @@ public final class OrgCommands {
         });
     }
 
+    <T> T readShared(TnaPrincipal actor, Supplier<T> action) {
+        return read(actor, () -> {
+            jdbc.queryForObject("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text),0))",
+                    Object.class, actor.tenantId());
+            requireAdmin(actor);
+            return action.get();
+        });
+    }
+
     public UUID execute(TnaPrincipal actor, UUID commandId, String action, String kind,
                         String inputHash, String reason, Supplier<Change> mutation) {
         if (actor == null) throw OrgException.forbidden();
