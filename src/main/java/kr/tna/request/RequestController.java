@@ -31,10 +31,23 @@ public class RequestController {
     }
     @GetMapping("/requests/{id}") ModelAndView detail(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id){return detailPage(a,id);}
     @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b){check(b);return submit(()->flow.submitLeave(a,f),()->minePage(a,f),"/requests/");}
-    @GetMapping("/me/requests/correction") ModelAndView correction(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,a.employeeId(),date==null?commands.today():date,false,null);}
-    @GetMapping("/admin/requests/exceptions/new") ModelAndView exception(@AuthenticationPrincipal TnaPrincipal a,@RequestParam UUID employeeId,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,employeeId,date==null?commands.today():date,true,null);}
-    @PostMapping(value="/me/requests/correction",params="!year") ModelAndView correct(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b){check(b);var safe=correctionForm(f,null,false);return submit(()->flow.submitCorrection(a,safe),()->correctionPage(a,a.employeeId(),f.workDate(),false,safe),"/requests/");}
-    @PostMapping("/admin/requests/exceptions") ModelAndView exceptional(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b){check(b);var safe=correctionForm(f,f.targetEmployeeId(),true);return submit(()->flow.submitCorrection(a,safe),()->correctionPage(a,f.targetEmployeeId(),f.workDate(),true,safe),"/requests/");}
+    @GetMapping("/me/requests/correction")
+    ModelAndView correction(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required=false) String mode) {
+        return correctionPage(actor, actor.employeeId(), date == null ? commands.today() : date, false, "full".equals(mode), null);
+    }
+    @GetMapping("/admin/requests/exceptions/new") ModelAndView exception(@AuthenticationPrincipal TnaPrincipal a,@RequestParam UUID employeeId,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,employeeId,date==null?commands.today():date,true,true,null);}
+    @PostMapping(value="/me/requests/correction",params="!year")
+    ModelAndView correct(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required=false) String mode,
+            @ModelAttribute("form") CorrectionForm form, BindingResult binding) {
+        check(binding);
+        boolean checkout = "checkout".equals(mode);
+        var safe = correctionForm(form, null, false, checkout);
+        return submit(() -> flow.submitCorrection(actor, safe),
+                () -> correctionPage(actor, actor.employeeId(), form.workDate(), false, !checkout, safe), "/requests/");
+    }
+    @PostMapping("/admin/requests/exceptions") ModelAndView exceptional(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b){check(b);var safe=correctionForm(f,f.targetEmployeeId(),true,false);return submit(()->flow.submitCorrection(a,safe),()->correctionPage(a,f.targetEmployeeId(),f.workDate(),true,true,safe),"/requests/");}
     @PostMapping("/requests/{id}/approve") ModelAndView approve(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.decide(a,id,new DecisionForm("APPROVE",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
     @PostMapping("/requests/{id}/reject") ModelAndView reject(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.decide(a,id,new DecisionForm("REJECT",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
     @PostMapping("/requests/{id}/withdraw") ModelAndView withdraw(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.withdraw(a,id,new DecisionForm("WITHDRAW",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
@@ -72,8 +85,34 @@ public class RequestController {
         return false;
     }
     private ModelAndView balancesPage(TnaPrincipal a,UUID id,BucketForm f){var employee=employees.get(a,id);return new ModelAndView("request/balances").addObject("employee",employee).addObject("employees",employees.options(a)).addObject("buckets",flow.buckets(a,id)).addObject("form",f!=null?f:new BucketForm(id,commands.today(),commands.today(),commands.today().plusYears(1),null,"","",UUID.randomUUID()));}
-    private ModelAndView correctionPage(TnaPrincipal a,UUID employee,LocalDate date,boolean exceptional,CorrectionForm f){if(employee==null||date==null)throw OrgException.invalid("대상 사원과 날짜가 필요합니다.");var day=exceptional?commands.read(a,()->clocks.snapshot(a.tenantId(),employee,date)):clocks.day(a,date);return new ModelAndView("request/correction").addObject("actions",List.of("KEEP","SET","CLEAR")).addObject("day",day).addObject("exceptional",exceptional).addObject("eventTimes",AttendanceController.times(day)).addObject("form",f!=null?f:new CorrectionForm(exceptional?employee:null,date,day.inputRevision(),day.sourceFingerprint(),"KEEP","","KEEP","",false,false,"",flow.currentCorrectionRequestId(a,employee,date),null,exceptional,"",UUID.randomUUID()));}
-    private CorrectionForm correctionForm(CorrectionForm f,UUID target,boolean exceptional){return new CorrectionForm(target,f.workDate(),f.baseInputRevision(),f.sourceFingerprint(),f.inAction(),f.requestedInAt(),f.outAction(),f.requestedOutAt(),f.presenceAsWork(),f.breaksConfirmed(),f.actualBreaks(),f.replacesRequestId(),f.predecessorRequestId(),exceptional,f.reason(),f.commandId());}
+    private ModelAndView correctionPage(TnaPrincipal actor, UUID employee, LocalDate date, boolean exceptional,
+            boolean full, CorrectionForm submitted) {
+        if (employee == null || date == null) throw OrgException.invalid("대상 사원과 날짜가 필요합니다.");
+        var evidence = exceptional
+                ? new LeaveWorkflowService.CorrectionPageEvidence(
+                        commands.read(actor, () -> clocks.snapshot(actor.tenantId(), employee, date)),
+                        flow.currentCorrectionRequestId(actor, employee, date), null)
+                : flow.correctionPageEvidence(actor, date);
+        var day = evidence.day();
+        boolean checkout = !exceptional && !full && date.isBefore(commands.today())
+                && onlyArrival(day.events()) && onlyArrival(day.effectiveEvents());
+        var form = submitted != null ? submitted : new CorrectionForm(exceptional ? employee : null, date,
+                day.inputRevision(), day.sourceFingerprint(), "KEEP", "", checkout ? "SET" : "KEEP", "",
+                false, false, "", evidence.currentCorrectionId(), null, exceptional, "", UUID.randomUUID());
+        return new ModelAndView("request/correction").addObject("actions", List.of("KEEP", "SET", "CLEAR"))
+                .addObject("day", day).addObject("exceptional", exceptional)
+                .addObject("eventTimes", AttendanceController.times(day)).addObject("form", form)
+                .addObject("checkoutOnly", checkout).addObject("pendingCorrectionId", evidence.pendingCorrectionId());
+    }
+    private static boolean onlyArrival(List<ClockData.Event> events) {
+        return events.size() == 1 && "IN".equals(events.getFirst().kind());
+    }
+    private CorrectionForm correctionForm(CorrectionForm form, UUID target, boolean exceptional, boolean checkout) {
+        return new CorrectionForm(target, form.workDate(), form.baseInputRevision(), form.sourceFingerprint(),
+                checkout ? "KEEP" : form.inAction(), checkout ? "" : form.requestedInAt(),
+                checkout ? "SET" : form.outAction(), form.requestedOutAt(), form.presenceAsWork(), form.breaksConfirmed(),
+                form.actualBreaks(), form.replacesRequestId(), form.predecessorRequestId(), exceptional, form.reason(), form.commandId());
+    }
     private ModelAndView submit(Supplier<UUID> fn,Supplier<ModelAndView> page,String prefix){try{var r=new RedirectView(prefix+fn.get(),true);r.setStatusCode(HttpStatus.SEE_OTHER);return new ModelAndView(r);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var view=page.get().addObject("error",e.getMessage());view.setStatus(HttpStatusCode.valueOf(e.status()));return view;}}
     private void check(BindingResult b){if(b.hasErrors())throw new OrgException(400,"신청 입력 형식을 확인해 주세요.");}
 }

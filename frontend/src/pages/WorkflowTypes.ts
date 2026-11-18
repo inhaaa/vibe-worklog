@@ -43,8 +43,13 @@ export interface CorrectionDetail {
   requestedInAt: string | null;
   outAction: string;
   requestedOutAt: string | null;
+  presenceAsWork?: boolean;
   breaksConfirmed: boolean;
   actualBreaks: string | null;
+}
+interface CorrectionTimes {
+  in: string[] | null;
+  out: string[] | null;
 }
 export interface ApprovalHistory {
   createdAt: string;
@@ -57,6 +62,11 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
+  correctionComparison?: {
+    source: CorrectionTimes;
+    current: CorrectionTimes;
+    proposed: CorrectionTimes;
+  } | null;
   routeSnapshot?: {
     routeName: string;
     scopeKind: string;
@@ -170,6 +180,8 @@ export interface CorrectionModel {
   exceptional: boolean;
   actions: string[];
   eventTimes: Record<string, string>;
+  checkoutOnly?: boolean;
+  pendingCorrectionId?: string | null;
   form: CorrectionForm;
 }
 export interface BucketForm {

@@ -1,6 +1,8 @@
 package kr.tna.request;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 import java.time.Instant;
@@ -11,20 +13,67 @@ import java.util.UUID;
 import kr.tna.clock.ClockData;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.OrgCommands;
 import kr.tna.request.RequestData.CorrectionForm;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.servlet.view.RedirectView;
 
 class CorrectionPageTest {
     private final LeaveWorkflowService flow = mock(LeaveWorkflowService.class);
     private final ClockService clocks = mock(ClockService.class);
-    private final RequestController controller = new RequestController(flow, clocks, null, null, null, null, null);
+    private final OrgCommands commands = mock(OrgCommands.class);
+    private final RequestController controller = new RequestController(flow, clocks, null, null, commands, null, null);
     private final TnaPrincipal actor = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1, Set.of("EMPLOYEE"), Instant.EPOCH);
 
     @Test void correctionPageFillsTheCurrentApprovedCorrectionInsteadOfAskingForAnId() {
         LocalDate date = LocalDate.of(2026, 11, 4);UUID current = UUID.randomUUID();
-        when(clocks.day(actor, date)).thenReturn(new ClockData.DaySnapshot(actor.employeeId(), date, List.of(), null, null, null, "UNCONFIRMED", 3, 1, null, "a".repeat(64), List.of()));
-        when(flow.currentCorrectionRequestId(actor, actor.employeeId(), date)).thenReturn(current);
-        var form = (CorrectionForm) controller.correction(actor, date).getModel().get("form");
+        var day = new ClockData.DaySnapshot(actor.employeeId(), date, List.of(), null, null, null, "UNCONFIRMED", 3, 1, null, "a".repeat(64), List.of());
+        when(flow.correctionPageEvidence(actor, date)).thenReturn(new LeaveWorkflowService.CorrectionPageEvidence(day, current, null));
+        when(commands.today()).thenReturn(date.plusDays(1));
+        var form = (CorrectionForm) controller.correction(actor, date, null).getModel().get("form");
         assertEquals(current, form.replacesRequestId());
+    }
+
+    @Test void singlePastArrivalSuggestsCheckoutAndPreservesPendingAndGeneralModes() {
+        LocalDate date = LocalDate.of(2026, 11, 4);
+        UUID pending = UUID.randomUUID();
+        var arrival = new ClockData.Event(UUID.randomUUID(), "IN", Instant.parse("2026-11-04T00:00:00Z"), date);
+        var day = new ClockData.DaySnapshot(actor.employeeId(), date, List.of(arrival), null, null, null,
+                "UNCONFIRMED", 3, 1, null, "a".repeat(64), List.of(arrival));
+        when(flow.correctionPageEvidence(actor, date)).thenReturn(new LeaveWorkflowService.CorrectionPageEvidence(day, null, pending));
+        when(commands.today()).thenReturn(date.plusDays(1));
+        var checkout = controller.correction(actor, date, null).getModel();
+        assertEquals(true, checkout.get("checkoutOnly"));
+        assertEquals(pending, checkout.get("pendingCorrectionId"));
+        assertEquals("SET", ((CorrectionForm) checkout.get("form")).outAction());
+        assertEquals(false, controller.correction(actor, date, "full").getModel().get("checkoutOnly"));
+
+        when(commands.today()).thenReturn(date);
+        assertEquals(false, controller.correction(actor, date, null).getModel().get("checkoutOnly"));
+    }
+
+    @Test void checkoutSubmissionKeepsArrivalAndUsesOnlyTheEmployeesOwnScope() {
+        LocalDate date = LocalDate.of(2026, 11, 4);
+        UUID request = UUID.randomUUID(), command = UUID.randomUUID();
+        var submitted = new CorrectionForm(UUID.randomUUID(), date, 3L, "a".repeat(64),
+                "SET", "2026-11-04T10:00", "CLEAR", "2026-11-04T18:00", true, true,
+                "2026-11-04T12:00/2026-11-04T13:00", null, null, true, "합성 사유", command);
+        when(flow.submitCorrection(eq(actor), any(CorrectionForm.class))).thenReturn(request);
+        var redirect = (RedirectView) controller.correct(actor, "checkout", submitted, mock(BindingResult.class)).getView();
+        assertEquals("/requests/" + request, redirect.getUrl());
+
+        var accepted = ArgumentCaptor.forClass(CorrectionForm.class);
+        verify(flow).submitCorrection(eq(actor), accepted.capture());
+        var form = accepted.getValue();
+        assertNull(form.targetEmployeeId());
+        assertFalse(form.exceptional());
+        assertEquals("KEEP", form.inAction());
+        assertEquals("", form.requestedInAt());
+        assertEquals("SET", form.outAction());
+        assertEquals(submitted.requestedOutAt(), form.requestedOutAt());
+        assertEquals(submitted.actualBreaks(), form.actualBreaks());
+        assertEquals(submitted.commandId(), form.commandId());
     }
 }

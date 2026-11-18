@@ -109,6 +109,13 @@ public interface LeaveWorkflowMapper {
     boolean pendingCancellation(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND from_date=#{date} AND status='PENDING')")
     boolean pendingCorrection(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    @Select("""
+        SELECT id FROM tna.approval_request
+        WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId}
+          AND kind='ATTENDANCE_CORRECTION' AND from_date=#{date} AND status='PENDING'
+        ORDER BY submitted_at DESC,id LIMIT 1
+        """)
+    UUID pendingCorrectionId(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
     @Select("SELECT work_date,base_input_revision,source_fingerprint,in_action,out_action,requested_in_at,requested_out_at,presence_as_work,breaks_confirmed,actual_breaks::text AS actual_breaks,replaces_request_id,before_snapshot::text AS before_snapshot FROM tna.correction_detail WHERE tenant_id=#{tenantId} AND request_id=#{id}")
     CorrectionDetail correction(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Insert("""

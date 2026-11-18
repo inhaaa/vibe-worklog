@@ -187,6 +187,9 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
   const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
   const correctionAction = (value: string) => label(value, { KEEP: '유지', SET: '변경', CLEAR: '제거' });
+  const comparison = d.correctionComparison;
+  const correctionTimes = (times: string[] | null) =>
+    times == null ? '확인 필요' : times.length ? times.map(fmtDateTime).join(', ') : '미기록';
   const zeroReason = (value: string) => label(value, { CONFIRMED_HOLIDAY: '확정 휴일', CONFIRMED_NON_WORKDAY: '확정 비근로일' });
   const hasActions = m.canDecide || m.canWithdraw || m.canCancel || m.canCancelException || (m.admin && r.status === 'PENDING');
   const completedApproval = m.ownRequest === false && m.workspacePrincipal?.roles.includes('APPROVER')
@@ -252,9 +255,19 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           </section>}
           {d.correction && <section className="t-card">
             <h2>요청한 정정</h2>
+            {comparison && <table className="t-correction-comparison" aria-label="출퇴근 시각 비교">
+              <thead><tr><th scope="col">구분</th><th scope="col">출근 시각</th><th scope="col">퇴근 시각</th></tr></thead>
+              <tbody>
+                {([['원천 기록', comparison.source], ['현재 유효 기록', comparison.current], ['제안 기록', comparison.proposed]] as const)
+                  .map(([heading, times]) => <tr key={heading}>
+                    <th scope="row">{heading}</th><td>{correctionTimes(times.in)}</td><td>{correctionTimes(times.out)}</td>
+                  </tr>)}
+              </tbody>
+            </table>}
             <dl className="wl-form-table">
               <dt>출근</dt><dd>출근 {correctionAction(d.correction.inAction)}{d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`}</dd>
               <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
+              <dt>실제 근로 확인</dt><dd>{d.correction.presenceAsWork ? '확인' : '미확인'}</dd>
               <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
             </dl>
           </section>}
@@ -357,10 +370,14 @@ function Correction({ model: m }: { model: CorrectionModel }) {
   const [requestedOutAt, setRequestedOutAt] = useState(f.requestedOutAt);
   const [breaks, setBreaks] = useState(f.actualBreaks ?? '');
   const [dirty, setDirty] = useState(Boolean(f.reason));
+  const checkout = m.checkoutOnly === true;
+  const events = checkout ? m.day.effectiveEvents ?? m.day.events : m.day.events;
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요." />
+      <PageHeader title={checkout ? '퇴근 누락 정정 신청' : '출퇴근·실제 휴게 정정 신청'}
+        help="확인한 기록과 실제 근로 내용을 입력해 주세요."
+        actions={checkout && !m.pendingCorrectionId && <a className="t-btn" href={`/me/requests/correction?date=${f.workDate}&mode=full`}>일반 정정 양식</a>} />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -368,17 +385,22 @@ function Correction({ model: m }: { model: CorrectionModel }) {
       )}
       <section className="wl-section t-correction-source" aria-label="현재 출퇴근 기록">
         <h2>현재 출퇴근 기록</h2>
+        {checkout && <p>대상 근무일 <strong>{fmtDate(f.workDate)}</strong></p>}
         <ul className="t-correction-events">
-          {m.day.events.map((e) => (
+          {events.map((e) => (
             <li key={e.id}>
               <span>{e.kind === 'IN' ? '출근' : e.kind === 'OUT' ? '퇴근' : e.kind}</span><strong>{m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}</strong>
             </li>
           ))}
-          {!m.day.events.length && <li>출퇴근 기록이 없습니다.</li>}
+          {!events.length && <li>출퇴근 기록이 없습니다.</li>}
+          {checkout && <li><span>퇴근</span><strong>미기록</strong></li>}
         </ul>
       </section>
-      <Form
-        action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
+      {m.pendingCorrectionId ? <section className="wl-section">
+        <h2>결재 대기</h2>
+        <a className="t-btn" href={`/requests/${m.pendingCorrectionId}`}>대기 중인 정정 보기</a>
+      </section> : <Form
+        action={m.exceptional ? '/admin/requests/exceptions' : checkout ? '/me/requests/correction?mode=checkout' : '/me/requests/correction'}
         method="post"
         className="wl-form t-correction-form"
         onChange={() => setDirty(true)}
@@ -393,24 +415,38 @@ function Correction({ model: m }: { model: CorrectionModel }) {
         {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
         {hidden('replacesRequestId', f.replacesRequestId)}
         <section className="wl-section">
-          <h2>출퇴근 변경</h2>
-          <FormTable columns={2}>
-            <SelectField label="출근 변경" name="inAction" value={f.inAction}>
-              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
-            </SelectField>
-            <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
-              <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
-            </FormRow>
-            <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
-              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
-            </SelectField>
-            <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
-              <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
-            </FormRow>
-          </FormTable>
+          {checkout ? <>
+            <h2>퇴근 시각 입력</h2>
+            <p className="hint">기존 출근 시각을 유지합니다.</p>
+            {hidden('inAction', 'KEEP')}
+            {hidden('requestedInAt', '')}
+            {hidden('outAction', 'SET')}
+            <FormTable>
+              <FormRow label="실제 퇴근 시각" htmlFor={`${timeFieldId}-out`} required>
+                <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} required />
+              </FormRow>
+              <Reason label="정정 사유와 사실 근거" value={f.reason} />
+            </FormTable>
+          </> : <>
+            <h2>출퇴근 변경</h2>
+            <FormTable columns={2}>
+              <SelectField label="출근 변경" name="inAction" value={f.inAction}>
+                {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+              </SelectField>
+              <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
+                <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
+              </FormRow>
+              <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
+                {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+              </SelectField>
+              <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
+                <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
+              </FormRow>
+            </FormTable>
+          </>}
         </section>
         <section className="wl-section">
-          <h2>실제 근로·휴게와 사유</h2>
+          <h2>{checkout ? '실제 근로·휴게' : '실제 근로·휴게와 사유'}</h2>
           <FormTable>
             <FormRow label="실제 확인">
               <Check name="presenceAsWork" label="제안 구간의 실제 근로를 확인했습니다" checked={f.presenceAsWork} />
@@ -420,12 +456,12 @@ function Correction({ model: m }: { model: CorrectionModel }) {
               <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
             </FormRow>
           </FormTable>
-          <FormTable>
+          {!checkout && <FormTable>
             <Reason label="정정 사유와 사실 근거" value={f.reason} />
-          </FormTable>
+          </FormTable>}
         </section>
         <div className="wl-form-actions"><button className="t-btn primary">정정 심사 요청</button></div>
-      </Form>
+      </Form>}
     </div>
   );
 }

@@ -57,6 +57,8 @@ public final class RequestData {
     public record CorrectionDetail(LocalDate workDate,long baseInputRevision,String sourceFingerprint,
             String inAction,String outAction,Instant requestedInAt,Instant requestedOutAt,boolean presenceAsWork,
             boolean breaksConfirmed,String actualBreaks,UUID replacesRequestId,String beforeSnapshot) { }
+    public record CorrectionTimes(List<Instant> in, List<Instant> out) { }
+    public record CorrectionComparison(CorrectionTimes source, CorrectionTimes current, CorrectionTimes proposed) { }
     public record ApprovalHistory(String eventKind,UUID actorAccountId,String fromStatus,String toStatus,
             String reason,UUID previousApproverId,UUID newApproverId,Instant createdAt) { }
     public record ApprovalPreview(String source,String routeName,String approverName,boolean eligible,String message) { }
@@ -67,7 +69,12 @@ public final class RequestData {
             LocalDate effectiveFrom,boolean enabled,String name,String unit,String payKind,String deductionRule,
             String recognitionRule,String basis) { }
     public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
-            List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy) {
+            List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy,
+            CorrectionComparison correctionComparison) {
+        public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
+                List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy) {
+            this(request,days,correction,history,routeSnapshot,attendancePolicy,null);
+        }
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
                 List<ApprovalHistory> history,RouteSnapshot routeSnapshot) {
             this(request,days,correction,history,routeSnapshot,null);

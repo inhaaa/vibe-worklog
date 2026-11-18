@@ -78,7 +78,15 @@ class CorrectionProjectionIT {
     }
     @Test void subsequentKeepUsesPreviouslyEffectiveSnapshotRatherThanOriginalRawOut() {
         UUID first=submit("KEEP","","SET",time(18),true,null);approve(first);
-        UUID second=submit("SET",time(10),"KEEP","",true,first);approve(second);
+        UUID second=submit("SET",time(10),"KEEP","",true,first);
+        var comparison=workflow.get(approver,second).correctionComparison();
+        assertEquals(List.of(at(9)),comparison.source().in());
+        assertEquals(List.of(at(17)),comparison.source().out());
+        assertEquals(List.of(at(9)),comparison.current().in());
+        assertEquals(List.of(at(18)),comparison.current().out());
+        assertEquals(List.of(at(10)),comparison.proposed().in());
+        assertEquals(List.of(at(18)),comparison.proposed().out());
+        approve(second);
         var after=clocks.day(employee,date);
         assertEquals(at(10),event(after.effectiveEvents(),"IN").occurredAt());
         assertEquals(at(18),event(after.effectiveEvents(),"OUT").occurredAt());

@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import kr.tna.org.OrgData.Employee;
 import kr.tna.org.OrgException;
 import kr.tna.request.RequestData.*;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
@@ -171,6 +173,17 @@ public final class LeaveWorkflowService {
     /** 그 날짜의 현재 승인 정정 신청 ID. 정정 화면이 ID를 입력받지 않고 hidden으로 보내도록 서버가 채운다. */
     public UUID currentCorrectionRequestId(TnaPrincipal actor,UUID employeeId,LocalDate date) {
         return targetRead(actor,employeeId,()->{var effect=mapper.currentCorrection(actor.tenantId(),employeeId,date);return effect==null?null:effect.requestId();});
+    }
+    record CorrectionPageEvidence(ClockData.DaySnapshot day, UUID currentCorrectionId, UUID pendingCorrectionId) { }
+
+    CorrectionPageEvidence correctionPageEvidence(TnaPrincipal actor, LocalDate date) {
+        return commands.read(actor, () -> {
+            UUID tenantId = actor.tenantId(), employeeId = actor.employeeId();
+            var day = clocks.snapshot(tenantId, employeeId, date);
+            var current = mapper.currentCorrection(tenantId, employeeId, date);
+            return new CorrectionPageEvidence(day, current == null ? null : current.requestId(),
+                    mapper.pendingCorrectionId(tenantId, employeeId, date));
+        });
     }
     public UUID submitCorrection(TnaPrincipal actor,CorrectionForm form) {
         if(form==null||form.workDate()==null||form.workDate().isAfter(today())||form.baseInputRevision()==null
@@ -391,7 +404,54 @@ public final class LeaveWorkflowService {
     private <T>T targetRead(TnaPrincipal actor,UUID employeeId,Supplier<T> action) {
         if(actor==null)throw OrgException.forbidden();return actor.employeeId().equals(employeeId)?commands.read(actor,action):administration.read(actor,action);
     }
-    private RequestDetail detail(UUID tenant,RequestView request) {return new RequestDetail(request,mapper.requestDays(tenant,request.id()),mapper.correction(tenant,request.id()),mapper.history(tenant,request.id()),mapper.routeSnapshot(tenant,request.id()),request.attendanceTypeVersionId()==null?null:mapper.attendancePolicy(tenant,request.attendanceTypeVersionId()));}
+    private RequestDetail detail(UUID tenant, RequestView request) {
+        var correction = mapper.correction(tenant, request.id());
+        var comparison = correction == null ? null : correctionComparison(correction,
+                clocks.snapshot(tenant, request.targetEmployeeId(), correction.workDate()));
+        return new RequestDetail(request, mapper.requestDays(tenant, request.id()), correction,
+                mapper.history(tenant, request.id()), mapper.routeSnapshot(tenant, request.id()),
+                request.attendanceTypeVersionId() == null ? null : mapper.attendancePolicy(tenant, request.attendanceTypeVersionId()),
+                comparison);
+    }
+
+    private CorrectionComparison correctionComparison(CorrectionDetail correction, ClockData.DaySnapshot current) {
+        CorrectionTimes submitted = submittedTimes(correction.beforeSnapshot());
+        return new CorrectionComparison(correctionTimes(current.events()), correctionTimes(current.effectiveEvents()),
+                new CorrectionTimes(proposedTimes(correction.inAction(), correction.requestedInAt(), submitted.in()),
+                        proposedTimes(correction.outAction(), correction.requestedOutAt(), submitted.out())));
+    }
+
+    private CorrectionTimes submittedTimes(String snapshot) {
+        try {
+            if (snapshot != null) {
+                var before = json.readTree(snapshot);
+                var events = before.get("effectiveEvents");
+                if (events == null || events.isNull()) events = before.get("events");
+                if (events != null && events.isArray()) {
+                    return correctionTimes(Arrays.asList(json.readValue(events.toString(), ClockData.Event[].class)));
+                }
+            }
+        } catch (JacksonException invalidLegacySnapshot) {
+            // The submitted base is unavailable. Current records and explicitly changed values still display.
+        }
+        return new CorrectionTimes(null, null);
+    }
+
+    private static CorrectionTimes correctionTimes(List<ClockData.Event> events) {
+        return new CorrectionTimes(eventTimes(events, "IN"), eventTimes(events, "OUT"));
+    }
+
+    private static List<Instant> eventTimes(List<ClockData.Event> events, String kind) {
+        return events.stream().filter(event -> kind.equals(event.kind())).map(ClockData.Event::occurredAt).toList();
+    }
+
+    private static List<Instant> proposedTimes(String action, Instant requested, List<Instant> submitted) {
+        return switch (action) {
+            case "SET" -> requested == null ? null : List.of(requested);
+            case "CLEAR" -> List.of();
+            default -> submitted;
+        };
+    }
     private RequestView request(UUID tenant,UUID id) {var value=mapper.findRequest(tenant,id);if(value==null)throw OrgException.notFound();return value;}
     private Bucket bucket(UUID tenant,UUID id) {var value=mapper.findBucket(tenant,id,today());if(value==null)throw OrgException.notFound();return value;}
     private Employee employee(UUID tenant,UUID id) {var e=employees.get(tenant,id);if(e==null)throw OrgException.notFound();return e;}
