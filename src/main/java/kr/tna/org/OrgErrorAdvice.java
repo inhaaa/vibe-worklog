@@ -14,6 +14,7 @@ import org.springframework.web.servlet.ModelAndView;
         kr.tna.approval.ApprovalRouteController.class, kr.tna.codes.CodeController.class, InvitationController.class,
         kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class,
         kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class,
+        kr.tna.request.LeaveOperationsController.class,
         kr.tna.request.LeaveAttributionController.class, kr.tna.request.AnnualRequestController.class,
         kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class,
         kr.tna.workspace.ProfileCompanyController.class})

@@ -3,6 +3,7 @@ import './RequestDetail.css';
 import './RequestWorkspace.css';
 import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
+import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import type { PageProps } from '../types';
@@ -1181,7 +1182,8 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       break;
     case 'request/list': {
       const m = data as unknown as ListModel;
-      content = m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
+      content = data.leaveOperations ? <LeaveOperationsPage model={data.leaveOperations as LeaveOperations} />
+        : m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
         <>
           <PageHeader title={m.title} />
           <section className="wl-section">
