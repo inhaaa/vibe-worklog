@@ -84,5 +84,6 @@ public final class WorkspaceData {
             Long availableLeaveDays, long pendingRequests, List<RequestItem> recentRequests) { }
 
     public record MonthView(YearMonth month, LocalDate selectedDate, List<DayView> days,
-            List<Integer> leadingBlanks, YearMonth previousMonth, YearMonth nextMonth, DayView selectedDay) { }
+            List<Integer> leadingBlanks, YearMonth previousMonth, YearMonth nextMonth, DayView selectedDay,
+            PersonalScheduleMapper.Assignment assignment) { }
 }

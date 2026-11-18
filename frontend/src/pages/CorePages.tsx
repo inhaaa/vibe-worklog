@@ -44,6 +44,11 @@ interface Calendar {
   previousMonth: string | null;
   nextMonth: string | null;
   selectedDay: WorkspaceDay;
+  assignment?: {
+    group: boolean; code: string; name: string; workCode?: string; workName?: string;
+    beforeStart?: string; beforeEnd?: string; afterStart?: string; afterEnd?: string;
+    overtimeBreaks: {start: string; end: string}[]; overtimeMinutes: number;
+  };
 }
 const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 export function StatusPanel() {
@@ -564,6 +569,26 @@ function Schedule({ data }: PageProps) {
               <dt>근무 일정</dt>
               <dd>{selected.scheduleText}</dd>
             </div>
+            {calendar.assignment && <div>
+              <dt>{calendar.assignment.group ? '근무조' : '기존 고정배정'}</dt>
+              <dd>{calendar.assignment.code} · {calendar.assignment.name}</dd>
+            </div>}
+            {calendar.assignment?.workCode && <div>
+              <dt>근무시간코드</dt><dd>{calendar.assignment.workCode} · {calendar.assignment.workName}</dd>
+            </div>}
+            {calendar.assignment?.workCode && <div>
+              <dt>요일별 연장 기준</dt>
+              <dd>{calendar.assignment.beforeStart && <span>출근 전 {calendar.assignment.beforeStart.slice(0,5)}~{calendar.assignment.beforeEnd?.slice(0,5)} </span>}
+                {calendar.assignment.afterStart && <span>퇴근 후 {calendar.assignment.afterStart.slice(0,5)}~{calendar.assignment.afterEnd?.slice(0,5)} </span>}
+                {calendar.assignment.beforeStart || calendar.assignment.afterStart
+                  ? <span>최대 {calendar.assignment.overtimeMinutes}분</span> : '신청 미허용'}
+                {selected.snapshot.dayKind === 'HOLIDAY' && <div>휴일에는 이 연장 신청 기준을 적용하지 않습니다.</div>}
+                {selected.snapshot.dayKind === 'NON_WORKDAY' && <div>비근로일에는 이 연장 신청 기준을 적용하지 않습니다.</div>}
+                {!['WORKDAY', 'HOLIDAY', 'NON_WORKDAY'].includes(selected.snapshot.dayKind) && <div>해당일 적용 여부는 휴일 캘린더 확인이 필요합니다.</div>}
+                {calendar.assignment.overtimeBreaks.map(b => <div key={b.start}>연장 중 예정 휴게 {b.start.slice(0,5)}~{b.end.slice(0,5)}</div>)}
+              </dd>
+            </div>}
+
             <div>
               <dt>휴일 확인</dt>
               <dd>{selected.calendarText}</dd>

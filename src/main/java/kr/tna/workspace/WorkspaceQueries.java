@@ -30,9 +30,11 @@ public final class WorkspaceQueries {
     private final EmployeeMapper employees;
     private final LeaveWorkflowService leave;
     private final Clock clock;
+    private final PersonalScheduleMapper schedules;
 
     public WorkspaceQueries(BusinessCommands commands, ClockService clocks, EmployeeMapper employees,
-            LeaveWorkflowService leave, Clock clock) {
+            LeaveWorkflowService leave, Clock clock, PersonalScheduleMapper schedules) {
+        this.schedules = schedules;
         this.commands = commands;
         this.clocks = clocks;
         this.employees = employees;
@@ -63,11 +65,12 @@ public final class WorkspaceQueries {
         if (!YearMonth.from(selected).equals(month)) throw OrgException.invalid("선택 날짜는 조회 월 안에 있어야 합니다.");
         return commands.read(actor, () -> {
             var data = readDays(actor, month.atDay(1).datesUntil(month.atEndOfMonth().plusDays(1)).toList(), today, selected);
+            var selectedDay = data.days().stream().filter(DayView::selected).findFirst().orElseThrow();
             return new MonthView(month, selected, data.days(),
                     IntStream.range(0, month.atDay(1).getDayOfWeek().getValue() - 1).boxed().toList(),
                     month.equals(YearMonth.of(1, 1)) ? null : month.minusMonths(1),
                     month.equals(YearMonth.of(9999, 12)) ? null : month.plusMonths(1),
-                    data.days().stream().filter(day -> day.selected()).findFirst().orElseThrow());
+                    selectedDay, schedules.day(actor.tenantId(), selectedDay.snapshot().scheduleVersionId(), selected.getDayOfWeek().getValue()));
         });
     }
 

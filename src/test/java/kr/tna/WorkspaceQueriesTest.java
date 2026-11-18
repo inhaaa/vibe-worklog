@@ -135,7 +135,7 @@ class WorkspaceQueriesTest {
 
     private WorkspaceQueries queryAt(String instant) {
         return new WorkspaceQueries(commands, clocks, employees, leave,
-                Clock.fixed(Instant.parse(instant), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse(instant), ZoneOffset.UTC), org.mockito.Mockito.mock(kr.tna.workspace.PersonalScheduleMapper.class));
     }
 
     private DaySnapshot snapshot(LocalDate date) {
