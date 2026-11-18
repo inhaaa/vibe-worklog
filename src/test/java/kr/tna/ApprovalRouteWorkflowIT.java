@@ -60,6 +60,140 @@ class ApprovalRouteWorkflowIT {
         db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'합성 소속',?,?)",tenant,membership,worker.employeeId(),organization,today.minusMonths(1),admin.accountId(),admin.accountId());
     }
 
+    @Test void intermediateApprovalTransfersTheCorrectionWithoutApplyingIt() {
+        configureChain("A01");
+        var preview=flow.formPreview(worker,worker.employeeId(),"ATTENDANCE_CORRECTION");
+        assertEquals(List.of(head.employeeId(),direct.employeeId()),preview.steps().stream().map(PreviewStep::approverId).toList());
+        var day=clocks.day(worker,yesterday);
+        var form=form(worker.employeeId(),day.inputRevision(),day.sourceFingerprint(),false,UUID.randomUUID());
+        UUID request=flow.submitCorrection(worker,form,preview.routeToken());
+        assertThrows(OrgException.class,()->flow.get(direct,request));
+        flow.decide(head,request,new DecisionForm("APPROVE",0L,"팀장 검토",UUID.randomUUID(),1));
+        var intermediate=flow.get(head,request).request();
+        assertEquals("PENDING",intermediate.status());
+        assertEquals(direct.employeeId(),intermediate.currentApproverId());
+        assertEquals("NONE",intermediate.effectStatus());
+        assertEquals(2,intermediate.currentStep());
+        assertTrue(flow.approvalPage(head,true,0).requests().stream().anyMatch(r->r.id().equals(request)));
+        flow.decide(direct,request,new DecisionForm("APPROVE",1L,"실장 최종",UUID.randomUUID(),2));
+        assertEquals("EFFECTIVE",flow.get(worker,request).request().effectStatus());
+        assertEquals(List.of("APPROVED","APPROVED"),flow.get(worker,request).steps().stream().map(DecisionStep::status).toList());
+    }
+
+    private void configureChain(String... codes) {
+        UUID office = UUID.randomUUID(), routeId = UUID.randomUUID(), versionId = UUID.randomUUID();
+        db.update("INSERT INTO tna.organization(tenant_id,id,code,name,approval_unit,created_by,updated_by) VALUES (?,?,?,'운영실','OFFICE',?,?)",tenant,office,"O-"+office,admin.accountId(),admin.accountId());
+        db.update("UPDATE tna.organization SET parent_id=?,approval_unit='TEAM' WHERE tenant_id=? AND id=?",office,tenant,organization);
+        head(head.employeeId());
+        db.update("INSERT INTO tna.organization_head_assignment(tenant_id,id,organization_id,employee_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'실장 검증',?,?)",tenant,UUID.randomUUID(),office,direct.employeeId(),today,admin.accountId(),admin.accountId());
+        db.update("INSERT INTO tna.approval_route(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'T2','실장까지',?,?)",tenant,routeId,admin.accountId(),admin.accountId());
+        db.update("INSERT INTO tna.approval_route_version(tenant_id,id,route_id,revision,name,approver_kind,terminal_unit,reason,created_by) VALUES (?,?,?,1,'실장까지','ORGANIZATION_CHAIN','OFFICE','순차 승인',?)",tenant,versionId,routeId,admin.accountId());
+        for(String code:codes)db.update("INSERT INTO tna.request_form_version(tenant_id,id,form_id,revision,effective_from,enabled,name,route_version_id,reason,created_by) SELECT tenant_id,?,id,2,?,true,'출퇴근 정정',?,'순차 승인',? FROM tna.request_form WHERE tenant_id=? AND code=?",UUID.randomUUID(),today,versionId,admin.accountId(),tenant,code);
+    }
+
+    @Test void leaveAndItsCancellationOnlyApplyAtTheirOwnLastStage() {
+        configureChain("L01","L02");
+        var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
+        UUID template=schedules.create(admin,new TemplateForm("S-"+UUID.randomUUID(),"검증 일정",today,days,null,"합성 일정",UUID.randomUUID()));
+        schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedules.versions(admin,template).getFirst().id(),today,0L,"배정",UUID.randomUUID()));
+        settings.calendar(admin,new CalendarForm(today,today.plusDays(20),true,"달력 근거","","합성 달력",UUID.randomUUID()));
+        UUID bucket=flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(20),3,"기초 근거","잔여 검증",UUID.randomUUID()));
+        var date=today.plusDays(2);
+        var leaveForm=new LeaveForm(bucket,date,date,null,"종일 연차",UUID.randomUUID());
+        var preview=flow.formPreview(worker,null,"LEAVE_DAY");
+        assertEquals(409,assertThrows(OrgException.class,()->flow.submitLeave(worker,leaveForm,"old-route")).status());
+        UUID leave=flow.submitLeave(worker,leaveForm,preview.routeToken());
+        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        decideStage(head,leave,0);
+        assertEquals("PENDING",flow.get(worker,leave).request().status());
+        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        decideStage(direct,leave,1);
+        assertEquals(2,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        UUID cancel=flow.requestCancellation(worker,leave,new CancelForm(false,2L,"휴가 취소",UUID.randomUUID()),
+                flow.formPreview(worker,null,"CANCEL_LEAVE").routeToken());
+        decideStage(head,cancel,0);
+        assertEquals("EFFECTIVE",flow.get(worker,leave).request().effectStatus());
+        assertEquals(2,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        decideStage(direct,cancel,1);
+        assertEquals("CANCELED",flow.get(worker,leave).request().effectStatus());
+        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+    }
+
+    private void decideStage(TnaPrincipal actor,UUID request,long version) {
+        flow.decide(actor,request,new DecisionForm("APPROVE",version,"단계 검토",UUID.randomUUID(),(int)version+1));
+    }
+
+    @Test void repeatedIntermediateDecisionAndWithdrawalCannotApplyAnEffect() {
+        configureChain("A01");
+        var preview=flow.formPreview(worker,null,"ATTENDANCE_CORRECTION");
+        var day=clocks.day(worker,yesterday);
+        UUID request=flow.submitCorrection(worker,form(worker.employeeId(),day.inputRevision(),day.sourceFingerprint(),false,UUID.randomUUID()),preview.routeToken());
+        var approve=new DecisionForm("APPROVE",0L,"팀장 검토",UUID.randomUUID(),1);
+        assertEquals(409,assertThrows(OrgException.class,()->flow.decide(head,request,
+                new DecisionForm("APPROVE",0L,"잘못된 단계",UUID.randomUUID(),2))).status());
+        flow.decide(head,request,approve);
+        flow.decide(head,request,approve);
+        assertEquals(409,assertThrows(OrgException.class,()->flow.decide(head,request,
+                new DecisionForm("APPROVE",0L,approve.reason(),approve.commandId(),2))).status());
+        assertEquals(1,flow.get(worker,request).history().stream().filter(h->"STEP_APPROVED".equals(h.eventKind())).count());
+        invalid(()->flow.reassign(admin,request,new ReassignForm(head.employeeId(),1L,"팀장에게 되돌리기",UUID.randomUUID(),2)));
+        flow.withdraw(worker,request,new DecisionForm("WITHDRAW",1L,"직원 철회",UUID.randomUUID(),2));
+        var detail=flow.get(head,request);
+        assertEquals("WITHDRAWN",detail.request().status());
+        assertEquals(List.of("APPROVED","CLOSED"),detail.steps().stream().map(DecisionStep::status).toList());
+        assertEquals("NONE",detail.request().effectStatus());
+        assertEquals(List.of(1,1,2),detail.history().stream().map(ApprovalHistory::stepNumber).toList());
+        assertTrue(flow.inbox(direct).isEmpty());
+    }
+
+    @Test void absentFutureApproverNeedsExplicitReassignmentAndRejectionEndsPendingWork() {
+        configureChain("A01");
+        var preview=flow.formPreview(worker,null,"ATTENDANCE_CORRECTION");
+        var day=clocks.day(worker,yesterday);
+        UUID request=flow.submitCorrection(worker,form(worker.employeeId(),day.inputRevision(),day.sourceFingerprint(),false,UUID.randomUUID()),preview.routeToken());
+        db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='APPROVER'",tenant,direct.accountId());
+        decideStage(head,request,0);
+        assertTrue(flow.get(admin,request).reassignmentRequired());
+        flow.reassign(admin,request,new ReassignForm(admin.employeeId(),1L,"실장 부재",UUID.randomUUID(),2));
+        assertFalse(flow.get(worker,request).reassignmentRequired());
+        flow.decide(admin,request,new DecisionForm("REJECT",2L,"최종 반려",UUID.randomUUID(),2));
+        var detail=flow.get(worker,request);
+        assertEquals("REJECTED",detail.request().status());
+        assertEquals("NONE",detail.request().effectStatus());
+        assertEquals("직접결재",detail.steps().get(1).originalApproverName());
+        assertEquals("관리자",detail.steps().get(1).decidedByName());
+    }
+
+    @Test void rejectsDoubleHeadOrAuthorButPermitsTeamHeadsOwnLeaveToGoDirectlyToOffice() {
+        configureChain("L01");
+        var route=flow.formPreview(worker,null,"LEAVE_DAY");
+        assertEquals(2,route.steps().size());
+        db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'팀장 소속',?,?)",tenant,UUID.randomUUID(),head.employeeId(),organization,today,admin.accountId(),admin.accountId());
+        var own=flow.formPreview(head,null,"LEAVE_DAY");
+        assertEquals(List.of(direct.employeeId()),own.steps().stream().map(PreviewStep::approverId).toList());
+        db.update("UPDATE tna.organization_head_assignment SET employee_id=? WHERE tenant_id=? AND organization_id=?",admin.employeeId(),tenant,organization);
+        assertFalse(flow.formPreview(admin,worker.employeeId(),"LEAVE_DAY").eligible());
+        db.update("UPDATE tna.organization_head_assignment SET employee_id=? WHERE tenant_id=? AND organization_id=?",direct.employeeId(),tenant,organization);
+        assertFalse(flow.formPreview(worker,null,"LEAVE_DAY").eligible());
+    }
+
+    @Test void pendingRequestInThePreFormShapeCompletesByItsOriginalAssignee() {
+        legacy(direct.employeeId());UUID request=correction(worker,worker.employeeId(),false);
+        // Remove only the new fields from this synthetic row to match a pending V18 request.
+        db.update("UPDATE tna.approval_event SET step_number=NULL WHERE tenant_id=? AND request_id=?",tenant,request);
+        db.update("DELETE FROM tna.request_approval_step WHERE tenant_id=? AND request_id=?",tenant,request);
+        db.update("UPDATE tna.approval_request SET form_version_id=NULL WHERE tenant_id=? AND id=?",tenant,request);
+        configureChain("A01");
+        var pending=flow.get(worker,request);
+        assertTrue(pending.request().legacyForm());
+        assertEquals("A01",pending.request().formCode());
+        assertEquals(direct.employeeId(),pending.request().currentApproverId());
+        assertTrue(pending.steps().isEmpty());
+        flow.decide(direct,request,new DecisionForm("APPROVE",0L,"기존 단일 결재",UUID.randomUUID()));
+        assertEquals("EFFECTIVE",flow.get(worker,request).request().effectStatus());
+        assertNull(flow.get(worker,request).history().getLast().stepNumber());
+    }
+
     @Test void organizationRouteResolvesHeadAndPersistsAnImmutableBoundSnapshot() {
         UUID route=route("ORGANIZATION_HEAD",null);assignment(route,"ORGANIZATION",organization);UUID h=head(head.employeeId());
         UUID request=correction(worker,worker.employeeId(),false);

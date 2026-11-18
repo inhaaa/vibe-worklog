@@ -40,7 +40,7 @@ class DatabaseFoundationIT {
                 "employee_personal_details", "employee_personal_entry", "employee_personnel",
                 "employment_rule_assessment", "leave_bucket", "leave_bucket_attribution",
                 "leave_ledger", "leave_request_day", "org_audit_event", "organization", "organization_head_assignment",
-                "report_snapshot", "request_effect", "role_grant", "schedule_assignment",
+                "report_snapshot", "request_approval_step", "request_effect", "request_form", "request_form_version", "role_grant", "schedule_assignment",
                 "schedule_break", "schedule_day", "schedule_template", "schedule_version",
                 "tenant_account", "work_confirmation", "work_policy_version"), protectedTables);
     }

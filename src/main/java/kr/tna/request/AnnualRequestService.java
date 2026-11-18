@@ -94,7 +94,7 @@ public final class AnnualRequestService {
                     old==null?"KEEP":old.outAction(),old==null||old.requestedOutAt()==null?"":old.requestedOutAt().atZone(ZoneId.of("Asia/Seoul")).toLocalDateTime().toString(),
                     old!=null&&old.presenceAsWork(),old!=null&&old.breaksConfirmed(),old==null?"":breakInput(old.actualBreaks()),current,previous==null?null:previous.request().id(),false,previous==null?"":previous.request().reason(),UUID.randomUUID());
         }
-        var approval=flow.approvalPreview(actor);
+        var approval=flow.formPreview(actor,actor.employeeId(),kind);
         var preview=draft.preview()?(kind.equals("LEAVE_DAY")?flow.previewLeave(actor,leave):flow.previewCorrection(actor,correction)):null;
         return new Compose(mode,kind,leave,correction,day,current,preview,approval,draft.conflict());
     }

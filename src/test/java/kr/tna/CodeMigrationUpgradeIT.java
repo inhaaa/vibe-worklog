@@ -82,6 +82,14 @@ class CodeMigrationUpgradeIT {
             assertEquals(v16Access,access(db).stream().filter(row->!List.of("employee_personal_details","employee_personal_entry").contains(row.get("relname"))).toList());
             assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personal_details",Integer.class));
             assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.employee_personal_entry",Integer.class));
+            assertTrue(Flyway.configure().dataSource(migrationSource).target("18").load().migrate().success);
+            var v18Columns=columns(db);var v18Rows=rows(db,v18Columns);
+            var v22=Flyway.configure().dataSource(migrationSource).target("22").load().migrate();
+            assertTrue(v22.success);assertEquals(4,v22.migrationsExecuted);
+            assertEquals(v18Rows,rows(db,v18Columns));
+            assertEquals(6,db.queryForObject("SELECT count(*) FROM tna.request_form",Integer.class));
+            assertEquals(8,db.queryForObject("SELECT count(*) FROM tna.approval_request WHERE form_version_id IS NULL AND current_step=1 AND total_steps=1",Integer.class));
+            assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.request_approval_step",Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static Map<String,List<String>> columns(JdbcTemplate db) {

@@ -21,6 +21,11 @@ public class RequestController {
     private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;private final Clock clock;private final AnnualRequestService annual;
     private final LeaveOperationsQueries leaveOperations;
     public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock,AnnualRequestService annual,LeaveOperationsQueries leaveOperations){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;this.annual=annual;this.leaveOperations=leaveOperations;}
+    @GetMapping(value="/requests/route-preview",produces=MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody ApprovalPreview routePreview(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String kind,
+            @RequestParam(required=false) UUID targetEmployeeId) {
+        return flow.formPreview(actor,targetEmployeeId,kind);
+    }
     @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,false,page);}
     @GetMapping("/approvals/completed") ModelAndView completed(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,true,page);}
     @GetMapping(value = LeaveOperationsQueries.PATH, params = "scope!=LEAVE")
@@ -40,7 +45,7 @@ public class RequestController {
         }
         return detail;
     }
-    @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b){check(b);return submit(()->flow.submitLeave(a,f),()->minePage(a,f),"/requests/");}
+    @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b,@RequestParam(required=false) String routeToken){check(b);return submit(()->flow.submitLeave(a,f,routeToken),()->minePage(a,f),"/requests/");}
     @GetMapping("/me/requests/correction")
     ModelAndView correction(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
@@ -50,19 +55,19 @@ public class RequestController {
     @GetMapping("/admin/requests/exceptions/new") ModelAndView exception(@AuthenticationPrincipal TnaPrincipal a,@RequestParam UUID employeeId,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,employeeId,date==null?commands.today():date,true,true,null);}
     @PostMapping(value="/me/requests/correction",params="!year")
     ModelAndView correct(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required=false) String mode,
-            @ModelAttribute("form") CorrectionForm form, BindingResult binding) {
+            @ModelAttribute("form") CorrectionForm form, BindingResult binding,@RequestParam(required=false) String routeToken) {
         check(binding);
         boolean checkout = "checkout".equals(mode);
         var safe = correctionForm(form, null, false, checkout);
-        return submit(() -> flow.submitCorrection(actor, safe),
+        return submit(() -> flow.submitCorrection(actor, safe,routeToken),
                 () -> correctionPage(actor, actor.employeeId(), form.workDate(), false, !checkout, safe), "/requests/");
     }
-    @PostMapping("/admin/requests/exceptions") ModelAndView exceptional(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b){check(b);var safe=correctionForm(f,f.targetEmployeeId(),true,false);return submit(()->flow.submitCorrection(a,safe),()->correctionPage(a,f.targetEmployeeId(),f.workDate(),true,true,safe),"/requests/");}
-    @PostMapping("/requests/{id}/approve") ModelAndView approve(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.decide(a,id,new DecisionForm("APPROVE",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/requests/{id}/reject") ModelAndView reject(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.decide(a,id,new DecisionForm("REJECT",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/requests/{id}/withdraw") ModelAndView withdraw(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.withdraw(a,id,new DecisionForm("WITHDRAW",expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/requests/{id}/cancellations") ModelAndView cancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.requestCancellation(a,id,new CancelForm(false,expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/admin/requests/{id}/cancellation-exceptions") ModelAndView exceptionalCancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->flow.requestCancellation(a,id,new CancelForm(true,expectedVersion,reason,commandId)),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/admin/requests/exceptions") ModelAndView exceptional(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b,@RequestParam(required=false) String routeToken){check(b);var safe=correctionForm(f,f.targetEmployeeId(),true,false);return submit(()->flow.submitCorrection(a,safe,routeToken),()->correctionPage(a,f.targetEmployeeId(),f.workDate(),true,true,safe),"/requests/");}
+    @PostMapping("/requests/{id}/approve") ModelAndView approve(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.decide(a,id,new DecisionForm("APPROVE",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/requests/{id}/reject") ModelAndView reject(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.decide(a,id,new DecisionForm("REJECT",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/requests/{id}/withdraw") ModelAndView withdraw(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.withdraw(a,id,new DecisionForm("WITHDRAW",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/requests/{id}/cancellations") ModelAndView cancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) String routeToken){return submit(()->flow.requestCancellation(a,id,new CancelForm(false,expectedVersion,reason,commandId),routeToken),()->detailPage(a,id).addObject("cancelReason",reason),"/requests/");}
+    @PostMapping("/admin/requests/{id}/cancellation-exceptions") ModelAndView exceptionalCancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) String routeToken){return submit(()->flow.requestCancellation(a,id,new CancelForm(true,expectedVersion,reason,commandId),routeToken),()->detailPage(a,id).addObject("exceptionCancelReason",reason),"/requests/");}
     @PostMapping("/admin/requests/{id}/reassign") ModelAndView reassign(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@ModelAttribute ReassignForm f,BindingResult b){check(b);return submit(()->flow.reassign(a,id,f),()->detailPage(a,id),"/requests/");}
     @GetMapping("/admin/leave-balances") ModelAndView balances(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) UUID employeeId){return balancesPage(a,employeeId==null?a.employeeId():employeeId,null);}
     @PostMapping("/admin/leave-balances/entries") ModelAndView opening(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") BucketForm f,BindingResult b){check(b);return submit(()->flow.openBucket(a,f),()->balancesPage(a,f.employeeId(),f),"/admin/leave-balances/buckets/");}
@@ -78,10 +83,11 @@ public class RequestController {
         boolean owningAuthor=a.accountId().equals(r.authorAccountId())&&a.employeeId().equals(r.targetEmployeeId());
         var view = new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin)
                 .addObject("ownRequest",a.employeeId().equals(r.targetEmployeeId()))
-                .addObject("canDecide",pending&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId()))
+                .addObject("canDecide",pending&&!detail.reassignmentRequired()&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId()))
                 .addObject("canWithdraw",pending&&a.accountId().equals(r.authorAccountId()))
                 .addObject("canCancel",cancelableEffect&&owningAuthor&&beforeLeaveStarts(a,detail))
                 .addObject("canCancelException",admin&&cancelableEffect).addObject("candidates",admin?approvers.candidates(a):List.of());
+        if(cancelableEffect&&(owningAuthor||admin))view.addObject("cancelApproval",flow.formPreview(a,r.targetEmployeeId(),"CANCEL_LEAVE"));
         if (admin && isLeave(r) && Set.of("APPROVED", "REJECTED").contains(r.status())) {
             view.addObject("leaveDecidedByName", leaveOperations.decidedByName(a, id));
         }
@@ -118,6 +124,7 @@ public class RequestController {
                 false, false, "", evidence.currentCorrectionId(), null, exceptional, "", UUID.randomUUID());
         return new ModelAndView("request/correction").addObject("actions", List.of("KEEP", "SET", "CLEAR"))
                 .addObject("day", day).addObject("exceptional", exceptional)
+                .addObject("approval",flow.formPreview(actor,employee,"ATTENDANCE_CORRECTION"))
                 .addObject("eventTimes", AttendanceController.times(day)).addObject("form", form)
                 .addObject("checkoutOnly", checkout).addObject("pendingCorrectionId", evidence.pendingCorrectionId());
     }

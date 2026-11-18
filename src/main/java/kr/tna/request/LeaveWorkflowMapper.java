@@ -8,7 +8,7 @@ import kr.tna.request.RequestData.*;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface LeaveWorkflowMapper {
+public interface LeaveWorkflowMapper extends FormStepMapper {
     String REQUEST_SELECT="""
         SELECT r.id,r.target_employee_id,e.display_name AS target_employee_name,r.author_account_id,
           r.kind,r.status,r.current_approver_id,p.display_name AS approver_name,r.approver_assignment_id,
@@ -16,8 +16,13 @@ public interface LeaveWorkflowMapper {
           r.leave_bucket_id,r.from_date,r.to_date,r.exceptional,r.version,
           COALESCE(f.effect_status,'NONE') AS effect_status,
           COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id),0)::integer AS quantity_days,
-          r.route_snapshot_id,r.attendance_type_version_id
+          r.route_snapshot_id,r.attendance_type_version_id,
+          COALESCE(fm.code,CASE r.kind WHEN 'LEAVE_DAY' THEN 'L01' WHEN 'CANCEL_LEAVE' THEN 'L02' ELSE 'A01' END) AS form_code,
+          COALESCE(fv.name,CASE r.kind WHEN 'LEAVE_DAY' THEN '휴가 신청서' WHEN 'CANCEL_LEAVE' THEN '휴가 취소 신청서' ELSE '출퇴근 정정 신청서' END) AS form_name,
+          r.current_step,r.total_steps,(r.form_version_id IS NULL) AS legacy_form
         FROM tna.approval_request r
+        LEFT JOIN tna.request_form_version fv ON fv.tenant_id=r.tenant_id AND fv.id=r.form_version_id
+        LEFT JOIN tna.request_form fm ON fm.tenant_id=fv.tenant_id AND fm.id=fv.form_id
         JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
         JOIN tna.employee p ON p.tenant_id=r.tenant_id AND p.id=r.current_approver_id
         LEFT JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id
@@ -73,7 +78,7 @@ public interface LeaveWorkflowMapper {
           (NOT #{completed} AND r.current_approver_id=#{employeeId} AND r.status='PENDING') OR
           (#{completed} AND EXISTS(SELECT 1 FROM tna.approval_event ae
             WHERE ae.tenant_id=#{tenantId} AND ae.request_id=r.id AND ae.actor_account_id=#{accountId}
-              AND ae.event_kind IN ('APPROVED','REJECTED'))))
+              AND ae.event_kind IN ('APPROVED','REJECTED','STEP_APPROVED'))))
         ORDER BY r.submitted_at DESC,r.id LIMIT 51 OFFSET #{offset}
         """)
     List<RequestView> approvalPage(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId,
@@ -83,12 +88,12 @@ public interface LeaveWorkflowMapper {
     @Insert("""
         INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
           approver_assignment_id,approver_assignment_version,submitted_at,reason,predecessor_request_id,original_request_id,
-          leave_bucket_id,from_date,to_date,exceptional,client_command_id,route_snapshot_id,attendance_type_version_id)
+          leave_bucket_id,from_date,to_date,exceptional,client_command_id,route_snapshot_id,attendance_type_version_id,form_version_id,total_steps)
         VALUES(#{tenantId},#{r.id},#{r.targetEmployeeId},#{r.authorAccountId},#{r.kind},'PENDING',#{r.currentApproverId},
           #{r.approverAssignmentId},#{r.approverAssignmentVersion},#{r.submittedAt},#{r.reason},#{r.predecessorRequestId},
-          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId},#{r.routeSnapshotId},#{r.attendanceTypeVersionId})
+          #{r.originalRequestId},#{r.leaveBucketId},#{r.fromDate},#{r.toDate},#{r.exceptional},#{commandId},#{r.routeSnapshotId},#{r.attendanceTypeVersionId},#{formVersionId},#{totalSteps})
         """)
-    int insertRequest(@Param("tenantId") UUID tenantId,@Param("r") RequestView request,@Param("commandId") UUID commandId);
+    int insertRequest(@Param("tenantId") UUID tenantId,@Param("r") RequestView request,@Param("commandId") UUID commandId,@Param("formVersionId") UUID formVersionId,@Param("totalSteps") int totalSteps);
     @Update("UPDATE tna.approval_request SET status=#{status},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND status='PENDING' AND version=#{version}")
     int transition(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("version") long version,@Param("status") String status);
     @Update("UPDATE tna.approval_request SET current_approver_id=#{approverId},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND status='PENDING' AND version=#{version}")
@@ -139,12 +144,12 @@ public interface LeaveWorkflowMapper {
         @Param("reverses") UUID reverses,@Param("supersedes") UUID supersedes,@Param("actorId") UUID actorId);
     @Update("UPDATE tna.request_effect SET effect_status=#{status} WHERE tenant_id=#{tenantId} AND id=#{id} AND effect_status='EFFECTIVE'")
     int endEffect(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("status") String status);
-    @Select("SELECT event_kind,actor_account_id,from_status,to_status,reason,previous_approver_id,new_approver_id,created_at FROM tna.approval_event WHERE tenant_id=#{tenantId} AND request_id=#{requestId} ORDER BY created_at,id")
+    @Select("SELECT event_kind,actor_account_id,from_status,to_status,reason,previous_approver_id,new_approver_id,created_at,step_number FROM tna.approval_event WHERE tenant_id=#{tenantId} AND request_id=#{requestId} ORDER BY created_at,id")
     List<ApprovalHistory> history(@Param("tenantId") UUID tenantId,@Param("requestId") UUID requestId);
-    @Insert("INSERT INTO tna.approval_event(tenant_id,id,request_id,event_kind,actor_account_id,from_status,to_status,reason,previous_approver_id,new_approver_id) VALUES(#{tenantId},#{id},#{requestId},#{kind},#{actorId},#{from},#{to},#{reason},#{previous},#{next})")
+    @Insert("INSERT INTO tna.approval_event(tenant_id,id,request_id,event_kind,actor_account_id,from_status,to_status,reason,previous_approver_id,new_approver_id,step_number) VALUES(#{tenantId},#{id},#{requestId},#{kind},#{actorId},#{from},#{to},#{reason},#{previous},#{next},#{step})")
     int insertHistory(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("requestId") UUID requestId,
         @Param("kind") String kind,@Param("actorId") UUID actorId,@Param("from") String from,@Param("to") String to,
-        @Param("reason") String reason,@Param("previous") UUID previous,@Param("next") UUID next);
+        @Param("reason") String reason,@Param("previous") UUID previous,@Param("next") UUID next,@Param("step") Integer step);
     @Select("SELECT id AS assignment_id,version AS assignment_version,approver_employee_id FROM tna.approver_assignment WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND superseded_at IS NULL AND valid_from<=#{today} AND(valid_to IS NULL OR valid_to>#{today})")
     ApproverBinding binding(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
     @Select("""
@@ -188,12 +193,12 @@ public interface LeaveWorkflowMapper {
             @Param("headAssignmentId") UUID headAssignmentId,@Param("headAssignmentVersion") Long headAssignmentVersion,
             @Param("approverId") UUID approverId,@Param("at") Instant at);
     @Select("""
-        SELECT r.code AS route_code,v.name AS route_name,v.revision,a.scope_kind,v.approver_kind,
+        SELECT r.code AS route_code,v.name AS route_name,v.revision,COALESCE(a.scope_kind,'FORM') AS scope_kind,v.approver_kind,
           o.name AS organization_name,e.display_name AS resolved_approver_name,s.resolved_at
         FROM tna.approval_route_snapshot s
         JOIN tna.approval_route_version v ON v.tenant_id=s.tenant_id AND v.id=s.route_version_id
         JOIN tna.approval_route r ON r.tenant_id=v.tenant_id AND r.id=v.route_id
-        JOIN tna.approval_route_assignment a ON a.tenant_id=s.tenant_id AND a.id=s.assignment_id
+        LEFT JOIN tna.approval_route_assignment a ON a.tenant_id=s.tenant_id AND a.id=s.assignment_id
         JOIN tna.employee e ON e.tenant_id=s.tenant_id AND e.id=s.resolved_approver_employee_id
         LEFT JOIN tna.organization o ON o.tenant_id=s.tenant_id AND o.id=s.organization_id
         WHERE s.tenant_id=#{tenantId} AND s.request_id=#{requestId}

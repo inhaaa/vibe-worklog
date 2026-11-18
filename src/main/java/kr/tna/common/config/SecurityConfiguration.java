@@ -66,6 +66,7 @@ public class SecurityConfiguration {
                                 "/admin/employees", "/admin/employees/**", "/admin/access",
                                 "/admin/organization-heads", "/admin/organization-heads/**",
                                 "/admin/approval-routes", "/admin/approval-routes/**",
+                                "/admin/request-forms", "/admin/request-forms/**",
                                 "/admin/approval-route-assignments", "/admin/approval-route-assignments/**",
                                 "/admin/common-code-groups/**", "/admin/common-codes", "/admin/common-codes/**",
                                 "/admin/attendance-types", "/admin/attendance-types/**",

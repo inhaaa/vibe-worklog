@@ -18,7 +18,7 @@ public final class LeaveOperationsData {
 
     public record Row(UUID id, String employeeNo, String employeeName, String organizationName, String leaveTypeName,
             String requestKind, LocalDate from, LocalDate to, int quantityDays, String status, String effectStatus,
-            String approverName, String decidedByName, Instant submittedAt, Instant decidedAt, UUID originalRequestId) { }
+            String approverName, String decidedByName, Instant submittedAt, Instant decidedAt, UUID originalRequestId, int currentStep, int totalSteps) { }
 
     public record Search(String status, String leaveTypeCode, String requestKind, LocalDate from, LocalDate to,
             UUID organizationId, String q, int offset) { }

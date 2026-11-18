@@ -140,13 +140,14 @@ class LeaveWorkflowIT {
         assertEquals("CANCELED",workflow.get(employee,original).request().effectStatus());assertEquals(1,count("tna.leave_ledger","entry_kind='RESTORE'"));
         assertNotNull(leave(bucket,date));
     }
+    @Autowired kr.tna.approval.RequestFormMapper requestForms;
     @Test void cancellationApprovalRechecksThatTheLeaveHasNotAlreadyStarted() {
         UUID bucket=bucket(2),original=leave(bucket,date);approve(original);
         UUID cancellation=workflow.requestCancellation(employee,original,new CancelForm(false,1L,"시작 전 일반 취소 요청",UUID.randomUUID()));
         assertEquals(1,balance(bucket));
         Instant afterStart=date.atTime(10,0).atZone(ZoneId.of("Asia/Seoul")).toInstant();
         var after=new LeaveWorkflowService(workflowMapper,businessCommands,administrativeCommands,
-                workflowEmployees,workflowApprovers,clocks,Clock.fixed(afterStart,ZoneId.of("Asia/Seoul")));
+                workflowEmployees,workflowApprovers,clocks,Clock.fixed(afterStart,ZoneId.of("Asia/Seoul")),requestForms);
         assertStatus(422,()->after.decide(approver,cancellation,new DecisionForm("APPROVE",0L,"사용 시작 후 일반 취소 승인",UUID.randomUUID())));
         assertEquals("PENDING",workflow.get(employee,cancellation).request().status());
         assertEquals("APPROVED",workflow.get(employee,original).request().status());

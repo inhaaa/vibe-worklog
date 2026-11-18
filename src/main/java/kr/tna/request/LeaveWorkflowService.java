@@ -44,13 +44,15 @@ public final class LeaveWorkflowService {
     private final Clock clock;
     private final ApprovalRouteResolver routes;
     private final AttendanceTypeResolver attendanceTypes;
+    private final FormRouteResolver formRoutes;
     private final JsonMapper json=JsonMapper.builder().build();
     public LeaveWorkflowService(LeaveWorkflowMapper mapper,BusinessCommands commands,OrgCommands administration,
-            EmployeeAdminMapper employees,ApproverMapper approvers,ClockService clocks,Clock clock) {
+            EmployeeAdminMapper employees,ApproverMapper approvers,ClockService clocks,Clock clock,kr.tna.approval.RequestFormMapper forms) {
         this.mapper=mapper;this.commands=commands;this.administration=administration;this.employees=employees;
         this.approvers=approvers;this.clocks=clocks;this.clock=clock;
         this.routes=new ApprovalRouteResolver(mapper,approvers,employees);
         this.attendanceTypes=new AttendanceTypeResolver(mapper);
+        this.formRoutes=new FormRouteResolver(mapper,forms,employees,approvers,routes);
     }
     public List<Bucket> buckets(TnaPrincipal actor,UUID employeeId) {
         return targetRead(actor,employeeId,()->{employee(actor.tenantId(),employeeId);return mapper.listBuckets(actor.tenantId(),employeeId,today());});
@@ -101,6 +103,20 @@ public final class LeaveWorkflowService {
     public ApprovalPreview approvalPreview(TnaPrincipal actor) {
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());return routes.resolve(actor,actor.employeeId(),today()).preview();});
     }
+    public ApprovalPreview formPreview(TnaPrincipal actor,UUID target,String kind) {
+        UUID employeeId=target==null?actor.employeeId():target;
+        return targetRead(actor,employeeId,()->{
+            mapper.readLock(actor.tenantId()); employee(actor.tenantId(),employeeId);
+            return formRoutes.form(actor.tenantId(),actor.employeeId(),employeeId,kind,today()).preview();
+        });
+    }
+    public ApprovalPreview adminRoutePreview(TnaPrincipal actor,UUID target,UUID routeVersionId) {
+        return administration.read(actor,()->{
+            mapper.readLock(actor.tenantId());
+            employee(actor.tenantId(),target);
+            return formRoutes.resolve(actor.tenantId(),target,target,today(),null,null,null,routeVersionId).preview();
+        });
+    }
     public List<RequestView> adminRequests(TnaPrincipal actor, RequestScope scope) {
         return administration.read(actor, () -> mapper.adminRequests(actor.tenantId(), scope == null ? "" : scope.name()));
     }
@@ -108,15 +124,18 @@ public final class LeaveWorkflowService {
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());var r=request(actor.tenantId(),requestId);
             if(r.authorAccountId().equals(actor.accountId())||r.targetEmployeeId().equals(actor.employeeId()))return detail(actor.tenantId(),r);
             if(actor.roles().contains("ATTENDANCE_ADMIN"))return administration.read(actor,()->detail(actor.tenantId(),r));
-            if(r.currentApproverId().equals(actor.employeeId())&&actor.roles().contains("APPROVER")
+            if((r.currentApproverId().equals(actor.employeeId())||mapper.hasDecided(actor.tenantId(),r.id(),actor.employeeId()))&&actor.roles().contains("APPROVER")
                     &&approvers.eligible(actor.tenantId(),actor.employeeId(),today()))return detail(actor.tenantId(),r);
             throw OrgException.notFound();});
     }
     public UUID submitLeave(TnaPrincipal actor,LeaveForm form) {
+        return submitLeave(actor,form,null);
+    }
+    public UUID submitLeave(TnaPrincipal actor,LeaveForm form,String routeToken) {
         String reason=leaveReason(form),action="REQUEST_LEAVE_SUBMIT";
-        return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,form.bucketId(),form.from(),form.to(),form.predecessorRequestId(),reason),reason,"EMPLOYEE",()->{
+        return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(routeToken,action,form.bucketId(),form.from(),form.to(),form.predecessorRequestId(),reason),reason,"EMPLOYEE",()->{
             var days=validateLeaveInput(actor,form);
-            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,form.bucketId(),false,form.commandId());
+            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,form.bucketId(),false,form.commandId(),routeToken);
             for(var d:days)changed(mapper.insertDay(actor.tenantId(),UUID.randomUUID(),r.id(),d));
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));
@@ -126,7 +145,7 @@ public final class LeaveWorkflowService {
         leaveReason(form);
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());
             var days=validateLeaveInput(actor,form);var policy=attendanceTypes.forSubmission(actor.tenantId(),"LEAVE_DAY",form.from(),form.to());
-            var approval=routes.resolve(actor,actor.employeeId(),today()).preview();var bucket=bucket(actor.tenantId(),form.bucketId());
+            var approval=formRoutes.form(actor.tenantId(),actor.employeeId(),actor.employeeId(),"LEAVE_DAY",today()).preview();var bucket=bucket(actor.tenantId(),form.bucketId());
             int quantity=days.stream().mapToInt(RequestDay::quantityDays).sum();
             return new AnnualRequestData.Preview(quantity,available(actor),bucket.availableDays(),policy,approval,approval.eligible(),
                     !approval.eligible()?approval.message():quantity>bucket.availableDays()?"현재 사용 가능량을 초과합니다. 승인 시 잔여를 다시 확인합니다.":"일정·잔여·결재자는 제출과 승인 때 다시 검증합니다.");
@@ -150,7 +169,7 @@ public final class LeaveWorkflowService {
             if(mapper.pendingCorrection(actor.tenantId(),actor.employeeId(),form.workDate()))throw OrgException.conflict("이미 대기 중인 정정이 있습니다.");
             validateCorrection(before,inAction,outAction,in,out,form.breaksConfirmed(),breaks);
             var policy=attendanceTypes.forSubmission(actor.tenantId(),"ATTENDANCE_CORRECTION",form.workDate(),form.workDate());
-            var approval=routes.resolve(actor,actor.employeeId(),today()).preview();
+            var approval=formRoutes.form(actor.tenantId(),actor.employeeId(),actor.employeeId(),"ATTENDANCE_CORRECTION",today()).preview();
             return new AnnualRequestData.Preview(null,available(actor),null,policy,approval,approval.eligible(),approval.eligible()?"정정 근거·정책·결재자는 제출과 승인 때 다시 검증합니다.":approval.message());
         });
     }
@@ -186,6 +205,9 @@ public final class LeaveWorkflowService {
         });
     }
     public UUID submitCorrection(TnaPrincipal actor,CorrectionForm form) {
+        return submitCorrection(actor,form,null);
+    }
+    public UUID submitCorrection(TnaPrincipal actor,CorrectionForm form,String routeToken) {
         if(form==null||form.workDate()==null||form.workDate().isAfter(today())||form.baseInputRevision()==null
                 ||form.sourceFingerprint()==null||!form.sourceFingerprint().matches("[0-9a-f]{64}"))throw OrgException.invalid("정정 근무일과 현재 사실 개정을 확인해 주세요.");
         String inAction=action(form.inAction()),outAction=action(form.outAction()),reason=requiredText(form.reason(),500,"정정 사유");
@@ -194,7 +216,7 @@ public final class LeaveWorkflowService {
         if(!form.breaksConfirmed()&&!breaks.isEmpty())throw OrgException.invalid("실제 휴게 근거의 확인 여부를 표시해 주세요.");
         if(inAction.equals("KEEP")&&outAction.equals("KEEP")&&!form.breaksConfirmed())throw OrgException.invalid("변경할 시각 또는 실제 휴게를 입력해 주세요.");
         String action="REQUEST_CORRECTION_SUBMIT";
-        return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,form,inAction,outAction,proposedIn,proposedOut,breaks),reason,form.exceptional()?"ATTENDANCE_ADMIN":"EMPLOYEE",()->{
+        return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(routeToken,action,form,inAction,outAction,proposedIn,proposedOut,breaks),reason,form.exceptional()?"ATTENDANCE_ADMIN":"EMPLOYEE",()->{
             UUID target=form.targetEmployeeId()==null?actor.employeeId():form.targetEmployeeId();
             if(!form.exceptional()&&!target.equals(actor.employeeId()))throw OrgException.forbidden();
             var employee=currentEmployee(actor.tenantId(),target,form.exceptional());employmentDate(employee,form.workDate());
@@ -206,7 +228,7 @@ public final class LeaveWorkflowService {
             if(!Objects.equals(previous==null?null:previous.requestId(),form.replacesRequestId()))throw OrgException.conflict("현재 유효 정정을 참조해 다시 신청해 주세요.");
             if(mapper.pendingCorrection(actor.tenantId(),target,form.workDate()))throw OrgException.conflict("이미 대기 중인 정정이 있습니다.");
             validateCorrection(before,inAction,outAction,proposedIn,proposedOut,form.breaksConfirmed(),breaks);
-            var r=createRequest(actor,target,"ATTENDANCE_CORRECTION",form.workDate(),form.workDate(),reason,form.predecessorRequestId(),null,null,form.exceptional(),form.commandId());
+            var r=createRequest(actor,target,"ATTENDANCE_CORRECTION",form.workDate(),form.workDate(),reason,form.predecessorRequestId(),null,null,form.exceptional(),form.commandId(),routeToken);
             var d=new CorrectionDetail(form.workDate(),form.baseInputRevision(),form.sourceFingerprint(),inAction,outAction,proposedIn,proposedOut,
                     form.presenceAsWork(),form.breaksConfirmed(),json.writeValueAsString(breaks),form.replacesRequestId(),json.writeValueAsString(before));
             changed(mapper.insertCorrection(actor.tenantId(),UUID.randomUUID(),r.id(),d));
@@ -216,9 +238,12 @@ public final class LeaveWorkflowService {
         });
     }
     public UUID requestCancellation(TnaPrincipal actor,UUID originalId,CancelForm form) {
+        return requestCancellation(actor,originalId,form,null);
+    }
+    public UUID requestCancellation(TnaPrincipal actor,UUID originalId,CancelForm form,String routeToken) {
         if(form==null)throw OrgException.invalid("취소 내용을 입력해 주세요.");
         String reason=requiredText(form.reason(),500,"취소 사유"),action="REQUEST_CANCEL_SUBMIT";
-        return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,originalId,form.exceptional(),form.expectedVersion(),reason),reason,form.exceptional()?"ATTENDANCE_ADMIN":"EMPLOYEE",()->{
+        return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(routeToken,action,originalId,form.exceptional(),form.expectedVersion(),reason),reason,form.exceptional()?"ATTENDANCE_ADMIN":"EMPLOYEE",()->{
             var original=request(actor.tenantId(),originalId);
             if(!form.exceptional()&&!original.targetEmployeeId().equals(actor.employeeId()))throw OrgException.notFound();
             checkVersion(form.expectedVersion(),original.version());
@@ -227,7 +252,7 @@ public final class LeaveWorkflowService {
             currentEmployee(actor.tenantId(),original.targetEmployeeId(),form.exceptional());
             if(!form.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 연차는 담당자 예외 경로로 요청해 주세요.");
             if(mapper.pendingCancellation(actor.tenantId(),originalId))throw OrgException.conflict("이미 대기 중인 취소가 있습니다.");
-            var r=createRequest(actor,original.targetEmployeeId(),"CANCEL_LEAVE",original.fromDate(),original.toDate(),reason,null,original.id(),original.leaveBucketId(),form.exceptional(),form.commandId());
+            var r=createRequest(actor,original.targetEmployeeId(),"CANCEL_LEAVE",original.fromDate(),original.toDate(),reason,null,original.id(),original.leaveBucketId(),form.exceptional(),form.commandId(),routeToken);
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));
         });
@@ -235,12 +260,21 @@ public final class LeaveWorkflowService {
     public UUID decide(TnaPrincipal actor,UUID requestId,DecisionForm form) {
         if(form==null||!Set.of("APPROVE","REJECT").contains(form.decision()))throw OrgException.invalid("승인 또는 반려를 선택해 주세요.");
         String reason=requiredText(form.reason(),500,"결정 사유"),action="REQUEST_"+form.decision();
-        return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,requestId,form.expectedVersion(),reason),reason,"APPROVER",()->{
+        return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(form.expectedStep(),action,requestId,form.expectedVersion(),reason),reason,"APPROVER",()->{
             var before=request(actor.tenantId(),requestId);
             if(!before.currentApproverId().equals(actor.employeeId()))throw OrgException.forbidden();
             independent(actor.tenantId(),before.targetEmployeeId(),before.authorAccountId(),actor.employeeId());
-            checkVersion(form.expectedVersion(),before.version());pending(before);currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
+            checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
+            if(!approvers.eligible(actor.tenantId(),actor.employeeId(),today()))throw OrgException.forbidden();
             String status=form.decision().equals("APPROVE")?"APPROVED":"REJECTED";
+            if(!before.legacyForm())changed(mapper.decideStep(actor.tenantId(),requestId,before.currentStep(),actor.employeeId(),status,reason));
+            if("APPROVED".equals(status)&&before.currentStep()<before.totalSteps()) {
+                changed(mapper.activateStep(actor.tenantId(),requestId,before.currentStep()+1));
+                changed(mapper.advanceStep(actor.tenantId(),requestId,before.version()));
+                var after=request(actor.tenantId(),requestId);
+                history(actor,before,"STEP_APPROVED","PENDING","PENDING",reason,actor.employeeId(),after.currentApproverId());
+                return new Change(requestId,before,after);
+            }
             if(status.equals("APPROVED")) {
                 attendanceTypes.stored(actor.tenantId(),before);
                 switch(before.kind()) {
@@ -250,6 +284,7 @@ public final class LeaveWorkflowService {
                     default -> throw OrgException.invalid("지원하지 않는 신청 종류입니다.");
                 }
             } else if(before.kind().equals("ATTENDANCE_CORRECTION"))changed(mapper.reviseDay(actor.tenantId(),before.targetEmployeeId(),before.fromDate(),0));
+            if("REJECTED".equals(status))mapper.closeSteps(actor.tenantId(),requestId);
             changed(mapper.transition(actor.tenantId(),requestId,before.version(),status));
             history(actor,before,status,"PENDING",status,reason,null,null);
             return new Change(requestId,before,request(actor.tenantId(),requestId));
@@ -258,9 +293,10 @@ public final class LeaveWorkflowService {
     public UUID withdraw(TnaPrincipal actor,UUID requestId,DecisionForm form) {
         if(form==null)throw OrgException.invalid("철회 내용을 입력해 주세요.");
         String reason=requiredText(form.reason(),500,"철회 사유"),action="REQUEST_WITHDRAW";
-        return commands.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,requestId,form.expectedVersion(),reason),reason,"EMPLOYEE",()->{
+        return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(form.expectedStep(),action,requestId,form.expectedVersion(),reason),reason,"EMPLOYEE",()->{
             var before=request(actor.tenantId(),requestId);if(!before.authorAccountId().equals(actor.accountId()))throw OrgException.forbidden();
-            checkVersion(form.expectedVersion(),before.version());pending(before);
+            checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
+            mapper.closeSteps(actor.tenantId(),requestId);
             changed(mapper.transition(actor.tenantId(),requestId,before.version(),"WITHDRAWN"));
             if(before.kind().equals("ATTENDANCE_CORRECTION"))changed(mapper.reviseDay(actor.tenantId(),before.targetEmployeeId(),before.fromDate(),0));
             history(actor,before,"WITHDRAWN","PENDING","WITHDRAWN",reason,null,null);
@@ -270,15 +306,30 @@ public final class LeaveWorkflowService {
     public UUID reassign(TnaPrincipal actor,UUID requestId,ReassignForm form) {
         if(form==null||form.approverEmployeeId()==null)throw OrgException.invalid("새 승인자를 선택해 주세요.");
         String reason=requiredText(form.reason(),500,"재할당 사유"),action="REQUEST_REASSIGN";
-        return administration.execute(actor,form.commandId(),action,"REQUEST",fingerprint(action,requestId,form.approverEmployeeId(),form.expectedVersion(),reason),reason,()->{
-            var before=request(actor.tenantId(),requestId);checkVersion(form.expectedVersion(),before.version());pending(before);
+        return administration.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(form.expectedStep(),action,requestId,form.approverEmployeeId(),form.expectedVersion(),reason),reason,()->{
+            var before=request(actor.tenantId(),requestId);checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
             independent(actor.tenantId(),before.targetEmployeeId(),before.authorAccountId(),form.approverEmployeeId());
             employee(actor.tenantId(),form.approverEmployeeId());if(!approvers.eligible(actor.tenantId(),form.approverEmployeeId(),today()))throw OrgException.invalid("현재 재직 중인 적격 승인자가 필요합니다.");
+            if(!before.legacyForm()) {
+                if(mapper.assignedElsewhere(actor.tenantId(),requestId,before.currentStep(),form.approverEmployeeId()))
+                    throw OrgException.invalid("다른 결재 단계의 담당자와 중복됩니다.");
+                changed(mapper.reassignStep(actor.tenantId(),requestId,before.currentStep(),form.approverEmployeeId()));
+            }
             changed(mapper.reassign(actor.tenantId(),requestId,before.version(),form.approverEmployeeId()));
             history(actor,before,"REASSIGNED","PENDING","PENDING",reason,before.currentApproverId(),form.approverEmployeeId());
             return new Change(requestId,before,request(actor.tenantId(),requestId));
         });
     }
+    private static String reviewedFingerprint(Object confirmation,Object... fields) {
+        String existingHash=fingerprint(fields);
+        return confirmation==null?existingHash:fingerprint(existingHash,confirmation);
+    }
+
+    private static void checkStep(RequestView request,Integer expected) {
+        if((expected!=null||request.totalSteps()>1)&&!Integer.valueOf(request.currentStep()).equals(expected))
+            throw OrgException.conflict("현재 결재 단계가 변경되었습니다. 새로 조회해 주세요.");
+    }
+
     private void approveLeave(TnaPrincipal actor,RequestView request,String reason) {
         var b=bucket(actor.tenantId(),request.leaveBucketId());bucketPeriod(b,request.fromDate(),request.toDate());
         var submitted=mapper.requestDays(actor.tenantId(),request.id());var current=days(actor.tenantId(),request.targetEmployeeId(),request.fromDate(),request.toDate());
@@ -322,18 +373,24 @@ public final class LeaveWorkflowService {
         evidence.put("scheduleVersionId",before.scheduleVersionId());evidence.put("calendarVersionId",before.calendarVersionId());
         changed(mapper.insertEffect(actor.tenantId(),effect,request.id(),request.targetEmployeeId(),d.workDate(),"CORRECTION",json.writeValueAsString(List.of(evidence)),null,previous==null?null:previous.id(),actor.accountId()));
     }
-    private RequestView createRequest(TnaPrincipal actor,UUID target,String kind,LocalDate from,LocalDate to,String reason,UUID predecessor,UUID original,UUID bucket,boolean exceptional,UUID commandId) {
+    private RequestView createRequest(TnaPrincipal actor,UUID target,String kind,LocalDate from,LocalDate to,String reason,UUID predecessor,UUID original,UUID bucket,boolean exceptional,UUID commandId,String routeToken) {
         // Cancellation carries the original contract even after its type was disabled for new requests.
         var policy=original==null?attendanceTypes.forSubmission(actor.tenantId(),kind,from,to)
                 :attendanceTypes.stored(actor.tenantId(),request(actor.tenantId(),original));
-        var resolution=routes.resolve(actor,target,today());resolution.requireEligible();
-        var legacy=resolution.legacy();UUID snapshotId=legacy==null?UUID.randomUUID():null;
         Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
-        var request=new RequestView(UUID.randomUUID(),target,employee(actor.tenantId(),target).displayName(),actor.accountId(),kind,"PENDING",resolution.approverId(),
-                resolution.approverName(),legacy==null?null:legacy.assignmentId(),legacy==null?null:legacy.assignmentVersion(),at,
-                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy.id());
-        changed(mapper.insertRequest(actor.tenantId(),request,commandId));
-        routes.persist(actor.tenantId(),resolution,snapshotId,request.id(),at);
+        var result=formRoutes.form(actor.tenantId(),actor.employeeId(),target,kind,at.atZone(SEOUL).toLocalDate());
+        var preview=result.preview();
+        if(!preview.eligible())throw OrgException.invalid(preview.message());
+        if((routeToken!=null||result.routeVersionId()!=null)&&!Objects.equals(routeToken,preview.routeToken()))
+            throw OrgException.conflict("결재선이 변경되었습니다. 새 결재 순서를 확인하고 다시 제출해 주세요.");
+        var first=preview.steps().getFirst();
+        var legacy=result.inherited()==null?null:result.inherited().legacy();
+        UUID snapshotId=legacy==null?UUID.randomUUID():null;
+        var request=new RequestView(UUID.randomUUID(),target,employee(actor.tenantId(),target).displayName(),actor.accountId(),kind,"PENDING",first.approverId(),
+                first.approverName(),legacy==null?null:legacy.assignmentId(),legacy==null?null:legacy.assignmentVersion(),at,
+                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy.id(),preview.formCode(),preview.formName(),1,preview.steps().size(),false);
+        changed(mapper.insertRequest(actor.tenantId(),request,commandId,result.formVersionId(),preview.steps().size()));
+        formRoutes.persist(actor.tenantId(),request.id(),snapshotId,at,result);
         return request;
     }
     private List<RequestDay> days(UUID tenant,UUID employeeId,LocalDate from,LocalDate to) {
@@ -411,7 +468,8 @@ public final class LeaveWorkflowService {
         return new RequestDetail(request, mapper.requestDays(tenant, request.id()), correction,
                 mapper.history(tenant, request.id()), mapper.routeSnapshot(tenant, request.id()),
                 request.attendanceTypeVersionId() == null ? null : mapper.attendancePolicy(tenant, request.attendanceTypeVersionId()),
-                comparison);
+                comparison,mapper.decisionSteps(tenant,request.id()),
+                "PENDING".equals(request.status())&&!approvers.eligible(tenant,request.currentApproverId(),today()));
     }
 
     private CorrectionComparison correctionComparison(CorrectionDetail correction, ClockData.DaySnapshot current) {
@@ -469,7 +527,7 @@ public final class LeaveWorkflowService {
     }
     private UUID mapperAuthorEmployee(UUID tenant,UUID accountId) {String id=mapper.authorEmployee(tenant,accountId);if(id==null)throw OrgException.notFound();return UUID.fromString(id);}
     private void history(TnaPrincipal actor,RequestView r,String kind,String from,String to,String reason,UUID previous,UUID next) {
-        changed(mapper.insertHistory(actor.tenantId(),UUID.randomUUID(),r.id(),kind,actor.accountId(),from,to,reason,previous,next));
+        changed(mapper.insertHistory(actor.tenantId(),UUID.randomUUID(),r.id(),kind,actor.accountId(),from,to,reason,previous,next,r.legacyForm()?null:r.currentStep()));
     }
     private void ledger(TnaPrincipal actor,UUID bucket,UUID employee,String kind,int quantity,LocalDate date,UUID effect,LocalDate leaveDate,UUID reverses,String source,String reason) {
         changed(mapper.insertLedger(actor.tenantId(),UUID.randomUUID(),bucket,employee,kind,quantity,date,effect,leaveDate,reverses,source,reason,actor.accountId()));

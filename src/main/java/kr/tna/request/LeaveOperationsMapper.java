@@ -77,7 +77,7 @@ public interface LeaveOperationsMapper {
               COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d
                 WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(original.id,r.id)),0)::integer AS quantity_days,
               r.status,COALESCE(eff.effect_status,'NONE') AS effect_status,approver.display_name AS approver_name,
-              decision.decided_by_name,r.submitted_at,decision.decided_at,r.original_request_id
+              decision.decided_by_name,r.submitted_at,decision.decided_at,r.original_request_id,r.current_step,r.total_steps
             """ + REQUESTS + """
             LEFT JOIN tna.organization o ON o.tenant_id=ea.tenant_id AND o.id=ea.organization_id
             JOIN tna.employee approver ON approver.tenant_id=r.tenant_id AND approver.id=r.current_approver_id

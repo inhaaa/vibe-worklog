@@ -60,12 +60,12 @@ class CorrectionPageTest {
         var submitted = new CorrectionForm(UUID.randomUUID(), date, 3L, "a".repeat(64),
                 "SET", "2026-11-04T10:00", "CLEAR", "2026-11-04T18:00", true, true,
                 "2026-11-04T12:00/2026-11-04T13:00", null, null, true, "합성 사유", command);
-        when(flow.submitCorrection(eq(actor), any(CorrectionForm.class))).thenReturn(request);
-        var redirect = (RedirectView) controller.correct(actor, "checkout", submitted, mock(BindingResult.class)).getView();
+        when(flow.submitCorrection(eq(actor), any(CorrectionForm.class),eq("confirmed"))).thenReturn(request);
+        var redirect = (RedirectView) controller.correct(actor, "checkout", submitted, mock(BindingResult.class),"confirmed").getView();
         assertEquals("/requests/" + request, redirect.getUrl());
 
         var accepted = ArgumentCaptor.forClass(CorrectionForm.class);
-        verify(flow).submitCorrection(eq(actor), accepted.capture());
+        verify(flow).submitCorrection(eq(actor), accepted.capture(),eq("confirmed"));
         var form = accepted.getValue();
         assertNull(form.targetEmployeeId());
         assertFalse(form.exceptional());
