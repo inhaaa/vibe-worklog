@@ -33,6 +33,7 @@ import tools.jackson.databind.JsonNode;
 class AnnualRequestsWebIT {
     @Autowired MockMvc mvc;
     @Autowired LeaveWorkflowService flow;
+    @Autowired kr.tna.worktime.WorktimeService reports;
     @Autowired ScheduleService schedules;
     @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
@@ -178,6 +179,56 @@ class AnnualRequestsWebIT {
     }
     @Test void finalEndpointRejectsAMismatchedKindWithoutCommittingARequest() throws Exception {
         var before=snapshot();mvc.perform(as(leavePost(today.plusDays(1),UUID.randomUUID().toString()).param("year",String.valueOf(today.getYear())).param("kind","ATTENDANCE_CORRECTION"),worker)).andExpect(status().isBadRequest());assertEquals(before,snapshot());
+    }
+
+    @Test void legacyLeaveWithoutDayRowsIsVisibleWithMissingDailyEvidence() throws Exception {
+        raw("LEAVE_DAY", "PENDING", today, today, worker, worker, bucket, null, null);
+        var home = mvc.perform(as(get("/me/home"), worker)).andExpect(status().isOk()).andReturn();
+        assertEquals("종일 연차", ReactPageAssertions.envelope(home).at("/data/workspaceHome/recentRequests/0/kindLabel").asString());
+        var response = mvc.perform(as(get("/me/schedule").param("date", today.toString()), worker))
+                .andExpect(status().isOk()).andReturn();
+        var item = ReactPageAssertions.envelope(response).at("/data/workspaceCalendar/selectedDay/requests/0");
+        assertTrue(item.path("kindLabel").asString().contains("일별 근거 미확인"));
+        assertFalse(item.path("effectiveLeave").asBoolean());
+    }
+
+    @Test void employeeAndAdministratorReadTheSameApprovedHalfDay() throws Exception {
+        LocalDate date = today.plusDays(2);
+        String year = String.valueOf(date.getYear());
+        var command = UUID.randomUUID().toString();
+        var preview = mvc.perform(as(post("/me/requests/preview").param("year", year)
+                .param("kind", "LEAVE_DAY").param("leavePart", "PM").param("bucketId", bucket.toString())
+                .param("from", date.toString()).param("to", date.toString()).param("reason", "합성 오후 반차")
+                .param("commandId", command).with(SecurityMockMvcRequestPostProcessors.csrf()), worker))
+                .andExpect(status().isOk()).andReturn();
+        assertEquals(0.5, ReactPageAssertions.envelope(preview).at("/data/compose/preview/quantityDays").asDouble());
+
+        mvc.perform(as(leavePost(date, command).param("year", year).param("leavePart", "PM"), worker))
+                .andExpect(status().isSeeOther());
+        var pending = annual(get("/me/requests").param("year", year), worker);
+        assertEquals(0.5, pending.path("pendingDays").asDouble());
+        var request = pending.at("/requests/0");
+        UUID id = UUID.fromString(request.path("id").asString());
+        flow.decide(approver, id, new DecisionForm("APPROVE", request.path("version").asLong(), "합성 승인", UUID.randomUUID()));
+        var approved = annual(get("/me/requests").param("year", year), worker);
+        assertEquals(0.5, approved.path("plannedDays").asDouble());
+        assertEquals(19.5, approved.path("currentAvailableDays").asDouble());
+        assertEquals("PM", approved.at("/requests/0/leavePart").asString());
+        var operations = mvc.perform(as(get("/admin/requests").param("scope", "LEAVE").param("status", "APPROVED"), admin))
+                .andExpect(status().isOk()).andReturn();
+        var row = ReactPageAssertions.envelope(operations).at("/data/leaveOperations/rows/0");
+        assertEquals(0.5, row.path("quantityDays").asDouble());
+        assertEquals("PM", row.path("leavePart").asString());
+        reports.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "합성 반차 집계");
+        var day = reports.days(worker, worker.employeeId(), date, date).getFirst();
+        assertTrue(day.current());
+        assertEquals(0.5, day.approvedLeaveDays());
+        assertEquals(0.5, day.result().leaveDays());
+        assertNull(day.result().actualWorkMillis());
+        var month = java.time.YearMonth.from(date);
+        var calendarView = mvc.perform(as(get("/me/schedule").param("month", month.toString()).param("date", date.toString()), worker))
+                .andExpect(status().isOk()).andReturn();
+        assertTrue(ReactPageAssertions.envelope(calendarView).toString().contains("오후 반차"));
     }
 
     private JsonNode annual(MockHttpServletRequestBuilder r,TnaPrincipal actor)throws Exception{return ReactPageAssertions.envelope(mvc.perform(as(r,actor)).andExpect(status().isOk()).andReturn()).at("/data/annual");}

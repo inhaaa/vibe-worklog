@@ -86,7 +86,7 @@ public final class WorktimeService {
 
     private boolean correctionEligible(Input in, boolean employed, LocalDate today) {
         return employed && in.clock().schedule() != null && in.clock().calendarVersionId() != null
-                && in.day().approvedLeaveDays() == 0 && !in.day().pendingCorrection()
+                && in.day().approvedLeaveDays() < 1 && !in.day().pendingCorrection()
                 && calculator.pending(in.day(), today, false, null);
     }
 
@@ -105,7 +105,7 @@ public final class WorktimeService {
                 boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
                 boolean suggest = past && day.confirmation() == null && correctionEligible(in, view.employed(), range.today())
                         && !clocks.canConfirm(day);
-                rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() > 0,
+                rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
                         in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
                         view.current() ? view.result().actualWorkMillis() : null, suggest));
             }
@@ -213,7 +213,7 @@ public final class WorktimeService {
             rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙","CALC-1"));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
-                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","종일 연차(DAY)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
+                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 연차(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
                     "소속","일정 버전 ID","휴일 버전 ID","정책 버전 ID","적용 검토 ID","유효 출근","유효 퇴근","확인 휴게 구간",
                     "소정(HH:mm:ss.SSS)","체류(HH:mm:ss.SSS)","확인 실근로(HH:mm:ss.SSS)","확인 휴게(HH:mm:ss.SSS)",
                     "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)"));
@@ -326,7 +326,7 @@ public final class WorktimeService {
     }
     private DayView dayView(Employee employee, Input current, WorktimeMapper.ResultRow stored, LocalDate today) {
         LocalDate date = current.clock().workDate();
-        int leave = current.day().approvedLeaveDays();
+        double leave = current.day().approvedLeaveDays();
         boolean employed = employed(employee, date);
         if (stored == null) {
             var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave,
@@ -345,7 +345,7 @@ public final class WorktimeService {
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays,boolean employed) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,double approvedLeaveDays,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
                 r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,employed);
     }
@@ -391,7 +391,9 @@ public final class WorktimeService {
     }
     private Input input(UUID tenant,Employee employee,LocalDate date) {
         var snapshot=clocks.snapshot(tenant,employee.id(),date);var policy=mapper.policy(tenant,date);var assessment=mapper.assessment(tenant,employee.id(),date);
-        var leave=List.copyOf(mapper.leaveEffects(tenant,employee.id(),date));var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
+        var effects=mapper.leaveEffects(tenant,employee.id(),date);
+        var leave=effects.stream().map(WorktimeMapper.LeaveEffect::id).toList();
+        var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
         var events=snapshot.effectiveEvents().stream().map(e->new ClockEvent(e.id(),EventKind.valueOf(e.kind()),e.occurredAt())).toList();
         List<Schedule> schedules=List.of();
         if(snapshot.schedule()!=null) {
@@ -406,7 +408,7 @@ public final class WorktimeService {
         }
         boolean reviewed=assessment!=null&&assessment.generalRuleReviewed()&&!date.isBefore(employee.joinedOn())
                 &&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));
-        var day=new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),snapshot.reviewRevision(),confirmation,!pending.isEmpty(),leave.size());
+        var day=new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),snapshot.reviewRevision(),confirmation,!pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects));
         String source=fingerprint(snapshot.sourceFingerprint(),snapshot.inputRevision(),snapshot.reviewRevision(),employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),assessment==null?null:assessment.id(),leave,pending);
         return new Input(snapshot,policy,assessment,leave,pending,day,source);
     }

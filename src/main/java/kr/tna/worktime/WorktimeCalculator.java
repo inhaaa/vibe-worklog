@@ -33,11 +33,11 @@ public final class WorktimeCalculator {
                                List<Interval> actualBreaks) { }
     public record DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules,
                            DayKind dayKind, boolean generalRuleReviewed, long inputRevision, long reviewRevision,
-                           Confirmation confirmation, boolean pendingCorrection, int approvedLeaveDays) { }
+                           Confirmation confirmation, boolean pendingCorrection, double approvedLeaveDays) { }
     public record DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
                             Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
                             Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
-                            int leaveDays, long inputRevision, long reviewRevision, Set<String> reasons) { }
+                            double leaveDays, long inputRevision, long reviewRevision, Set<String> reasons) { }
     public record PeriodResult(LocalDate start, LocalDate end, Status status, long confirmedWorkMillis,
                                int unconfirmedDays, Long over40hMillis, Long over8hMillis, List<DayResult> days,
                                Set<String> reasons) { }
@@ -46,8 +46,8 @@ public final class WorktimeCalculator {
         Objects.requireNonNull(input); Objects.requireNonNull(input.workDate());
         Objects.requireNonNull(input.events()); Objects.requireNonNull(input.schedules());
         Objects.requireNonNull(input.dayKind());
-        if (input.inputRevision()<0 || input.reviewRevision()<0 || input.approvedLeaveDays()<0
-                || input.approvedLeaveDays()>1) throw new IllegalArgumentException("Invalid day revision or leave quantity");
+        if (input.inputRevision()<0 || input.reviewRevision()<0 || (input.approvedLeaveDays()!=0
+                && input.approvedLeaveDays()!=0.5 && input.approvedLeaveDays()!=1)) throw new IllegalArgumentException("Invalid day revision or leave quantity");
         var reasons = new TreeSet<String>();
         reasons.add("LEGAL_OVERTIME_UNDETERMINED");
         if (!input.generalRuleReviewed()) reasons.add("LEGAL_APPLICABILITY_UNCONFIRMED");

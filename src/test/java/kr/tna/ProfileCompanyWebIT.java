@@ -214,7 +214,8 @@ class ProfileCompanyWebIT {
                 .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/id", overlapping.toString())).andReturn();
         var requests = ReactPageAssertions.envelope(result).at("/data/companyRequests/requests");
         assertEquals(1, requests.size());
-        assertEquals(11, requests.get(0).size());
+        assertEquals(12, requests.get(0).size());
+        assertEquals("FULL", requests.get(0).path("leavePart").asString());
         String body = result.getResponse().getContentAsString();
         for (String secret : new String[]{PRIVATE_REASON, "authorAccountId", "approverAssignmentId", "beforeSnapshot", "@example.test"}) {
             assertFalse(body.contains(secret), secret);

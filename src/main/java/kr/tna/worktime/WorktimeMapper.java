@@ -48,13 +48,18 @@ public interface WorktimeMapper {
         @Param("revision") int revision,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("reviewed") boolean reviewed,@Param("basis") String basis,@Param("actorId") UUID actorId);
     @Select("""
-        SELECT f.id::text FROM tna.request_effect f
+        SELECT f.id::text AS id, d.quantity_days FROM tna.request_effect f
         JOIN tna.approval_request r ON r.tenant_id=f.tenant_id AND r.id=f.request_id
         JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
         WHERE f.tenant_id=#{tenantId} AND f.employee_id=#{employeeId} AND f.effect_kind='LEAVE' AND f.effect_status='EFFECTIVE'
-          AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days=1 ORDER BY f.id
+          AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days>0 ORDER BY f.id
         """)
-    List<String> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    List<LeaveEffect> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    record LeaveEffect(String id, double quantityDays) {
+        public static double totalDays(List<LeaveEffect> effects) {
+            return effects.stream().mapToDouble(LeaveEffect::quantityDays).sum();
+        }
+    }
     @Select("SELECT id::text FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND status='PENDING' AND from_date=#{date} ORDER BY id")
     List<String> pendingCorrections(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
     @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-1')")
@@ -146,6 +151,6 @@ public interface WorktimeMapper {
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,
-        Long holidayWorkMillis,Long legalOvertimeMillis,int leaveDays,String reasonCodes,Instant calculatedAt) { }
+        Long holidayWorkMillis,Long legalOvertimeMillis,double leaveDays,String reasonCodes,Instant calculatedAt) { }
     record SnapshotRow(UUID id,UUID requestedBy,UUID employeeId,LocalDate fromDate,LocalDate toDate,Instant asOf,byte[] workbook) { }
 }

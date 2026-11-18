@@ -114,11 +114,15 @@ public interface ProfileCompanyMapper {
     @Select("""
             SELECT r.id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,r.kind,r.status,
               r.from_date,r.to_date,
-              COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d
-                WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)
-                  AND d.leave_date>=#{from} AND d.leave_date<=#{to}),0)::integer AS quantity_days,
-              COALESCE(f.effect_status,'NONE') AS effect_status,r.submitted_at
+              COALESCE(days.quantity_days,0) AS quantity_days,
+              COALESCE(f.effect_status,'NONE') AS effect_status,r.submitted_at,
+              CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(days.leave_part,'FULL') END AS leave_part
             FROM tna.approval_request r
+            LEFT JOIN LATERAL (
+              SELECT sum(d.quantity_days) AS quantity_days, min(d.leave_part) AS leave_part FROM tna.leave_request_day d
+              WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)
+                AND d.leave_date>=#{from} AND d.leave_date<=#{to}
+            ) days ON true
             JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
             LEFT JOIN tna.employee_assignment ea ON ea.tenant_id=e.tenant_id AND ea.employee_id=e.id
               AND ea.valid_from<=#{today} AND (ea.valid_to IS NULL OR ea.valid_to>#{today})

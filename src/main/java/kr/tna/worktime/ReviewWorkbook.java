@@ -9,7 +9,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /** Minimal review-only OOXML workbook; all user-provided strings are text cells. */
-// shortcut: text and integer review sheets only; reassess a spreadsheet library when upload or formulas are needed.
 public final class ReviewWorkbook {
     private ReviewWorkbook() { }
     public static byte[] create(List<List<Object>> rows) {
@@ -22,10 +21,11 @@ public final class ReviewWorkbook {
             for(Object value:row) {
                 String reference=column(++column)+rowNumber;
                 sheet.append("<c r=\"").append(reference).append("\"");
-                if(value instanceof Long||value instanceof Integer||value instanceof Short||value instanceof Byte) {
+                if(value instanceof Long||value instanceof Integer||value instanceof Short||value instanceof Byte
+                        || value instanceof Double decimal && Double.isFinite(decimal)) {
                     sheet.append(" t=\"n\"><v>").append(value).append("</v></c>");
                 } else {
-                    if(value!=null&&!(value instanceof String))throw new IllegalArgumentException("Only text and integral worksheet values are supported");
+                    if(value!=null&&!(value instanceof String))throw new IllegalArgumentException("Only text and finite numeric worksheet values are supported");
                     String text=value==null?"미확정":(String)value;
                     sheet.append(" t=\"inlineStr\"><is><t xml:space=\"preserve\">").append(xml(text)).append("</t></is></c>");
                 }

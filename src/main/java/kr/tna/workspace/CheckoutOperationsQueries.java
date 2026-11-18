@@ -106,7 +106,7 @@ public final class CheckoutOperationsQueries {
         if (!date.equals(effectiveIn.atZone(SEOUL).toLocalDate())
                 || effectiveOut != null && (!effectiveIn.isBefore(effectiveOut)
                         || !date.equals(effectiveOut.atZone(SEOUL).toLocalDate()))) return null;
-        if (!worktimeMapper.leaveEffects(tenantId, employee.employeeId(), date).isEmpty()) return null;
+        if (WorktimeMapper.LeaveEffect.totalDays(worktimeMapper.leaveEffects(tenantId, employee.employeeId(), date)) == 1) return null;
 
         String requestState = employee.recentRequestState();
         String recordState = "PENDING".equals(requestState) ? "PENDING" : effectiveOut != null ? "CORRECTED" : "MISSING";
