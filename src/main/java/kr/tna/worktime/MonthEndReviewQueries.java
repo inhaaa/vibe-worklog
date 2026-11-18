@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -27,6 +29,7 @@ import tools.jackson.databind.json.JsonMapper;
 public final class MonthEndReviewQueries {
     public record Page(YearMonth month, YearMonth latestMonth, UUID organizationId, List<OrganizationItem> options,
             String q, String reason, int page, boolean hasPrevious, boolean hasNext, List<Row> rows, String error) { }
+    public record BatchPage(Page page, Map<CheckoutFollowUpService.DayKey, String> bases) { }
     public record Row(UUID employeeId, String employeeNo, String employeeName, String organizationName,
             LocalDate workDate, List<String> reasons, UUID resultId, UUID pendingRequestId,
             boolean checkoutFollowUpEligible, CheckoutFollowUpService.Summary checkoutFollowUp) {
@@ -40,7 +43,7 @@ public final class MonthEndReviewQueries {
         }
     }
 
-    private record Review(List<String> reasons, boolean checkoutFollowUpEligible) { }
+    private record Review(List<String> reasons, boolean checkoutFollowUpEligible, String basis) { }
 
     private static final int PAGE_SIZE = 50;
     private static final Set<String> REASONS = Set.of("ALL", "UNCALCULATED", "STALE", "UNCONFIRMED", "PENDING_CORRECTION");
@@ -67,13 +70,25 @@ public final class MonthEndReviewQueries {
     }
 
     public Page read(TnaPrincipal actor, String requestedMonth, UUID organizationId, String q, String reason, int page) {
+        return read(actor, requestedMonth, organizationId, q, reason, page, null);
+    }
+
+    public BatchPage readForBatch(TnaPrincipal actor, String requestedMonth, UUID organizationId, String q, String reason, int page) {
+        var bases = new HashMap<CheckoutFollowUpService.DayKey, String>();
+        var result = read(actor, requestedMonth, organizationId, q, reason, page, bases);
+        return new BatchPage(result, Map.copyOf(bases));
+    }
+
+    private Page read(TnaPrincipal actor, String requestedMonth, UUID organizationId, String q, String reason, int page,
+            Map<CheckoutFollowUpService.DayKey, String> bases) {
         if (actor == null || !actor.roles().contains("ATTENDANCE_ADMIN")) throw OrgException.forbidden();
         return company.read(actor, () -> administration.read(actor,
                 () -> readMonth(actor.tenantId(), requestedMonth, organizationId, Objects.requireNonNullElse(q, "").strip(),
-                        Objects.requireNonNullElse(reason, "ALL"), page)));
+                        Objects.requireNonNullElse(reason, "ALL"), page, bases)));
     }
 
-    private Page readMonth(UUID tenantId, String requestedMonth, UUID organizationId, String q, String reason, int page) {
+    private Page readMonth(UUID tenantId, String requestedMonth, UUID organizationId, String q, String reason, int page,
+            Map<CheckoutFollowUpService.DayKey, String> bases) {
         if (organizationId != null && !organizations.organizationExists(tenantId, organizationId)) throw OrgException.notFound();
         var options = organizations.organizations(tenantId);
         var today = LocalDate.now(clock.withZone(SEOUL));
@@ -102,16 +117,18 @@ public final class MonthEndReviewQueries {
         if (!through.isBefore(from)) {
             try (var candidates = mapper.candidates(tenantId, from, through, organizationId, q, reason)) {
                 for (var candidate : candidates) {
-                    var review = assess(candidate);
+                    var review = assess(candidate, bases != null && skip == 0 && rows.size() < PAGE_SIZE);
                     var causes = review.reasons();
                     if (causes.isEmpty() || !reason.equals("ALL") && !causes.contains(reason)) continue;
                     if (skip > 0) {
                         skip--;
                     } else if (rows.size() < PAGE_SIZE) {
-                        rows.add(new Row(candidate.employeeId(), candidate.employeeNo(), candidate.employeeName(),
+                        var row = new Row(candidate.employeeId(), candidate.employeeNo(), candidate.employeeName(),
                                 Objects.requireNonNullElse(candidate.organizationName(), "소속 미등록"),
                                 candidate.workDate(), causes, candidate.resultId(), candidate.pendingRequestId(),
-                                review.checkoutFollowUpEligible(), null));
+                                review.checkoutFollowUpEligible(), null);
+                        rows.add(row);
+                        if (bases != null) bases.put(row.dayKey(), review.basis());
                     } else {
                         next = true;
                         break;
@@ -124,27 +141,31 @@ public final class MonthEndReviewQueries {
         return new Page(month, latest, organizationId, options, q, reason, page, page > 0, next, pageRows, null);
     }
 
-    private Review assess(MonthEndReviewMapper.Candidate candidate) {
+    private Review assess(MonthEndReviewMapper.Candidate candidate, boolean includeBasis) {
         var snapshot = snapshot(clocks, candidate);
         var leave = list(candidate.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
         boolean pending = candidate.pendingRequestId() != null;
         double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
         var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays);
         boolean unconfirmed = calculator.day(input).actualWorkMillis() == null;
+        String source = null;
+        if (candidate.resultId() != null || includeBasis) {
+            source = WorktimeService.source(snapshot, candidate.joinedOn(), candidate.leftOn(), candidate.policyId(),
+                    candidate.assessmentId(), leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(),
+                    pending ? List.of(candidate.pendingRequestId().toString()) : List.of());
+        }
         var reasons = new ArrayList<String>(3);
         if (candidate.resultId() == null) {
             if (unconfirmed || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) reasons.add("UNCALCULATED");
-        } else {
-            String source = WorktimeService.source(snapshot, candidate.joinedOn(), candidate.leftOn(), candidate.policyId(),
-                    candidate.assessmentId(), leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(),
-                    pending ? List.of(candidate.pendingRequestId().toString()) : List.of());
-            if (!WorktimeService.current(snapshot, source, candidate.storedInput(), candidate.storedReview(), candidate.storedSource())) {
-                reasons.add("STALE");
-            }
+        } else if (!WorktimeService.current(snapshot, source, candidate.storedInput(), candidate.storedReview(), candidate.storedSource())) {
+            reasons.add("STALE");
         }
         if (unconfirmed) reasons.add("UNCONFIRMED");
         if (pending) reasons.add("PENDING_CORRECTION");
-        return new Review(List.copyOf(reasons), CheckoutOmission.eligible(snapshot, leaveDays, pending));
+        String basis = includeBasis ? OrgCommands.fingerprint(source, candidate.resultId(),
+                snapshot.confirmation() == null ? null : snapshot.confirmation().id(),
+                leaveDays, candidate.reviewed(), candidate.openCheckoutFollowUp()) : null;
+        return new Review(List.copyOf(reasons), CheckoutOmission.eligible(snapshot, leaveDays, pending), basis);
     }
 
     static ClockData.DaySnapshot snapshot(ClockService clocks, MonthEndReviewMapper.DayEvidence row) {

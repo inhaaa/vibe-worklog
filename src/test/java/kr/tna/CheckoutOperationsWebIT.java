@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -253,6 +254,81 @@ class CheckoutOperationsWebIT {
 
     private MockHttpServletRequestBuilder checkout(TnaPrincipal actor) {
         return get(PATH).with(as(actor)).accept(PAGE_JSON).param("view", "checkout");
+    }
+
+    @Test
+    void monthBatchBasisChangesWhenEvidenceChangesButTheVisibleReasonsStayTheSame() throws Exception {
+        String month = YearMonth.from(date).toString();
+        var key = new CheckoutFollowUpService.DayKey(worker.employeeId(), date);
+        var before = monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0);
+        var basis = before.bases().get(key);
+        assertNotNull(basis);
+        assertEquals(before.page().rows().size(), before.bases().size());
+        assertEquals(before.bases(), monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0).bases());
+        var labels = targetDay(reviewRows("ALL")).required("reasons");
+
+        clock(worker, date, date, "IN", 9);
+        var after = monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0);
+        assertEquals(labels, targetDay(reviewRows("ALL")).required("reasons"));
+        assertNotEquals(basis, after.bases().get(key));
+        assertFalse(reviewRows("ALL").toString().contains(after.bases().get(key)));
+        assertTrue(monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 1).bases().isEmpty());
+        assertThrows(OrgException.class, () -> monthEndQueries.readForBatch(worker, month, null, "CHECK-01", "ALL", 0));
+    }
+
+    @Test
+    void monthBatchClosesTheApprovedEmployeesFollowUpAndKeepsTheOtherEmployeesOmissionVisible() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        var other = clockedWorker("CHECK-02", schedule);
+        requestFollowUp(date, "퇴근 시각과 휴게를 확인해 주세요.");
+        decide(correction("18:00", null, true), "APPROVE");
+        worktime.assess(admin, new AssessmentForm(worker.employeeId(), date, date, true,
+                "근무 확인", PRIVATE_REASON, UUID.randomUUID()));
+        assertEquals("AWAITING_CALCULATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+
+        var command = new HashMap<String, Object>();
+        command.put("month", YearMonth.from(date).toString());
+        command.put("q", "CHECK-");
+        command.put("reason", "ALL");
+        command.put("page", 0);
+        command.put("rows", List.of(new CheckoutFollowUpService.DayKey(worker.employeeId(), date),
+                new CheckoutFollowUpService.DayKey(other.employeeId(), date)));
+        int runs = count("calculation_run"), audit = count("org_audit_event");
+        var json = JsonMapper.builder().build();
+        var preview = mvc.perform(post("/admin/calculations/month-end/preview").with(as(admin)).with(csrf()).accept("application/json", PAGE_JSON)
+                        .contentType("application/json").content(json.writeValueAsString(command)))
+                .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.weekCount").value(2)).andReturn();
+        assertEquals(runs, count("calculation_run"));
+        assertEquals(audit, count("org_audit_event"));
+
+        command.put("previewToken", json.readTree(preview.getResponse().getContentAsByteArray()).required("previewToken").asString());
+        command.put("calculationReason", "보완 승인 반영과 남은 누락 확인");
+        command.put("commandId", UUID.randomUUID());
+        var response = mvc.perform(post("/admin/calculations/month-end").with(as(admin)).with(csrf()).accept("application/json", PAGE_JSON)
+                        .contentType("application/json").content(json.writeValueAsString(command)))
+                .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("application/json"))
+                .andExpect(jsonPath("$.rows.length()").value(2)).andReturn();
+        var employees = new HashMap<UUID, JsonNode>();
+        for (var row : json.readTree(response.getResponse().getContentAsByteArray()).required("rows")) {
+            employees.put(UUID.fromString(row.required("employeeId").asString()), row);
+            assertTrue(row.required("resultId").isString());
+        }
+        assertEquals(Set.of(worker.employeeId(), other.employeeId()), employees.keySet());
+        var resolved = employees.get(worker.employeeId());
+        assertEquals(28_800_000L, resolved.required("actualWorkMillis").asLong());
+        assertTrue(resolved.required("reasons").isEmpty());
+        var open = employees.get(other.employeeId());
+        assertTrue(open.required("actualWorkMillis").isNull());
+        assertEquals(json.readTree("[\"UNCONFIRMED\"]"), open.required("reasons"));
+        assertEquals(runs + 2, count("calculation_run"));
+        assertEquals(2, count("attendance_event"));
+        for (var row : reviewRows("ALL")) assertNotEquals(date.toString(), row.required("workDate").asString());
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "CHECK-02")
+                        .param("reason", "UNCONFIRMED"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows[0].workDate").value(date.toString()));
+        mvc.perform(get("/me/attendance/follow-ups").with(as(worker)).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.checkoutFollowUps.rows").isEmpty());
     }
 
     @Test

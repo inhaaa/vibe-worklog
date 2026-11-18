@@ -9,6 +9,12 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface WorktimeMapper {
+    @Select("""
+            SELECT after_state::text FROM tna.org_audit_event
+            WHERE tenant_id=#{tenantId} AND command_id=#{commandId} AND target_id=#{batchId}
+            """)
+    String monthEndReceipt(@Param("tenantId") UUID tenantId, @Param("commandId") UUID commandId, @Param("batchId") UUID batchId);
+
     // Retain the effective correction that produced the saved result.
     @Update("""
             UPDATE tna.checkout_follow_up follow_up
