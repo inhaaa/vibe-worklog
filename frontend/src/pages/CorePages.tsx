@@ -4,13 +4,14 @@ import { dayClass, formatMinutes, pendingRequests, tally, weekOf } from './sched
 import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
+import type { LeavePart } from './leavePart';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import './ScheduleCalendar.css';
 
 interface RequestItem {
-  request: { id: string; fromDate: string; toDate: string };
+  request: { id: string; fromDate: string; toDate: string; leavePart?: LeavePart | null };
   kindLabel: string;
   statusLabel: string;
   tone: string;
@@ -306,7 +307,7 @@ function seoulCalendarToday() {
 }
 
 const calendarRequestKinds = [
-  { kind: 'LEAVE_DAY', title: '종일 연차', icon: 'M4 12h16m-8-8v16' },
+  { kind: 'LEAVE_DAY', title: '연차·반차 신청', icon: 'M4 12h16m-8-8v16' },
   { kind: 'ATTENDANCE_CORRECTION', title: '출퇴근·휴게 정정', icon: 'M12 6v6l4 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z' },
 ] as const;
 

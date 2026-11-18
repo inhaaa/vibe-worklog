@@ -25,6 +25,15 @@ const list = (payload: Record<string, unknown>) =>
   render(<WorkflowPages page="request/list" data={payload} csrf={csrf} reload={() => {}} />);
 const url = (element: HTMLElement) => new URL(element.getAttribute('href')!, window.location.origin);
 
+it('담당자가 오전·오후 반차와 취소 대상을 기간과 일수와 함께 볼 수 있다', () => {
+  const original = { ...row, leavePart: 'AM', quantityDays: 0.5, to: row.from };
+  const cancel = { ...original, id: 'cancel', leavePart: 'PM', requestKind: 'CANCEL_LEAVE', originalRequestId: 'pm-original' };
+  const view = list({ leaveOperations: { ...model, rows: [original, cancel] } });
+  const [first, second] = Array.from(view.container.querySelectorAll('summary'));
+  expect(first.textContent).toMatch(/오전 반차.*0.5일/);
+  expect(second.textContent).toMatch(/오후 반차.*취소 신청.*0.5일/);
+});
+
 it('휴가 목록의 상태와 페이지 이동에서 적용한 검색 조건을 유지한다', () => {
   const view = list({ leaveOperations: model });
   expect(view.getByRole('heading', { name: '휴가 신청 현황' })).toBeTruthy();

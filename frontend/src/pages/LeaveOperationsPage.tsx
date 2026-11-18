@@ -1,4 +1,5 @@
 import { ErrorNotice, Field, Form, SelectField, fmtDateTime } from '../ui';
+import { leavePartNames, type LeavePart } from './leavePart';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import './LeaveOperationsPage.css';
@@ -14,6 +15,7 @@ interface LeaveRow {
   employeeName: string;
   organizationName: string | null;
   leaveTypeName: string;
+  leavePart?: LeavePart | null;
   requestKind: RequestKind;
   from: string;
   to: string;
@@ -70,7 +72,7 @@ function LeaveOperationRow({ row, returnTo }: { row: LeaveRow; returnTo: string 
       <summary className="leave-operations-grid">
         <strong className="leave-operations-employee">{row.employeeNo} · {row.employeeName}</strong>
         <span className="leave-operations-secondary" data-label="현재 소속">{row.organizationName ?? '소속 미등록'}</span>
-        <span className="leave-operations-type">{row.leaveTypeName}<small>{row.requestKind === 'CANCEL_LEAVE' ? '취소 신청' : '휴가 신청'}</small></span>
+        <span className="leave-operations-type">{row.leaveTypeName}<small>{row.leavePart && row.leavePart !== 'FULL' && `${leavePartNames[row.leavePart]} · `}{row.requestKind === 'CANCEL_LEAVE' ? '취소 신청' : '휴가 신청'}</small></span>
         <span className="leave-operations-period">{row.from}{row.from !== row.to && ` ~ ${row.to}`}<small>{row.quantityDays}일</small></span>
         <span className="leave-operations-status">
           <strong>{status}</strong>

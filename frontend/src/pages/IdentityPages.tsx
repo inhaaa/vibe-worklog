@@ -8,6 +8,7 @@ import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 import { RoleManagementPage, type RoleDirectory } from './RoleManagementPage';
 import { RoleMembersSheet } from './RoleMembersSheet';
+import { requestKindName, type LeavePart } from './leavePart';
 import { CheckoutOperationsPage, CompanyAttendanceViews, type CheckoutOperations } from './CheckoutOperationsPage';
 
 interface Profile {
@@ -61,6 +62,7 @@ interface CompanyRequests {
     employeeName: string;
     organizationName: string | null;
     kind: string;
+    leavePart?: LeavePart | null;
     status: string;
     fromDate: string;
     toDate: string;
@@ -89,11 +91,6 @@ const statuses: Record<string, string> = {
   CALCULATED: '산정됨',
   REVIEW_REQUIRED: '검토 필요',
   NO_SCHEDULED_WORK: '예정 근무 없음',
-};
-const kinds: Record<string, string> = {
-  LEAVE_DAY: '종일 연차',
-  CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소',
-  ATTENDANCE_CORRECTION: '기록 정정',
 };
 const effects: Record<string, string> = {
   EFFECTIVE: '유효',
@@ -277,7 +274,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
           columns={[
             { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
             { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
-            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
+            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (data.kind==='ATTENDANCE_CORRECTION'?'기록 정정':requestKindName(data.kind,data.leavePart)), minWidth: 140 },
             { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
             { field: 'quantityDays', headerName: '조회연도 신청일량 (일)', minWidth: 220, cellClass: 'w-sheet-number' },
             { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },

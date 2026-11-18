@@ -54,6 +54,17 @@ it('취소 신청 결재선이 달라지면 기존 사유와 새 확인값으로
   expect(fields.get('reason')).toBe('이미 입력한 휴가 취소 사유');
   expect(fields.get('routeToken')).toBe('updated');
 });
+it('결재자는 대기함과 신청 상세에서 반차의 구분과 0.5일을 확인한다',async()=>{
+  const half={...request,leavePart:'PM',toDate:request.fromDate,quantityDays:0.5};
+  const inbox=await render('request/list',{title:'내 결재',requests:[half],completed:false,page:0,hasNext:false});
+  expect(inbox.getByText('오후 반차')).toBeTruthy();
+  expect(inbox.getByText('0.5일')).toBeTruthy();
+  inbox.unmount();
+  const view=await render('request/detail',{request:{...half,kind:'CANCEL_LEAVE',originalRequestId:'original'},detail:{days:[],history:[]},canDecide:true,pageCommand:'cmd',candidates:[]});
+  expect(view.getByText(/오후 반차 취소/)).toBeTruthy();
+  expect(view.getByText('0.5일')).toBeTruthy();
+  expect(view.getByText('취소 심사 중에는 원승인·차감이 유지됩니다.')).toBeTruthy();
+});
 it('팀장 단계에서 승인해도 다음 결재자에게 전달되며 최종 효력 안내가 나오지 않는다',async()=>{
   const view=await render('request/detail',{request:{...request,formCode:'L01',formName:'휴가 신청서',currentStep:1,totalSteps:2},
     detail:{days:[],history:[],correction:null,steps:[

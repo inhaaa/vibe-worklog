@@ -3,6 +3,7 @@ import './RequestDetail.css';
 import './RequestWorkspace.css';
 import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
+import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
@@ -119,14 +120,13 @@ function storedIntervals(value: string | null): string {
 }
 
 const requestName = (value: string, names: Record<string, string>) => names[value] ?? value;
-const requestKindName = (kind: string) => requestName(kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소' });
 const requestStateName = (status: string) => requestName(status, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
 const requestEffectName = (effect: string) => requestName(effect, { EFFECTIVE: '반영', CANCELED: '취소', SUPERSEDED: '대체', NONE: '미반영' });
 
 function RequestRows({ requests, pagination }: { requests: RequestView[]; pagination?: React.ReactNode }) {
   const columns = [
     sheetColumn<RequestView>({ field: 'targetEmployeeName', headerName: '대상', minWidth: 170, pinned: 'left' }, request => request.targetEmployeeName),
-    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170, valueGetter: ({ data }) => data && requestKindName(data.kind) }, request => <a href={`/requests/${request.id}`}>{requestKindName(request.kind)}</a>),
+    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170, valueGetter: ({ data }) => data && requestKindName(data.kind,data.leavePart) }, request => <a href={`/requests/${request.id}`}>{requestKindName(request.kind,request.leavePart)}</a>),
     sheetColumn<RequestView>({ field: 'fromDate', headerName: '기간', minWidth: 230, valueGetter: ({ data }) => data ? `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}` : '' }, request => `${fmtDate(request.fromDate)} ~ ${fmtDate(request.toDate)}`),
     sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${requestStateName(data.status)} / ${requestEffectName(data.effectStatus)}` : '' }, request => `${requestStateName(request.status)} / ${requestEffectName(request.effectStatus)}`),
     sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.status === 'PENDING' && request.totalSteps ? `${request.approverName} · ${request.currentStep}/${request.totalSteps}단계` : request.approverName),
@@ -135,6 +135,8 @@ function RequestRows({ requests, pagination }: { requests: RequestView[]; pagina
 }
 function Mine({ model: m }: { model: MineModel }) {
   const f = m.form;
+  const [part, setPart] = useState<LeavePart>(f.leavePart ?? 'FULL');
+  const [from, setFrom] = useState(f.from);
   return (
     <>
       <h1>내 근태 신청</h1>
@@ -154,7 +156,7 @@ function Mine({ model: m }: { model: MineModel }) {
         </ul>
       </section>
       <section className="panel">
-        <h2>종일 연차 신청</h2>
+        <h2>연차 신청</h2>
         <Form action="/me/requests/leave" method="post" className="admin-form">
           {hidden('commandId', f.commandId)}
           {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
@@ -166,8 +168,11 @@ function Mine({ model: m }: { model: MineModel }) {
               </option>
             ))}
           </SelectField>
-          <Field label="시작일" name="from" type="date" value={f.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={f.to} required />
+          <SelectField label="휴가 단위" name="leavePart" value={part} onChange={event => setPart(event.target.value as LeavePart)}>
+            {Object.entries(leavePartNames).map(([value,name]) => <option key={value} value={value}>{name}</option>)}
+          </SelectField>
+          <Field label={part === 'FULL' ? '시작일' : '반차 사용일'} name="from" type="date" value={from} onChange={event => setFrom(event.target.value)} required />
+          {part === 'FULL' ? <Field label="종료일 (포함)" name="to" type="date" value={f.to} required /> : hidden('to',from)}
           <Reason value={f.reason} />
           <p className="hint">
             민감정보를 적지 마세요. 일정·휴일·유효기간은 승인 때 다시 검증합니다.
@@ -192,7 +197,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const leaveTypeName = isLeave ? d.attendancePolicy?.name : null;
   const hasLeaveDecision = staffLeave && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const label = (value: string, names: Record<string, string>) => Object.hasOwn(names, value) ? names[value] : value;
-  const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소' });
+  const kindName = requestKindName(r.kind,r.leavePart);
   const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
   const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: overtime ? '취소됨' : '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
   const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', STEP_APPROVED: '중간 승인', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
@@ -261,7 +266,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             <section className="t-request-detail-fact">
               <h3>신청 기간</h3>
               <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
-              {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
+              {isLeave && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
               {d.overtime && <p className="t-request-detail-quantity">{d.overtime.startTime.slice(0,5)}~{d.overtime.endTime.slice(0,5)} · {d.overtime.requestedMinutes}분</p>}
               {leaveTypeName && <p><span className="t-muted">휴가 종류 </span><strong>{leaveTypeName}</strong></p>}
               {staffLeave && r.submittedAt && <p><span className="t-muted">접수 시각 </span><time dateTime={r.submittedAt}>{fmtDateTime(r.submittedAt)}</time></p>}
@@ -934,7 +939,7 @@ function Result({ model: m }: { model: ResultModel }) {
         <h2>저장된 산정 결과</h2>
         <Summary entries={times} />
         <dl className="wl-form-table">
-          <dt>종일 연차</dt>
+          <dt>승인 연차</dt>
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
         <p>

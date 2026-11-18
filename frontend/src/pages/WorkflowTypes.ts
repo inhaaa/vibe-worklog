@@ -1,3 +1,5 @@
+import type { LeavePart } from './leavePart';
+
 export interface EmployeeChoice {
   id: string;
   employeeNo: string;
@@ -12,6 +14,7 @@ export interface Bucket {
   pendingDays: number;
 }
 export interface LeaveForm {
+  leavePart?: LeavePart | null;
   bucketId: string | null;
   from: string;
   to: string;
@@ -20,6 +23,7 @@ export interface LeaveForm {
   predecessorRequestId?: string | null;
 }
 export interface RequestView {
+  leavePart?: LeavePart | null;
   formCode?: string | null;
   formName?: string | null;
   currentStep?: number;

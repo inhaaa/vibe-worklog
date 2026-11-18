@@ -1,12 +1,10 @@
 import type { ListModel } from './WorkflowTypes';
+import { requestKindName } from './leavePart';
 import { fmtDate } from '../ui';
 import './ApprovalWorkspace.css';
 
 const label = (value: string, names: Record<string, string>) =>
   Object.hasOwn(names, value) ? names[value] : value;
-const kindName = (value: string) => label(value, {
-  LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소',
-});
 const statusName = (value: string) => label(value, {
   PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회',
 });
@@ -45,13 +43,13 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
         <p>{m.completed ? '승인·반려한 신청은 이곳에서 다시 확인할 수 있어요.' : '새로 지정된 신청이 들어오면 이곳에서 확인할 수 있어요.'}</p>
       </section> : <ul className="t-approval-list" aria-label="결재 신청 목록">
         {m.requests.map((r) => <li key={r.id} className="t-approval-card">
-          <div className="t-approval-card-top"><span className="t-approval-kind">{kindName(r.kind)}</span><span className="t-approval-status" data-status={r.status}>{statusName(r.status)}</span></div>
+          <div className="t-approval-card-top"><span className="t-approval-kind">{requestKindName(r.kind,r.leavePart)}</span><span className="t-approval-status" data-status={r.status}>{statusName(r.status)}</span></div>
           <div className="t-approval-person"><span className="t-approval-avatar" aria-hidden="true">{r.targetEmployeeName.slice(0,1)}</span><div><h2>{r.targetEmployeeName}</h2><p>신청 대상</p></div></div>
           <dl className="t-approval-facts">
             {r.formCode && <div><dt>신청서</dt><dd>{r.formName} ({r.formCode})</dd></div>}
             {r.totalSteps && r.status === 'PENDING' && <div><dt>결재 진행</dt><dd>{r.currentStep}/{r.totalSteps}단계 결재 중{m.completed && ' · 내 단계 승인 완료'}</dd></div>}
             <div><dt>대상 기간</dt><dd>{fmtDate(r.fromDate)} <span aria-hidden="true">~</span> {fmtDate(r.toDate)}</dd></div>
-            {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays}일</dd></div>}
+            {(r.kind === 'LEAVE_DAY' || r.kind === 'CANCEL_LEAVE') && r.quantityDays != null && <div><dt>신청 일수</dt><dd className="t-approval-quantity">{r.quantityDays}일</dd></div>}
           </dl>
           <p className="t-approval-reason">{r.reason}</p>
           <div className="t-approval-meta"><span>현재 결재 담당 <strong>{r.approverName || '미지정'}</strong></span><span>현재 효력 <strong>{effectName(r.effectStatus)}</strong></span></div>

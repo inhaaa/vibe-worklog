@@ -12,6 +12,15 @@ const request = (id: string, tone: string, effectiveLeave = false) => ({ request
 const november = Array.from({ length: 30 }, (_, index) => day(`2026-11-${String(index + 1).padStart(2, '0')}`));
 
 describe('내 근무 일정 요약 계산', () => {
+  it('상태가 유효한 반차만 합산하고 한 반차의 예정 시간은 근무조 기준으로 남긴다', () => {
+    const am = { request: { id: 'a', leavePart: 'AM' as const }, effectiveLeave: true, tone: 'green' };
+    const pm = { request: { id: 'p', leavePart: 'PM' as const }, effectiveLeave: true, tone: 'green' };
+    const date = '2026-11-10';
+    const single = day(date, {}, [am, { ...pm, effectiveLeave: false }]);
+    expect(dayClass(single)).toBe('work');
+    expect(tally([single])).toMatchObject({ workDays: 1, leaveDays: 0.5, workMinutes: 480 });
+    expect(tally([day(date, {}, [am, pm])])).toMatchObject({ workDays: 0, leaveDays: 1, workMinutes: 0 });
+  });
   it('하루를 승인 연차·미배정/미확인·비근로일/휴일·예정 근무 순으로 하나만 분류하고 예정 휴게를 뺀다', () => {
     expect(dayClass(day('2026-11-10'))).toBe('work');
     expect(plannedMinutes(day('2026-11-10'))).toBe(480);

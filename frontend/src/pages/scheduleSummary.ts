@@ -1,5 +1,6 @@
-/** 내 근무 일정의 요약 줄·주간 근무·처리할 일 계산(설계 7.11). 새 API 없이 월 달력 자료만 쓴다. */
-export interface SummaryRequest { request: { id: string }; tone: string; effectiveLeave: boolean }
+import { combinedLeavePart, type LeavePart } from './leavePart';
+
+export interface SummaryRequest { request: { id: string; leavePart?: LeavePart | null }; tone: string; effectiveLeave: boolean }
 export interface SummaryDay<R extends SummaryRequest = SummaryRequest> {
   snapshot: {
     workDate: string;
@@ -20,35 +21,39 @@ const clockMillis = (time: string | null) => {
     + Number(wholeSeconds) * 1_000 + Number(fraction.padEnd(3, '0'));
 };
 
-/** 승인 연차 → 미배정·미확인 → 비근로일·휴일 → 예정 근무 순으로 하루를 하나로 분류한다. */
-export function dayClass(day: SummaryDay): DayClass {
+function approvedPart(day: SummaryDay) {
+  return combinedLeavePart(day.requests.filter(item => item.effectiveLeave).map(item => item.request.leavePart));
+}
+
+export function dayClass(day: SummaryDay, part = approvedPart(day)): DayClass {
   const { schedule, dayKind } = day.snapshot;
-  if (day.requests.some(item => item.effectiveLeave)) return 'leave';
+  if (part === 'FULL') return 'leave';
   if (!schedule || dayKind === 'UNCONFIRMED') return 'unknown';
   if (!schedule.workday || dayKind === 'HOLIDAY' || dayKind === 'NON_WORKDAY') return 'off';
   return 'work';
 }
 
 /** 예정 근무와 휴게는 서버의 time(3) 정밀도로 차감·합산한다. */
-function plannedMillis(day: SummaryDay) {
+function plannedMillis(day: SummaryDay, kind: DayClass) {
   const schedule = day.snapshot.schedule;
-  if (dayClass(day) !== 'work' || !schedule) return 0;
+  if (kind !== 'work' || !schedule) return 0;
   const breaks = schedule.breaks.reduce((sum, pause) => sum + Math.max(0, clockMillis(pause.endTime) - clockMillis(pause.startTime)), 0);
   return Math.max(0, clockMillis(schedule.endTime) - clockMillis(schedule.startTime) - breaks);
 }
 
 /** 분 단위 반환값에도 초·밀리초를 보존한다. 다른 분류는 0이다. */
-export const plannedMinutes = (day: SummaryDay) => plannedMillis(day) / 60_000;
+export const plannedMinutes = (day: SummaryDay) => plannedMillis(day, dayClass(day)) / 60_000;
 
 export function tally(days: SummaryDay[]): Tally {
   const result: Tally = { workDays: 0, workMinutes: 0, leaveDays: 0, offDays: 0, unknownDays: 0 };
   let workMillis = 0;
   for (const day of days) {
-    const kind = dayClass(day);
-    if (kind === 'work') { result.workDays += 1; workMillis += plannedMillis(day); }
-    else if (kind === 'leave') result.leaveDays += 1;
+    const part = approvedPart(day);
+    const kind = dayClass(day, part);
+    if (part) result.leaveDays += part === 'FULL' ? 1 : 0.5;
+    if (kind === 'work') { result.workDays += 1; workMillis += plannedMillis(day, kind); }
     else if (kind === 'off') result.offDays += 1;
-    else result.unknownDays += 1;
+    else if (kind === 'unknown') result.unknownDays += 1;
   }
   result.workMinutes = workMillis / 60_000;
   return result;

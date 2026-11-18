@@ -256,7 +256,7 @@ describe('개인 홈과 일정', () => {
     const trigger = view.getByRole('button', { name: '2026-10-26 신청 메뉴' });
     const checkMenu = () => {
       const menu = within(view.getByRole('group', { name: '2026-10-26 신청 메뉴' }));
-      for (const [name, kind] of [['종일 연차', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
+      for (const [name, kind] of [['연차·반차 신청', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
         const url = new URL((menu.getByRole('link', { name }).getAttribute('href'))!, 'https://worklog.test');
         expect(url.pathname).toBe('/me/requests/new');
         expect(Object.fromEntries(url.searchParams)).toEqual({ year: '2026', kind, date: '2026-10-26' });
@@ -266,7 +266,7 @@ describe('개인 홈과 일정', () => {
     };
 
     fireEvent.contextMenu(dateLink);
-    const first = checkMenu().getByRole('link', { name: '종일 연차' });
+    const first = checkMenu().getByRole('link', { name: '연차·반차 신청' });
     expect(document.activeElement).toBe(first);
     fireEvent.keyDown(first, { key: 'Escape' });
     expect(view.queryByRole('group', { name: '2026-10-26 신청 메뉴' })).toBeNull();
