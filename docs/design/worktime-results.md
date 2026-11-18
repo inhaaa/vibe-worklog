@@ -2,6 +2,8 @@
 
 담당자는 회사 근무현황에서 근무일 당시의 조직과 확인 사유별로 월말 점검 목록을 조회한다. 일 결과 근거·대기 정정·재집계에서 같은 목록으로 돌아오는 기준은 [월말 확인 대상 명세](../superpowers/specs/2026-11-18-month-end-review.md)를 따른다. 퇴근 누락을 직원에게 요청하고 해소하는 과정은 [월말 보완 요청](../superpowers/specs/2026-11-18-month-end-correction-followups.md)에 따른다.
 
+같은 페이지에서 선택한 최대 50개 사원·날짜를 한 번에 처리할 수 있다. 사원별로 중복되는 주를 한 번만 계산하고 결과는 선택한 날짜별로 제공한다. 미리보기·재전송·동시 변경 처리 기준은 [일괄 재집계 명세](../superpowers/specs/2026-11-19-month-end-batch-recalculation.md)를 따른다.
+
 > 2026-10-29 조회 화면: 일 결과·연차 원장·신청·감사·원천/당시 출퇴근 표는 [WorklogSheet](../superpowers/specs/2026-10-29-common-sheet-design.md)를 사용한다. 계산·버전·감사·출력 API는 유지하며 미확정 null과 실제0, 서울 시각·숫자 ms 정렬값·상세 링크를 보존한다. 기존 서버 검토용 Excel 경로를 사용하고 그리드의 유료 Excel 기능은 추가하지 않는다.
 
 2026-10-24 연속 MVP 구현 위임에 따라 [계산 명세](../rules/calculation.md)·[보안](security.md)·[신청 규칙](../rules/workflow.md)을 실행 흐름에 연결한다. 법률 적합성·급여 확정 자료가 아닌 검토 결과다.

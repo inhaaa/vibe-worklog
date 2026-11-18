@@ -2,6 +2,8 @@
 
 담당자는 [0.5일 단위 연차 잔여 이관·조정](superpowers/specs/2026-11-18-leave-balance-batch.md)과 [회사 근무현황의 월말 확인 대상](superpowers/specs/2026-11-18-month-end-review.md)을 사용한다. 담당자는 [월말 퇴근 누락 보완 요청](superpowers/specs/2026-11-18-month-end-correction-followups.md)으로 직원의 정정과 재집계 결과를 추적한다.
 
+월말 목록에서 여러 사원·근무일을 선택하면 영향을 받는 주를 미리 보고 함께 재집계할 수 있다. 처리한 날짜의 실근로와 남은 확인 사유는 [월말 일괄 재집계](superpowers/specs/2026-11-19-month-end-batch-recalculation.md)에 따른다.
+
 2026-11-18 개발본은 연차·정정에 짧은 근태코드를 제공하고, 같은 연차 묶음에서 오전·오후 반차를 0.5일씩 처리한다. [업무 명세](superpowers/specs/2026-11-18-attendance-codes-half-day.md)
 
 > 4단계 최종 실행은 Java105+513=618개·React168개/13파일·타입/Vite·업무 HTTP129요청·공통 보안24항목·PC/390px6회 관측을 통과했다. 로컬 V14 적용·기존39개 업무 자료/권한·DB 컨테이너/볼륨 보존, 별도2tenant의 기존8신청 업그레이드와 정책 버전을 포함한44테이블 합성 복원을 확인했다. 별도 V13 공개 배포 작업의 진행을 확인해 이번 작업에서 공개 작업트리·서버를 변경하지 않았다. 실제 근거·보완 이력·미실시 범위는 [4단계 결과](quality/code-management.md)를 따른다.
