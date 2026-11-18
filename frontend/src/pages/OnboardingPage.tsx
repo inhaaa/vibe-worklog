@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { FormHTMLAttributes } from 'react';
 import { PageHeader } from '../components/PageHeader';
-import { ErrorNotice, Field, Form, FormTable, SelectField, TextAreaField, fmtDateTime } from '../ui';
+import { ErrorNotice, Field, Form, FormRow, FormTable, SelectField, TextAreaField, fmtDateTime } from '../ui';
 
 type State = 'PLANNED' | 'CONFIRMED' | 'WITHDRAWN';
 type Action = 'CREATE' | 'EDIT' | 'CONFIRM' | 'WITHDRAW';
@@ -22,7 +22,8 @@ interface Model {
   today: string; q?: string; state?: State | null; from?: string | null; to?: string | null;
   page: number; hasNext?: boolean; rows: Row[]; detail?: Row | null; form: Command;
   organizations: { id: string; code: string; name: string; version: number }[];
-  scheduleVersions: { id: string; templateName: string; revision: number; validFrom: string; templateVersion: number }[];
+  scheduleVersions: { id: string; templateId?: string; templateName: string; revision: number; validFrom: string; templateVersion: number; group?: boolean; validTo?: string | null }[];
+  scheduleDays?: {versionId:string;weekday:number;group:boolean;templateCode:string;workCode:string|null;workday:boolean;startTime:string|null;endTime:string|null}[];
   action?: Action | null; publicDemo?: boolean; possibleDuplicate?: boolean;
   inviteEligible?: boolean; retrySameCommand?: boolean;
 }
@@ -54,29 +55,60 @@ function OrganizationOptions({ model }: { model: Model }) {
   return model.organizations.map(org => <option key={org.id} value={org.id}>{org.code} · {org.name}</option>);
 }
 
-function ScheduleOptions({ model }: { model: Model }) {
-  return model.scheduleVersions.map(schedule => <option key={schedule.id} value={schedule.id}>
-    {schedule.templateName} · 버전 {schedule.revision} · {schedule.validFrom}부터
-  </option>);
+function optionsOn(model:Model,date:string) {
+  return model.scheduleVersions.filter(s => s.validFrom <= date && (!s.validTo || date < s.validTo));
+}
+function ScheduleSummary({model,id,date,name}:{model:Model;id?:string|null;date:string;name?:string|null}) {
+  if(!id || !date)return null;
+  const weekday=new Date(date+'T00:00:00Z').getUTCDay()||7;
+  const day=model.scheduleDays?.find(d=>d.versionId===id && d.weekday===weekday);
+  const time=(value:string)=>value.replace(/:00(?:\.0+)?$/,(match,offset)=>offset>=5?'':match);
+  let summary='입사일 시간표 미등록';
+  if(day) {
+    const hours=day.workday ? (day.startTime && day.endTime ? time(day.startTime)+'~'+time(day.endTime) : '근무 시각 미확인') : '비근로일';
+    summary=[(day.group?'근무조 ':'기존 고정배정 ')+[day.templateCode,name].filter(Boolean).join(' '),day.workCode,hours].filter(Boolean).join(' · ');
+  }
+  return <p aria-label="입사일 근무 기준" aria-live="polite">입사일 근무 기준 {summary}</p>;
+}
+function SchedulePicker({model,date,value,change,label,required}:{model:Model;date:string;value:string;change:(id:string)=>void;label:string;required?:boolean}) {
+  const fieldId=useId();
+  const options=optionsOn(model,date);
+  const selected=options.find(o=>o.id===value);
+  return <FormRow label={label} htmlFor={fieldId} required={required}>
+    <select id={fieldId} className="t-select" name="scheduleVersionId" value={selected?.id??''} required={required} onChange={e=>change(e.target.value)}>
+      <option value="">{required?'선택':'확정할 때 지정'}</option>
+      {options.map(s=><option key={s.id} value={s.id}>{s.group?'근무조':'기존 고정배정'} · {s.templateName} · 버전 {s.revision} · {s.validFrom}부터</option>)}
+    </select>
+    <ScheduleSummary model={model} date={date} id={selected?.id} name={selected?.templateName}/>
+  </FormRow>;
 }
 
 function PlannedForm({ model: m }: { model: Model }) {
   const row = m.detail;
   const f = commandFor(m, row ? 'EDIT' : 'CREATE');
+  const [joined, setJoined] = useState(f.joinedOn ?? m.today);
+  const [schedule,setSchedule]=useState(f.scheduleVersionId??'');
+  function changeDate(next:string) {
+    const selected=m.scheduleVersions.find(s=>s.id===schedule);
+    const available=optionsOn(m,next);
+    if(!available.some(s=>s.id===schedule)) {
+      const revision=selected?.group && selected.templateId ? available.find(s=>s.templateId===selected.templateId) : undefined;
+      setSchedule(revision?.id??'');
+    }
+    setJoined(next);
+  }
   return <section className="wl-section">
     <h2>{row ? '예정 정보 수정' : '입사 예정 등록'}</h2>
     <CommandForm action={row ? `${path}/${row.id}/changes` : path} command={f}>
       {row && <input type="hidden" name="expectedVersion" value={row.version} />}
       <FormTable columns={2}>
         <Field label="이름" name="displayName" value={f.displayName ?? ''} maxLength={120} required />
-        <Field label="입사 예정일" name="joinedOn" type="date" value={f.joinedOn ?? m.today} min={m.today} required />
+        <Field label="입사 예정일" name="joinedOn" type="date" value={joined} onChange={e => changeDate(e.target.value)} min={m.today} required />
         <Field label="마지막 재직일" name="leftOn" type="date" value={f.leftOn ?? ''} />
         <SelectField label="최초 소속" name="organizationId" value={f.organizationId ?? ''}>
           <option value="">확정할 때 지정</option><OrganizationOptions model={m} />
         </SelectField>
-        <SelectField label="최초 근무" name="scheduleVersionId" value={f.scheduleVersionId ?? ''}>
-          <option value="">확정할 때 지정</option><ScheduleOptions model={m} />
-        </SelectField>
+        <SchedulePicker model={m} date={joined} value={schedule} change={setSchedule} label="최초 근무"/>
         <TextAreaField label="변경 사유" name="reason" value={f.reason ?? ''} required maxLength={500} />
       </FormTable>
       {row && f.expectedVersion != null && f.expectedVersion !== row.version && <label>
@@ -92,7 +124,7 @@ function ConfirmForm({ model: m, row }: { model: Model; row: Row }) {
   const [organization, setOrganization] = useState(f.organizationId ?? '');
   const [schedule, setSchedule] = useState(f.scheduleVersionId ?? '');
   const org = m.organizations.find(choice => choice.id === organization);
-  const work = m.scheduleVersions.find(choice => choice.id === schedule);
+  const work = optionsOn(m,row.joinedOn).find(choice => choice.id === schedule);
   const expired = row.joinedOn < m.today;
   return <section className="wl-section">
     <h2>입사 확정 검토</h2>
@@ -106,9 +138,7 @@ function ConfirmForm({ model: m, row }: { model: Model; row: Row }) {
         <SelectField label="확정할 소속" name="organizationId" value={organization} required onChange={event => setOrganization(event.target.value)}>
           <option value="">선택</option><OrganizationOptions model={m} />
         </SelectField>
-        <SelectField label="확정할 근무 버전" name="scheduleVersionId" value={schedule} required onChange={event => setSchedule(event.target.value)}>
-          <option value="">선택</option><ScheduleOptions model={m} />
-        </SelectField>
+        <SchedulePicker model={m} date={row.joinedOn} value={schedule} change={setSchedule} label="확정할 근무 버전" required/>
         <Field label="사번 (비우면 자동 발급)" name="employeeNo" value={f.employeeNo ?? ''} maxLength={40} />
         <TextAreaField label="확정 사유" name="reason" value={f.reason ?? ''} required maxLength={500} />
       </FormTable>
@@ -139,6 +169,7 @@ function Detail({ model: m, row }: { model: Model; row: Row }) {
     {row.state === 'CONFIRMED' && row.employeeId && <section className="wl-section">
       <h2>최초 발령</h2>
       <p>입사 · {row.joinedOn} · 사번 {row.employeeNo}</p>
+      <ScheduleSummary model={m} date={row.joinedOn} id={row.scheduleVersionId} name={row.scheduleTemplateName}/>
       <a className="t-btn" href={`/admin/employees/${row.employeeId}/personnel`}>확정 사원 인사기본</a>{' '}
       {row.joinedOn > m.today && <p>계정 초대는 입사일부터 할 수 있습니다.</p>}
       {m.inviteEligible && <a className="t-btn" href={`/admin/employees/${row.employeeId}/access`}>계정 초대</a>}

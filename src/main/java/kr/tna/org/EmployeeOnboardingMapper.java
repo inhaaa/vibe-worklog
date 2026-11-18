@@ -71,11 +71,53 @@ public interface EmployeeOnboardingMapper {
     List<OrganizationOption> organizations(@Param("tenantId") UUID tenantId);
 
     @Select("""
-            SELECT v.id,v.template_id,t.name AS template_name,v.revision,v.valid_from,t.version AS template_version
+            SELECT v.id,v.template_id,t.name AS template_name,v.revision,v.valid_from,t.version AS template_version,
+                   (g.id IS NOT NULL) AS "group",p.valid_to
             FROM tna.schedule_version v JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
-            WHERE v.tenant_id=#{tenantId} AND t.active ORDER BY t.code,v.revision DESC,v.id
+            LEFT JOIN tna.work_group g ON g.tenant_id=t.tenant_id AND g.id=t.id
+            LEFT JOIN tna.work_group_revision_period p ON p.tenant_id=g.tenant_id AND p.schedule_version_id=v.id
+            WHERE v.tenant_id=#{tenantId} AND t.active AND (g.id IS NULL OR p.schedule_version_id IS NOT NULL) ORDER BY t.code,v.revision DESC,v.id
             """)
     List<ScheduleOption> scheduleVersions(@Param("tenantId") UUID tenantId);
+
+    @Select("""
+            <script>
+            SELECT d.version_id,d.weekday,(g.id IS NOT NULL) AS "group",t.code AS template_code,
+                   c.code AS work_code,d.workday,d.start_time,d.end_time
+            FROM tna.schedule_day d
+            JOIN tna.schedule_version v ON v.tenant_id=d.tenant_id AND v.id=d.version_id
+            JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
+            LEFT JOIN tna.work_group g ON g.tenant_id=t.tenant_id AND g.id=t.id
+            LEFT JOIN tna.work_group_day gd ON gd.tenant_id=d.tenant_id AND gd.schedule_version_id=d.version_id AND gd.weekday=d.weekday
+            LEFT JOIN tna.work_time_code_version cv ON cv.tenant_id=gd.tenant_id AND cv.id=gd.code_version_id
+            LEFT JOIN tna.work_time_code c ON c.tenant_id=cv.tenant_id AND c.id=cv.code_id
+            WHERE d.tenant_id=#{tenant}
+            <choose>
+                <when test="version != null">AND d.version_id=#{version}</when>
+                <otherwise>AND t.active AND (g.id IS NULL OR EXISTS (
+                    SELECT 1 FROM tna.work_group_revision_period p WHERE p.tenant_id=g.tenant_id AND p.schedule_version_id=v.id))
+                </otherwise>
+            </choose>
+            ORDER BY d.version_id,d.weekday
+            </script>
+            """)
+    List<ScheduleDayOption> scheduleDays(@Param("tenant") UUID tenant, @Param("version") UUID version);
+
+    @Select("""
+            SELECT schedule_version_id FROM tna.work_group_revision_period
+            WHERE tenant_id=#{tenant} AND group_id=#{groupId} AND valid_from <= #{date}
+              AND (valid_to IS NULL OR valid_to > #{date})
+            """)
+    UUID effectiveVersion(UUID tenant, UUID groupId, LocalDate date);
+
+    @Insert("""
+            INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,work_group_id,
+                valid_from,valid_to,reason,created_by,updated_by)
+            VALUES(#{tenant},#{id},#{employee},#{version},#{groupId},#{start},
+                (CAST(#{last} AS date) + 1),#{reason},#{account},#{account})
+            """)
+    int joinGroup(UUID tenant, UUID id, UUID employee, UUID version, UUID groupId, LocalDate start,
+                  LocalDate last, String reason, UUID account);
 
     @Insert("""
             INSERT INTO tna.employee_onboarding(tenant_id,id,display_name,joined_on,left_on,organization_id,

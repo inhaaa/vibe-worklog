@@ -13,6 +13,38 @@ const onboarding = {
 
 afterEach(cleanup);
 
+it('입사 예정일을 바꾸면 선택한 조의 유효 개정과 요일별 시간코드를 실제 전송값과 함께 바꾼다', () => {
+  const group={templateId:'g',templateName:'운영조',group:true,templateVersion:1};
+  const model={...onboarding,detail:null,scheduleVersions:[
+    {...group,id:'v1',revision:1,validFrom:'2026-11-01',validTo:'2026-12-01'},
+    {...group,id:'v2',revision:2,validFrom:'2026-12-01',validTo:null}],
+    scheduleDays:[
+      {versionId:'v1',weekday:2,group:true,templateCode:'G01',workCode:'W01',workday:true,startTime:'09:00:00',endTime:'18:00:00'},
+      {versionId:'v2',weekday:2,group:true,templateCode:'G01',workCode:'W02',workday:true,startTime:'10:00:00',endTime:'19:00:00'},
+      {versionId:'v2',weekday:6,group:true,templateCode:'G01',workCode:null,workday:false}]};
+  const view=render(<OnboardingPage data={{onboarding:model}}/>);
+  const select=view.getByLabelText('최초 근무') as HTMLSelectElement;
+  fireEvent.change(select,{target:{value:'v1'}});
+  expect(view.getByText(/G01 운영조 · W01 · 09:00~18:00/)).toBeTruthy();
+  fireEvent.change(view.getByLabelText('입사 예정일'),{target:{value:'2026-12-01'}});
+  expect(select.value).toBe('v2');
+  expect(view.getByText(/G01 운영조 · W02 · 10:00~19:00/)).toBeTruthy();
+  fireEvent.change(view.getByLabelText('입사 예정일'),{target:{value:'2026-12-05'}});
+  expect(view.getByText(/G01 운영조 · 비근로일/)).toBeTruthy();
+  expect(new FormData(select.form!).get('scheduleVersionId')).toBe('v2');
+});
+
+it('입사일에 적용되는 근무조 개정만 선택할 수 있다', () => {
+  const group = { templateName: '운영조', group: true, revision: 1, templateVersion: 2 };
+  const view = render(<OnboardingPage data={{ onboarding: { ...onboarding, scheduleVersions: [
+    { ...group, id: 'old', validFrom: '2026-11-01', validTo: '2026-12-01' },
+    { ...group, id: 'new', validFrom: '2026-12-01', validTo: null, revision: 2 },
+  ] } }} />);
+  const select = view.getByLabelText('확정할 근무 버전') as HTMLSelectElement;
+  expect([...select.options].map(option => option.value)).toEqual(['', 'new']);
+  expect(select.options[1].textContent).toContain('근무조');
+});
+
 it('확정 폼은 검토한 조직과 근무 버전을 함께 보내고 공개 데모에는 표시하지 않는다', () => {
   const view = render(<OnboardingPage data={{ onboarding }} />);
   const form = view.container.querySelector<HTMLFormElement>('form[action="/admin/employees/onboarding/planned/confirm"]')!;

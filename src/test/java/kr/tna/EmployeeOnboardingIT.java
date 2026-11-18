@@ -76,6 +76,42 @@ class EmployeeOnboardingIT {
     }
 
     @Test
+    void firstAppointmentJoinsTheGroupAndKeepsItsOriginalAssignmentIdAcrossRevisions() throws Exception {
+        UUID tenant = manager.tenantId();
+        UUID group = database.queryForObject("SELECT template_id FROM tna.schedule_version WHERE tenant_id=? AND id=?",
+                UUID.class, tenant, schedule);
+        database.update("INSERT INTO tna.work_group(tenant_id,id) VALUES(?,?)", tenant, group);
+        UUID code=UUID.randomUUID(), daily=UUID.randomUUID();
+        int weekday=TODAY.getDayOfWeek().getValue();
+        database.update("INSERT INTO tna.work_time_code(tenant_id,id,code) VALUES(?,?,'007')",tenant,code);
+        database.update("""
+                INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,
+                    start_time,end_time,reason,created_by) VALUES(?,?,?,1,?,true,'주간','09:00','18:00','기준',?)
+                """,tenant,daily,code,TODAY,manager.accountId());
+        database.update("INSERT INTO tna.schedule_day(tenant_id,version_id,weekday,workday,start_time,end_time) VALUES(?,?,?,true,'09:00','18:00')",tenant,schedule,weekday);
+        database.update("INSERT INTO tna.work_group_day(tenant_id,schedule_version_id,weekday,code_version_id) VALUES(?,?,?,?)",tenant,schedule,weekday,daily);
+        mvc.perform(auth(get(PATH),manager)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/onboarding/scheduleDays/0/workCode","007"))
+                .andExpect(ReactPageAssertions.data("/onboarding/scheduleDays/0/weekday",weekday));
+        var draft = create(TODAY);
+        mvc.perform(confirm(draft, UUID.randomUUID())).andExpect(status().isSeeOther());
+        UUID assignment = database.queryForObject("SELECT schedule_assignment_id FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                UUID.class, tenant, draft);
+        assertEquals(group, database.queryForObject("SELECT work_group_id FROM tna.schedule_assignment WHERE tenant_id=? AND id=?",
+                UUID.class, tenant, assignment));
+        UUID next = UUID.randomUUID();
+        database.update("INSERT INTO tna.schedule_version(tenant_id,id,template_id,revision,valid_from,reason,created_by) VALUES(?,?,?,2,?,?,?)",
+                tenant, next, group, TODAY.plusDays(1), "다음날 조 개정", manager.accountId());
+        assertEquals(next, database.queryForObject("SELECT schedule_version_id FROM tna.effective_schedule_assignment WHERE tenant_id=? AND id=? AND valid_from=?",
+                UUID.class, tenant, assignment, TODAY.plusDays(1)));
+        assertEquals(schedule, database.queryForObject("SELECT schedule_version_id FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                UUID.class, tenant, draft));
+        mvc.perform(auth(get(PATH+"/{id}",draft),manager)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/onboarding/scheduleDays/0/versionId",schedule.toString()))
+                .andExpect(ReactPageAssertions.data("/onboarding/scheduleDays/0/workCode","007"));
+    }
+
+    @Test
     void plannedRecordCreatesNothingElseUntilAnIdempotentConfirmation() throws Exception {
         var draft = create(TODAY.plusDays(1));
         assertEquals(1, count("employee"));

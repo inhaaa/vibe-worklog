@@ -54,6 +54,9 @@ public class EmployeeOnboardingService {
             boolean editable = !publicDemo && (detail == null || detail.state() == State.PLANNED);
             var organizationOptions = editable ? onboarding.organizations(tenant) : List.<OrganizationOption>of();
             var scheduleOptions = editable ? onboarding.scheduleVersions(tenant) : List.<ScheduleOption>of();
+            UUID originalVersion = detail == null ? null : detail.scheduleVersionId();
+            var scheduleDays = editable || originalVersion != null
+                    ? onboarding.scheduleDays(tenant, editable ? null : originalVersion) : List.<ScheduleDayOption>of();
             Form form = draft != null ? draft : newForm(detail, today, organizationOptions, scheduleOptions);
             boolean duplicate = detail != null && detail.state() == State.PLANNED
                     && onboarding.possibleDuplicate(tenant, id, detail.displayName(), detail.joinedOn());
@@ -62,7 +65,7 @@ public class EmployeeOnboardingService {
             boolean inviteEligible = employee != null && employee.active() && !employee.joinedOn().isAfter(today)
                     && (employee.leftOn() == null || !employee.leftOn().isBefore(today));
             return new View(asOf, today, query, state, from, to, page, rows.size() > 50,
-                    rows.stream().limit(50).toList(), detail, organizationOptions, scheduleOptions, form, publicDemo, action,
+                    rows.stream().limit(50).toList(), detail, organizationOptions, scheduleOptions, scheduleDays, form, publicDemo, action,
                     duplicate, inviteEligible, retrySameCommand);
         });
     }
@@ -112,8 +115,13 @@ public class EmployeeOnboardingService {
                             planned.joinedOn(), planned.leftOn(), true, 0), account));
                     changed(employees.insertAssignment(tenant, organizationAssignment, employeeId, organization.id(),
                             planned.joinedOn(), reason, account));
-                    changed(schedules.insertAssignment(tenant, scheduleAssignment, employeeId, selected.version().id(),
-                            planned.joinedOn(), reason, account));
+                    if (selected.group()) {
+                        changed(onboarding.joinGroup(tenant, scheduleAssignment, employeeId, selected.version().id(),
+                                selected.template().id(), planned.joinedOn(), planned.leftOn(), reason, account));
+                    } else {
+                        changed(schedules.insertAssignment(tenant, scheduleAssignment, employeeId, selected.version().id(),
+                                planned.joinedOn(), reason, account));
+                    }
                     changed(onboarding.confirm(tenant, id, planned.version(), organization, selected.version(), selected.template(),
                             employeeId, organizationAssignment, scheduleAssignment, account));
                     return new Change(id, audit(planned), audit(requireRow(tenant, id)));
@@ -175,7 +183,11 @@ public class EmployeeOnboardingService {
         if (!template.active() || joinedOn.isBefore(version.validFrom())) {
             throw OrgException.invalid("입사일에 사용할 수 있는 활성 고정 근무 버전을 선택해 주세요.");
         }
-        return new SelectedSchedule(version, template);
+        boolean group = schedules.isWorkGroup(tenant, template.id());
+        if (group && !version.id().equals(onboarding.effectiveVersion(tenant, template.id(), joinedOn))) {
+            throw OrgException.conflict("입사일의 근무조 개정이 바뀌었습니다. 유효한 개정을 다시 선택해 주세요.");
+        }
+        return new SelectedSchedule(version, template, group);
     }
 
     private void validateDates(LocalDate joined, LocalDate last) {
@@ -204,7 +216,7 @@ public class EmployeeOnboardingService {
                 row.scheduleVersionId(), row.employeeId(), row.organizationAssignmentId(), row.scheduleAssignmentId());
     }
 
-    private record SelectedSchedule(TemplateVersion version, Template template) { }
+    private record SelectedSchedule(TemplateVersion version, Template template, boolean group) { }
     private record AuditState(State state, long version, UUID organizationId, UUID scheduleVersionId, UUID employeeId,
                               UUID organizationAssignmentId, UUID scheduleAssignmentId) { }
 }
