@@ -61,6 +61,12 @@ it('인사정보 7개 탭을 읽기 전용으로 표시하고 키보드로 이�
 });
 
 describe('내 정보·권한 목록·회사 현황', () => {
+  it('직원이 기존 배정 기준을 펼쳤을 때 신청서별 결재선과 구별해 확인한다',async()=>{
+    const view=await show('workspace/profile',{profile:{...profile,approvalPreview:{eligible:true,approverName:'이팀장',routeName:'팀 결재'}}});
+    fireEvent.click(view.getByRole('button',{name:'기존 배정 기준'}));
+    expect(view.getByText(/이팀장/)).toBeTruthy();
+    expect(view.getByText(/신청서를 작성할 때/)).toBeTruthy();
+  });
   it('내 정보는 인사 탭만 보이고 계정·배정·역할 정보는 보이지 않는다', async () => {
     const view = await show('workspace/profile', { profile: { ...profile, organizationHeadName: '김조직장',
       approvalPreview: { source: 'ORGANIZATION_ROUTE', routeName: '팀 결재', approverName: null, eligible: false, message: '조직장 공석' } },

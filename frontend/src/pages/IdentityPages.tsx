@@ -13,6 +13,7 @@ import { CheckoutOperationsPage, CompanyAttendanceViews, type CheckoutOperations
 interface Profile {
   employeeName: string;
   joinedOn: string;
+  approvalPreview?: { eligible:boolean; approverName:string|null; message:string|null };
 }
 interface Organization {
   id: string;
@@ -136,14 +137,21 @@ function OrganizationFilter({ organizations, organizationId }: {
     </SelectField>
   );
 }
-function ProfilePage({ details, identity }: {
+function ProfilePage({ details, identity, approval }: {
   details?: PersonalDetailsModel;
   identity: { employeeName: string; joinedOn: string; birthDate?: string | null };
+  approval?: Profile['approvalPreview'];
 }) {
+  const [expanded,setExpanded]=useState(false);
   return (
     <>
       <PageHeader title="내 정보" />
       {details && <PersonalDetailsTabs model={details} identity={identity} />}
+      {approval && <section className="wl-section">
+        <button className="t-btn" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>기존 배정 기준</button>
+        {expanded && <div><p>{approval.eligible ? '기본 결재자 · '+approval.approverName : approval.message || '기본 결재자를 확인해 주세요.'}</p>
+          <p>신청서를 작성할 때 해당 업무에 적용되는 결재 순서를 확인할 수 있습니다.</p></div>}
+      </section>}
     </>
   );
 }
@@ -284,7 +292,7 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
   switch (page) {
     case 'workspace/profile': {
       const p = data.profile as Profile;
-      return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} identity={{ employeeName: p.employeeName,
+      return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} approval={p.approvalPreview} identity={{ employeeName: p.employeeName,
         joinedOn: p.joinedOn, birthDate: (data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate }} />;
     }
     case 'org/access-list': {

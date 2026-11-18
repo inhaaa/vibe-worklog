@@ -80,6 +80,7 @@ const navigation: NavigationGroup[] = [
       item('common-codes', '공통코드 관리', '/admin/common-codes', admin, 'org/common-codes'),
     ] },
     { id: 'approval-settings', label: '결재 설정', children: [
+      item('request-forms', '신청서코드 관리', '/admin/request-forms', admin, 'org/request-forms'),
       item('approval-routes', '결재선 관리', '/admin/approval-routes', admin, 'org/approval-routes'),
       item('approval-assignments', '결재선 배정', '/admin/approval-route-assignments', admin, 'org/approval-route-assignments'),
     ] },

@@ -21,6 +21,8 @@ interface LeaveRow {
   status: Exclude<Status, 'ALL'> | 'WITHDRAWN';
   effectStatus: string;
   approverName: string | null;
+  currentStep?: number;
+  totalSteps?: number;
   decidedByName: string | null;
   submittedAt: string;
   decidedAt: string | null;
@@ -76,6 +78,7 @@ function LeaveOperationRow({ row, returnTo }: { row: LeaveRow; returnTo: string 
         </span>
         <span className="leave-operations-secondary" data-label={processed ? '처리자' : '결재자'}>
           {processed ? (row.decidedByName ?? '미확인') : row.status === 'PENDING' ? (row.approverName ?? '미확인') : '—'}
+          {row.status === 'PENDING' && row.totalSteps && <small>{row.currentStep}/{row.totalSteps}단계 결재 중</small>}
         </span>
         <span className="leave-operations-secondary leave-operations-time" data-label="접수·처리">
           <span><small>접수</small> <time dateTime={row.submittedAt}>{fmtDateTime(row.submittedAt)}</time></span>

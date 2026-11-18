@@ -24,6 +24,15 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it('신청서 버전의 결재 순서와 실제 제출용 확인값을 표시한다',()=>{
+  const approval={...compose.approval,formName:'휴가 신청서',formCode:'L01',basisDate:'2026-11-18',routeToken:'preview-v3',
+   steps:[{stepNumber:1,role:'팀장',approverName:'김팀장',organizationName:'제품팀'},{stepNumber:2,role:'실장',approverName:'이실장',organizationName:'제품실'}]};
+  const view=render(<AnnualRequestPage {...envelope({},{...compose,approval})} reload={()=>{}} onClose={()=>{}}/>);
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText(/L01/)).toBeTruthy();
+  expect(route.getAllByRole('listitem').map(row=>row.querySelector('strong')?.textContent).slice(1)).toEqual(['김팀장','이실장']);
+  expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('routeToken')).toBe('preview-v3');
+ });
  it('신청 창의 X로 닫고 입력이 있으면 기존 손실 확인을 지킨다',()=>{
   const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
   const view=render(<App initial={envelope({},compose)}/>);

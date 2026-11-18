@@ -12,6 +12,7 @@ import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
+import { RequestFormPage } from './pages/RequestFormPage';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
 import { leaveOperationsReturn } from './pages/LeaveOperationsNavigation';
@@ -76,6 +77,7 @@ const titles: Record<string, string> = {
   'org/organization': '조직 상세',
   'org/organization-heads': '조직장 배정',
   'org/approval-routes': '결재선 관리',
+  'org/request-forms': '신청서코드 관리',
   'org/approval-route-assignments': '결재선 배정',
   'org/common-codes': '공통코드 관리',
   'org/attendance-types': '근태코드 관리',
@@ -277,6 +279,7 @@ function Content(props: PageProps) {
       <OrgSheetPages {...props} />
       {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
       <ApprovalRoutePages {...props} />
+      {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />
       <AnnualRequestPage {...props} />
       <LeaveAttributionPage {...props} />

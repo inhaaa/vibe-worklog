@@ -13,6 +13,7 @@ import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodP
 import { CheckoutOperationsBackLink, checkoutReturn } from './CheckoutOperationsPage';
 import { LeaveOperationsBackLink, leaveOperationsReturn } from './LeaveOperationsNavigation';
 import { ApprovalStamps } from '../components/ApprovalStamps';
+import { InlineRequestApproval } from './RequestApprovalPreview';
 import { Notice } from '../components/Notice';
 import {
   Form,
@@ -128,7 +129,7 @@ function RequestRows({ requests, pagination }: { requests: RequestView[]; pagina
     sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170, valueGetter: ({ data }) => data && requestKindName(data.kind) }, request => <a href={`/requests/${request.id}`}>{requestKindName(request.kind)}</a>),
     sheetColumn<RequestView>({ field: 'fromDate', headerName: '기간', minWidth: 230, valueGetter: ({ data }) => data ? `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}` : '' }, request => `${fmtDate(request.fromDate)} ~ ${fmtDate(request.toDate)}`),
     sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${requestStateName(data.status)} / ${requestEffectName(data.effectStatus)}` : '' }, request => `${requestStateName(request.status)} / ${requestEffectName(request.effectStatus)}`),
-    sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.approverName),
+    sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.status === 'PENDING' && request.totalSteps ? `${request.approverName} · ${request.currentStep}/${request.totalSteps}단계` : request.approverName),
   ];
   return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." pagination={pagination} />;
 }
@@ -193,7 +194,11 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
   const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
   const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
-  const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
+  const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', STEP_APPROVED: '중간 승인', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
+  const steps = d.steps ?? [];
+  const activeStep = steps.find(step => step.status === 'ACTIVE');
+  const intermediate = r.status === 'PENDING' && (r.currentStep ?? 1) < (r.totalSteps ?? 1);
+  const stepState = (s: string) => label(s, { ACTIVE:'결재 중', WAITING:'예정', APPROVED:'승인', REJECTED:'반려', CLOSED:'진행 종료' });
   const correctionAction = (value: string) => label(value, { KEEP: '유지', SET: '변경', CLEAR: '제거' });
   const comparison = d.correctionComparison;
   const correctionTimes = (times: string[] | null) =>
@@ -201,14 +206,15 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const zeroReason = (value: string) => label(value, { CONFIRMED_HOLIDAY: '확정 휴일', CONFIRMED_NON_WORKDAY: '확정 비근로일' });
   const hasActions = m.canDecide || m.canWithdraw || m.canCancel || m.canCancelException || (m.admin && r.status === 'PENDING');
   const completedApproval = m.ownRequest === false && m.workspacePrincipal?.roles.includes('APPROVER')
-    && (r.status === 'APPROVED' || r.status === 'REJECTED');
+    && (r.status === 'APPROVED' || r.status === 'REJECTED' || (steps.length > 1 && !m.canDecide && !m.admin));
   const versionFields = (
     <>
       {hidden('expectedVersion', r.version)}
+      {r.currentStep != null && hidden('expectedStep', r.currentStep)}
       {hidden('commandId', m.pageCommand)}
     </>
   );
-  const approvalTone = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
+  const approvalTone: 'ok' | 'danger' | 'warn' | undefined = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
   return (
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
@@ -222,20 +228,25 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
       <div className="t-request-detail-document">
         <section className="t-card wl-detail-approval" aria-labelledby="request-record-approval-title">
           <h2 id="request-record-approval-title">결재 진행</h2>
+          {r.formCode && <p>{r.formName} ({r.formCode}){r.legacyForm && ' · 기존 신청'}</p>}
+          {activeStep && <p>{activeStep.stepNumber}/{steps.length} {activeStep.role} 결재 중{d.reassignmentRequired && ' · 재할당 필요'}</p>}
           <ApprovalStamps steps={[
             { role: '대상 사원', name: r.targetEmployeeName, detail: d.routeSnapshot?.organizationName, state: '제출' },
-            { role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone },
+            ...(steps.length ? steps.map(step => ({
+              role: step.role, name: step.decidedByName || step.approverName,
+              detail: step.decidedAt ? fmtDateTime(step.decidedAt) : undefined, state: stepState(step.status),
+            })) : [{ role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone }]),
           ]} />
         </section>
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
           <dl className="wl-form-table">
-            <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
-            <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
+            <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별', FORM: '신청서별' })}</dd>
+            <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원', ORGANIZATION_CHAIN: '조직장 순차결재' })}</dd>
             {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
-            <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
+            <dt>최초 결재 담당</dt><dd>{steps.length > 1 ? steps.map(step => step.role+' '+step.originalApproverName).join(' → ') : d.routeSnapshot.resolvedApproverName}</dd>
           </dl>
-        </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
+        </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2>{steps.length ? <ol>{steps.map(step=><li key={step.stepNumber}>{step.role} · {step.originalApproverName}</li>)}</ol> : <p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p>}</section>}
         <section className="t-card t-request-detail-summary" aria-labelledby="request-record-application-title">
           <div className="t-request-detail-summary-head">
             <div><h2 id="request-record-application-title">신청서</h2><p className="t-request-detail-person">{r.targetEmployeeName} · {kindName}</p></div>
@@ -258,7 +269,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p>
             </section>
           </div>
-          {r.kind === 'CANCEL_LEAVE' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
+          {r.kind === 'CANCEL_LEAVE' && r.status === 'PENDING' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
           {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}${leaveReturn
             ? '?' + new URLSearchParams({ returnTo: leaveReturn }) : ''}`}>원신청 보기 </a>}
         </section>
@@ -309,7 +320,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <>
                 <Form action={`/requests/${r.id}/approve`} method="post" className="wl-form wl-decision-form" aria-label="승인 검토">
                   <h3>승인</h3>
-                  <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
+                  <p>{intermediate ? '승인하면 다음 결재자에게 전달됩니다. 신청은 최종 승인까지 대기로 남습니다.' : r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
                   {versionFields}
                   <FormTable><Reason label="승인 검토 사유" /></FormTable>
                   <div className="wl-form-actions"><button className="t-btn primary">승인하기</button></div>
@@ -334,13 +345,14 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <Form action={`/requests/${r.id}/cancellations`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
                 <FormTable>
-                  <Reason label="취소 요청 사유" />
+                  <Reason label="취소 요청 사유" value={m.cancelReason}/>
                   <p>
                     예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
                     필요합니다.
                   </p>
                 </FormTable>
-                <div className="wl-form-actions"><button className="t-btn secondary">취소 심사 요청</button></div>
+                <InlineRequestApproval approval={m.cancelApproval}/>
+                <div className="wl-form-actions"><button className="t-btn secondary" disabled={m.cancelApproval?.eligible === false}>취소 심사 요청</button></div>
               </Form>
             )}
             {m.admin && r.status === 'PENDING' && (
@@ -369,10 +381,11 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
                 <h3>과거·퇴사자 예외 취소</h3>
                 {versionFields}
                 <FormTable>
-                  <Reason label="검토 근거와 예외 취소 사유" />
+                  <Reason label="검토 근거와 예외 취소 사유" value={m.exceptionCancelReason}/>
                   <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
                 </FormTable>
-                <div className="wl-form-actions"><button className="t-btn">예외 취소 심사 요청</button></div>
+                <InlineRequestApproval approval={m.cancelApproval}/>
+                <div className="wl-form-actions"><button className="t-btn" disabled={m.cancelApproval?.eligible === false}>예외 취소 심사 요청</button></div>
               </Form>
             )}
           </section>
@@ -478,7 +491,8 @@ function Correction({ model: m }: { model: CorrectionModel }) {
             <Reason label="정정 사유와 사실 근거" value={f.reason} />
           </FormTable>}
         </section>
-        <div className="wl-form-actions"><button className="t-btn primary">정정 심사 요청</button></div>
+        <InlineRequestApproval approval={m.approval}/>
+        <div className="wl-form-actions"><button className="t-btn primary" disabled={m.approval?.eligible === false}>정정 심사 요청</button></div>
       </Form>}
     </div>
   );

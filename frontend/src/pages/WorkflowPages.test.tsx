@@ -37,6 +37,26 @@ const request = {
   approverName: '승인자',
   originalRequestId: null,
 };
+it('취소 신청 결재선이 달라지면 기존 사유와 새 확인값으로 다시 제출할 수 있다',async()=>{
+  const view=await render('request/detail',{request:{...request,status:'APPROVED',effectStatus:'EFFECTIVE'},
+    detail:{days:[],history:[]},canCancel:true,cancelReason:'이미 입력한 휴가 취소 사유',
+    cancelApproval:{formName:'휴가 취소 신청서',formCode:'L02',basisDate:'2026-11-18',eligible:true,steps:[],routeToken:'updated'},
+    pageCommand:'cmd',candidates:[]});
+  const fields=body(view,'/requests/request-1/cancellations');
+  expect(fields.get('reason')).toBe('이미 입력한 휴가 취소 사유');
+  expect(fields.get('routeToken')).toBe('updated');
+});
+it('팀장 단계에서 승인해도 다음 결재자에게 전달되며 최종 효력 안내가 나오지 않는다',async()=>{
+  const view=await render('request/detail',{request:{...request,formCode:'L01',formName:'휴가 신청서',currentStep:1,totalSteps:2},
+    detail:{days:[],history:[],correction:null,steps:[
+      {stepNumber:1,role:'팀장',originalApproverName:'김팀장',approverName:'김팀장',status:'ACTIVE'},
+      {stepNumber:2,role:'실장',originalApproverName:'이실장',approverName:'이실장',status:'WAITING'}]},
+    canDecide:true,pageCommand:'cmd',candidates:[]});
+  const approval=within(view.getByRole('form',{name:'승인 검토'}));
+  expect(approval.getByText(/다음 결재자/)).toBeTruthy();
+  expect(approval.queryByText(/실제 연차 차감이 함께/)).toBeNull();
+  expect(view.getByRole('list',{name:'결재란'}).textContent).toMatch(/김팀장.*이실장/);
+});
 const day = {
   employeeId: 'employee-1',
   workDate: '2026-10-26',

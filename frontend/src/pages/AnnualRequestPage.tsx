@@ -10,7 +10,7 @@ import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import { PageHeader } from '../components/PageHeader';
 import { RequestPeriodSheet, requestPeriodIssue } from '../components/RequestPeriodSheet';
 import './RequestWorkspace.css';
-import { ApprovalStamps } from '../components/ApprovalStamps';
+import { RequestApprovalPreview } from './RequestApprovalPreview';
 import { Notice } from '../components/Notice';
 
 const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' }[kind] ?? kind);
@@ -32,7 +32,7 @@ function RequestTable({ rows, year, canResubmit=[] }: { rows: RequestView[]; yea
     {rows.map(row => <tr key={row.id}>
       <td data-label="신청 유형·대상"><a className="t-request-title" href={`/requests/${row.id}`}>{kindName(row.kind)}</a><small>{row.targetEmployeeName}</small>{row.reason&&<p className="t-request-reason">{row.reason}</p>}</td>
       <td data-label="기간·일수"><span>{fmtDate(row.fromDate)}</span><small>~ {fmtDate(row.toDate)}{row.kind === 'LEAVE_DAY' && ` · ${row.quantityDays}일`}</small></td>
-      <td data-label="결재 진행"><span>{row.approverName || '담당 미지정'}</span><small>{row.status==='PENDING'?'담당자 검토 대기':'처리된 신청'}</small></td>
+      <td data-label="결재 진행"><span>{row.approverName || '담당 미지정'}</span><small>{row.status==='PENDING' ? (row.totalSteps ? `${row.currentStep}/${row.totalSteps}단계 결재 중` : '담당자 검토 대기') : '처리된 신청'}</small></td>
       <td data-label="현재 상태"><span className={`t-request-status t-request-status-${row.status.toLowerCase()}`}>{statusName(row.status)}</span><small>{row.effectStatus === 'EFFECTIVE' ? '현재 효력 유효' : row.effectStatus === 'CANCELED' ? '취소 완료' : row.effectStatus === 'SUPERSEDED' ? '후속 정정으로 대체' : '효력 없음'}</small></td>
       <td data-label="상세"><a className="t-request-detail" href={`/requests/${row.id}`} aria-label={`${kindName(row.kind)} 상세`}>상세 보기 </a>{year&&canResubmit.includes(row.id)&&['REJECTED','WITHDRAWN'].includes(row.status)&&['LEAVE_DAY','ATTENDANCE_CORRECTION'].includes(row.kind)&&<a className="t-request-resubmit" href={url('/me/requests/new',{year,kind:row.kind,date:row.fromDate,predecessorRequestId:row.id})}>재신청</a>}</td>
     </tr>)}
@@ -51,16 +51,9 @@ function useUnload(dirty: boolean) {
   }, [dirty]);
 }
 function ApprovalLine({ approval, checked, applicant }: { approval: ApprovalPreview | undefined; checked: boolean; applicant: { name: string; organization: string | null } }) {
-  const status = approval?.eligible ? (checked ? '미리보기 확인' : '결재 가능') : '확인 필요';
   return <section className="wl-compose-block" aria-labelledby="annual-approval-line">
     <h3 id="annual-approval-line">결재선</h3>
-    {approval ? <div className="wl-approval">
-      <ApprovalStamps steps={[
-        { role: '기안', name: applicant.name, detail: applicant.organization, state: '작성 중' },
-        { role: '결재', name: approval.approverName ?? '미지정', detail: approval.routeName ?? (approval.source === 'LEGACY' ? '사원별 지정 승인자' : '미지정'), state: status, tone: approval.eligible ? 'ok' : 'warn' },
-      ]} />
-      {approval.message && approval.message !== status && <p className="wl-approval-note">{approval.message}</p>}
-    </div> : <p className="wl-approval-note" role="status">유형·일자 조회 후 확인</p>}
+    {approval ? <RequestApprovalPreview approval={approval} applicant={applicant} checked={checked}/> : <p className="wl-approval-note" role="status">유형·일자 조회 후 확인</p>}
   </section>;
 }
 function ApplicantFacts({ model }: { model: AnnualModel }) {
@@ -233,6 +226,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     {kind !== compose.kind && <p className="notice">유형·일자 조회를 눌러 현재 근거와 새 작성 폼을 확인하세요.</p>}
     <Form action={isLeave ? '/me/requests/leave' : '/me/requests/correction'} className="t-annual-compose-form" onSubmit={submit} aria-labelledby={step==='CONTENT'?'annual-application-title':undefined}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}{hidden('kind', compose.kind)}{hidden('commandId', current.commandId)}
+      {approval?.routeToken && hidden('routeToken', approval.routeToken)}
       {current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
       <fieldset ref={element => { form.current = element?.form ?? null; }} disabled={locked || kind!==compose.kind}>
         <div className="wl-form-table wl-compose-fields" hidden={step!=='CONTENT'}>
