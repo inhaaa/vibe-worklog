@@ -1,6 +1,6 @@
 # vibe-attendance 제품 요구사항 문서 (PRD)
 
-담당자는 [0.5일 단위 연차 잔여 이관·조정](superpowers/specs/2026-11-18-leave-balance-batch.md)과 [회사 근무현황의 월말 확인 대상](superpowers/specs/2026-11-18-month-end-review.md)을 사용한다.
+담당자는 [0.5일 단위 연차 잔여 이관·조정](superpowers/specs/2026-11-18-leave-balance-batch.md)과 [회사 근무현황의 월말 확인 대상](superpowers/specs/2026-11-18-month-end-review.md)을 사용한다. 담당자는 [월말 퇴근 누락 보완 요청](superpowers/specs/2026-11-18-month-end-correction-followups.md)으로 직원의 정정과 재집계 결과를 추적한다.
 
 2026-11-18 개발본은 연차·정정에 짧은 근태코드를 제공하고, 같은 연차 묶음에서 오전·오후 반차를 0.5일씩 처리한다. [업무 명세](superpowers/specs/2026-11-18-attendance-codes-half-day.md)
 
