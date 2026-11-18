@@ -137,6 +137,12 @@ public interface EmployeeAdminMapper {
     Employee get(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
 
     @Select("""
+            SELECT id,employee_no,display_name,joined_on,left_on,active,version FROM tna.employee
+            WHERE tenant_id=#{tenantId} AND employee_no=#{employeeNo}
+            """)
+    Employee byNumber(@Param("tenantId") UUID tenantId, @Param("employeeNo") String employeeNo);
+
+    @Select("""
             <script>
             SELECT id,employee_no,display_name,joined_on,left_on,active,version
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id IN

@@ -54,7 +54,8 @@ public final class AnnualRequestService {
             var annual=new Annual(year,today,at,filter.typeId(),status,filter.page(),found.size()>50,filter.authoredPage(),authored.size()>50,
                     summaries.isEmpty()&&confirmed.isEmpty()?"NO_REGISTERED_DATA":"REGISTERED_DATA_ONLY",
                     summaries.stream().mapToDouble(TypeSummary::usedDays).sum(),summaries.stream().mapToDouble(TypeSummary::plannedDays).sum(),summaries.stream().mapToDouble(TypeSummary::pendingDays).sum(),
-                    buckets.stream().mapToDouble(BucketYear::availableDays).sum(),confirmed.isEmpty()?null:confirmed.stream().mapToLong(BucketYear::openingAdjustmentDays).sum(),
+                    buckets.stream().mapToDouble(BucketYear::availableDays).sum(),
+                    confirmed.stream().map(BucketYear::openingAdjustmentDays).reduce(java.math.BigDecimal::add).orElse(null),
                     confirmed.isEmpty()?null:confirmed.stream().mapToDouble(BucketYear::balanceDays).sum(),unknown,unknown>0,
                     mapper.types(actor.tenantId()),summaries,page(found),page(authored),visible,createdId,outside,
                     page(found).stream().filter(r->r.targetEmployeeId().equals(actor.employeeId())&&r.authorAccountId().equals(actor.accountId())

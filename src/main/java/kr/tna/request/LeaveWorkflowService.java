@@ -1,6 +1,7 @@
 package kr.tna.request;
 
 import static kr.tna.org.OrgCommands.*;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -72,32 +73,36 @@ public final class LeaveWorkflowService {
             return targetRead(actor,b.employeeId(),()->mapper.ledger(actor.tenantId(),bucketId));});
     }
     public UUID openBucket(TnaPrincipal actor,BucketForm form) {
-        if(form==null||form.employeeId()==null||form.baseDate()==null||form.usableFrom()==null||form.quantityDays()==null
-                ||form.quantityDays()<0||form.quantityDays()>100_000||form.baseDate().isAfter(today())
-                ||form.usableTo()!=null&&form.usableTo().isBefore(form.usableFrom()))throw OrgException.invalid("기준일·사용 기간과 정수 기초 일수를 확인해 주세요.");
-        String source=requiredText(form.sourceReference(),500,"기초 근거"),reason=requiredText(form.reason(),500,"등록 사유");
-        var clean=new BucketForm(form.employeeId(),form.baseDate(),form.usableFrom(),form.usableTo(),form.quantityDays(),source,reason,form.commandId());
+        var clean=LeaveBalanceEntries.opening(form,today());
         String action="LEAVE_BUCKET_OPEN";
-        return administration.execute(actor,form.commandId(),action,"LEAVE_BUCKET",fingerprint(action,clean),reason,()->{
-            employee(actor.tenantId(),form.employeeId());if(actor.employeeId().equals(form.employeeId()))throw OrgException.forbidden();
-            UUID id=UUID.randomUUID();changed(mapper.insertBucket(actor.tenantId(),id,clean,actor.accountId()));
-            ledger(actor,id,form.employeeId(),"OPENING",form.quantityDays(),form.baseDate(),null,null,null,source,reason);
-            return new Change(id,null,bucket(actor.tenantId(),id));
+        return administration.execute(actor,clean.commandId(),action,"LEAVE_BUCKET",fingerprint(action,clean),clean.reason(),()->{
+            employee(actor.tenantId(),clean.employeeId());if(actor.employeeId().equals(clean.employeeId()))throw OrgException.forbidden();
+            var opened=appendOpening(actor,clean);
+            return new Change(opened.id(),null,opened);
         });
     }
     public UUID adjust(TnaPrincipal actor,UUID bucketId,AdjustmentForm form) {
-        if(form==null||form.quantityDays()==null||form.quantityDays()==0||Math.abs((long)form.quantityDays())>100_000
-                ||form.effectiveOn()==null||form.effectiveOn().isAfter(today()))throw OrgException.invalid("조정 기준일과 0이 아닌 정수 증감량을 입력해 주세요.");
-        String source=requiredText(form.sourceReference(),500,"조정 근거"),reason=requiredText(form.reason(),500,"조정 사유"),action="LEAVE_BUCKET_ADJUST";
-        return administration.execute(actor,form.commandId(),action,"LEAVE_BUCKET",fingerprint(action,bucketId,form.quantityDays(),form.effectiveOn(),form.expectedVersion(),source,reason),reason,()->{
-            var before=bucket(actor.tenantId(),bucketId);checkVersion(form.expectedVersion(),before.version());
+        var clean=LeaveBalanceEntries.adjustment(form,today());
+        String action="LEAVE_BUCKET_ADJUST";
+        String hash=fingerprint(action,bucketId,clean.quantityDays(),clean.effectiveOn(),clean.expectedVersion(),clean.sourceReference(),clean.reason());
+        return administration.execute(actor,clean.commandId(),action,"LEAVE_BUCKET",hash,clean.reason(),()->{
+            var before=bucket(actor.tenantId(),bucketId);
             if(actor.employeeId().equals(before.employeeId()))throw OrgException.forbidden();
-            if(form.effectiveOn().isBefore(before.baseDate())||before.balanceDays()+form.quantityDays()<0)
-                throw OrgException.invalid("기초 기준일 이전이거나 승인 사용량을 침해하는 조정은 할 수 없습니다.");
-            ledger(actor,bucketId,before.employeeId(),"ADJUSTMENT",form.quantityDays(),form.effectiveOn(),null,null,null,source,reason);
-            changed(mapper.advanceBucket(actor.tenantId(),bucketId,before.version()));
-            return new Change(bucketId,before,bucket(actor.tenantId(),bucketId));
+            checkVersion(clean.expectedVersion(),before.version());
+            LeaveBalanceEntries.checkAdjustment(before,clean);
+            return new Change(bucketId,before,appendAdjustment(actor,before,clean));
         });
+    }
+    Bucket appendOpening(TnaPrincipal actor, BucketForm form) {
+        UUID id=UUID.randomUUID();
+        changed(mapper.insertBucket(actor.tenantId(),id,form,actor.accountId()));
+        ledger(actor,id,form.employeeId(),"OPENING",form.quantityDays(),form.baseDate(),null,null,null,form.sourceReference(),form.reason());
+        return bucket(actor.tenantId(),id);
+    }
+    Bucket appendAdjustment(TnaPrincipal actor, Bucket before, AdjustmentForm form) {
+        ledger(actor,before.id(),before.employeeId(),"ADJUSTMENT",form.quantityDays(),form.effectiveOn(),null,null,null,form.sourceReference(),form.reason());
+        changed(mapper.advanceBucket(actor.tenantId(),before.id(),before.version()));
+        return bucket(actor.tenantId(),before.id());
     }
     public List<RequestView> mine(TnaPrincipal actor) {return commands.read(actor,()->mapper.requests(actor.tenantId(),actor.accountId(),actor.employeeId(),"MINE"));}
     public List<RequestView> inbox(TnaPrincipal actor) {return approvalPage(actor,false,0).requests();}
@@ -412,7 +417,7 @@ public final class LeaveWorkflowService {
         requireFreeLeaveDays(actor.tenantId(),request.targetEmployeeId(),current,request.id());
         UUID effect=UUID.randomUUID();changed(mapper.insertEffect(actor.tenantId(),effect,request.id(),request.targetEmployeeId(),null,"LEAVE",json.writeValueAsString(current),null,null,actor.accountId()));
         for(var d:current)if(d.quantityDays()>0) {
-            ledger(actor,b.id(),b.employeeId(),"USE",-d.quantityDays(),today(),effect,d.leaveDate(),null,null,reason);
+            ledger(actor,b.id(),b.employeeId(),"USE",BigDecimal.valueOf(-d.quantityDays()),today(),effect,d.leaveDate(),null,null,reason);
             changed(mapper.reviseDay(actor.tenantId(),request.targetEmployeeId(),d.leaveDate(),1));
         }
         changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
@@ -426,7 +431,7 @@ public final class LeaveWorkflowService {
         changed(mapper.insertEffect(actor.tenantId(),restoration,request.id(),request.targetEmployeeId(),null,"CANCEL",json.writeValueAsString(used),effect.id(),null,actor.accountId()));
         var b=bucket(actor.tenantId(),original.leaveBucketId());
         for(var row:used) {
-            ledger(actor,row.bucketId(),row.employeeId(),"RESTORE",-row.signedQuantityDays(),today(),restoration,row.leaveDate(),row.id(),null,reason);
+            ledger(actor,row.bucketId(),row.employeeId(),"RESTORE",BigDecimal.valueOf(-row.signedQuantityDays()),today(),restoration,row.leaveDate(),row.id(),null,reason);
             changed(mapper.reviseDay(actor.tenantId(),row.employeeId(),row.leaveDate(),1));
         }
         changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
@@ -608,7 +613,7 @@ public final class LeaveWorkflowService {
     private void history(TnaPrincipal actor,RequestView r,String kind,String from,String to,String reason,UUID previous,UUID next) {
         changed(mapper.insertHistory(actor.tenantId(),UUID.randomUUID(),r.id(),kind,actor.accountId(),from,to,reason,previous,next,r.legacyForm()?null:r.currentStep()));
     }
-    private void ledger(TnaPrincipal actor,UUID bucket,UUID employee,String kind,double quantity,LocalDate date,UUID effect,LocalDate leaveDate,UUID reverses,String source,String reason) {
+    private void ledger(TnaPrincipal actor,UUID bucket,UUID employee,String kind,BigDecimal quantity,LocalDate date,UUID effect,LocalDate leaveDate,UUID reverses,String source,String reason) {
         changed(mapper.insertLedger(actor.tenantId(),UUID.randomUUID(),bucket,employee,kind,quantity,date,effect,leaveDate,reverses,source,reason,actor.accountId()));
     }
     private void pending(RequestView request) {if(!request.status().equals("PENDING"))throw OrgException.conflict("이미 처리된 신청입니다. 최신 내용을 확인해 주세요.");}

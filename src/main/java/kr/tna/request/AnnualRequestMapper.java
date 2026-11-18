@@ -62,12 +62,12 @@ public interface AnnualRequestMapper {
         SELECT b.id AS bucket_id,a.entitlement_year,COALESCE(a.classification_status,'UNCLASSIFIED') AS classification_status,a.basis,
           b.usable_from,b.usable_to,COALESCE(l.balance_days,0) AS balance_days,
           CASE WHEN b.base_date<=#{today} AND b.usable_from<=#{today} AND(b.usable_to IS NULL OR b.usable_to>=#{today}) THEN COALESCE(l.balance_days,0) ELSE 0 END AS available_days,
-          COALESCE(l.opening_adjustment_days,0)::bigint AS opening_adjustment_days,
+          COALESCE(l.opening_adjustment_days,0) AS opening_adjustment_days,
           CASE WHEN b.base_date>#{today} OR b.usable_from>#{today} THEN 'NOT_STARTED' WHEN b.usable_to<#{today} THEN 'EXPIRED' ELSE 'CURRENT' END AS availability
         FROM tna.leave_bucket b
         LEFT JOIN LATERAL(SELECT classification_status,entitlement_year,basis FROM tna.leave_bucket_attribution WHERE tenant_id=b.tenant_id AND bucket_id=b.id ORDER BY revision DESC LIMIT 1)a ON true
         LEFT JOIN LATERAL(SELECT sum(signed_quantity_days) AS balance_days,
-          sum(signed_quantity_days) FILTER(WHERE entry_kind IN ('OPENING','ADJUSTMENT'))::bigint AS opening_adjustment_days
+          sum(signed_quantity_days) FILTER(WHERE entry_kind IN ('OPENING','ADJUSTMENT')) AS opening_adjustment_days
           FROM tna.leave_ledger WHERE tenant_id=b.tenant_id AND bucket_id=b.id)l ON true
         WHERE b.tenant_id=#{tenantId} AND b.employee_id=#{employeeId} ORDER BY b.usable_from,b.id
         """)

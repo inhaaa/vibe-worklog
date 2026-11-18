@@ -65,7 +65,7 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
         VALUES(#{tenantId},#{id},#{bucketId},#{employeeId},#{kind},#{quantity},#{effectiveOn},#{effectId},#{leaveDate},#{reverses},#{source},#{reason},#{actorId})
         """)
     int insertLedger(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("bucketId") UUID bucketId,
-        @Param("employeeId") UUID employeeId,@Param("kind") String kind,@Param("quantity") double quantity,
+        @Param("employeeId") UUID employeeId,@Param("kind") String kind,@Param("quantity") java.math.BigDecimal quantity,
         @Param("effectiveOn") LocalDate effectiveOn,@Param("effectId") UUID effectId,@Param("leaveDate") LocalDate leaveDate,
         @Param("reverses") UUID reverses,@Param("source") String source,@Param("reason") String reason,@Param("actorId") UUID actorId);
     @Select(REQUEST_SELECT+" WHERE r.tenant_id=#{tenantId} AND r.id=#{id}")

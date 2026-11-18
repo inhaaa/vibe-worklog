@@ -110,6 +110,20 @@ class CodeMigrationUpgradeIT {
             assertTrue(Flyway.configure().dataSource(migrationSource).target("27").load().migrate().success);
             assertEquals(v26Rows,rows(db,v26Columns));
             assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.leave_request_day WHERE leave_part='FULL' AND quantity_days=1", Integer.class));
+            // V27 already allowed fractional USE/RESTORE rows. Carry them through the V28 constraint change.
+            db.update("UPDATE tna.leave_ledger SET signed_quantity_days=signed_quantity_days/2 WHERE entry_kind IN ('USE','RESTORE')");
+            db.update("""
+                    INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,source_reference,reason,created_by)
+                    SELECT tenant_id,gen_random_uuid(),bucket_id,employee_id,'ADJUSTMENT',0,effective_on,source_reference,reason,created_by
+                    FROM tna.leave_ledger WHERE entry_kind='OPENING'
+                    """);
+            var v27Columns = columns(db);
+            var v27Rows = rows(db,v27Columns);
+            var v27Access = access(db);
+            var v28 = Flyway.configure().dataSource(migrationSource).target("28").load().migrate();
+            assertEquals(1, v28.migrationsExecuted);
+            assertEquals(v27Rows,rows(db,v27Columns));
+            assertEquals(v27Access,access(db));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {

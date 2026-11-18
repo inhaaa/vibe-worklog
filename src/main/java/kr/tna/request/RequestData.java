@@ -1,5 +1,6 @@
 package kr.tna.request;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -12,10 +13,19 @@ public final class RequestData {
             LocalDate usableTo,String sourceReference,long version,double balanceDays,double availableDays,double pendingDays,double futureApprovedDays) { }
     public record BucketForm(UUID employeeId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate baseDate,
             @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate usableFrom,
-            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate usableTo,Integer quantityDays,
-            String sourceReference,String reason,UUID commandId) { }
-    public record AdjustmentForm(Integer quantityDays,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate effectiveOn,
-            Long expectedVersion,String sourceReference,String reason,UUID commandId) { }
+            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate usableTo,BigDecimal quantityDays,
+            String sourceReference,String reason,UUID commandId) {
+        public BucketForm(UUID employeeId,LocalDate baseDate,LocalDate usableFrom,LocalDate usableTo,int quantityDays,
+                String sourceReference,String reason,UUID commandId) {
+            this(employeeId,baseDate,usableFrom,usableTo,BigDecimal.valueOf(quantityDays),sourceReference,reason,commandId);
+        }
+    }
+    public record AdjustmentForm(BigDecimal quantityDays,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate effectiveOn,
+            Long expectedVersion,String sourceReference,String reason,UUID commandId) {
+        public AdjustmentForm(int quantityDays,LocalDate effectiveOn,Long expectedVersion,String sourceReference,String reason,UUID commandId) {
+            this(BigDecimal.valueOf(quantityDays),effectiveOn,expectedVersion,sourceReference,reason,commandId);
+        }
+    }
     public record LedgerEntry(UUID id,UUID bucketId,UUID employeeId,String entryKind,double signedQuantityDays,
             LocalDate effectiveOn,UUID requestEffectId,LocalDate leaveDate,UUID reversesEntryId,
             String sourceReference,String reason,Instant createdAt) { }

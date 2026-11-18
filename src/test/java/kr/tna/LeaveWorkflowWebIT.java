@@ -33,7 +33,9 @@ class LeaveWorkflowWebIT {
     @Test void employeeCannotManageBalancesOrOpenApprovalInbox() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);for(String p:List.of("/admin/leave-balances","/approvals"))mvc.perform(get(p).session(s)).andExpect(status().isForbidden());}
     @Test void workflowWritesRequireCsrfAndForeignIdsStayHidden() throws Exception {var s=login(DatabaseFixture.COMPANY_B,DatabaseFixture.EMAIL);mvc.perform(post("/me/requests/leave").session(s)).andExpect(status().isForbidden());mvc.perform(get("/requests/{id}",UUID.randomUUID()).session(s)).andExpect(status().isNotFound());}
     @Test void administratorGetsGroundedOpeningAndExceptionalCorrectionForms() throws Exception {var s=login(DatabaseFixture.COMPANY_A,DatabaseFixture.EMAIL);mvc.perform(get("/admin/leave-balances").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());mvc.perform(get("/admin/requests/exceptions/new").session(s).param("employeeId",DatabaseFixture.EMPLOYEE_A.toString())).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());}
-    @Test void leaveApprovalAndCancellationWorkThroughServerRenderedForms() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"2,FULL,1", "7.5,AM,7"})
+    void leaveApprovalAndCancellationWorkThroughServerRenderedForms(String opening, String part, double afterApproval) throws Exception {
         LocalDate today=LocalDate.now(ZoneId.of("Asia/Seoul")),date=today.plusDays(2);UUID tenant=UUID.randomUUID();String company="WEB-"+tenant.toString().toUpperCase(Locale.ROOT);
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 흐름')",tenant,company);
         var manager=member(tenant,Set.of("EMPLOYEE","ATTENDANCE_ADMIN","APPROVER"));var worker=member(tenant,Set.of("EMPLOYEE"));
@@ -42,17 +44,24 @@ class LeaveWorkflowWebIT {
         UUID template=schedules.create(manager,new TemplateForm(UUID.randomUUID().toString(),"합성 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(manager,worker.employeeId(),new AssignmentForm(schedules.versions(manager,template).getFirst().id(),today,1L,"합성 배정",UUID.randomUUID()));
         settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 근거","","합성 검토",UUID.randomUUID()));
-        UUID bucket=flow.openBucket(manager,new BucketForm(worker.employeeId(),today,today,today.plusDays(30),2,"합성 기초 근거","합성 기초",UUID.randomUUID()));
         var workerSession=login(company,worker.accountId()+"@example.test");var managerSession=login(company,manager.accountId()+"@example.test");
-        var submitted=mvc.perform(post("/me/requests/leave").session(workerSession).with(csrf()).param("bucketId",bucket.toString()).param("from",date.toString()).param("to",date.toString()).param("reason","합성 종일 연차").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther()).andReturn();
+        mvc.perform(post("/admin/leave-balances/entries").session(managerSession).with(csrf()).param("employeeId",worker.employeeId().toString())
+                .param("baseDate",today.toString()).param("usableFrom",today.toString()).param("quantityDays",opening)
+                .param("sourceReference","합성 기초 근거").param("reason","합성 기초").param("commandId",UUID.randomUUID().toString()))
+                .andExpect(status().isSeeOther());
+        var initial=flow.buckets(worker,worker.employeeId()).getFirst();
+        assertEquals(Double.parseDouble(opening),initial.balanceDays());
+        var submitted=mvc.perform(post("/me/requests/leave").session(workerSession).with(csrf()).param("bucketId",initial.id().toString())
+                .param("from",date.toString()).param("to",date.toString()).param("leavePart",part).param("reason","합성 연차")
+                .param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther()).andReturn();
         String url=submitted.getResponse().getRedirectedUrl();assertNotNull(url);
-        mvc.perform(get(url).session(managerSession)).andExpect(status().isOk()).andExpect(content().string(containsString("합성 종일 연차")));
+        mvc.perform(get(url).session(managerSession)).andExpect(status().isOk()).andExpect(content().string(containsString("합성 연차")));
         mvc.perform(post(url+"/approve").session(managerSession).with(csrf()).param("expectedVersion","0").param("reason","독립 승인").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther());
-        assertEquals(1,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(afterApproval,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
         var canceled=mvc.perform(post(url+"/cancellations").session(workerSession).with(csrf()).param("expectedVersion","1").param("reason","합성 취소").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther()).andReturn();
         String cancelUrl=canceled.getResponse().getRedirectedUrl();assertNotNull(cancelUrl);
         mvc.perform(post(cancelUrl+"/approve").session(managerSession).with(csrf()).param("expectedVersion","0").param("reason","취소 독립 승인").param("commandId",UUID.randomUUID().toString())).andExpect(status().isSeeOther());
-        assertEquals(2,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(initial.balanceDays(),flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
     }
     @Test void generalCancellationButtonIsLimitedToTheOwningAuthorWhileAdminExceptionRemainsAvailable() throws Exception {
         var f=approvedLeave();String path="/requests/"+f.requestId();

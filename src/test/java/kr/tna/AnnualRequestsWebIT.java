@@ -102,6 +102,17 @@ class AnnualRequestsWebIT {
         attribution(2,"UNCLASSIFIED",null);var latest=annual(get("/me/requests"),worker);
         assertTrue(latest.path("registeredDays").isNull());assertEquals(1,latest.path("unknownBucketCount").asInt());
     }
+    @Test void registeredQuantityAndBucketContributionRetainHalfDayAdjustments() throws Exception {
+        db.update("""
+                INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,source_reference,reason,created_by)
+                VALUES (?,?,?,?,'ADJUSTMENT',-0.5,?,'대조 원장','반일 조정',?)
+                """,tenant,UUID.randomUUID(),bucket,worker.employeeId(),today,admin.accountId());
+        attribution(1,"CONFIRMED",today.getYear());
+        var annual=annual(get("/me/requests"),worker);
+        assertEquals(19.5,annual.path("registeredDays").asDouble());
+        assertEquals(19.5,annual.at("/attributionBuckets/0/openingAdjustmentDays").asDouble());
+        assertEquals(19.5,annual.path("attributedBalanceDays").asDouble());
+    }
     @Test void historicalSelectionDoesNotTurnCurrentBalanceIntoYearEndBalanceAndLeapDayIsIncluded() throws Exception {
         LocalDate leap=LocalDate.of(2024,2,29);UUID r=raw("LEAVE_DAY","APPROVED",leap,leap,worker,worker,bucket,null,"EFFECTIVE");day(r,leap,1);
         var annual=annual(get("/me/requests").param("year","2024"),worker);assertEquals(1,annual.path("usedDays").asLong());assertEquals(20,annual.path("currentAvailableDays").asLong());

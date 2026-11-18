@@ -122,6 +122,18 @@ class LeaveWorkflowSchemaIT {
                 VALUES (?,?,?,?,DATE '2026-01-01','합성 배정',?,?)
                 """,s.tenant(),s.assignment(),s.target(),s.approver(),s.actor(),s.actor());return s;
     }
+    @Test void balanceLedgerAcceptsExactHalfDayOpeningsAndAdjustmentsOnly() {
+        var s = scope();
+        tx.execute(s.tenant(), () -> {
+            bucket(s);
+            ledger(s, UUID.randomUUID(), "OPENING", 7.5, null, null, null);
+            ledger(s, UUID.randomUUID(), "ADJUSTMENT", -0.5, null, null, null);
+            return ledger(s, UUID.randomUUID(), "ADJUSTMENT", 0.5, null, null, null);
+        });
+        for (String invalid : List.of("0", "0.25", "0.50000000000000001"))
+            denied("23514",s,()->ledger(s,UUID.randomUUID(),"ADJUSTMENT",new java.math.BigDecimal(invalid),null,null,null));
+        assertEquals(7.5,admin.queryForObject("SELECT sum(signed_quantity_days) FROM tna.leave_ledger WHERE tenant_id=?",Double.class,s.tenant()));
+    }
     private void seed(Scope s,String part) {
         bucket(s);UUID request=UUID.randomUUID(),correction=UUID.randomUUID(),effect=UUID.randomUUID();
         request(s,request,"LEAVE_DAY",s.target(),s.actor(),s.approver(),s.bucket(),null,"2026-11-01");
@@ -159,7 +171,7 @@ class LeaveWorkflowSchemaIT {
                 validated_input_refs,reverses_effect_id,supersedes_effect_id,created_by)
             VALUES (?,?,?,?,?::date,?,'EFFECTIVE','[]'::jsonb,?,?,?)
             """,s.tenant(),id,request,s.target(),date,kind,reverses,supersedes,s.actor());}
-    private int ledger(Scope s,UUID id,String kind,int quantity,UUID effect,String date,UUID reverses) {return app.update("""
+    private int ledger(Scope s,UUID id,String kind,Number quantity,UUID effect,String date,UUID reverses) {return app.update("""
             INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,
                 request_effect_id,leave_date,reverses_entry_id,source_reference,reason,created_by)
             VALUES (?,?,?,?,?,?,DATE '2026-10-24',?,?::date,?,'합성 원장 근거','합성 원장',?)
