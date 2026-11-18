@@ -1,5 +1,7 @@
 # vibe-attendance 제품 요구사항 문서 (PRD)
 
+담당자는 [0.5일 단위 연차 잔여 이관·조정](superpowers/specs/2026-11-18-leave-balance-batch.md)과 [회사 근무현황의 월말 확인 대상](superpowers/specs/2026-11-18-month-end-review.md)을 사용한다.
+
 2026-11-18 개발본은 연차·정정에 짧은 근태코드를 제공하고, 같은 연차 묶음에서 오전·오후 반차를 0.5일씩 처리한다. [업무 명세](superpowers/specs/2026-11-18-attendance-codes-half-day.md)
 
 > 4단계 최종 실행은 Java105+513=618개·React168개/13파일·타입/Vite·업무 HTTP129요청·공통 보안24항목·PC/390px6회 관측을 통과했다. 로컬 V14 적용·기존39개 업무 자료/권한·DB 컨테이너/볼륨 보존, 별도2tenant의 기존8신청 업그레이드와 정책 버전을 포함한44테이블 합성 복원을 확인했다. 별도 V13 공개 배포 작업의 진행을 확인해 이번 작업에서 공개 작업트리·서버를 변경하지 않았다. 실제 근거·보완 이력·미실시 범위는 [4단계 결과](quality/code-management.md)를 따른다.
