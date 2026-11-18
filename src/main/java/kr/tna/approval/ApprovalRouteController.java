@@ -30,7 +30,7 @@ public final class ApprovalRouteController {
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
     private static final Set<String> BULK_PARAMETERS=Set.of("commandId","reason","rows","q","page","_csrf");
     private static final Set<String> ASSIGN_PARAMETERS=Set.of("commandId","reason","scopeKind","employeeId","organizationId","routeVersionId","validFrom","expectedVersion","_csrf");
-    private static final Set<String> FIELDS=Set.of("clientRowId","id","expectedVersion","operation","code","name","active","approverKind","employeeId");
+    private static final Set<String> FIELDS=Set.of("clientRowId","id","expectedVersion","operation","code","name","active","approverKind","employeeId","terminalUnit");
     private final ApprovalRouteService service;
     public ApprovalRouteController(ApprovalRouteService service) { this.service=service; }
 
@@ -62,7 +62,7 @@ public final class ApprovalRouteController {
                 var active=node.get("active");
                 if (active==null || !active.isBoolean()) throw malformed();
                 rows.add(new RouteRow(clientId,uuid(node,"id"),expected==null||expected.isNull()?null:expected.asLong(),
-                        BulkData.Operation.valueOf(text(node,"operation")),text(node,"code"),text(node,"name"),active.asBoolean(),text(node,"approverKind"),uuid(node,"employeeId")));
+                        BulkData.Operation.valueOf(text(node,"operation")),text(node,"code"),text(node,"name"),active.asBoolean(),text(node,"approverKind"),uuid(node,"employeeId"),text(node,"terminalUnit")));
             }
         } catch (JacksonException | IllegalArgumentException e) { throw malformed(); }
         var form=new BulkData.Form<>(command,reason,List.copyOf(rows));

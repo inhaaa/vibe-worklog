@@ -44,7 +44,7 @@ public final class ApprovalRouteService {
                 if (row.id() != null && !originals.containsKey(row.id())) originals.put(row.id(), requireRoute(actor.tenantId(), row.id()));
             }
             var edited = new ArrayList<>(originals.values().stream().map(row -> new RouteRow(row.id().toString(), row.id(), row.version(),
-                    Operation.UPDATE, row.code(), row.name(), row.active(), row.approverKind(), row.employeeId())).toList());
+                    Operation.UPDATE, row.code(), row.name(), row.active(), row.approverKind(), row.employeeId(), row.terminalUnit())).toList());
             if (draft != null) for (var row : draft.rows()) {
                 int index = -1;
                 for (int i=0; i<edited.size(); i++) if (row.id()!=null && row.id().equals(edited.get(i).id())) { index=i; break; }
@@ -62,7 +62,7 @@ public final class ApprovalRouteService {
         var rows = form.rows().stream().map(row -> new RouteRow(row.clientRowId(), row.id(), row.expectedVersion(), row.operation(),
                 field(row, "code", () -> requiredText(row.code(),40,"결재선 코드")),
                 field(row, "name", () -> requiredText(row.name(),120,"결재선 이름")),
-                row.operation()!=Operation.DEACTIVATE && row.active(), row.approverKind(), row.employeeId())).toList();
+                row.operation()!=Operation.DEACTIVATE && row.active(), row.approverKind(), row.employeeId(), row.terminalUnit()==null || row.terminalUnit().isEmpty() ? null : row.terminalUnit())).toList();
         return commands.executeBatch(actor, form.commandId(), "APPROVAL_ROUTE_BULK", "APPROVAL_ROUTE",
                 fingerprint("APPROVAL_ROUTE_BULK", reason, json.writeValueAsString(rows)), reason, () -> {
                     var codes = new HashSet<String>();
@@ -76,16 +76,19 @@ public final class ApprovalRouteService {
                         }
                         var existing = mapper.code(actor.tenantId(), row.code());
                         if (!codes.add(row.code()) || existing!=null && !existing.id().equals(row.id())) throw issue(row,"code",409,"이미 사용 중인 결재선 코드입니다.");
-                        if (!Set.of("DIRECT_EMPLOYEE","ORGANIZATION_HEAD").contains(row.approverKind())) throw issue(row,"approverKind",422,"지정 사원 또는 조직장 결재를 선택해 주세요.");
+                        if (row.approverKind()==null || !Set.of("DIRECT_EMPLOYEE","ORGANIZATION_HEAD","ORGANIZATION_CHAIN").contains(row.approverKind())) throw issue(row,"approverKind",422,"결재 방식을 선택해 주세요.");
+                        boolean chain = row.approverKind().equals("ORGANIZATION_CHAIN");
+                        if (chain && !("TEAM".equals(row.terminalUnit()) || "OFFICE".equals(row.terminalUnit()))
+                                || !chain && row.terminalUnit()!=null) throw issue(row,"terminalUnit",422,"순차결재에는 팀장까지 또는 실장까지를 지정해 주세요.");
                         if (row.approverKind().equals("DIRECT_EMPLOYEE") != (row.employeeId()!=null)) throw issue(row,"employeeId",422,"지정 사원 결재에만 결재 사원을 선택해 주세요.");
-                        boolean contentChanged = old==null || !old.name().equals(row.name()) || !old.approverKind().equals(row.approverKind()) || !Objects.equals(old.employeeId(),row.employeeId());
+                        boolean contentChanged = old==null || !old.name().equals(row.name()) || !old.approverKind().equals(row.approverKind()) || !Objects.equals(old.employeeId(),row.employeeId()) || !Objects.equals(old.terminalUnit(),row.terminalUnit());
                         if (row.employeeId()!=null) {
                             if (employees.get(actor.tenantId(),row.employeeId())==null) throw OrgException.notFound();
                             if ((old==null || contentChanged || !old.active() && row.active())
                                     && !approvers.eligible(actor.tenantId(),row.employeeId(),commands.today())) throw issue(row,"employeeId",422,"수락 완료한 활성 재직 계정의 결재 담당 자격이 필요합니다.");
                         }
                         Route current = new Route(old==null?UUID.randomUUID():old.id(),row.code(),row.name(),row.active(),old==null?0:old.version()+1,
-                                contentChanged?UUID.randomUUID():old.routeVersionId(),old==null?1:old.revision()+(contentChanged?1:0),row.approverKind(),row.employeeId(),null);
+                                contentChanged?UUID.randomUUID():old.routeVersionId(),old==null?1:old.revision()+(contentChanged?1:0),row.approverKind(),row.employeeId(),null,row.terminalUnit());
                         before.put(row.clientRowId(),old); after.put(row.clientRowId(),current);
                     }
                     var changes = new ArrayList<BulkData.Change>();
@@ -119,7 +122,7 @@ public final class ApprovalRouteService {
                     && (row.validTo()==null || row.validTo().isAfter(commands.today()))).findFirst().orElse(null);
             var form=draft==null ? new AssignmentForm(scope,employee,organization,current==null?null:current.routeVersionId(),commands.today(),version,"",UUID.randomUUID()) : draft;
             return new AssignmentView(commands.today(),scope,employee,organization,employeeOptions,organizationOptions,
-                    List.copyOf(mapper.versions(actor.tenantId())),history,form);
+                    mapper.versions(actor.tenantId()).stream().filter(v -> !"ORGANIZATION_CHAIN".equals(v.approverKind())).toList(),history,form);
         });
     }
 
@@ -138,6 +141,7 @@ public final class ApprovalRouteService {
                     if (!end) {
                         var selected=mapper.version(tenant,form.routeVersionId());
                         if (selected==null) throw OrgException.notFound();
+                        if ("ORGANIZATION_CHAIN".equals(selected.approverKind())) throw OrgException.invalid("순차결재는 신청서코드 관리에서 연결해 주세요.");
                         if (!selected.active()) throw OrgException.invalid("활성 결재선의 버전을 선택해 주세요.");
                         if (form.scopeKind().equals("EMPLOYEE")) {
                             var employee=employees.get(tenant,target);

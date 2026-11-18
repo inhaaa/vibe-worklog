@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface OrganizationAdminMapper {
     @Select("""
-            SELECT id, code, name, parent_id, active, version
+            SELECT id, code, name, parent_id, active, version, approval_unit
             FROM tna.organization
             WHERE tenant_id = #{tenantId}
               AND (#{query} = '' OR strpos(lower(code), lower(#{query})) > 0
@@ -24,13 +24,13 @@ public interface OrganizationAdminMapper {
                                    @Param("offset") int offset);
 
     @Select("""
-            SELECT id, code, name, parent_id, active, version
+            SELECT id, code, name, parent_id, active, version, approval_unit
             FROM tna.organization WHERE tenant_id = #{tenantId} ORDER BY code, id
             """)
     List<OrgData.Organization> options(@Param("tenantId") UUID tenantId);
 
     @Select("""
-            SELECT id, code, name, parent_id, active, version
+            SELECT id, code, name, parent_id, active, version, approval_unit
             FROM tna.organization WHERE tenant_id = #{tenantId} AND id = #{id}
             """)
     OrgData.Organization find(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
@@ -54,16 +54,16 @@ public interface OrganizationAdminMapper {
 
     @Insert("""
             INSERT INTO tna.organization
-                (tenant_id, id, code, name, parent_id, active, created_at, created_by, updated_at, updated_by)
+                (tenant_id, id, code, name, parent_id, active, created_at, created_by, updated_at, updated_by, approval_unit)
             VALUES (#{tenantId}, #{organization.id}, #{organization.code}, #{organization.name},
-                    #{organization.parentId}, #{organization.active}, #{createdAt}, #{actorId}, #{createdAt}, #{actorId})
+                    #{organization.parentId}, #{organization.active}, #{createdAt}, #{actorId}, #{createdAt}, #{actorId}, #{organization.approvalUnit})
             """)
     int insert(@Param("tenantId") UUID tenantId, @Param("organization") OrgData.Organization organization,
                @Param("actorId") UUID actorId, @Param("createdAt") Instant createdAt);
 
     @Update("""
             UPDATE tna.organization
-            SET name = #{organization.name}, parent_id = #{organization.parentId}, active = #{organization.active},
+            SET name = #{organization.name}, parent_id = #{organization.parentId}, active = #{organization.active}, approval_unit = #{organization.approvalUnit},
                 version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = #{actorId}
             WHERE tenant_id = #{tenantId} AND id = #{organization.id} AND version = #{organization.version}
             """)

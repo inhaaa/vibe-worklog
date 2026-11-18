@@ -28,7 +28,7 @@ public final class OrgBulkController {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
     private static final Set<String> PARAMETERS = Set.of("commandId", "reason", "rows", "q", "page", "organizationId", "status", "_csrf");
-    private static final Set<String> ORGANIZATION_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "code", "name", "parentId", "active");
+    private static final Set<String> ORGANIZATION_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "code", "name", "parentId", "active", "approvalUnit");
     private static final Set<String> EMPLOYEE_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "employeeNo", "displayName", "joinedOn", "leftOn", "active");
     private final OrgBulkService service;
     private final OrgAdminController pages;
@@ -43,7 +43,7 @@ public final class OrgBulkController {
         var rows = new ArrayList<OrganizationRow>();
         for (JsonNode row : rows(request, ORGANIZATION_FIELDS)) {
             rows.add(new OrganizationRow(clientId(row), uuid(row, "id"), version(row), operation(row),
-                    text(row, "code"), text(row, "name"), uuid(row, "parentId"), active(row)));
+                    text(row, "code"), text(row, "name"), uuid(row, "parentId"), active(row), row.has("approvalUnit") ? text(row, "approvalUnit") : null));
         }
         var form = new Form<>(context.commandId(), context.reason(), List.copyOf(rows));
         // Validate the navigation scope before committing a mutation that redirects into it.

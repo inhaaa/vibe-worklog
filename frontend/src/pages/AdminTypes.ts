@@ -4,11 +4,14 @@ export interface CommandForm {
   reason: string;
 }
 
+export const approvalUnits = [['TEAM', '팀'], ['OFFICE', '실'], ['PASS_THROUGH', '경유 조직']] as const;
+
 export interface Organization {
   id: string;
   code: string;
   name: string;
   parentId: string | null;
+  approvalUnit?: string | null;
   active: boolean;
   version: number;
 }
@@ -35,6 +38,7 @@ export interface OrganizationForm extends CommandForm {
   code: string;
   name: string;
   parentId: string | null;
+  approvalUnit?: string | null;
   active: boolean;
 }
 

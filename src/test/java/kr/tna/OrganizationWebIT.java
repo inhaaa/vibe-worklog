@@ -76,6 +76,26 @@ class OrganizationWebIT {
     }
 
     @Test
+    void approvalUnitCanBeSetClearedOrPreservedByOlderClients() throws Exception {
+        var session = login(DatabaseFixture.COMPANY_A);
+        UUID id = createOrganization(session, "결재 단위 조직");
+        String code = admin.queryForObject("SELECT code FROM tna.organization WHERE tenant_id=? AND id=?",
+                String.class, DatabaseFixture.TENANT_A, id);
+        mvc.perform(organizationChange(session, id, code, "팀", 0).param("approvalUnit", "TEAM"))
+                .andExpect(status().isSeeOther());
+        mvc.perform(organizationChange(session, id, code, "새 팀 이름", 1))
+                .andExpect(status().isSeeOther());
+        mvc.perform(get("/admin/organizations/{id}", id).session(session))
+                .andExpect(ReactPageAssertions.data("/form/approvalUnit", "TEAM"));
+        mvc.perform(organizationChange(session, id, code, "팀", 2).param("approvalUnit", "INVALID"))
+                .andExpect(status().isUnprocessableEntity());
+        mvc.perform(organizationChange(session, id, code, "팀", 2).param("approvalUnit", "UNASSIGNED"))
+                .andExpect(status().isSeeOther());
+        assertNull(admin.queryForObject("SELECT approval_unit FROM tna.organization WHERE tenant_id=? AND id=?",
+                String.class, DatabaseFixture.TENANT_A, id));
+    }
+
+    @Test
     void organizationCreateAndChangeRedirectToDetailAndRejectStaleVersion() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
         UUID id = createOrganization(session, "처음 조직");

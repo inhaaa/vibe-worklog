@@ -1,4 +1,5 @@
 import type React from 'react';
+import { approvalUnits } from './AdminTypes';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
@@ -505,6 +506,10 @@ function OrganizationFields({
           없습니다.
         </p>
       )}
+      <SelectField id="organization-approval-unit" label="결재 단위" name="approvalUnit" value={form.approvalUnit ?? 'UNASSIGNED'}>
+        <option value="UNASSIGNED">미지정</option>
+        {approvalUnits.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      </SelectField>
       <FormRow label="상태"><Check label="활성 조직" name="active" checked={form.active} /></FormRow>
       {organizationId && (
         <p className="hint">

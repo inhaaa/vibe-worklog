@@ -11,11 +11,17 @@ import org.springframework.format.annotation.DateTimeFormat;
 public final class ApprovalRouteData {
     private ApprovalRouteData() { }
     public record Route(UUID id, String code, String name, boolean active, long version, UUID routeVersionId,
-            long revision, String approverKind, UUID employeeId, String employeeName) { }
+            long revision, String approverKind, UUID employeeId, String employeeName, String terminalUnit) { }
     public record RouteRow(String clientRowId, UUID id, Long expectedVersion, BulkData.Operation operation,
-            String code, String name, boolean active, String approverKind, UUID employeeId) implements BulkData.Row { }
+            String code, String name, boolean active, String approverKind, UUID employeeId,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String terminalUnit) implements BulkData.Row {
+        public RouteRow(String clientRowId, UUID id, Long expectedVersion, BulkData.Operation operation,
+                String code, String name, boolean active, String approverKind, UUID employeeId) {
+            this(clientRowId,id,expectedVersion,operation,code,name,active,approverKind,employeeId,null);
+        }
+    }
     public record RouteVersion(UUID id, UUID routeId, String code, String name, boolean active, long revision,
-            String approverKind, UUID employeeId, String employeeName, String reason, Instant createdAt) { }
+            String approverKind, UUID employeeId, String employeeName, String reason, Instant createdAt, String terminalUnit) { }
     public record ManagementView(String q, int page, boolean hasNext, List<Route> routes, List<RouteVersion> versions,
             List<OrgData.Employee> candidates, BulkData.Sheet sheet) { }
     public record AssignmentForm(String scopeKind, UUID employeeId, UUID organizationId, UUID routeVersionId,

@@ -37,7 +37,7 @@ class PublicDemoBootstrapIT {
     @AfterEach
     void clearOnlyThisTestOwnedDatabase() {
         admin.update("UPDATE tna.employee SET created_by=NULL,updated_by=NULL WHERE tenant_id=?", LocalDemoLogin.TENANT_ID);
-        for (String table : List.of("tna.attendance_type_version", "tna.attendance_type", "tna.common_code", "tna.common_code_group",
+        for (String table : List.of("tna.request_form_version", "tna.request_form", "tna.attendance_type_version", "tna.attendance_type", "tna.common_code", "tna.common_code_group",
                 "tna.org_audit_event", "tna.account_token", "tna.role_grant",
                 "tna.tenant_account", "tna.employee")) {
             admin.update("DELETE FROM " + table + " WHERE tenant_id IN (?,?)", LocalDemoLogin.TENANT_ID, OTHER);

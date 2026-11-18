@@ -42,7 +42,7 @@ public final class OrgBulkService {
         List<OrganizationRow> rows = form.rows().stream().map(row -> new OrganizationRow(row.clientRowId(), row.id(),
                 row.expectedVersion(), row.operation(), text(row, "code", () -> OrganizationCodes.normalize(row.code())),
                 text(row, "name", () -> requiredText(row.name(), 120, "조직 이름")), row.parentId(),
-                row.operation() != Operation.DEACTIVATE && row.active())).toList();
+                row.operation() != Operation.DEACTIVATE && row.active(), row.approvalUnit())).toList();
         String action = "ORGANIZATION_BULK";
         return commands.executeBatch(actor, form.commandId(), action, "ORGANIZATION",
                 fingerprint(action, reason, json.writeValueAsString(rows)), reason, () -> {
@@ -64,7 +64,8 @@ public final class OrgBulkService {
                         UUID id = old == null ? UUID.randomUUID() : old.id();
                         String code = old == null ? text(row, "code", () -> codes.issue(row.code())) : old.code();
                         after.put(id, new Organization(id, code, row.name(), row.parentId(), row.active(),
-                                old == null ? 0 : old.version() + 1));
+                                old == null ? 0 : old.version() + 1, text(row, "approvalUnit",
+                                        () -> OrgData.approvalUnit(row.approvalUnit(), old == null ? null : old.approvalUnit()))));
                         changed.put(id, row);
                     }
                     validateOrganizations(actor, before, after, changed);
@@ -73,7 +74,7 @@ public final class OrgBulkService {
                         Organization old = before.get(entry.getKey()), current = after.get(entry.getKey());
                         if (old == null) changed(organizations.insert(actor.tenantId(), current, actor.accountId(), createdAt));
                         else changed(organizations.update(actor.tenantId(), new Organization(current.id(), current.code(), current.name(),
-                                current.parentId(), current.active(), old.version()), actor.accountId()));
+                                current.parentId(), current.active(), old.version(), current.approvalUnit()), actor.accountId()));
                         changes.add(new BulkData.Change(entry.getValue().clientRowId(), current.id(), current.version(), old, current));
                     }
                     return changes;

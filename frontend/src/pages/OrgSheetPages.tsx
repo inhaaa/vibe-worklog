@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime, FormTable } from '../ui';
+import { approvalUnits } from './AdminTypes';
 import type { Employee, Organization, OrganizationForm } from './AdminTypes';
 import { OrganizationCreateForm } from './AdminPages';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
@@ -16,7 +17,7 @@ import type { HeadChartData, HeadCommand, HeadOverview, HeadPreview } from './Or
 
 type Operation = 'CREATE' | 'UPDATE' | 'DEACTIVATE';
 interface RowBase { clientRowId: string; id?: string | null; expectedVersion?: number | null; operation: Operation; active: boolean }
-interface OrganizationRow extends RowBase { code: string; name: string; parentId: string | null }
+interface OrganizationRow extends RowBase { code: string; name: string; parentId: string | null; approvalUnit?: string | null }
 interface EmployeeRow extends RowBase { employeeNo: string; displayName: string; joinedOn: string; leftOn: string | null }
 type Row = OrganizationRow | EmployeeRow;
 interface RowError { clientRowId: string; field: string; message: string }
@@ -35,7 +36,7 @@ interface SheetPageModel {
   publicDemo?: boolean;
 }
 const fields = (organization: boolean) => organization
-  ? ['code', 'name', 'parentId', 'active'] as const
+  ? ['code', 'name', 'parentId', 'approvalUnit', 'active'] as const
   : ['employeeNo', 'displayName', 'joinedOn', 'leftOn', 'active'] as const;
 function businessValue(row: Row | Employee | Organization, field: string) {
   return (row as unknown as Record<string, unknown>)[field] ?? '';
@@ -185,6 +186,10 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
         options: [['', '없음'], ...m.options.filter(option => option.id !== row.id && (option.active || option.id === businessValue(row, 'parentId'))).map(option => [option.id, `${option.name}${option.active ? '' : ' (비활성)'}`] as const)],
         onChange: value => update(row.clientRowId, 'parentId', value || null),
       })),
+      sheetEditorColumn<Row>({ colId: 'approvalUnit', headerName: '결재 단위', minWidth: 130 }, (row, index) => ({
+        ...input(row, index, 'approvalUnit', '결재 단위'),
+        options: [['', '미지정'], ...approvalUnits],
+      })),
       sheetColumn<Row>({ colId: 'organizationHead', headerName: '조직장', minWidth: 190, valueGetter: ({ data }) => data?.id ? m.organizationHeadsById?.[data.id]?.employeeName ?? '' : '' }, row => headCell(row)),
     ] : [
       sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true, fixed: Boolean(row.id && m.personnelBasics?.[row.id]?.onboardingId) })),
@@ -242,7 +247,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
             <button className="t-btn primary" type="submit" disabled={dirty.length < 1 || dirty.length > 50 || conflicts.length > 0} title={conflicts.length ? '최신값을 비교하고 확인하세요.' : dirty.length ? '변경 행을 함께 저장합니다.' : '변경한 행이 없습니다.'}>저장</button>
           </div>}
           pagination={<nav className="actions pagination" aria-label={`${label} 페이지`}><span>{m.page + 1}페이지 · 조회 {model.latestRows.length}행</span>{m.page > 0 && <a href={queryHref(path, { ...values, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref(path, { ...values, page: m.page + 1 })}>다음</a>}</nav>} />
-        {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
+        {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', approvalUnit: '결재 단위', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
       </Form>
     </section>
     {confirming && <SheetSaveDialog formId={formId} label="일괄 변경 사유" reason={reason} error={reasonError} counts={sheetChangeCounts(dirty)}

@@ -142,7 +142,7 @@ public class OrgAdminController {
         var org = organizations.get(actor, id);
         return options(new ModelAndView("org/organization").addObject("organization", org)
                 .addObject("form", form != null ? form : new OrgData.OrganizationForm(
-                        org.code(), org.name(), org.parentId(), org.active(), org.version(), "", UUID.randomUUID())), actor);
+                        org.code(), org.name(), org.parentId(), org.active(), org.version(), "", UUID.randomUUID(), org.approvalUnit())), actor);
     }
 
     private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form) {

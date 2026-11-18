@@ -17,9 +17,9 @@ public interface ApprovalRouteMapper {
 
     String ROUTE_SELECT = """
             SELECT r.id,r.code,r.name,r.active,r.version,v.id AS route_version_id,v.revision,v.approver_kind,
-              v.employee_id,e.display_name AS employee_name
+              v.employee_id,e.display_name AS employee_name,v.terminal_unit
             FROM tna.approval_route r JOIN LATERAL (
-              SELECT id,revision,approver_kind,employee_id FROM tna.approval_route_version
+              SELECT id,revision,approver_kind,employee_id,terminal_unit FROM tna.approval_route_version
               WHERE tenant_id=r.tenant_id AND route_id=r.id ORDER BY revision DESC LIMIT 1
             ) v ON true LEFT JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=v.employee_id
             WHERE r.tenant_id=#{tenantId}
@@ -33,7 +33,7 @@ public interface ApprovalRouteMapper {
 
     String VERSION_SELECT = """
             SELECT v.id,v.route_id,r.code,v.name,r.active,v.revision,v.approver_kind,v.employee_id,
-              e.display_name AS employee_name,v.reason,v.created_at
+              e.display_name AS employee_name,v.reason,v.created_at,v.terminal_unit
             FROM tna.approval_route_version v JOIN tna.approval_route r ON r.tenant_id=v.tenant_id AND r.id=v.route_id
             LEFT JOIN tna.employee e ON e.tenant_id=v.tenant_id AND e.id=v.employee_id
             WHERE v.tenant_id=#{tenantId}
@@ -56,8 +56,8 @@ public interface ApprovalRouteMapper {
     int update(@Param("tenantId") UUID tenantId, @Param("r") Route route,
             @Param("expectedVersion") long expectedVersion, @Param("actorId") UUID actorId);
     @Insert("""
-            INSERT INTO tna.approval_route_version(tenant_id,id,route_id,revision,name,approver_kind,employee_id,reason,created_by)
-            VALUES (#{tenantId},#{r.routeVersionId},#{r.id},#{r.revision},#{r.name},#{r.approverKind},#{r.employeeId},#{reason},#{actorId})
+            INSERT INTO tna.approval_route_version(tenant_id,id,route_id,revision,name,approver_kind,employee_id,reason,created_by,terminal_unit)
+            VALUES (#{tenantId},#{r.routeVersionId},#{r.id},#{r.revision},#{r.name},#{r.approverKind},#{r.employeeId},#{reason},#{actorId},#{r.terminalUnit})
             """)
     int insertVersion(@Param("tenantId") UUID tenantId, @Param("r") Route route,
             @Param("reason") String reason, @Param("actorId") UUID actorId);

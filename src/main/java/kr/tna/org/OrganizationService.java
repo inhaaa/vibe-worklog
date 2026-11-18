@@ -44,7 +44,7 @@ public final class OrganizationService {
                     String code = new OrganizationCodes(createdAt, organizations.codes(actor.tenantId())).issue(normalized.code());
                     UUID id = UUID.randomUUID();
                     var created = new OrgData.Organization(id, code, normalized.name(),
-                            normalized.parentId(), normalized.active(), 0);
+                            normalized.parentId(), normalized.active(), 0, OrgData.approvalUnit(normalized.approvalUnit(), null));
                     organizations.insert(actor.tenantId(), created, actor.accountId(), createdAt);
                     return new OrgCommands.Change(id, null, requireOrganization(actor.tenantId(), id));
                 });
@@ -72,7 +72,7 @@ public final class OrganizationService {
                         }
                     }
                     var updated = new OrgData.Organization(id, before.code(), normalized.name(),
-                            normalized.parentId(), normalized.active(), before.version());
+                            normalized.parentId(), normalized.active(), before.version(), OrgData.approvalUnit(normalized.approvalUnit(), before.approvalUnit()));
                     if (organizations.update(actor.tenantId(), updated, actor.accountId()) != 1) {
                         throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 내용을 확인해 주세요.");
                     }
@@ -105,11 +105,12 @@ public final class OrganizationService {
         if (form == null) throw OrgException.invalid("조직 정보를 입력해 주세요.");
         return new OrgData.OrganizationForm(OrganizationCodes.normalize(form.code()),
                 OrgCommands.requiredText(form.name(), 120, "조직 이름"), form.parentId(), form.active(),
-                form.expectedVersion(), OrgCommands.requiredText(form.reason(), 500, "변경 사유"), form.commandId());
+                form.expectedVersion(), OrgCommands.requiredText(form.reason(), 500, "변경 사유"), form.commandId(), form.approvalUnit());
     }
 
     private static String fingerprint(String action, UUID id, OrgData.OrganizationForm form) {
-        return OrgCommands.fingerprint(action, id, form.code(), form.name(), form.parentId(), form.active(),
+        String original = OrgCommands.fingerprint(action, id, form.code(), form.name(), form.parentId(), form.active(),
                 form.expectedVersion(), form.reason());
+        return form.approvalUnit() == null ? original : OrgCommands.fingerprint(original, form.approvalUnit());
     }
 }

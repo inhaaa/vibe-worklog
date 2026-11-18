@@ -36,6 +36,11 @@ async function show(initial = page()) {
 function bulkForm(view: ReturnType<typeof render>, kind = 'organizations') {
   return view.container.querySelector(`form[action="/admin/${kind}/bulk"]`) as HTMLFormElement;
 }
+it('조직 시트에서 선택한 결재 단위를 저장 요청에 포함한다', async () => {
+  const view = await show();
+  await changeCell(view, '결재 단위 1', 'OFFICE');
+  expect(postedRows(view)[0]).toMatchObject({ approvalUnit: 'OFFICE' });
+});
 function postedRows(view: ReturnType<typeof render>, kind = 'organizations') {
   return JSON.parse(String(new FormData(bulkForm(view, kind)).get('rows'))) as Record<string, unknown>[];
 }
