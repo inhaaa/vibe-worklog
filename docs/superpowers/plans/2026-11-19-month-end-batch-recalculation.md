@@ -6,3 +6,5 @@
 2. **일괄 명령.** `MonthEndBatchController.java`와 `MonthEndBatchService.java`에서 사유·대상·미리보기를 검증하고, 기존 `WorktimeService`의 사원·주 계산과 `OrgCommands`의 테넌트 잠금·감사를 재사용한다. 같은 사원·주 중복, 동시 실행, 재전송, 부분 실패 롤백, 권한 회수를 PostgreSQL로 확인한다.
 3. **담당자 화면.** `frontend/src/pages/MonthEndReviewPage.tsx`에 행 선택·현재 페이지 선택, 주 범위 미리보기, 사유·실행, 날짜별 결과와 같은 조회로 복귀하는 흐름을 추가한다. 미확정과 0시간, 응답 유실 재시도와 조회 조건 보존을 React 테스트로 확인한다.
 4. **업무 인수 검증.** 확정 가능한 날짜, 정정 대기·출퇴근 누락 날짜가 섞인 선택을 PC·모바일 Chrome에서 처리하고 DB 결과·원천 보존을 대조한다. 전체 Java·React 테스트와 프로덕션 빌드를 확인한 뒤 명세·서버·화면·검증을 작업 단위로 커밋해 개발 브랜치에 푸시한다. 공개 데모 배포는 보류한다.
+
+실행 시나리오와 결과는 [월말 일괄 재집계 검증 기록](../../quality/month-end-batch-recalculation-20261119.md)에 기록한다.
