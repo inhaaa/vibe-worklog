@@ -28,7 +28,7 @@ final class FormRouteResolver {
                   LeaveWorkflowMapper.RouteOrganization membership,List<Trace> path,ApprovalPreview preview) {}
 
     Result form(UUID tenant,UUID author,UUID target,String kind,LocalDate date) {
-        if(!Set.of("LEAVE_DAY","CANCEL_LEAVE","ATTENDANCE_CORRECTION").contains(kind))
+        if(!Set.of("LEAVE_DAY","CANCEL_LEAVE","ATTENDANCE_CORRECTION","OVERTIME","CANCEL_OVERTIME").contains(kind))
             throw OrgException.invalid("신청 종류를 확인해 주세요.");
         var form=forms.effective(tenant,kind,date);
         if(form==null)return failure(null,null,null,null,null,date,"사용 중인 신청서가 없습니다. 담당자에게 신청서코드 설정을 요청해 주세요.");

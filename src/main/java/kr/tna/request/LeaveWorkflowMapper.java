@@ -137,7 +137,7 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
             AND(r.status='PENDING' OR (r.status='APPROVED' AND f.effect_status='EFFECTIVE')))
         """)
     boolean overlappingLeave(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("exceptId") UUID exceptId);
-    @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND original_request_id=#{id} AND kind='CANCEL_LEAVE' AND status='PENDING')")
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND original_request_id=#{id} AND kind IN ('CANCEL_LEAVE','CANCEL_OVERTIME') AND status='PENDING')")
     boolean pendingCancellation(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND from_date=#{date} AND status='PENDING')")
     boolean pendingCorrection(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
@@ -265,5 +265,29 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
     record RouteBinding(UUID assignmentId,long assignmentVersion,String scopeKind,UUID routeVersionId,String routeCode,
             String routeName,long revision,String approverKind,UUID employeeId,boolean routeActive) { }
     record RouteHead(UUID id,long version,UUID employeeId) { }
+    @Select("""
+        SELECT work_date,start_time,end_time,requested_minutes,schedule_version_id,code_version_id,calendar_version_id,basis_token
+        FROM tna.overtime_request_detail WHERE tenant_id=#{tenant} AND request_id=#{id}
+        """)
+    OvertimeDetail overtime(UUID tenant,UUID id);
+
+    @Insert("""
+        INSERT INTO tna.overtime_request_detail(tenant_id,request_id,work_date,start_time,end_time,requested_minutes,
+            schedule_version_id,code_version_id,calendar_version_id,basis_token)
+        VALUES(#{tenant},#{id},#{d.workDate},#{d.startTime},#{d.endTime},#{d.requestedMinutes},#{d.scheduleVersionId},
+            #{d.codeVersionId},#{d.calendarVersionId},#{d.basisToken})
+        """)
+    int insertOvertime(UUID tenant,UUID id,OvertimeDetail d);
+
+    @Select("""
+        SELECT EXISTS(SELECT 1 FROM tna.approval_request r
+            JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
+            LEFT JOIN tna.request_effect e ON e.tenant_id=r.tenant_id AND e.request_id=r.id
+            WHERE r.tenant_id=#{tenant} AND r.target_employee_id=#{employee} AND r.kind='OVERTIME'
+              AND r.from_date=#{date} AND d.start_time<#{end} AND #{start}<d.end_time
+              AND (r.status='PENDING' OR e.effect_status='EFFECTIVE'))
+        """)
+    boolean overlappingOvertime(UUID tenant,UUID employee,LocalDate date,java.time.LocalTime start,java.time.LocalTime end);
+
     record Effect(UUID id,UUID requestId,UUID employeeId,LocalDate workDate,String effectKind,String effectStatus,String validatedInputRefs) { }
 }

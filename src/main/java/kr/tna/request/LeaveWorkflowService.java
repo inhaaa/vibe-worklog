@@ -5,6 +5,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import kr.tna.overtime.OvertimePolicyService;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -45,9 +47,17 @@ public final class LeaveWorkflowService {
     private final ApprovalRouteResolver routes;
     private final AttendanceTypeResolver attendanceTypes;
     private final FormRouteResolver formRoutes;
+    private final OvertimePolicyService overtime;
     private final JsonMapper json=JsonMapper.builder().build();
     public LeaveWorkflowService(LeaveWorkflowMapper mapper,BusinessCommands commands,OrgCommands administration,
             EmployeeAdminMapper employees,ApproverMapper approvers,ClockService clocks,Clock clock,kr.tna.approval.RequestFormMapper forms) {
+        this(mapper,commands,administration,employees,approvers,clocks,clock,forms,null);
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public LeaveWorkflowService(LeaveWorkflowMapper mapper,BusinessCommands commands,OrgCommands administration,
+            EmployeeAdminMapper employees,ApproverMapper approvers,ClockService clocks,Clock clock,
+            kr.tna.approval.RequestFormMapper forms, OvertimePolicyService overtime) {
+        this.overtime=overtime;
         this.mapper=mapper;this.commands=commands;this.administration=administration;this.employees=employees;
         this.approvers=approvers;this.clocks=clocks;this.clock=clock;
         this.routes=new ApprovalRouteResolver(mapper,approvers,employees);
@@ -128,6 +138,28 @@ public final class LeaveWorkflowService {
                     &&approvers.eligible(actor.tenantId(),actor.employeeId(),today()))return detail(actor.tenantId(),r);
             throw OrgException.notFound();});
     }
+    public UUID submitOvertime(TnaPrincipal actor,LocalDate date,LocalTime start,LocalTime end,String inputReason,
+                               String basisToken,String routeToken,UUID commandId) {
+        String reason=requiredText(inputReason,500,"연장 사유"), action="OVERTIME_SUBMIT";
+        if(date==null||start==null||end==null) throw OrgException.invalid("연장 근무일과 시작·종료 시각을 입력해 주세요.");
+        return commands.execute(actor,commandId,action,"REQUEST",
+                fingerprint(action,date,start,end,basisToken,routeToken,reason),reason,"EMPLOYEE",()->{
+            var employee=currentEmployee(actor.tenantId(),actor.employeeId(),false);
+            employmentDate(employee,date);
+            var basis=overtime.evaluate(actor.tenantId(),actor.employeeId(),date,start,end,true);
+            if(!basis.basisToken().equals(basisToken))
+                throw OrgException.conflict("근무 기준이 달라졌습니다. 신청 시간을 다시 확인해 주세요.");
+            if(mapper.overlappingOvertime(actor.tenantId(),actor.employeeId(),date,start,end))
+                throw OrgException.conflict("같은 시간에 대기 또는 승인된 연장근무가 있습니다.");
+            var request=createRequest(actor,actor.employeeId(),"OVERTIME",date,date,reason,null,null,null,false,commandId,routeToken);
+            var evidence=new OvertimeDetail(date,start,end,basis.requestedMinutes(),basis.scheduleVersionId(),
+                    basis.codeVersionId(),basis.calendarVersionId(),basis.basisToken());
+            changed(mapper.insertOvertime(actor.tenantId(),request.id(),evidence));
+            history(actor,request,"SUBMITTED",null,"PENDING",reason,null,request.currentApproverId());
+            return new Change(request.id(),null,evidence);
+        });
+    }
+
     public UUID submitLeave(TnaPrincipal actor,LeaveForm form) {
         return submitLeave(actor,form,null);
     }
@@ -247,12 +279,16 @@ public final class LeaveWorkflowService {
             var original=request(actor.tenantId(),originalId);
             if(!form.exceptional()&&!original.targetEmployeeId().equals(actor.employeeId()))throw OrgException.notFound();
             checkVersion(form.expectedVersion(),original.version());
-            if(!original.kind().equals("LEAVE_DAY")||!original.status().equals("APPROVED")||!original.effectStatus().equals("EFFECTIVE"))throw OrgException.invalid("현재 유효한 승인 연차만 취소 신청할 수 있습니다.");
-            if(!form.exceptional()&&!original.targetEmployeeId().equals(actor.employeeId()))throw OrgException.notFound();
+            boolean overtimeRequest="OVERTIME".equals(original.kind());
+            if(overtimeRequest && form.exceptional()) throw OrgException.forbidden();
+            if(!(overtimeRequest || original.kind().equals("LEAVE_DAY"))||!original.status().equals("APPROVED")||!original.effectStatus().equals("EFFECTIVE"))throw OrgException.invalid("현재 유효한 승인 건만 취소 신청할 수 있습니다.");
             currentEmployee(actor.tenantId(),original.targetEmployeeId(),form.exceptional());
-            if(!form.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 연차는 담당자 예외 경로로 요청해 주세요.");
+            if(overtimeRequest) {
+                var detail=mapper.overtime(actor.tenantId(),original.id());
+                overtime.requireAdvance(detail.workDate(),detail.startTime());
+            } else if(!form.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 연차는 담당자 예외 경로로 요청해 주세요.");
             if(mapper.pendingCancellation(actor.tenantId(),originalId))throw OrgException.conflict("이미 대기 중인 취소가 있습니다.");
-            var r=createRequest(actor,original.targetEmployeeId(),"CANCEL_LEAVE",original.fromDate(),original.toDate(),reason,null,original.id(),original.leaveBucketId(),form.exceptional(),form.commandId(),routeToken);
+            var r=createRequest(actor,original.targetEmployeeId(),overtimeRequest?"CANCEL_OVERTIME":"CANCEL_LEAVE",original.fromDate(),original.toDate(),reason,null,original.id(),original.leaveBucketId(),form.exceptional(),form.commandId(),routeToken);
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));
         });
@@ -276,8 +312,10 @@ public final class LeaveWorkflowService {
                 return new Change(requestId,before,after);
             }
             if(status.equals("APPROVED")) {
-                attendanceTypes.stored(actor.tenantId(),before);
+                if(!isOvertime(before.kind())) attendanceTypes.stored(actor.tenantId(),before);
                 switch(before.kind()) {
+                    case "OVERTIME" -> approveOvertime(actor,before);
+                    case "CANCEL_OVERTIME" -> approveOvertimeCancellation(actor,before);
                     case "LEAVE_DAY" -> approveLeave(actor,before,reason);
                     case "CANCEL_LEAVE" -> approveCancellation(actor,before,reason);
                     case "ATTENDANCE_CORRECTION" -> approveCorrection(actor,before);
@@ -330,6 +368,31 @@ public final class LeaveWorkflowService {
             throw OrgException.conflict("현재 결재 단계가 변경되었습니다. 새로 조회해 주세요.");
     }
 
+    private static boolean isOvertime(String kind) {
+        return "OVERTIME".equals(kind) || "CANCEL_OVERTIME".equals(kind);
+    }
+
+    private void approveOvertime(TnaPrincipal actor,RequestView request) {
+        var stored=mapper.overtime(actor.tenantId(),request.id());
+        employmentDate(employee(actor.tenantId(),request.targetEmployeeId()),stored.workDate());
+        var current=overtime.evaluate(actor.tenantId(),request.targetEmployeeId(),stored.workDate(),stored.startTime(),stored.endTime(),false);
+        if(!current.basisToken().equals(stored.basisToken()) || current.requestedMinutes()!=stored.requestedMinutes())
+            throw OrgException.invalid("근무 기준이 변경되었습니다. 철회 후 다시 신청해 주세요.");
+        changed(mapper.insertEffect(actor.tenantId(),UUID.randomUUID(),request.id(),request.targetEmployeeId(),null,
+                "OVERTIME",json.writeValueAsString(List.of(stored)),null,null,actor.accountId()));
+    }
+
+    private void approveOvertimeCancellation(TnaPrincipal actor,RequestView request) {
+        var original=request(actor.tenantId(),request.originalRequestId());
+        var effect=mapper.requestEffect(actor.tenantId(),original.id());
+        if(!"OVERTIME".equals(original.kind()) || !request.targetEmployeeId().equals(original.targetEmployeeId())
+                || effect==null || !"EFFECTIVE".equals(effect.effectStatus()))
+            throw OrgException.conflict("원신청의 승인 효력이 변경되었습니다.");
+        changed(mapper.endEffect(actor.tenantId(),effect.id(),"CANCELED"));
+        changed(mapper.insertEffect(actor.tenantId(),UUID.randomUUID(),request.id(),request.targetEmployeeId(),null,
+                "CANCEL_OVERTIME",json.writeValueAsString(List.of(effect.id())),effect.id(),null,actor.accountId()));
+    }
+
     private void approveLeave(TnaPrincipal actor,RequestView request,String reason) {
         var b=bucket(actor.tenantId(),request.leaveBucketId());bucketPeriod(b,request.fromDate(),request.toDate());
         var submitted=mapper.requestDays(actor.tenantId(),request.id());var current=days(actor.tenantId(),request.targetEmployeeId(),request.fromDate(),request.toDate());
@@ -375,20 +438,20 @@ public final class LeaveWorkflowService {
     }
     private RequestView createRequest(TnaPrincipal actor,UUID target,String kind,LocalDate from,LocalDate to,String reason,UUID predecessor,UUID original,UUID bucket,boolean exceptional,UUID commandId,String routeToken) {
         // Cancellation carries the original contract even after its type was disabled for new requests.
-        var policy=original==null?attendanceTypes.forSubmission(actor.tenantId(),kind,from,to)
+        var policy=isOvertime(kind)?null:original==null?attendanceTypes.forSubmission(actor.tenantId(),kind,from,to)
                 :attendanceTypes.stored(actor.tenantId(),request(actor.tenantId(),original));
         Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var result=formRoutes.form(actor.tenantId(),actor.employeeId(),target,kind,at.atZone(SEOUL).toLocalDate());
         var preview=result.preview();
         if(!preview.eligible())throw OrgException.invalid(preview.message());
-        if((routeToken!=null||result.routeVersionId()!=null)&&!Objects.equals(routeToken,preview.routeToken()))
+        if((isOvertime(kind)||routeToken!=null||result.routeVersionId()!=null)&&!Objects.equals(routeToken,preview.routeToken()))
             throw OrgException.conflict("결재선이 변경되었습니다. 새 결재 순서를 확인하고 다시 제출해 주세요.");
         var first=preview.steps().getFirst();
         var legacy=result.inherited()==null?null:result.inherited().legacy();
         UUID snapshotId=legacy==null?UUID.randomUUID():null;
         var request=new RequestView(UUID.randomUUID(),target,employee(actor.tenantId(),target).displayName(),actor.accountId(),kind,"PENDING",first.approverId(),
                 first.approverName(),legacy==null?null:legacy.assignmentId(),legacy==null?null:legacy.assignmentVersion(),at,
-                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy.id(),preview.formCode(),preview.formName(),1,preview.steps().size(),false);
+                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy==null?null:policy.id(),preview.formCode(),preview.formName(),1,preview.steps().size(),false);
         changed(mapper.insertRequest(actor.tenantId(),request,commandId,result.formVersionId(),preview.steps().size()));
         formRoutes.persist(actor.tenantId(),request.id(),snapshotId,at,result);
         return request;
@@ -471,7 +534,8 @@ public final class LeaveWorkflowService {
                 comparison,mapper.decisionSteps(tenant,request.id()),
                 "PENDING".equals(request.status())&&!approvers.eligible(tenant,request.currentApproverId(),today()),
                 "LEAVE_DAY".equals(request.kind()) && "EFFECTIVE".equals(request.effectStatus())
-                        ? mapper.scheduleChanges(tenant,request.id(),request.targetEmployeeId(),today()) : List.of());
+                        ? mapper.scheduleChanges(tenant,request.id(),request.targetEmployeeId(),today()) : List.of(),
+                isOvertime(request.kind())?mapper.overtime(tenant,request.originalRequestId()==null?request.id():request.originalRequestId()):null);
     }
 
     private CorrectionComparison correctionComparison(CorrectionDetail correction, ClockData.DaySnapshot current) {

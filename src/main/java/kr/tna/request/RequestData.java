@@ -90,13 +90,15 @@ public final class RequestData {
             LocalDate effectiveFrom,boolean enabled,String name,String unit,String payKind,String deductionRule,
             String recognitionRule,String basis) { }
     public record ScheduleChange(LocalDate leaveDate, String original, String current) {}
+    public record OvertimeDetail(LocalDate workDate,java.time.LocalTime startTime,java.time.LocalTime endTime,
+            int requestedMinutes,UUID scheduleVersionId,UUID codeVersionId,UUID calendarVersionId,String basisToken) {}
     public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
             List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy,
             CorrectionComparison correctionComparison,List<DecisionStep> steps,boolean reassignmentRequired,
-            List<ScheduleChange> scheduleChanges) {
+            List<ScheduleChange> scheduleChanges, OvertimeDetail overtime) {
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
                 List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy,CorrectionComparison comparison) {
-            this(request,days,correction,history,routeSnapshot,attendancePolicy,comparison,List.of(),false,List.of());
+            this(request,days,correction,history,routeSnapshot,attendancePolicy,comparison,List.of(),false,List.of(),null);
         }
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
                 List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy) {

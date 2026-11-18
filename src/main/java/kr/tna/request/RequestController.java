@@ -79,15 +79,18 @@ public class RequestController {
     private ModelAndView approvalPage(TnaPrincipal a,boolean completed,int page){var data=flow.approvalPage(a,completed,page);return listing(completed?"내가 처리한 결재":"결재 대기함",data.requests()).addObject("page",data.page()).addObject("hasNext",data.hasNext()).addObject("completed",data.completed());}
     private ModelAndView detailPage(TnaPrincipal a,UUID id){
         var detail=flow.get(a,id);var r=detail.request();boolean admin=a.roles().contains("ATTENDANCE_ADMIN");boolean pending=r.status().equals("PENDING");
-        boolean cancelableEffect=r.kind().equals("LEAVE_DAY")&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE");
+        boolean overtime=r.kind().equals("OVERTIME");
+        boolean cancelableEffect=(overtime||r.kind().equals("LEAVE_DAY"))&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE");
         boolean owningAuthor=a.accountId().equals(r.authorAccountId())&&a.employeeId().equals(r.targetEmployeeId());
         var view = new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin)
                 .addObject("ownRequest",a.employeeId().equals(r.targetEmployeeId()))
                 .addObject("canDecide",pending&&!detail.reassignmentRequired()&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId()))
                 .addObject("canWithdraw",pending&&a.accountId().equals(r.authorAccountId()))
-                .addObject("canCancel",cancelableEffect&&owningAuthor&&beforeLeaveStarts(a,detail))
-                .addObject("canCancelException",admin&&cancelableEffect).addObject("candidates",admin?approvers.candidates(a):List.of());
-        if(cancelableEffect&&(owningAuthor||admin))view.addObject("cancelApproval",flow.formPreview(a,r.targetEmployeeId(),"CANCEL_LEAVE"));
+                .addObject("canCancel",cancelableEffect&&owningAuthor&&(overtime
+                        ? clock.instant().isBefore(detail.overtime().workDate().atTime(detail.overtime().startTime()).atZone(ZoneId.of("Asia/Seoul")).toInstant())
+                        : beforeLeaveStarts(a,detail)))
+                .addObject("canCancelException",admin&&cancelableEffect&&!overtime).addObject("candidates",admin?approvers.candidates(a):List.of());
+        if(cancelableEffect&&(owningAuthor||admin))view.addObject("cancelApproval",flow.formPreview(a,r.targetEmployeeId(),overtime?"CANCEL_OVERTIME":"CANCEL_LEAVE"));
         if (admin && isLeave(r) && Set.of("APPROVED", "REJECTED").contains(r.status())) {
             view.addObject("leaveDecidedByName", leaveOperations.decidedByName(a, id));
         }
