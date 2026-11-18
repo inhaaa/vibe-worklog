@@ -11,7 +11,7 @@ import { RoleMembersSheet } from './RoleMembersSheet';
 import { requestKindName, type LeavePart } from './leavePart';
 import { CheckoutOperationsPage, type CheckoutOperations } from './CheckoutOperationsPage';
 import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
-import { MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
+import { canManageMonthEnd, MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
 import { MyCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 
 interface Profile {
@@ -306,9 +306,9 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
     case 'company/attendance': {
       const monthEnd = data.monthEndReview as MonthEndReview | undefined;
       if (monthEnd) {
-        const roles = (data.workspacePrincipal as { roles?: string[] } | undefined)?.roles;
-        return <MonthEndReviewPage key={JSON.stringify([monthEnd.month, monthEnd.organizationId, monthEnd.q, monthEnd.reason, monthEnd.page])}
-          model={monthEnd} csrf={csrf} reload={reload} canRequest={data.canViewCheckout === true && roles?.includes('ATTENDANCE_ADMIN') === true} />;
+        const canRequest = canManageMonthEnd(data);
+        return <MonthEndReviewPage key={JSON.stringify([monthEnd.month, monthEnd.organizationId, monthEnd.q, monthEnd.reason, monthEnd.page, canRequest])}
+          model={monthEnd} csrf={csrf} reload={reload} canRequest={canRequest} />;
       }
       const checkout = data.checkoutOperations as CheckoutOperations | undefined;
       return checkout

@@ -1,7 +1,7 @@
 .month-review-list { list-style: none; padding: 0; margin: 0; }
 .month-review-row {
   display: grid;
-  grid-template-columns: minmax(96px,.6fr) minmax(125px,1fr) minmax(130px,1fr) minmax(200px,1.5fr);
+  grid-template-columns: minmax(128px,.8fr) minmax(125px,1fr) minmax(130px,1fr) minmax(200px,1.5fr);
   align-items: center;
   gap: 10px 16px;
   padding: 12px;
@@ -12,10 +12,38 @@
 .month-review-columns { background: var(--t-section); color: var(--t-muted); }
 .month-review-reasons { display: flex; flex-direction: column; gap: 3px; }
 .month-review-row .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.month-review-selection, .month-review-batch .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.month-review-selection { margin: 8px 0; }
+.month-review-selection [role="status"], .month-review-batch-form small { color: var(--t-muted); }
+.month-review-select { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.month-review-select input[type="checkbox"] { width: 16px; height: 16px; min-width: 16px; min-height: 16px; margin: 0; }
+.month-review-select:has(input:disabled) { cursor: default; }
+.month-review-batch { min-width: 0; margin: 14px 0; padding: 16px; border: 1px solid var(--t-line); border-radius: 4px; }
+.month-review-batch > h3 { margin: 0 0 6px; }
+.month-review-batch > p { margin: 8px 0; }
+.month-review-batch-rows { list-style: none; padding: 0; margin: 12px 0; border-top: 1px solid var(--t-line); }
+.month-review-batch-rows li {
+  display: grid; align-items: center; gap: 4px 16px;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1.3fr) auto;
+  padding: 10px 4px; border-bottom: 1px solid var(--t-line); overflow-wrap: anywhere;
+}
+.month-review-batch-rows time { display: block; }
+.month-review-batch-rows li > .t-btn { justify-self: start; }
+.month-review-batch-form { display: grid; gap: 6px; }
+.month-review-batch-form label { font-weight: 650; }
+.month-review-batch-form input { width: 100%; min-width: 0; box-sizing: border-box; }
+.month-review-batch :focus-visible, .month-review-select input:focus-visible { outline: 2px solid var(--t-accent-ink); outline-offset: 3px; }
 @media (max-width: 900px) {
   .month-review-columns { display: none; }
-  .month-review-list .month-review-row { grid-template-columns: minmax(105px,.65fr) minmax(0,1fr); align-items: start; }
+  .month-review-list .month-review-row { grid-template-columns: minmax(122px,.8fr) minmax(0,1fr); align-items: start; }
   .month-review-row .actions { grid-column: 1 / -1; }
   .month-review-reasons { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 2px 12px; }
   .checkout-views { flex-wrap: wrap; gap: 2px 12px; }
+}
+@media (max-width: 680px) {
+  .month-review-select, .month-review .t-btn { min-height: 44px; }
+  .month-review-batch { padding: 12px; }
+  .month-review-batch-rows li { grid-template-columns: minmax(0,1fr); gap: 6px; }
+  .month-review-batch-rows li > div:first-child { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .month-review-batch-rows time { display: inline; }
 }
