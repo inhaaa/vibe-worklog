@@ -473,17 +473,21 @@ describe('WorkflowPages', () => {
     expect(view.container.textContent).toContain('확인 필요');
     expect(view.container.textContent).not.toContain('private-invalid-json');
   });
-  it('기초·조정 원장은 정수 일수와 버전 제출을 유지한다', async () => {
+  it('기초와 조정은 0.5일 단위를 허용하고 조정 묶음의 버전을 제출한다', async () => {
     const base = await render('request/balances', {
       employee,
       employees: [employee],
       buckets: [bucket],
-      form: { employeeId: employee.id, commandId: 'opening-command', quantityDays: 5 },
+      form: { employeeId: employee.id, commandId: 'opening-command', quantityDays: 7.5 },
     });
     expect(base.container.querySelector('form[action="/admin/leave-balances/entries"]')).toBeTruthy();
-    const quantity = base.container.querySelector('input[name="quantityDays"]')!;
-    expect(quantity.getAttribute('step')).toBe('1');
+    const quantity = base.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!;
+    expect(quantity.getAttribute('step')).toBe('0.5');
     expect(quantity.getAttribute('min')).toBe('0');
+    expect(quantity.value).toBe('7.5');
+    expect(quantity.validity.valid).toBe(true);
+    quantity.value = '0.25';
+    expect(quantity.validity.stepMismatch).toBe(true);
     expect(base.getByRole('link', { name: '예외 정정 신청' }).getAttribute('href')).toBe('/admin/requests/exceptions/new?employeeId=employee-1');
     const ledger = await render('request/ledger', {
       bucketId: bucket.id,
@@ -501,7 +505,7 @@ describe('WorkflowPages', () => {
         expectedVersion: 6,
         commandId: 'adjust-command',
         effectiveOn: '2026-10-26',
-        quantityDays: -1,
+        quantityDays: -0.5,
         sourceReference: '근거',
         reason: '조정',
       },
@@ -511,7 +515,8 @@ describe('WorkflowPages', () => {
     expect(ledger.container.querySelector('[row-id="entry-1"]')).toBeTruthy();
     const adjusted = body(ledger, '/admin/leave-balances/buckets/bucket-1/adjustments');
     expect(adjusted.get('expectedVersion')).toBe('6');
-    expect(adjusted.get('quantityDays')).toBe('-1');
+    expect(adjusted.get('quantityDays')).toBe('-0.5');
+    expect(ledger.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!.validity.valid).toBe(true);
   });
   it('근로시간은 실근로·확인 전·휴가 지표와 다섯 열만 보이고 담당자 명령을 제한한다', async () => {
     const data = {

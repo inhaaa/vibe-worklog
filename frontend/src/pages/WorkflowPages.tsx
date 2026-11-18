@@ -5,9 +5,10 @@ import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
+import { LeaveBalanceBatch } from './LeaveBalanceBatch';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
-import type { PageProps } from '../types';
+import type { CsrfToken, PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
@@ -145,7 +146,7 @@ function Mine({ model: m }: { model: MineModel }) {
       </p>
       <section className="panel">
         <h2>연차 잔여와 대기량</h2>
-        <p>정수 일 단위 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
+        <p>담당자가 등록한 기초 잔여와 조정은 0.5일 단위입니다. 대기는 예약·차감하지 않습니다.</p>
         <ul>
           {m.buckets.map((b) => (
             <li key={b.id}>
@@ -516,11 +517,14 @@ function Correction({ model: m }: { model: CorrectionModel }) {
     </div>
   );
 }
-function Balances({ model: m }: { model: BalancesModel }) {
+function Balances({ model: m, csrf }: { model: BalancesModel; csrf: CsrfToken }) {
   const f = m.form;
+  const [batch, setBatch] = useState(false);
+  if (batch) return <LeaveBalanceBatch model={m} csrf={csrf} />;
   return (
     <>
       <PageHeader title="기초 잔여 관리" actions={<>
+        <button className="t-btn primary" type="button" onClick={() => setBatch(true)}>사원별 일괄 입력</button>
         <a className="t-btn" href="/admin/requests?scope=LEAVE">휴가 신청 현황</a>
         <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
       </>} />
@@ -547,8 +551,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
       <section className="wl-section">
         <h2>근거 있는 기초 등록</h2>
         <p className="hint">
-          자동 발생이 아닙니다. 본인의 기초 등록·증감은 다른 담당자가 처리합니다. 소수 단위는
-          지원하지 않습니다.
+          이전 원장에서 확인한 잔여를 0.5일 단위로 등록하세요. 본인의 기초 등록·조정은 다른 담당자가 처리합니다.
         </p>
         <Form action="/admin/leave-balances/entries" method="post" className="wl-form">
           {hidden('employeeId', f.employeeId)}
@@ -557,7 +560,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
             <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
             <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
             <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
-            <Field label="기초 일수 (정수)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="기초 일수 (0.5일 단위)" name="quantityDays" type="number" min="0" max="100000" step="0.5" value={f.quantityDays ?? ''} required />
             <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
             <Reason label="등록 사유" value={f.reason} />
           </FormTable>
@@ -594,7 +597,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
           <FormTable>
-            <Field label="조정 일수 (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="조정 일수 (0.5일 단위, 감액은 음수)" name="quantityDays" type="number" min="-100000" max="100000" step="0.5" value={f.quantityDays ?? ''} required />
             <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
             <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
             <Reason label="조정 사유" value={f.reason} />
@@ -1251,7 +1254,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       content = <Correction model={data as unknown as CorrectionModel} />;
       break;
     case 'request/balances':
-      content = <Balances model={data as unknown as BalancesModel} />;
+      content = <Balances model={data as unknown as BalancesModel} csrf={props.csrf} />;
       break;
     case 'request/ledger':
       content = <Ledger model={data as unknown as LedgerModel} />;

@@ -413,9 +413,9 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.getByRole('heading',{name:'내가 대리 작성한 이력'})).toBeTruthy();
   expect(view.getByRole('navigation',{name:'내 신청 페이지'}).querySelector('a')?.getAttribute('href')).toContain('status=PENDING');
  });
- it('확인된 부분합에는 (일부)를, 귀속 자료가 없으면 -를 보인다',()=>{
-  const partial=render(<App initial={envelope({registeredDays:5,attributedBalanceDays:3,unknownBucketCount:1,attributionPartial:true})}/>);
-  expect([...partial.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['5일 (일부)','3일 (일부)']);
+ it('귀속 기초·조정과 원장 잔액의 반일 부분합을 표시하고 귀속 자료가 없으면 -를 보인다',()=>{
+  const partial=render(<App initial={envelope({registeredDays:7.5,attributedBalanceDays:3.5,unknownBucketCount:1,attributionPartial:true})}/>);
+  expect([...partial.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['7.5일 (일부)','3.5일 (일부)']);
   cleanup();
   const none=render(<App initial={envelope({registeredDays:null,attributedBalanceDays:null,unknownBucketCount:0,attributionPartial:false})}/>);
   expect([...none.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['-','-']);
