@@ -100,15 +100,18 @@ public final class WorkspaceQueries {
             case "LEAVE_DAY" -> "종일 연차";
             case "CANCEL_LEAVE" -> "연차 취소";
             case "ATTENDANCE_CORRECTION" -> "정정 신청";
+            case "OVERTIME" -> "연장근무 신청";
+            case "CANCEL_OVERTIME" -> "연장근무 취소";
             default -> row.kind();
         };
         if (dated && quantity == null) kind += " · 일별 근거 미확인";
         if (dated && quantity != null && quantity == 0) kind += " 범위 · 차감 0일";
+        boolean cancel = "CANCEL_LEAVE".equals(row.kind()) || "CANCEL_OVERTIME".equals(row.kind());
         String status = switch (row.status()) {
-            case "PENDING" -> "CANCEL_LEAVE".equals(row.kind()) ? "취소 검토 중 · 원승인 유효" : "검토 중";
+            case "PENDING" -> cancel ? "취소 검토 중 · 원승인 유효" : "검토 중";
             case "REJECTED" -> "반려";
             case "WITHDRAWN" -> "철회";
-            case "APPROVED" -> "CANCEL_LEAVE".equals(row.kind()) ? "취소 승인" : switch (row.effectStatus()) {
+            case "APPROVED" -> cancel ? "취소 승인" : switch (row.effectStatus()) {
                 case "EFFECTIVE" -> "ATTENDANCE_CORRECTION".equals(row.kind()) ? "정정 반영" : "승인 유효";
                 case "CANCELED" -> "승인 후 취소";
                 case "SUPERSEDED" -> "이전 정정 이력";

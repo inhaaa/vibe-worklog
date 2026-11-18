@@ -33,6 +33,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("operator/tenants", "tenants", "audit", "form"),
             page("today", "employee", "workspaceHome", "attendanceAdmin", "approver", "today", "day",
                     "eventTimes", "confirmationForm", "inCommand", "outCommand"),
+            page("overtime/employee", "overtime"), page("overtime/admin", "overtime"),
             page("fragments/status"), page("workspace/schedule", "workspaceCalendar", "selectedDay"),
             page("workspace/profile", "profile", "personalDetails"), page("workspace/home", "workspaceHome", "homeWidgetScope",
                     "clockInCommand", "clockOutCommand", "clockError"),

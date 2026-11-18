@@ -92,6 +92,19 @@ class LeaveOperationsWebIT {
     }
 
     @Test
+    void overtimeDirectoryIsSeparateAndUsesTheEmployeesOwnPolicy() throws Exception {
+        mvc.perform(get("/admin/overtime").with(as(worker)).accept(PAGE_JSON)).andExpect(status().isForbidden());
+        mvc.perform(get("/admin/overtime").with(as(admin)).param("status","PENDING").accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/overtime/status","PENDING"))
+                .andExpect(jsonPath("$.data.overtime.rows").isEmpty());
+        mvc.perform(get("/me/overtime").with(as(worker)).param("date",today.toString()).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/overtime/date",today.toString()))
+                .andExpect(jsonPath("$.data.overtime.day.unavailableReason").isNotEmpty());
+        mvc.perform(get("/admin/overtime").with(as(admin)).param("status","INVALID"))
+                .andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
     void redirectsLegacyAdminListAndKeepsCorrectionAndOtherRolesSeparated() throws Exception {
         UUID correction = request("ATTENDANCE_CORRECTION", "PENDING", today, today, 0, null);
         mvc.perform(get(PATH).with(as(admin)).accept(PAGE_JSON))

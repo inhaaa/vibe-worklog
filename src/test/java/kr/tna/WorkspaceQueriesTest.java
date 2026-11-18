@@ -92,6 +92,17 @@ class WorkspaceQueriesTest {
     }
 
     @Test
+    void overtimeCancellationReportsOriginalApprovalUntilItsLastDecision() {
+        var date=LocalDate.of(2026,10,26);
+        var pending=request("CANCEL_OVERTIME","PENDING","NONE",actor.employeeId(),date,date,UUID.randomUUID());
+        var approved=request("CANCEL_OVERTIME","APPROVED","EFFECTIVE",actor.employeeId(),date,date,UUID.randomUUID());
+        when(leave.mine(actor)).thenReturn(List.of(pending,approved));
+        var rows=queries.calendar(actor,YearMonth.from(date),date).selectedDay().requests();
+        assertEquals(List.of("취소 검토 중 · 원승인 유효","취소 승인"),rows.stream().map(r->r.statusLabel()).toList());
+        assertTrue(rows.stream().noneMatch(r->r.effectiveLeave()));
+    }
+
+    @Test
     void approvedLeaveAndPendingCancellationKeepTheOriginalEffectAndZeroDaysDistinct() {
         LocalDate date = LocalDate.of(2026, 10, 26);
         var original = request("LEAVE_DAY", "APPROVED", "EFFECTIVE", actor.employeeId(), date, date.plusDays(1), null);

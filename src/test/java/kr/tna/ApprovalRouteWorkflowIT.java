@@ -80,6 +80,111 @@ class ApprovalRouteWorkflowIT {
         assertEquals(List.of("APPROVED","APPROVED"),flow.get(worker,request).steps().stream().map(DecisionStep::status).toList());
     }
 
+    @Autowired kr.tna.request.LeaveWorkflowMapper flowMapper;
+    @Autowired kr.tna.overtime.OvertimePolicyService overtimePolicy;
+    @Autowired kr.tna.schedule.WorkTimeCodeService workCodes;
+    @Autowired kr.tna.schedule.WorkGroupService workGroups;
+    @Autowired kr.tna.schedule.WorkGroupAssignmentService groupAssignments;
+
+    private UUID prepareOvertime(LocalDate date) {
+        var start=LocalTime.of(18,30); var end=LocalTime.of(21,0);
+        var form=new kr.tna.schedule.WorkTimeCodeData.Command(UUID.randomUUID(),null,null,"WT","주간",today,true,
+                LocalTime.of(9,0),LocalTime.of(18,0),null,null,start,end,
+                List.of(new kr.tna.schedule.WorkTimeCodeData.Break("AFTER",LocalTime.of(20,0),LocalTime.of(20,15))),
+                "합성 연장",null);
+        UUID code=workCodes.save(admin,form);
+        UUID version=workCodes.catalog(admin,today).codes().stream().filter(c->c.id().equals(code))
+                .findFirst().orElseThrow().versions().getFirst().id();
+        var days=java.util.stream.IntStream.rangeClosed(1,7)
+                .mapToObj(i->new kr.tna.schedule.WorkGroupData.WeekInput(i,version)).toList();
+        var group=new kr.tna.schedule.WorkGroupData.GroupCommand(null,"G1","주간조",date,days,"초기",null,null,null,UUID.randomUUID());
+        UUID id=workGroups.saveGroup(admin,group.confirm(workGroups.previewGroup(admin,group).token()));
+        var member=new kr.tna.schedule.WorkGroupData.AssignmentCommand(id,date,List.of(worker.employeeId()),"배정",List.of(),null,UUID.randomUUID());
+        groupAssignments.saveAssignments(admin,member.confirm(groupAssignments.previewAssignments(admin,member).token()));
+        settings.calendar(admin,new CalendarForm(today,date.plusDays(10),true,"검토","","휴일 검토",UUID.randomUUID()));
+        return id;
+    }
+
+    @Autowired kr.tna.common.tenant.TenantTransactions tenantTransactions;
+
+    @Test void changedScheduleCannotBeFinallyApprovedAndWithdrawalReleasesTheSlot() {
+        configureChain("O01");
+        LocalDate date=today.plusDays(4);
+        UUID group=prepareOvertime(date);
+        var start=LocalTime.of(18,30); var end=LocalTime.of(21,0);
+        var basis=tenantTransactions.execute(tenant,()->overtimePolicy.evaluate(tenant,worker.employeeId(),date,start,end,true));
+        var route=flow.formPreview(worker,null,"OVERTIME").routeToken();
+        UUID request=flow.submitOvertime(worker,date,start,end,"사전 연장",basis.basisToken(),route,UUID.randomUUID());
+        flow.decide(head,request,new DecisionForm("APPROVE",0L,"중간",UUID.randomUUID(),1));
+        var inputs=java.util.stream.IntStream.rangeClosed(1,7)
+                .mapToObj(i->new kr.tna.schedule.WorkGroupData.WeekInput(i,basis.codeVersionId())).toList();
+        var revised=new kr.tna.schedule.WorkGroupData.GroupCommand(group,"G1","주간조",date,inputs,
+                "예약 정정",0L,basis.scheduleVersionId(),null,UUID.randomUUID());
+        workGroups.saveGroup(admin,revised.confirm(workGroups.previewGroup(admin,revised).token()));
+        assertThrows(OrgException.class,()->flow.decide(direct,request,new DecisionForm("APPROVE",1L,"변경 후",UUID.randomUUID(),2)));
+        assertEquals("NONE",flow.get(worker,request).request().effectStatus());
+        flow.withdraw(worker,request,new DecisionForm("WITHDRAW",1L,"재신청",UUID.randomUUID(),2));
+        assertEquals("WITHDRAWN",flow.get(worker,request).request().status());
+        var newBasis=tenantTransactions.execute(tenant,()->overtimePolicy.evaluate(tenant,worker.employeeId(),date,start,end,true));
+        UUID resubmitted=flow.submitOvertime(worker,date,start,end,"재신청",newBasis.basisToken(),route,UUID.randomUUID());
+        flow.decide(head,resubmitted,new DecisionForm("REJECT",0L,"반려",UUID.randomUUID(),1));
+        assertEquals("REJECTED",flow.get(worker,resubmitted).request().status());
+        assertEquals("NONE",flow.get(worker,resubmitted).request().effectStatus());
+    }
+
+    @Test void overtimeAndItsCancellationOnlyTakeEffectOnTheFinalDecision() throws Exception {
+        configureChain("O01","O02");
+        LocalDate date=today.plusDays(3);
+        prepareOvertime(date);
+        var start=LocalTime.of(18,30); var end=LocalTime.of(21,0);
+        var basis=tenantTransactions.execute(tenant,()->overtimePolicy.evaluate(tenant,worker.employeeId(),date,start,end,true));
+        var route=flow.formPreview(worker,null,"OVERTIME").routeToken();
+        UUID command=UUID.randomUUID();
+        UUID request=flow.submitOvertime(worker,date,start,end,"연장",basis.basisToken(),route,command);
+        assertEquals(request,flow.submitOvertime(worker,date,start,end,"연장",basis.basisToken(),route,command));
+        assertThrows(OrgException.class,()->flow.submitOvertime(worker,date,start,end,"중복",basis.basisToken(),route,UUID.randomUUID()));
+        assertEquals(135,flow.get(worker,request).overtime().requestedMinutes());
+        assertThrows(OrgException.class,()->flow.get(direct,request));
+        assertThrows(OrgException.class,()->flow.decide(worker,request,new DecisionForm("APPROVE",0L,"자기 승인",UUID.randomUUID(),1)));
+        assertNull(tenantTransactions.execute(UUID.randomUUID(),()->flowMapper.overtime(tenant,request)));
+
+        flow.decide(head,request,new DecisionForm("APPROVE",0L,"중간",UUID.randomUUID(),1));
+        assertEquals("NONE",flow.get(worker,request).request().effectStatus());
+        assertEquals("PENDING",flow.get(worker,request).request().status());
+        overtimeMinutesOnBothPages(request,date,0);
+        mvc.perform(get("/me/overtime").param("date",date.toString()).with(as(direct)).accept(ReactPageView()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/overtime/rows",List.of()));
+        mvc.perform(get("/admin/overtime").with(as(worker)).accept(ReactPageView())).andExpect(status().isForbidden());
+        flow.decide(direct,request,new DecisionForm("APPROVE",1L,"최종",UUID.randomUUID(),2));
+        overtimeMinutesOnBothPages(request,date,135);
+        assertEquals("EFFECTIVE",flow.get(worker,request).request().effectStatus());
+        var cancelRoute=flow.formPreview(worker,null,"CANCEL_OVERTIME").routeToken();
+        UUID cancel=flow.requestCancellation(worker,request,new CancelForm(false,2L,"연장 취소",UUID.randomUUID()),cancelRoute);
+        assertThrows(OrgException.class,()->flow.requestCancellation(worker,request,new CancelForm(false,2L,"중복 취소",UUID.randomUUID()),cancelRoute));
+        flow.decide(head,cancel,new DecisionForm("APPROVE",0L,"중간 취소",UUID.randomUUID(),1));
+        assertEquals("EFFECTIVE",flow.get(worker,request).request().effectStatus());
+        flow.decide(direct,cancel,new DecisionForm("APPROVE",1L,"최종 취소",UUID.randomUUID(),2));
+        assertEquals("CANCELED",flow.get(worker,request).request().effectStatus());
+        overtimeMinutesOnBothPages(request,date,0);
+        assertEquals(0L,db.queryForObject("SELECT count(*) FROM tna.leave_ledger WHERE tenant_id=?",Long.class,tenant));
+        assertEquals(0L,db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=?",Long.class,tenant));
+    }
+
+    private void overtimeMinutesOnBothPages(UUID request,LocalDate date,int expected) throws Exception {
+        var employeePage=get("/me/overtime").param("date",date.toString()).with(as(worker));
+        var adminPage=get("/admin/overtime").param("from",date.toString()).param("to",date.toString()).with(as(admin));
+        for(var page:List.of(employeePage,adminPage)) {
+            var result=mvc.perform(page.accept(ReactPageView())).andExpect(status().isOk()).andReturn();
+            var rows=ReactPageAssertions.envelope(result).at("/data/overtime/rows");
+            var matching=new ArrayList<Integer>();
+            for(var row:rows) if(request.toString().equals(row.path("id").asString())) {
+                assertEquals(135,row.path("requestedMinutes").asInt());
+                matching.add(row.path("approvedMinutes").asInt());
+            }
+            assertEquals(List.of(expected),matching);
+        }
+    }
+
     private void configureChain(String... codes) {
         UUID office = UUID.randomUUID(), routeId = UUID.randomUUID(), versionId = UUID.randomUUID();
         db.update("INSERT INTO tna.organization(tenant_id,id,code,name,approval_unit,created_by,updated_by) VALUES (?,?,?,'운영실','OFFICE',?,?)",tenant,office,"O-"+office,admin.accountId(),admin.accountId());

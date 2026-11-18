@@ -70,11 +70,12 @@ public class SecurityConfiguration {
                                 "/admin/approval-route-assignments", "/admin/approval-route-assignments/**",
                                 "/admin/common-code-groups/**", "/admin/common-codes", "/admin/common-codes/**",
                                 "/admin/attendance-types", "/admin/attendance-types/**",
-                                "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/overtime", "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/admin/access/roles/*/candidates").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/company/attendance", "/company/requests", "/company/organizations")
                             .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")
                         .requestMatchers("/approvals", "/approvals/completed").hasRole("APPROVER")
+                        .requestMatchers("/me/overtime", "/me/overtime/**").hasRole("EMPLOYEE")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
                         .requestMatchers(HttpMethod.GET, "/me/home", "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()

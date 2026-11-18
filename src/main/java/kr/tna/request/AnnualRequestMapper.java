@@ -20,7 +20,7 @@ public interface AnnualRequestMapper {
     @Select(TYPE_SELECT+" ORDER BY t.code,t.id") List<TypeChoice> types(@Param("tenantId") UUID tenantId);
     @Select(TYPE_SELECT+" AND t.id=#{id}") TypeChoice type(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select(LeaveWorkflowMapper.REQUEST_SELECT+"""
-        WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.from_date<#{to} AND r.to_date>=#{from}
+        WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE','ATTENDANCE_CORRECTION') AND r.from_date<#{to} AND r.to_date>=#{from}
           AND(#{status}='' OR r.status=#{status})
           AND(#{typeId}::uuid IS NULL OR EXISTS(SELECT 1 FROM tna.attendance_type_version v WHERE v.tenant_id=r.tenant_id AND v.id=r.attendance_type_version_id AND v.type_id=#{typeId}))
         ORDER BY r.from_date DESC,r.submitted_at DESC,r.id LIMIT 51 OFFSET #{offset}
