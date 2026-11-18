@@ -9,6 +9,7 @@ import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
+import { CheckoutOperationsBackLink } from './CheckoutOperationsPage';
 import { ApprovalStamps } from '../components/ApprovalStamps';
 import { Notice } from '../components/Notice';
 import {
@@ -205,6 +206,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
+          <CheckoutOperationsBackLink />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>

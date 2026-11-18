@@ -82,6 +82,36 @@ public interface ProfileCompanyMapper {
             @Param("organizationId") UUID organizationId, @Param("employeeId") UUID employeeId);
 
     @Select("""
+            SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,
+              recent.id AS recent_request_id,recent.status AS recent_request_state,eff.request_id AS effective_request_id
+            FROM (
+              SELECT employee_id
+              FROM tna.attendance_event
+              WHERE tenant_id=#{tenantId} AND assigned_work_date=#{date}
+              GROUP BY employee_id HAVING COUNT(*)=1 AND bool_and(event_kind='IN')
+            ) source
+            JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=source.employee_id
+              AND e.joined_on<=#{date} AND (e.left_on IS NULL OR e.left_on>=#{date})
+            LEFT JOIN tna.employee_assignment ea ON ea.tenant_id=e.tenant_id AND ea.employee_id=e.id
+              AND ea.valid_from<=#{date} AND (ea.valid_to IS NULL OR ea.valid_to>#{date})
+            LEFT JOIN tna.organization o ON o.tenant_id=ea.tenant_id AND o.id=ea.organization_id
+            LEFT JOIN tna.request_effect eff ON eff.tenant_id=e.tenant_id AND eff.employee_id=e.id
+              AND eff.work_date=#{date} AND eff.effect_kind='CORRECTION' AND eff.effect_status='EFFECTIVE'
+            LEFT JOIN LATERAL (
+              SELECT r.id,r.status FROM tna.approval_request r
+              WHERE r.tenant_id=e.tenant_id AND r.target_employee_id=e.id
+                AND r.kind='ATTENDANCE_CORRECTION' AND r.from_date=#{date}
+              ORDER BY (r.status='PENDING') DESC,r.submitted_at DESC,r.id LIMIT 1
+            ) recent ON true
+            WHERE (#{organizationId}::uuid IS NULL OR ea.organization_id=#{organizationId})
+              AND (#{query}='' OR strpos(lower(e.employee_no),lower(#{query}))>0
+                   OR strpos(lower(e.display_name),lower(#{query}))>0)
+            ORDER BY e.employee_no,e.id
+            """)
+    List<CheckoutCandidate> checkoutCandidates(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date,
+            @Param("organizationId") UUID organizationId, @Param("query") String query);
+
+    @Select("""
             SELECT r.id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,r.kind,r.status,
               r.from_date,r.to_date,
               COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d

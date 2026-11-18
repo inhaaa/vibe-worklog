@@ -126,6 +126,45 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(view.getByRole('grid', { name: '사원 일별 근무현황' })).toBeTruthy();
   });
 
+  it('담당자에게만 회사 근무현황의 퇴근 누락 조회 진입점을 제공한다', async () => {
+    const representative = await show('company/attendance', { companyAttendance: attendance });
+    expect(representative.queryByRole('link', { name: '퇴근 누락' })).toBeNull();
+    representative.unmount();
+    const admin = await show('company/attendance', { companyAttendance: attendance, canViewCheckout: true });
+    expect(admin.getByRole('link', { name: '퇴근 누락' }).getAttribute('href')).toBe('/company/attendance?view=checkout');
+  });
+
+  it('정정이 반영된 날의 원천·유효 기록과 복귀 조건을 유지한다', async () => {
+    const date = '2026-10-26';
+    const view = await show('company/attendance', { canViewCheckout: true, checkoutOperations: {
+      date, latestDate: '2026-10-27', organizationId: 'o-1', options: [organization], q: '김 & 개발',
+      status: 'CORRECTED', page: 1, hasPrevious: true, hasNext: true, error: null,
+      rows: [{ employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', organizationName: '개발팀', workDate: date,
+        scheduledEnd: '18:00', sourceIn: '2026-10-26T00:00:00Z', sourceOut: null, effectiveIn: '2026-10-26T00:00:00Z',
+        effectiveOut: '2026-10-26T09:00:00Z', requestId: 'r-1', requestState: 'APPROVED', recordState: 'CORRECTED',
+        resultState: 'RECALCULATION_REQUIRED', actualWorkMillis: null, calculatedAt: null, resultReason: null }],
+    } });
+    expect(view.getByLabelText('근무일').getAttribute('max')).toBe('2026-10-27');
+    expect((view.getByLabelText('정정 상태') as HTMLSelectElement).value).toBe('CORRECTED');
+    expect(view.getByText('재집계 필요')).toBeTruthy();
+    const row = view.getByText('E001 · 김직원').closest('details')!;
+    expect(row.textContent).toContain('미기록');
+    expect(row.textContent).toContain('18:00');
+    expect(row.textContent).toContain('미확정');
+    fireEvent.click(row.querySelector('summary')!);
+    const requestLink = new URL(within(row).getByText('정정 상세').getAttribute('href')!, location.origin);
+    expect(requestLink.pathname).toBe('/requests/r-1');
+    const calculationLink = new URL(within(row).getByText('근태 집계·Excel').getAttribute('href')!, location.origin);
+    expect(calculationLink.pathname).toBe('/admin/attendance');
+    expect(calculationLink.searchParams.get('workDate')).toBe(date);
+    const back = new URL(calculationLink.searchParams.get('returnTo')!, location.origin);
+    expect(back.pathname).toBe('/company/attendance');
+    expect(Object.fromEntries(back.searchParams)).toEqual({
+      view: 'checkout', date, organizationId: 'o-1', q: '김 & 개발', status: 'CORRECTED', page: '1',
+    });
+    expect(requestLink.searchParams.get('returnTo')).toBe(calculationLink.searchParams.get('returnTo'));
+  });
+
   it('선택한 사원의 월만 변경하면 해당 사원으로 조회한다', async () => {
     const second = { ...employee, id: 'e-2', employeeNo: 'E002', employeeName: '박직원' };
     const view = await show('company/attendance', { companyAttendance: {

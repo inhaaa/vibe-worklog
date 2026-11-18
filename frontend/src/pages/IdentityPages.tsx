@@ -8,6 +8,7 @@ import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
 import { RoleManagementPage, type RoleDirectory } from './RoleManagementPage';
 import { RoleMembersSheet } from './RoleMembersSheet';
+import { CheckoutOperationsPage, CompanyAttendanceViews, type CheckoutOperations } from './CheckoutOperationsPage';
 
 interface Profile {
   employeeName: string;
@@ -146,7 +147,7 @@ function ProfilePage({ details, identity }: {
     </>
   );
 }
-function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
+function CompanyAttendancePage({ model: m, canViewCheckout }: { model: CompanyAttendance; canViewCheckout: boolean }) {
   const [employeeId, setEmployeeId] = useState(m.employeeId ?? '');
   const values = { month: m.month, organizationId: m.organizationId, employeeId: m.employeeId, q: m.q };
   return (
@@ -156,6 +157,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
         <p>조직은 서울 기준 오늘의 소속으로 조회합니다.</p>
         <p>선택 사원의 검토용 결과입니다. 미확정·오래된 결과는 0시간으로 처리하지 않습니다.</p>
       </>} />
+      {canViewCheckout && <CompanyAttendanceViews />}
       <Form
         action="/company/attendance"
         method="get"
@@ -291,8 +293,12 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
         <RoleMembersSheet model={model} csrf={csrf} reload={reload} actorEmployeeId={model.actorEmployeeId} />
       </RoleManagementPage>;
     }
-    case 'company/attendance':
-      return <CompanyAttendancePage model={data.companyAttendance as CompanyAttendance} />;
+    case 'company/attendance': {
+      const checkout = data.checkoutOperations as CheckoutOperations | undefined;
+      return checkout
+        ? <CheckoutOperationsPage key={JSON.stringify([checkout.date, checkout.organizationId, checkout.q, checkout.status, checkout.page, checkout.error])} model={checkout} />
+        : <CompanyAttendancePage model={data.companyAttendance as CompanyAttendance} canViewCheckout={data.canViewCheckout === true} />;
+    }
     case 'company/requests':
       return <CompanyRequestsPage model={data.companyRequests as CompanyRequests} />;
     default:

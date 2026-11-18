@@ -53,7 +53,7 @@ public final class ProfileCompanyQueries {
         });
     }
 
-    public CompanyAttendance attendance(TnaPrincipal actor, YearMonth requestedMonth, UUID organizationId,
+    CompanyAttendancePage attendance(TnaPrincipal actor, YearMonth requestedMonth, UUID organizationId,
             UUID employeeId, int page, String q) {
         int offset = offset(page);
         String query = q == null ? "" : q.strip();
@@ -74,8 +74,11 @@ public final class ProfileCompanyQueries {
                             day.current() ? day.result().actualWorkMillis() : null,
                             day.current() ? day.result().leaveDays() : null,
                             day.current() ? day.result().status().name() : "REVIEW_REQUIRED", day.current())).toList();
-            return new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
+            var attendance = new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
                     query, page, found.size() > 50, List.copyOf(mapper.organizations(actor.tenantId())), employees, selected, days);
+            boolean canViewCheckout = actor.roles().contains("ATTENDANCE_ADMIN")
+                    && mapper.roles(actor.tenantId(), actor.accountId()).contains("ATTENDANCE_ADMIN");
+            return new CompanyAttendancePage(attendance, canViewCheckout);
         });
     }
 
