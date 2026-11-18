@@ -9,6 +9,23 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface WorktimeMapper {
+    // Retain the effective correction that produced the saved result.
+    @Update("""
+            UPDATE tna.checkout_follow_up follow_up
+               SET resolved_at=statement_timestamp(),resolved_result_id=result.id,last_request_id=effect.request_id
+              FROM tna.day_result result
+              JOIN tna.request_effect effect ON effect.tenant_id=result.tenant_id AND effect.employee_id=result.employee_id
+                   AND effect.work_date=result.work_date AND effect.effect_kind='CORRECTION' AND effect.effect_status='EFFECTIVE'
+              JOIN tna.approval_request approved ON approved.tenant_id=effect.tenant_id AND approved.id=effect.request_id
+                   AND approved.target_employee_id=effect.employee_id AND approved.kind='ATTENDANCE_CORRECTION' AND approved.status='APPROVED'
+             WHERE follow_up.tenant_id=#{tenantId} AND follow_up.employee_id=#{employeeId} AND follow_up.work_date=#{date}
+               AND follow_up.resolved_at IS NULL AND follow_up.last_request_id IS NOT NULL
+               AND result.tenant_id=follow_up.tenant_id AND result.employee_id=follow_up.employee_id
+               AND result.work_date=follow_up.work_date AND result.id=#{resultId} AND result.actual_work_millis IS NOT NULL
+            """)
+    int settleCheckoutFollowUp(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("date") LocalDate date, @Param("resultId") UUID resultId);
+
     @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")

@@ -35,7 +35,7 @@ class DatabaseFoundationIT {
         assertEquals(List.of("account_token", "allowed_network", "approval_event", "approval_request",
                 "approval_route", "approval_route_assignment", "approval_route_snapshot", "approval_route_version",
                 "approver_assignment", "attendance_event", "attendance_type", "attendance_type_version", "calculation_run", "calendar_day",
-                "calendar_version", "common_code", "common_code_group", "correction_detail", "day_input_revision", "day_result",
+                "calendar_version", "checkout_follow_up", "common_code", "common_code_group", "correction_detail", "day_input_revision", "day_result",
                 "employee", "employee_assignment", "employee_employment_status", "employee_onboarding",
                 "employee_personal_details", "employee_personal_entry", "employee_personnel",
                 "employment_rule_assessment", "leave_bucket", "leave_bucket_attribution",

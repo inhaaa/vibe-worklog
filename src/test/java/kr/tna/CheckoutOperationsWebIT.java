@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.clock.ClockService;
@@ -16,6 +18,7 @@ import kr.tna.request.RequestData.CorrectionForm;
 import kr.tna.request.RequestData.DecisionForm;
 import kr.tna.worktime.WorktimeData.AssessmentForm;
 import kr.tna.worktime.MonthEndReviewQueries;
+import kr.tna.worktime.CheckoutFollowUpService;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,10 +34,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
@@ -49,6 +55,7 @@ class CheckoutOperationsWebIT {
     @Autowired ClockService clocks;
     @Autowired LeaveWorkflowService workflow;
     @Autowired WorktimeService worktime;
+    @Autowired CheckoutFollowUpService followUps;
     @Autowired MonthEndReviewQueries monthEndQueries;
     private JdbcTemplate db;
     private UUID tenant, schedule, network;
@@ -411,6 +418,95 @@ class CheckoutOperationsWebIT {
                 .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/pendingRequestId", pending));
     }
 
+    @Test
+    void followUpActionOnlyAppearsOnAnEligibleMissingCheckout() throws Exception {
+        assertFalse(targetDay(reviewRows("ALL")).required("checkoutFollowUpEligible").asBoolean());
+        clock(worker, date, date, "IN", 9);
+        assertTrue(targetDay(reviewRows("ALL")).required("checkoutFollowUpEligible").asBoolean());
+        correction("18:00", null, false);
+        assertFalse(targetDay(reviewRows("ALL")).required("checkoutFollowUpEligible").asBoolean());
+    }
+
+    @Test
+    void followUpConnectsManagerAndEmployeeUntilTheConfirmedDayIsRecalculated() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        String reason = "퇴근 시각과 실제 휴게를 확인해 주세요.";
+        requestFollowUp(date, reason);
+        var initial = targetDay(reviewRows("UNCONFIRMED"));
+        assertFalse(initial.required("checkoutFollowUpEligible").asBoolean());
+        JsonNode followUp = initial.required("checkoutFollowUp");
+        assertEquals("REQUESTED", followUp.required("status").asString());
+        assertEquals(reason, followUp.required("reason").asString());
+        for (String path : List.of("/me/home", "/me/attendance/follow-ups")) {
+            var own = mvc.perform(get(path).with(as(worker)).accept(PAGE_JSON)).andExpect(status().isOk()).andReturn();
+            var entry = ReactPageAssertions.envelope(own).at("/data/checkoutFollowUps/rows/0");
+            assertEquals(followUp.required("id"), entry.required("id"));
+            assertEquals(date.toString(), entry.required("workDate").asString());
+            mvc.perform(get(path).with(as(approver)).accept(PAGE_JSON).param("employeeId", worker.employeeId().toString()))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.checkoutFollowUps.rows").isEmpty());
+        }
+
+        var rejected = correction("18:00", null, true);
+        decide(rejected, "REJECT");
+        assertEquals("REQUESTED", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        var accepted = correction("18:00", null, true);
+        var pending = targetDay(reviewRows("PENDING_CORRECTION")).required("checkoutFollowUp");
+        assertEquals("PENDING_APPROVAL", pending.required("status").asString());
+        assertEquals(accepted.toString(), pending.required("approvalRequestId").asString());
+        worktime.assess(admin, new AssessmentForm(worker.employeeId(), date.minusDays(6), date.plusDays(6), true,
+                "근무 확인", PRIVATE_REASON, UUID.randomUUID()));
+        decide(accepted, "APPROVE");
+        assertEquals("AWAITING_CALCULATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "퇴근 정정 반영 확인");
+        for (var row : reviewRows("ALL")) assertNotEquals(date.toString(), row.required("workDate").asString());
+        mvc.perform(get("/me/attendance/follow-ups").with(as(worker)).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.checkoutFollowUps.rows").isEmpty());
+        assertEquals(1, count("attendance_event"));
+    }
+
+    @Test
+    void monthEndKeepsApprovedZeroWorkFollowUpUntilTheFirstDayResultIsSaved() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        requestFollowUp(date, "잘못 찍힌 출근을 확인해 주세요.");
+        var before = clocks.day(worker, date);
+        var request = workflow.submitCorrection(worker, new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(),
+                "CLEAR", "", "KEEP", "", false, false, "", null, null, false, PRIVATE_REASON, UUID.randomUUID()));
+        decide(request, "APPROVE");
+        approvedFullDayLeave();
+        var row = targetDay(reviewRows("UNCALCULATED"));
+        assertEquals("AWAITING_CALCULATION", row.at("/checkoutFollowUp/status").asString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "승인된 휴가일 확인");
+        for (var item : reviewRows("ALL")) assertNotEquals(date.toString(), item.required("workDate").asString());
+    }
+
+    @Test
+    void employeeCanOpenTheInboxWhenTheHomePreviewIsFull() throws Exception {
+        for (int offset = 0; offset < 4; offset++) {
+            var workDate = date.minusDays(offset);
+            clock(worker, workDate, workDate, "IN", 9);
+            requestFollowUp(workDate, "퇴근 시각 확인");
+        }
+        mvc.perform(get("/me/home").with(as(worker)).accept(PAGE_JSON)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.checkoutFollowUps.rows.length()").value(3))
+                .andExpect(jsonPath("$.data.checkoutFollowUps.hasNext").value(true));
+        mvc.perform(get("/me/attendance/follow-ups").with(as(worker)).accept(PAGE_JSON)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.checkoutFollowUps.rows.length()").value(4))
+                .andExpect(jsonPath("$.data.checkoutFollowUps.hasNext").value(false));
+    }
+
+    private void requestFollowUp(LocalDate workDate, String reason) throws Exception {
+        String command = JsonMapper.builder().build().writeValueAsString(Map.of(
+                "employeeId", worker.employeeId(), "workDate", workDate.toString(), "commandId", UUID.randomUUID(), "reason", reason));
+        mvc.perform(post("/admin/attendance/follow-ups").with(as(admin)).with(csrf())
+                        .contentType("application/json").content(command))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").exists());
+    }
+
+    private JsonNode targetDay(JsonNode rows) {
+        for (var row : rows) if (date.toString().equals(row.required("workDate").asString())) return row;
+        throw new AssertionError("대상 근무일이 월말 목록에 없습니다.");
+    }
+
     private MockHttpServletRequestBuilder monthEnd(TnaPrincipal actor) {
         return get(PATH).with(as(actor)).accept(PAGE_JSON).param("view", "month-end");
     }
@@ -422,6 +518,275 @@ class CheckoutOperationsWebIT {
         assertFalse(result.getResponse().getContentAsString().contains(PRIVATE_REASON));
         assertFalse(result.getResponse().getContentAsString().contains("sourceFingerprint"));
         return ReactPageAssertions.envelope(result).at("/data/monthEndReview/rows");
+    }
+
+    @Test
+    void followUpCommandSerializesDuplicateRequestsAndReplaysTheSameReceipt() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        var first = UUID.randomUUID();
+        var second = UUID.randomUUID();
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var gate = new java.util.concurrent.CountDownLatch(1);
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (var command : java.util.List.of(first, second)) futures.add(pool.submit(() -> {
+                gate.await();
+                return mvc.perform(followUpCommand(admin, worker.employeeId(), date, command, "퇴근 확인"))
+                        .andReturn().getResponse().getStatus();
+            }));
+            gate.countDown();
+            var statuses = new java.util.ArrayList<Integer>();
+            for (var future : futures) statuses.add(future.get(30, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(java.util.Set.of(200, 409), new java.util.HashSet<>(statuses));
+            var committed = statuses.getFirst() == 200 ? first : second;
+            var repeat = mvc.perform(followUpCommand(admin, worker.employeeId(), date, committed, "퇴근 확인"))
+                    .andExpect(status().isOk()).andReturn();
+            var id = new tools.jackson.databind.json.JsonMapper().readTree(repeat.getResponse().getContentAsByteArray()).required("id").asString();
+            assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND id=?", Integer.class, tenant, UUID.fromString(id)));
+            mvc.perform(followUpCommand(admin, worker.employeeId(), date, committed, "다른 사유")).andExpect(status().isConflict());
+        }
+        assertEquals(1, count("checkout_follow_up"));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='CHECKOUT_FOLLOW_UP_REQUEST'", Integer.class, tenant));
+    }
+
+    @Test
+    void followUpUsesCurrentAuthorizationSeoulDateAndEligibilityAtWriteTime() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(worker, worker.employeeId(), date, UUID.randomUUID(), "권한 확인")).andExpect(status().isForbidden());
+        mvc.perform(followUpCommand(representative, worker.employeeId(), date, UUID.randomUUID(), "권한 확인")).andExpect(status().isForbidden());
+        var another = member(company(), "FOREIGN", "ATTENDANCE_ADMIN");
+        mvc.perform(followUpCommand(admin, another.employeeId(), date, UUID.randomUUID(), "대상 확인")).andExpect(status().isNotFound());
+        mvc.perform(followUpCommand(admin, worker.employeeId(), today, UUID.randomUUID(), "근무일 확인")).andExpect(status().isUnprocessableContent());
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "  ")).andExpect(status().isUnprocessableContent());
+        mvc.perform(post("/admin/attendance/follow-ups").with(as(admin)).contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(followUpCommand(admin, approver.employeeId(), date, UUID.randomUUID(), "미출근")).andExpect(status().isConflict());
+        var pending = correction("18:00", null, true);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "이미 결재 대기")).andExpect(status().isConflict());
+        decide(pending, "APPROVE");
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 정정 완료")).andExpect(status().isConflict());
+        mvc.perform(followUpCommand(admin, worker.employeeId(), today.minusYears(2), UUID.randomUUID(), "입사 전")).andExpect(status().isUnprocessableContent());
+        db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='ATTENDANCE_ADMIN'", tenant, admin.accountId());
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "회수된 권한").accept("application/json"))
+                .andExpect(status().isFound()).andExpect(redirectedUrl("/login"));
+        var denied = assertThrows(OrgException.class, () -> followUps.request(admin,
+                new CheckoutFollowUpService.Form(worker.employeeId(), date, "권한 회수 후 등록", UUID.randomUUID())));
+        assertEquals(403, denied.status());
+        assertEquals(0, count("checkout_follow_up"));
+    }
+
+    @Test
+    void incompleteApprovedCorrectionWaitsForConfirmationAndTheAutomaticCalculation() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 확인")).andExpect(status().isOk());
+        var request = correction("18:00", null, false);
+        decide(request, "APPROVE");
+        assertEquals("NEEDS_CONFIRMATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "확인 전 집계");
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND resolved_at IS NOT NULL", Integer.class, tenant));
+        var unconfirmed = clocks.day(worker, date);
+        UUID command = UUID.randomUUID();
+        clocks.confirm(worker, new ConfirmationForm(date, unconfirmed.inputRevision(), unconfirmed.reviewRevision(), true, true, unconfirmed.sourceFingerprint(), command));
+        assertEquals("AWAITING_CALCULATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        worktime.calculateConfirmedDay(worker, date, command);
+        assertEquals(1, db.queryForObject("""
+                SELECT count(*) FROM tna.checkout_follow_up f JOIN tna.day_result r
+                  ON r.tenant_id=f.tenant_id AND r.id=f.resolved_result_id AND r.employee_id=f.employee_id AND r.work_date=f.work_date
+                WHERE f.tenant_id=? AND f.resolved_at IS NOT NULL AND r.actual_work_millis=28800000
+                """, Integer.class, tenant));
+        assertEquals(1, count("attendance_event"));
+    }
+
+    @Test
+    void followUpRowsRequireMatchingTenantContextAndGrantNoDeletePrivilege() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "테넌트별 보완")).andExpect(status().isOk());
+        try (var connection = DatabaseFixture.start().appDataSource().getConnection()) {
+            connection.setAutoCommit(false);
+            try (var tenantContext = connection.prepareStatement("SELECT set_config('app.tenant_id',?,true)");
+                 var count = connection.prepareStatement("SELECT count(*) FROM tna.checkout_follow_up WHERE employee_id=?")) {
+                count.setObject(1, worker.employeeId());
+                for (var context : java.util.List.of("", tenant.toString(), UUID.randomUUID().toString(), "")) {
+                    tenantContext.setString(1, context);
+                    tenantContext.execute();
+                    try (var rows = count.executeQuery()) {
+                        assertTrue(rows.next());
+                        assertEquals(tenant.toString().equals(context) ? 1 : 0, rows.getInt(1));
+                    }
+                }
+            } finally { connection.rollback(); }
+        }
+        assertFalse(db.queryForObject("SELECT has_table_privilege('tna_app','tna.checkout_follow_up','DELETE')", Boolean.class));
+    }
+
+    @Test
+    void teamApprovalKeepsTheFollowUpPendingUntilOfficeApprovalAndCalculation() throws Exception {
+        UUID team = organization(tenant, admin.accountId(), "TEAM"), office = organization(tenant, admin.accountId(), "OFFICE");
+        var officeHead = member(tenant, "OFFICE-HEAD", "APPROVER");
+        db.update("UPDATE tna.organization SET approval_unit='OFFICE' WHERE tenant_id=? AND id=?", tenant, office);
+        db.update("UPDATE tna.organization SET parent_id=?,approval_unit='TEAM' WHERE tenant_id=? AND id=?", office, tenant, team);
+        assignment(worker, team, date, null);
+        for (var entry : Map.of(team, approver.employeeId(), office, officeHead.employeeId()).entrySet()) {
+            db.update("""
+                    INSERT INTO tna.organization_head_assignment(tenant_id,id,organization_id,employee_id,valid_from,reason,created_by,updated_by)
+                    VALUES (?,gen_random_uuid(),?,?,?,'조직장 배정',?,?)
+                    """, tenant, entry.getKey(), entry.getValue(), date, admin.accountId(), admin.accountId());
+        }
+        UUID route = UUID.randomUUID(), version = UUID.randomUUID();
+        db.update("INSERT INTO tna.approval_route(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'T2','실장까지',?,?)",
+                tenant, route, admin.accountId(), admin.accountId());
+        db.update("""
+                INSERT INTO tna.approval_route_version(tenant_id,id,route_id,revision,name,approver_kind,terminal_unit,reason,created_by)
+                VALUES (?,?,?,1,'실장까지','ORGANIZATION_CHAIN','OFFICE','순차 결재',?)
+                """, tenant, version, route, admin.accountId());
+        db.update("""
+                INSERT INTO tna.request_form_version(tenant_id,id,form_id,revision,effective_from,enabled,name,route_version_id,reason,created_by)
+                SELECT tenant_id,gen_random_uuid(),id,2,?,true,'출퇴근 정정',?,'순차 결재',? FROM tna.request_form WHERE tenant_id=? AND code='A01'
+                """, today, version, admin.accountId(), tenant);
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 확인")).andExpect(status().isOk());
+        var preview = workflow.formPreview(worker, worker.employeeId(), "ATTENDANCE_CORRECTION");
+        assertEquals(List.of(approver.employeeId(), officeHead.employeeId()), preview.steps().stream().map(s -> s.approverId()).toList());
+        var before = clocks.day(worker, date);
+        var form = new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(), "KEEP", "", "SET", date + "T18:00",
+                true, true, date + "T12:00/" + date + "T13:00", null, null, false, PRIVATE_REASON, UUID.randomUUID());
+        UUID request = workflow.submitCorrection(worker, form, preview.routeToken());
+        workflow.decide(approver, request, new DecisionForm("APPROVE", 0L, "팀장 검토", UUID.randomUUID(), 1));
+        assertEquals("PENDING_APPROVAL", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        assertEquals(1, clocks.day(worker, date).effectiveEvents().size());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "중간 결재 중 집계");
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND resolved_at IS NULL", Integer.class, tenant));
+        workflow.decide(officeHead, request, new DecisionForm("APPROVE", 1L, "실장 최종 검토", UUID.randomUUID(), 2));
+        assertEquals("AWAITING_CALCULATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "최종 결재 후 집계");
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND last_request_id=? AND resolved_result_id IS NOT NULL", Integer.class, tenant, request));
+        assertEquals(1, count("attendance_event"));
+    }
+
+    @Test
+    void withdrawalReopensResponseAndANewOmissionAfterCalculationGetsANewFollowUp() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "첫 보완")).andExpect(status().isOk());
+        UUID withdrawn = correction("18:00", null, true);
+        workflow.withdraw(worker, withdrawn, new DecisionForm("WITHDRAW", 0L, PRIVATE_REASON, UUID.randomUUID()));
+        assertEquals("REQUESTED", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        UUID approved = correction("18:00", null, true);
+        decide(approved, "APPROVE");
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "정상 집계");
+        var before = clocks.day(worker, date);
+        var clear = workflow.submitCorrection(worker, new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(),
+                "KEEP", "", "CLEAR", "", false, false, "", approved, null, false, PRIVATE_REASON, UUID.randomUUID()));
+        decide(clear, "APPROVE");
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "재발 확인")).andExpect(status().isOk());
+        assertEquals(2, count("checkout_follow_up"));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND last_request_id=? AND resolved_at IS NOT NULL", Integer.class, tenant, approved));
+        assertEquals("재발 확인", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/reason").asString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"FULL,true", "HOLIDAY,true", "HALF,false", "WORKDAY,false"})
+    void zeroWorkRequiresAnApprovedClearAndAffirmativeCalendarOrFullLeave(String basis, boolean zeroConfirmed) throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "잘못 기록된 출근 확인")).andExpect(status().isOk());
+        var before = clocks.day(worker, date);
+        UUID request = workflow.submitCorrection(worker, new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(),
+                "CLEAR", "", "KEEP", "", false, false, "", null, null, false, PRIVATE_REASON, UUID.randomUUID()));
+        if (basis.equals("FULL") || basis.equals("HALF")) {
+            approvedFullDayLeave();
+            if (basis.equals("HALF")) db.update("UPDATE tna.leave_request_day SET quantity_days=0.5,leave_part='AM' WHERE tenant_id=?", tenant);
+        }
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "최종 결재 전 집계");
+        assertEquals("PENDING_APPROVAL", followUps.mine(worker, 0, 1).rows().getFirst().status());
+        decide(request, "APPROVE");
+        if (basis.equals("HOLIDAY")) db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?", tenant, date);
+        assertTrue(clocks.day(worker, date).effectiveEvents().isEmpty());
+        assertEquals(zeroConfirmed ? "AWAITING_CALCULATION" : "REQUESTED", followUps.mine(worker, 0, 1).rows().getFirst().status());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "무근로일 확인");
+        assertEquals(zeroConfirmed, followUps.mine(worker, 0, 1).rows().isEmpty());
+        assertEquals(zeroConfirmed ? 1 : 0, db.queryForObject("""
+                SELECT count(*) FROM tna.checkout_follow_up f JOIN tna.day_result r ON r.tenant_id=f.tenant_id AND r.id=f.resolved_result_id
+                WHERE f.tenant_id=? AND f.last_request_id=? AND f.resolved_at IS NOT NULL AND r.actual_work_millis=0
+                """, Integer.class, tenant, request));
+        assertEquals(1, count("attendance_event"));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"REJECT", "WITHDRAW"})
+    void rejectedOrWithdrawnClearCannotSettleAFullLeaveDay(String decision) throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 확인")).andExpect(status().isOk());
+        var before = clocks.day(worker, date);
+        UUID submitted = workflow.submitCorrection(worker, new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(),
+                "CLEAR", "", "KEEP", "", false, false, "", null, null, false, PRIVATE_REASON, UUID.randomUUID()));
+        approvedFullDayLeave();
+        if (decision.equals("REJECT")) decide(submitted, decision);
+        else workflow.withdraw(worker, submitted, new DecisionForm(decision, 0L, PRIVATE_REASON, UUID.randomUUID()));
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "효력 확인");
+        var response = followUps.mine(worker, 0, 1).rows().getFirst();
+        assertEquals("REQUESTED", response.status());
+        assertEquals(submitted, response.approvalRequestId());
+        assertEquals(1, clocks.day(worker, date).effectiveEvents().size());
+    }
+
+    @Test
+    void unsupportedOvernightCorrectionStillRequiresAnEmployeeResponse() throws Exception {
+        clock(worker, date, date, "IN", 9);
+        mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 확인")).andExpect(status().isOk());
+        var before = clocks.day(worker, date);
+        UUID submitted = workflow.submitCorrection(worker, new CorrectionForm(null, date, before.inputRevision(), before.sourceFingerprint(),
+                "SET", date.minusDays(1) + "T23:00", "SET", date + "T08:00", true, true, "", null, null, false, PRIVATE_REASON, UUID.randomUUID()));
+        decide(submitted, "APPROVE");
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "자정 통과 확인");
+        assertEquals("REQUESTED", followUps.mine(worker, 0, 1).rows().getFirst().status());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"REJECT,true", "WITHDRAW,true", "REJECT,false", "WITHDRAW,false"})
+    void rejectedReplacementLinksTheEffectiveCorrectionOnBothScreensAndInTheSettledResult(String decision, boolean confirmed) throws Exception {
+        clock(worker, date, date, "IN", 9);
+        requestFollowUp(date, "퇴근 시각 확인");
+        UUID effective = correction("18:00", null, confirmed);
+        decide(effective, "APPROVE");
+        UUID replacement = correction("19:00", effective, true);
+        var pending = followUps.mine(worker, 0, 1).rows().getFirst();
+        assertEquals("PENDING_APPROVAL", pending.status());
+        assertEquals(replacement, pending.approvalRequestId());
+        if (decision.equals("REJECT")) decide(replacement, decision);
+        else workflow.withdraw(worker, replacement, new DecisionForm(decision, 0L, PRIVATE_REASON, UUID.randomUUID()));
+
+        var mine = JsonMapper.builder().build().readTree(mvc.perform(get("/me/attendance/follow-ups").with(as(worker)).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).at("/data/checkoutFollowUps/rows/0");
+        var month = targetDay(reviewRows("ALL")).at("/checkoutFollowUp");
+        var employeeDetail = JsonMapper.builder().build().readTree(mvc.perform(get("/requests/" + mine.required("approvalRequestId").asString())
+                .with(as(worker)).accept(PAGE_JSON)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).at("/data/request");
+        var adminDetail = JsonMapper.builder().build().readTree(mvc.perform(get("/requests/" + month.required("approvalRequestId").asString())
+                .with(as(admin)).accept(PAGE_JSON)).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray()).at("/data/request");
+
+        var day = clocks.day(worker, date);
+        assertEquals(at(date, 18), day.effectiveEvents().getLast().occurredAt());
+        if (!confirmed) clocks.confirm(worker, new ConfirmationForm(date, day.inputRevision(), day.reviewRevision(), true, true,
+                day.sourceFingerprint(), UUID.randomUUID()));
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "유효한 퇴근 반영 확인");
+        UUID appliedRequest = db.queryForObject("""
+                SELECT f.last_request_id FROM tna.checkout_follow_up f JOIN tna.day_result r ON r.tenant_id=f.tenant_id AND r.id=f.resolved_result_id
+                WHERE f.tenant_id=? AND f.employee_id=r.employee_id AND f.work_date=r.work_date AND f.resolved_at IS NOT NULL AND r.actual_work_millis=28800000
+                """, UUID.class, tenant);
+        String expectedStatus = confirmed ? "AWAITING_CALCULATION" : "NEEDS_CONFIRMATION";
+        assertAll(
+                () -> assertEquals(expectedStatus, mine.required("status").asString()),
+                () -> assertEquals(expectedStatus, month.required("status").asString()),
+                () -> assertEquals(effective.toString(), employeeDetail.required("id").asString(), "직원 상세"),
+                () -> assertEquals("APPROVED", employeeDetail.required("status").asString()),
+                () -> assertEquals(effective.toString(), adminDetail.required("id").asString(), "월말 상세"),
+                () -> assertEquals("APPROVED", adminDetail.required("status").asString()),
+                () -> assertEquals(effective, appliedRequest, "해소에 적용된 정정"),
+                () -> assertEquals(decision.equals("REJECT") ? "REJECTED" : "WITHDRAWN", workflow.get(worker, replacement).request().status()),
+                () -> assertEquals(1, count("attendance_event")));
+    }
+
+    private MockHttpServletRequestBuilder followUpCommand(TnaPrincipal actor, UUID employee, LocalDate workDate, UUID command, String reason) {
+        var payload = new tools.jackson.databind.json.JsonMapper().writeValueAsString(java.util.Map.of(
+                "employeeId", employee, "workDate", workDate.toString(), "reason", reason, "commandId", command));
+        return post("/admin/attendance/follow-ups").with(as(actor)).with(csrf()).contentType("application/json").content(payload);
     }
 
     private UUID correction(String out, UUID replaces, boolean confirmed) {

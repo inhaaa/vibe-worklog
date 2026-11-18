@@ -9,6 +9,13 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface LeaveWorkflowMapper extends FormStepMapper {
+    @Update("""
+            UPDATE tna.checkout_follow_up SET last_request_id=#{requestId}
+            WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date=#{workDate} AND resolved_at IS NULL
+            """)
+    int attachCheckoutResponse(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("workDate") LocalDate workDate, @Param("requestId") UUID requestId);
+
     String REQUEST_SELECT="""
         SELECT r.id,r.target_employee_id,e.display_name AS target_employee_name,r.author_account_id,
           r.kind,r.status,r.current_approver_id,p.display_name AS approver_name,r.approver_assignment_id,

@@ -124,6 +124,15 @@ class CodeMigrationUpgradeIT {
             assertEquals(1, v28.migrationsExecuted);
             assertEquals(v27Rows,rows(db,v27Columns));
             assertEquals(v27Access,access(db));
+            var v28Columns = columns(db);
+            var v28Rows = rows(db, v28Columns);
+            var v28Access = access(db);
+            var toV29 = Flyway.configure().dataSource(migrationSource).target("29").load();
+            assertEquals(1, toV29.migrate().migrationsExecuted);
+            assertEquals(0, toV29.migrate().migrationsExecuted);
+            assertEquals(v28Rows, rows(db, v28Columns));
+            assertEquals(v28Access, access(db).stream().filter(row -> !"checkout_follow_up".equals(row.get("relname"))).toList());
+            assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up", Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {

@@ -169,7 +169,13 @@ public final class WorktimeService {
             changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
                     input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
                     json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
-            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));count++;
+            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));
+            var day = input.clock();
+            if (result.actualWorkMillis() != null && !input.day().pendingCorrection()
+                    && !day.events().equals(day.effectiveEvents())) {
+                mapper.settleCheckoutFollowUp(actor.tenantId(),target,date,resultId);
+            }
+            count++;
         }
         changed(mapper.completeRun(actor.tenantId(),runId));
         return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-1"));

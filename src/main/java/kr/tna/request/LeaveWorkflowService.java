@@ -279,6 +279,7 @@ public final class LeaveWorkflowService {
             var d=new CorrectionDetail(form.workDate(),form.baseInputRevision(),form.sourceFingerprint(),inAction,outAction,proposedIn,proposedOut,
                     form.presenceAsWork(),form.breaksConfirmed(),json.writeValueAsString(breaks),form.replacesRequestId(),json.writeValueAsString(before));
             changed(mapper.insertCorrection(actor.tenantId(),UUID.randomUUID(),r.id(),d));
+            mapper.attachCheckoutResponse(actor.tenantId(),target,form.workDate(),r.id());
             changed(mapper.reviseDay(actor.tenantId(),target,form.workDate(),0));
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));

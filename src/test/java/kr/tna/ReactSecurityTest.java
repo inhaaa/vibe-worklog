@@ -20,6 +20,7 @@ import kr.tna.workspace.WorkspaceController;
 import kr.tna.workspace.WorkspaceData.DayView;
 import kr.tna.workspace.WorkspaceData.HomeView;
 import kr.tna.workspace.WorkspaceQueries;
+import kr.tna.worktime.CheckoutFollowUpService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -49,6 +50,7 @@ class ReactSecurityTest {
     @MockitoBean LocalDemoLogin demo;
     @MockitoBean WorkspaceWebConfiguration workspace;
     @MockitoBean WorkspaceQueries workspaceQueries;
+    @MockitoBean CheckoutFollowUpService followUps;
 
     @Test
     void homeAllowsOnlyAuthenticatedGetAndUsesTheCurrentPrincipal() throws Exception {
@@ -62,6 +64,7 @@ class ReactSecurityTest {
                 List.of(), true, true);
         when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
                 day, List.of(day), null, 2, List.of()));
+        when(followUps.mine(principal, 0, 3)).thenReturn(new CheckoutFollowUpService.Inbox(List.of(), 0, false));
         mvc.perform(get("/me/home").accept(ReactPageViewResolver.MEDIA_TYPE))
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/me/home").with(authentication(authentication)).with(csrf()))
@@ -69,6 +72,7 @@ class ReactSecurityTest {
         mvc.perform(get("/me/home").param("tenantId", UUID.randomUUID().toString())
                 .with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.page").value("workspace/home"))
+                .andExpect(jsonPath("$.data.checkoutFollowUps.rows").isEmpty())
                 .andExpect(jsonPath("$.data.workspaceHome.pendingRequests").value(2))
                 .andExpect(jsonPath("$.data.workspaceHome.today.snapshot.workDate").value("2026-11-06"))
                 .andExpect(jsonPath("$.data.workspaceHome.today.snapshot.sourceFingerprint").doesNotExist());

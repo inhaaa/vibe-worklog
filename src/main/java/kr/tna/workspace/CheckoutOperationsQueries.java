@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.clock.ClockService;
+import kr.tna.clock.CheckoutOmission;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.CompanyReadAccess;
 import kr.tna.org.OrgCommands;
@@ -92,12 +93,8 @@ public final class CheckoutOperationsQueries {
 
     private CheckoutCase checkoutCase(UUID tenantId, LocalDate date, CheckoutCandidate employee) {
         var day = clocks.snapshot(tenantId, employee.employeeId(), date);
-        if (day.schedule() == null || !day.schedule().workday() || day.calendarVersionId() == null
-                || !"WORKDAY".equals(day.dayKind())) return null;
-
+        if (!CheckoutOmission.hasSingleRecordedArrival(day)) return null;
         var source = day.events();
-        if (source.size() != 1 || !"IN".equals(source.getFirst().kind())
-                || !date.equals(source.getFirst().occurredAt().atZone(SEOUL).toLocalDate())) return null;
         var in = day.effectiveEvents().stream().filter(event -> "IN".equals(event.kind())).toList();
         var out = day.effectiveEvents().stream().filter(event -> "OUT".equals(event.kind())).toList();
         if (in.size() != 1 || out.size() > 1) return null;

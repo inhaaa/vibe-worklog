@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import kr.tna.clock.CheckoutOmission;
 import kr.tna.clock.ClockData;
 import kr.tna.clock.ClockMapper;
 import kr.tna.clock.ClockService;
@@ -27,7 +28,19 @@ public final class MonthEndReviewQueries {
     public record Page(YearMonth month, YearMonth latestMonth, UUID organizationId, List<OrganizationItem> options,
             String q, String reason, int page, boolean hasPrevious, boolean hasNext, List<Row> rows, String error) { }
     public record Row(UUID employeeId, String employeeNo, String employeeName, String organizationName,
-            LocalDate workDate, List<String> reasons, UUID resultId, UUID pendingRequestId) { }
+            LocalDate workDate, List<String> reasons, UUID resultId, UUID pendingRequestId,
+            boolean checkoutFollowUpEligible, CheckoutFollowUpService.Summary checkoutFollowUp) {
+        CheckoutFollowUpService.DayKey dayKey() {
+            return new CheckoutFollowUpService.DayKey(employeeId, workDate);
+        }
+
+        Row withFollowUp(CheckoutFollowUpService.Summary followUp) {
+            return followUp == null ? this : new Row(employeeId, employeeNo, employeeName, organizationName,
+                    workDate, reasons, resultId, pendingRequestId, false, followUp);
+        }
+    }
+
+    private record Review(List<String> reasons, boolean checkoutFollowUpEligible) { }
 
     private static final int PAGE_SIZE = 50;
     private static final Set<String> REASONS = Set.of("ALL", "UNCALCULATED", "STALE", "UNCONFIRMED", "PENDING_CORRECTION");
@@ -39,16 +52,18 @@ public final class MonthEndReviewQueries {
     private final ClockService clocks;
     private final Clock clock;
     private final WorktimeCalculator calculator = new WorktimeCalculator();
-    private final JsonMapper json = JsonMapper.builder().build();
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+    private final CheckoutFollowUpService followUps;
 
     public MonthEndReviewQueries(CompanyReadAccess company, OrgCommands administration, ProfileCompanyMapper organizations,
-            MonthEndReviewMapper mapper, ClockService clocks, Clock clock) {
+            MonthEndReviewMapper mapper, ClockService clocks, Clock clock, CheckoutFollowUpService followUps) {
         this.company = company;
         this.administration = administration;
         this.organizations = organizations;
         this.mapper = mapper;
         this.clocks = clocks;
         this.clock = clock;
+        this.followUps = followUps;
     }
 
     public Page read(TnaPrincipal actor, String requestedMonth, UUID organizationId, String q, String reason, int page) {
@@ -87,14 +102,16 @@ public final class MonthEndReviewQueries {
         if (!through.isBefore(from)) {
             try (var candidates = mapper.candidates(tenantId, from, through, organizationId, q, reason)) {
                 for (var candidate : candidates) {
-                    var causes = reasons(candidate);
+                    var review = assess(candidate);
+                    var causes = review.reasons();
                     if (causes.isEmpty() || !reason.equals("ALL") && !causes.contains(reason)) continue;
                     if (skip > 0) {
                         skip--;
                     } else if (rows.size() < PAGE_SIZE) {
                         rows.add(new Row(candidate.employeeId(), candidate.employeeNo(), candidate.employeeName(),
                                 Objects.requireNonNullElse(candidate.organizationName(), "소속 미등록"),
-                                candidate.workDate(), causes, candidate.resultId(), candidate.pendingRequestId()));
+                                candidate.workDate(), causes, candidate.resultId(), candidate.pendingRequestId(),
+                                review.checkoutFollowUpEligible(), null));
                     } else {
                         next = true;
                         break;
@@ -102,18 +119,21 @@ public final class MonthEndReviewQueries {
                 }
             }
         }
-        return new Page(month, latest, organizationId, options, q, reason, page, page > 0, next, List.copyOf(rows), null);
+        var active = followUps.openForDays(tenantId, rows.stream().map(Row::dayKey).toList());
+        var pageRows = rows.stream().map(row -> row.withFollowUp(active.get(row.dayKey()))).toList();
+        return new Page(month, latest, organizationId, options, q, reason, page, page > 0, next, pageRows, null);
     }
 
-    private List<String> reasons(MonthEndReviewMapper.Candidate candidate) {
-        var snapshot = snapshot(candidate);
+    private Review assess(MonthEndReviewMapper.Candidate candidate) {
+        var snapshot = snapshot(clocks, candidate);
         var leave = list(candidate.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
         boolean pending = candidate.pendingRequestId() != null;
-        var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, WorktimeMapper.LeaveEffect.totalDays(leave));
+        double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
+        var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays);
         boolean unconfirmed = calculator.day(input).actualWorkMillis() == null;
         var reasons = new ArrayList<String>(3);
         if (candidate.resultId() == null) {
-            if (unconfirmed || !snapshot.effectiveEvents().isEmpty()) reasons.add("UNCALCULATED");
+            if (unconfirmed || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) reasons.add("UNCALCULATED");
         } else {
             String source = WorktimeService.source(snapshot, candidate.joinedOn(), candidate.leftOn(), candidate.policyId(),
                     candidate.assessmentId(), leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(),
@@ -124,22 +144,22 @@ public final class MonthEndReviewQueries {
         }
         if (unconfirmed) reasons.add("UNCONFIRMED");
         if (pending) reasons.add("PENDING_CORRECTION");
-        return List.copyOf(reasons);
+        return new Review(List.copyOf(reasons), CheckoutOmission.eligible(snapshot, leaveDays, pending));
     }
 
-    private ClockData.DaySnapshot snapshot(MonthEndReviewMapper.Candidate row) {
+    static ClockData.DaySnapshot snapshot(ClockService clocks, MonthEndReviewMapper.DayEvidence row) {
         var schedules = row.scheduleVersionId() == null ? List.<ClockMapper.ScheduleRow>of()
                 : List.of(new ClockMapper.ScheduleRow(row.scheduleVersionId(), row.workDate().getDayOfWeek().getValue(),
                         row.workday(), row.startTime(), row.endTime()));
         var calendar = row.calendarVersionId() == null ? null : new ClockMapper.CalendarRow(row.calendarVersionId(), row.dayKind());
-        var correction = row.correction() == null ? null : json.readValue(row.correction(), ClockMapper.CorrectionRow.class);
+        var correction = row.correction() == null ? null : JSON.readValue(row.correction(), ClockMapper.CorrectionRow.class);
         var confirmations = list(row.confirmations(), ClockData.Confirmation[].class);
         return clocks.projectSnapshot(row.employeeId(), row.workDate(), list(row.events(), ClockData.Event[].class),
                 schedules, list(row.breaks(), ScheduleData.Break[].class), calendar, row.inputRevision(), row.reviewRevision(),
                 correction, source -> confirmations.stream().filter(c -> c.sourceFingerprint().equals(source)).findFirst().orElse(null));
     }
 
-    private <T> List<T> list(String value, Class<T[]> type) {
-        return value == null ? List.of() : List.of(json.readValue(value, type));
+    private static <T> List<T> list(String value, Class<T[]> type) {
+        return value == null ? List.of() : List.of(JSON.readValue(value, type));
     }
 }
