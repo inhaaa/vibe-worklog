@@ -27,6 +27,7 @@ const navigation: NavigationGroup[] = [
       item('schedule', '근무 일정', '/me/schedule', employee, 'workspace/schedule'),
       item('worktime', '근로시간', '/me/worktime', employee, 'worktime/month'),
       item('correction', '출퇴근 정정 신청', '/me/requests/correction', employee, 'request/correction'),
+      item('attendance-follow-ups', '내 근태 보완 요청', '/me/attendance/follow-ups', employee, 'attendance/follow-ups'),
       item('overtime', '연장근무 신청', '/me/overtime', employee, 'overtime/employee'),
     ] },
     { id: 'my-requests', label: '휴가·신청', children: [
@@ -141,7 +142,7 @@ export function getNavigationContext(page: string, location: string, data: Recor
     const mine = data.ownRequest === true || data.canWithdraw === true || data.canCancel === true || (self?.employeeId != null && self.employeeId === request?.targetEmployeeId);
     const sourcePath = source.split('?')[0];
     const overtime = request?.kind === 'OVERTIME' || request?.kind === 'CANCEL_OVERTIME';
-    href = ['/me/overtime', '/admin/overtime', '/me/requests', '/approvals', '/approvals/completed', '/admin/requests', '/company/requests'].includes(sourcePath)
+    href = ['/me/overtime', '/admin/overtime', '/me/requests', '/me/attendance/follow-ups', '/approvals', '/approvals/completed', '/admin/requests', '/company/requests'].includes(sourcePath)
       ? source : mine ? (overtime ? '/me/overtime' : '/me/requests') : data.canDecide === true ? '/approvals' : data.admin === true
         ? overtime ? '/admin/overtime' : requestHref('/admin/requests', request?.kind === 'ATTENDANCE_CORRECTION' ? 'CORRECTION' : 'LEAVE')
         : request?.status && request.status !== 'PENDING' ? '/approvals/completed' : '/approvals';

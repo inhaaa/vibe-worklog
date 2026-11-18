@@ -218,3 +218,15 @@ describe('업무 홈', () => {
     expect(screen.getByText('이 화면에만 구성이 적용됩니다.')).toBeTruthy();
   });
 });
+
+it('홈에서 본인의 근태 보완 요청을 바로 열고 처리할 요청이 없으면 내 위젯만 표시한다', () => {
+  const task={id:'task-1',workDate:'2026-11-04',reason:'퇴근 시각 확인',status:'REQUESTED',approvalRequestId:null,resultId:null};
+  const view=render(<WorkspaceHome data={{workspaceHome:home,checkoutFollowUps:{rows:[task],page:0,hasNext:true}}} />);
+  const panel=within(screen.getByRole('region',{name:'내 근태 보완 요청'}));
+  expect(panel.getByText(task.reason)).toBeTruthy();
+  expect(panel.getByRole('link',{name:'정정 신청'}).getAttribute('href')).toBe('/me/requests/correction?date=2026-11-04');
+  expect(panel.getByRole('link',{name:'전체 보기'}).getAttribute('href')).toBe('/me/attendance/follow-ups');
+  view.rerender(<WorkspaceHome data={{workspaceHome:home,checkoutFollowUps:{rows:[],page:0,hasNext:false}}} />);
+  expect(screen.queryByRole('region',{name:'내 근태 보완 요청'})).toBeNull();
+  expect(screen.getByRole('button',{name:'위젯 설정'})).toBeTruthy();
+});

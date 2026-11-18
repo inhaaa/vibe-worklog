@@ -1,3 +1,7 @@
+import { useRef, useState } from 'react';
+import type { CsrfToken } from '../types';
+import { CheckoutFollowUpForm } from './CheckoutFollowUpForm';
+import { followUpStatusNames, type CheckoutFollowUp } from './CheckoutFollowUps';
 import { ErrorNotice, Field, Form, SelectField } from '../ui';
 import { PageHeader } from '../components/PageHeader';
 import { CompanyAttendanceViews, monthEndReasons } from './CompanyAttendanceNavigation';
@@ -14,6 +18,8 @@ interface ReviewRow {
   reasons: Reason[];
   resultId: string | null;
   pendingRequestId: string | null;
+  checkoutFollowUpEligible?: boolean;
+  checkoutFollowUp?: CheckoutFollowUp | null;
 }
 
 export interface MonthEndReview {
@@ -37,22 +43,51 @@ function listHref(model: MonthEndReview, page = model.page) {
   return path + '?' + search;
 }
 
-function EmployeeDay({ row, returnTo }: { row: ReviewRow; returnTo: string }) {
+interface EmployeeDayProps {
+  row: ReviewRow;
+  returnTo: string;
+  canRequest: boolean;
+  csrf: CsrfToken;
+  reload: () => void;
+  active: string | null;
+  setActive: (row: string | null) => void;
+}
+
+function EmployeeDay({ row, returnTo, canRequest, csrf, reload, active, setActive }: EmployeeDayProps) {
+  const trigger = useRef<HTMLButtonElement>(null);
+  const key = row.employeeId + '/' + row.workDate;
+  const followUp = row.checkoutFollowUp;
+  const requestId = row.pendingRequestId ?? followUp?.approvalRequestId;
+  const eligible = canRequest && row.checkoutFollowUpEligible === true && !row.pendingRequestId
+    && (!followUp || followUp.status === 'RESOLVED');
   const back = new URLSearchParams({ returnTo });
   const worktime = new URLSearchParams({ employeeId: row.employeeId, month: row.workDate.slice(0, 7), workDate: row.workDate, returnTo });
   return <li className="month-review-row" aria-label={row.workDate + ' ' + row.employeeNo + ' ' + row.employeeName}>
     <time dateTime={row.workDate}>{row.workDate}</time>
     <div><strong>{row.employeeNo} · {row.employeeName}</strong><small>{row.organizationName ?? '소속 미등록'}</small></div>
-    <div className="month-review-reasons">{row.reasons.map(reason => <span key={reason}>{monthEndReasons[reason]}</span>)}</div>
+    <div className="month-review-reasons">
+      {row.reasons.filter(reason => !followUp || monthEndReasons[reason] !== followUpStatusNames[followUp.status])
+        .map(reason => <span key={reason}>{monthEndReasons[reason]}</span>)}
+      {followUp && <><strong className="checkout-follow-up-state">{followUpStatusNames[followUp.status]}</strong>
+        <span className="checkout-follow-up-note">{followUp.reason}</span></>}
+    </div>
     <div className="actions">
       <a className="t-btn" href={'/admin/attendance?' + worktime}>근태 집계</a>
       {row.resultId && <a className="t-btn" href={'/worktime/results/' + encodeURIComponent(row.resultId) + '?' + back}>계산 근거</a>}
-      {row.pendingRequestId && <a className="t-btn" href={'/requests/' + encodeURIComponent(row.pendingRequestId) + '?' + back}>정정 상세</a>}
+      {requestId && <a className="t-btn" href={'/requests/' + encodeURIComponent(requestId) + '?' + back}>
+        {followUp?.status === 'REQUESTED' && !row.pendingRequestId ? '이전 정정 상세' : '정정 상세'}</a>}
+      {eligible && <button className="t-btn" type="button" ref={trigger} aria-expanded={active === key}
+        disabled={active !== null} onClick={() => setActive(key)}>보완 요청</button>}
     </div>
+    {eligible && active === key && <CheckoutFollowUpForm employee={row} csrf={csrf} reload={reload}
+      close={() => { setActive(null); requestAnimationFrame(() => trigger.current?.focus()); }} />}
   </li>;
 }
 
-export function MonthEndReviewPage({ model: m }: { model: MonthEndReview }) {
+export function MonthEndReviewPage({ model: m, canRequest, csrf, reload }: {
+  model: MonthEndReview; canRequest: boolean; csrf: CsrfToken; reload: () => void;
+}) {
+  const [active, setActive] = useState<string | null>(null);
   return <>
     <PageHeader title="회사 근무현황" />
     <CompanyAttendanceViews active="month-end" />
@@ -77,7 +112,8 @@ export function MonthEndReviewPage({ model: m }: { model: MonthEndReview }) {
       {m.rows.length === 0 ? <p>선택한 조건에 해당하는 월말 확인 대상이 없습니다.</p> : <>
         <div className="month-review-row month-review-columns" aria-hidden="true"><span>근무일</span><span>사원·당시 소속</span><span>확인 사유</span><span>상세</span></div>
         <ul className="month-review-list" aria-label="월말 확인 사원과 근무일">
-          {m.rows.map(row => <EmployeeDay key={row.workDate + '/' + row.employeeId} row={row} returnTo={listHref(m)} />)}
+          {m.rows.map(row => <EmployeeDay key={row.workDate + '/' + row.employeeId} row={row} returnTo={listHref(m)}
+            canRequest={canRequest} csrf={csrf} reload={reload} active={active} setActive={setActive} />)}
         </ul>
       </>}
       {(m.hasPrevious || m.hasNext) && <nav className="actions pagination" aria-label="확인 대상 페이지">

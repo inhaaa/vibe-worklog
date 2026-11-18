@@ -3,6 +3,7 @@ import { Modal } from '../components/Modal';
 import { ErrorNotice, Form, fmtDateTime } from '../ui';
 import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
+import { HomeCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 import { combinedLeavePart, leavePartNames, type LeavePart } from './leavePart';
 import './WorkspaceHome.css';
 
@@ -154,10 +155,13 @@ export function WorkspaceHome({ data, busy }: Pick<PageProps, 'data' | 'busy'>) 
     OUT: typeof data.clockOutCommand === 'string' ? data.clockOutCommand : undefined,
     error: typeof data.clockError === 'number' ? data.clockError : undefined,
   };
-  return <HomeDashboard key={storageKey} home={home} clock={clock} storageKey={storageKey} busy={busy} />;
+  return <HomeDashboard key={storageKey} home={home} clock={clock} storageKey={storageKey} busy={busy}
+    followUps={data.checkoutFollowUps as CheckoutFollowUpList | undefined} />;
 }
 
-function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; clock: ClockCommands; storageKey?: string; busy?: boolean }) {
+function HomeDashboard({ home, clock, storageKey, busy, followUps }: {
+  home: HomeView; clock: ClockCommands; storageKey?: string; busy?: boolean; followUps?: CheckoutFollowUpList;
+}) {
   const [visible, setVisible] = useState(() => readWidgets(storageKey));
   const [draft, setDraft] = useState<readonly WidgetId[] | null>(null);
   const [localOnly, setLocalOnly] = useState(false);
@@ -206,6 +210,7 @@ function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; cloc
           <a href="/me/requests/new"><Icon name="plus" />근태 신청</a>
         </div>
       </header>
+      <HomeCheckoutFollowUps model={followUps} />
       <div className="t-work-home-toolbar">
         <h2>내 위젯</h2>
         <button type="button" className="t-btn t-work-home-settings-trigger" aria-label="위젯 설정" aria-haspopup="dialog" title="위젯 설정" disabled={busy}

@@ -96,6 +96,7 @@ const titles: Record<string, string> = {
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
   'clock/period': '출퇴근 기간 조회',
+  'attendance/follow-ups': '내 근태 보완 요청',
   'org/onboarding': '입사 예정 관리',
   'overtime/employee': '연장근무 신청',
   'overtime/admin': '연장근무 신청현황',

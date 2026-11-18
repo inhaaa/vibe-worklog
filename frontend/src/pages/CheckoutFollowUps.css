@@ -1,0 +1,28 @@
+.checkout-follow-up-list { list-style: none; margin: 0; padding: 0; }
+.checkout-follow-up-list > li {
+  display: grid;
+  grid-template-columns: minmax(140px, .6fr) minmax(0, 1.3fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--t-line);
+}
+.checkout-follow-up-list time { font-weight: 650; }
+.checkout-follow-up-state { display: block; color: var(--t-accent-ink); font-size: 13px; font-weight: 650; }
+.checkout-follow-up-note { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.checkout-follow-up-list .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.month-review-row > .checkout-follow-up-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  background: var(--t-section);
+}
+.checkout-follow-up-form textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
+@media (max-width: 680px) {
+  .checkout-follow-up-list > li { grid-template-columns: minmax(0, 1fr); }
+  .checkout-follow-up-list li > div:first-child { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+  .checkout-follow-up-list .t-btn, .checkout-follow-up-form .t-btn { min-height: 44px; }
+}
