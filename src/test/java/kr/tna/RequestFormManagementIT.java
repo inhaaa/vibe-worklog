@@ -46,7 +46,7 @@ class RequestFormManagementIT {
         db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",tenant,account);
         var actor=new TnaPrincipal(tenant,account,employee,1,Set.of("ATTENDANCE_ADMIN"),Instant.now());
         var initial=service.page(actor,"",null);
-        assertEquals(3,initial.forms().size());
+        assertEquals(5,initial.forms().size());
         var leave=initial.forms().stream().filter(row->row.code().equals("L01")).findFirst().orElseThrow();
         var date=today.plusDays(5);
         var replace=new Command(null,null,"007","LEAVE_DAY","새 신청",date,true,null,leave.id(),leave.version(),"새 명칭 적용",UUID.randomUUID());

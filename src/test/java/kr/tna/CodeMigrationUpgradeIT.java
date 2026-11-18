@@ -90,6 +90,20 @@ class CodeMigrationUpgradeIT {
             assertEquals(6,db.queryForObject("SELECT count(*) FROM tna.request_form",Integer.class));
             assertEquals(8,db.queryForObject("SELECT count(*) FROM tna.approval_request WHERE form_version_id IS NULL AND current_step=1 AND total_steps=1",Integer.class));
             assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.request_approval_step",Integer.class));
+            assertTrue(Flyway.configure().dataSource(migrationSource).target("24").load().migrate().success);
+            UUID customer=db.queryForList("SELECT id FROM platform.tenant_registry ORDER BY id",UUID.class).getFirst();
+            UUID customForm=UUID.randomUUID();
+            db.update("INSERT INTO tna.request_form(tenant_id,id,code,kind) VALUES(?,?,'O01','LEAVE_DAY')",customer,customForm);
+            var upgraded=Flyway.configure().dataSource(migrationSource).target("25").load().migrate();
+            assertTrue(upgraded.success);assertEquals(1,upgraded.migrationsExecuted);
+            assertEquals(customForm,db.queryForObject("SELECT id FROM tna.request_form WHERE tenant_id=? AND code='O01'",UUID.class,customer));
+            assertEquals(4,db.queryForObject("""
+                    SELECT count(*) FROM tna.request_form f JOIN tna.request_form_version v
+                    ON v.tenant_id=f.tenant_id AND v.form_id=f.id
+                    WHERE f.kind IN ('OVERTIME','CANCEL_OVERTIME') AND v.enabled AND v.revision=1
+                    """,Integer.class));
+            assertEquals(v18Rows,rows(db,v18Columns));
+
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static Map<String,List<String>> columns(JdbcTemplate db) {

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public final class RequestFormService {
-    private static final Set<String> KINDS=Set.of("LEAVE_DAY","CANCEL_LEAVE","ATTENDANCE_CORRECTION");
+    private static final Set<String> KINDS=Set.of("LEAVE_DAY","CANCEL_LEAVE","ATTENDANCE_CORRECTION","OVERTIME","CANCEL_OVERTIME");
     private final OrgCommands commands;
     private final RequestFormMapper forms;
     private final ApprovalRouteMapper routes;
