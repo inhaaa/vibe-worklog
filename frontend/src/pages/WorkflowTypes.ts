@@ -268,6 +268,8 @@ export interface MonthModel {
   to: string;
   calculateCommand: string;
   exportCommand: string;
+  checkoutWorkDate?: string;
+  checkoutReturnTo?: string;
 }
 export interface PolicyForm {
   from: string;

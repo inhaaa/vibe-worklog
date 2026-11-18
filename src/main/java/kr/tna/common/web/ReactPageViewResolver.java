@@ -70,7 +70,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("request/balances", "employee", "employees", "buckets", "form"),
             page("request/ledger", "ledger", "bucketId", "adjustment"),
             page("request/correction", "actions", "day", "exceptional", "eventTimes", "form", "checkoutOnly", "pendingCorrectionId"),
-            page("worktime/month", "overview", "employeeId", "admin", "employees", "from", "to", "calculateCommand", "exportCommand"),
+            page("worktime/month", "overview", "employeeId", "admin", "employees", "from", "to", "calculateCommand", "exportCommand", "checkoutWorkDate", "checkoutReturnTo"),
             page("worktime/result", "detail", "times", "month", "admin"),
             page("worktime/audit", "page", "audits"), page("worktime/audit-detail", "audit"),
             page("worktime/policies", "employees", "policies", "assessments", "employeeId", "policyForm", "assessmentForm"));

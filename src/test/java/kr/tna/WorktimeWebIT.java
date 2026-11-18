@@ -34,5 +34,24 @@ class WorktimeWebIT {
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/from", "2026-09-28"))
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/to", "2026-10-05"));
     }
+    @Test void checkoutRecalculationReturnsToTheSameDateAndSafeListConditions() throws Exception {
+        var session = login(true);
+        var date = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1);
+        var employee = DatabaseFixture.EMPLOYEE_A.toString();
+        var back = "/company/attendance?view=checkout&date=" + date + "&q=A%26B&status=ALL&page=2";
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId", employee)
+                .param("month", date.toString().substring(0, 7)).param("workDate", date.toString()).param("returnTo", back))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/checkoutWorkDate", date.toString()))
+                .andExpect(ReactPageAssertions.data("/checkoutReturnTo", back));
+        var attempt = post("/admin/calculations").session(session).with(csrf())
+                .param("employeeId", employee).param("from", date.toString()).param("to", date.toString())
+                .param("reason", "합성 누락일 재집계").param("commandId", UUID.randomUUID().toString());
+        mvc.perform(attempt.param("returnTo", back)).andExpect(status().isSeeOther())
+                .andExpect(redirectedUrlPattern("/admin/attendance?employeeId=*&month=*&workDate=*&returnTo=*"));
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId", employee)
+                .param("month", date.toString().substring(0, 7)).param("workDate", date.toString()).param("returnTo", "//other.test"))
+                .andExpect(status().isOk()).andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        ReactPageAssertions.envelope(result).at("/data/checkoutReturnTo").isMissingNode()));
+    }
     private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
 }

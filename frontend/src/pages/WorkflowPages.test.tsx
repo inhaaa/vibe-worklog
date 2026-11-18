@@ -516,6 +516,18 @@ describe('WorkflowPages', () => {
     expect(weeks.querySelector('[col-id="over40hMillis"]:not(.ag-header-cell)')?.textContent).toBe('-');
     expect(view.container.querySelector('form[action="/admin/calculations"]')).toBeTruthy();
     expect(view.container.querySelector('form[action="/admin/reports/exports"]')).toBeTruthy();
+    view.unmount();
+    const returnTo = '/company/attendance?view=checkout&date=2026-10-26&q=E001&status=ALL&page=2';
+    const scoped = await render('worktime/month', { ...data, checkoutWorkDate: '2026-10-26', checkoutReturnTo: returnTo });
+    expect(scoped.getByRole('link', { name: '퇴근 누락 목록으로' }).getAttribute('href')).toBe(returnTo);
+    expect(scoped.getByRole('button', { name: '대상일과 해당 주 재집계' })).toBeTruthy();
+    expect(scoped.getByRole('heading', { name: '2026-10-26 근무일' })).toBeTruthy();
+    const calculate = body(scoped, '/admin/calculations');
+    expect(calculate.get('from')).toBe('2026-10-26');
+    expect(calculate.get('to')).toBe('2026-10-26');
+    expect(calculate.get('returnTo')).toBe(returnTo);
+    expect(body(scoped, '/admin/reports/exports').get('from')).toBe('2026-10-01');
+    scoped.unmount();
     expect((await render('worktime/month', { ...data, admin: false })).container.querySelector('form[action="/admin/calculations"]')).toBeNull();
   });
   it('계산 상세는 저장 근거가 없으면 현재값으로 대체하지 않고 미확인으로 표시한다', async () => {

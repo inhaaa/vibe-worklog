@@ -9,7 +9,7 @@ import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
-import { CheckoutOperationsBackLink } from './CheckoutOperationsPage';
+import { CheckoutOperationsBackLink, checkoutReturn } from './CheckoutOperationsPage';
 import { ApprovalStamps } from '../components/ApprovalStamps';
 import { Notice } from '../components/Notice';
 import {
@@ -560,6 +560,8 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
+  const returnTo = m.admin ? checkoutReturn(m.checkoutReturnTo ?? null) : null;
+  const checkoutDay = returnTo ? view.days.find(day => day.workDate === m.checkoutWorkDate) : undefined;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
   const away = (day: DayView) => day.employed === false;
   const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
@@ -603,7 +605,7 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="근로시간" />
+      <PageHeader title="근로시간" actions={checkoutDay && <CheckoutOperationsBackLink href={returnTo} />} />
       <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
         <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
@@ -613,6 +615,11 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
+      {checkoutDay && <section className="wl-section">
+        <h2>{checkoutDay.workDate} 근무일</h2>
+        <p>실근로시간 {checkoutDay.current && checkoutDay.result.actualWorkMillis != null ? duration(checkoutDay.result.actualWorkMillis) : '미확정'}</p>
+        {checkoutDay.current && checkoutDay.id && <a href={`/worktime/results/${checkoutDay.id}`}>해당 일자 집계 근거</a>}
+      </section>}
       <dl className="wl-summary" aria-label="월 요약">
         <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
         <div data-tone={summary.pendingDays ? 'warn' : undefined}><dt>확인 전</dt><dd>{summary.pendingDays}일</dd></div>
@@ -632,10 +639,15 @@ function Month({ model: m }: { model: MonthModel }) {
             · <a href="/admin/audit">감사 이력</a>
           </p>
           <Form action="/admin/calculations" method="post" className="wl-form">
-            {periodFields}
+            {checkoutDay ? <>
+              {hidden('employeeId', m.employeeId)}
+              {hidden('from', checkoutDay.workDate)}
+              {hidden('to', checkoutDay.workDate)}
+              {hidden('returnTo', returnTo)}
+            </> : periodFields}
             {hidden('commandId', m.calculateCommand)}
             <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
-            <div className="wl-form-actions"><button className="t-btn">월과 경계 주 재집계</button></div>
+            <div className="wl-form-actions"><button className="t-btn">{checkoutDay ? '대상일과 해당 주 재집계' : '월과 경계 주 재집계'}</button></div>
           </Form>
           <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
