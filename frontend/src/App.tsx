@@ -14,6 +14,7 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
+import { leaveOperationsReturn } from './pages/LeaveOperationsNavigation';
 import { PersonnelPage } from './pages/PersonnelPage';
 import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
@@ -43,6 +44,14 @@ function isTaskUrl(url: URL) {
 }
 
 interface BackgroundPage { envelope: PageEnvelope; url: string; revision: number; position: number }
+
+function shouldRefreshLeaveList(saved: BackgroundPage, detail: PageEnvelope) {
+  if (saved.envelope.page !== 'request/list' || detail.page !== 'request/detail'
+      || detail.data.admin !== true || typeof detail.data.leaveReturnTo !== 'string'
+      || !leaveOperationsReturn(detail.data.leaveReturnTo)) return false;
+  const url = new URL(saved.url);
+  return leaveOperationsReturn(url.pathname + url.search) !== null;
+}
 
 const publicPages = new Set([
   'login',
@@ -328,6 +337,10 @@ export function App({ initial }: { initial: PageEnvelope }) {
       !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) return;
     modalDirty.current = false;
     const saved = backgroundRef.current;
+    if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) {
+      if (location.href !== saved.url) history.back();
+      return;
+    }
     restoreBackground();
     // 모달 안의 이동은 같은 이력 항목을 교체하므로 한 번만 돌아간다.
     if (location.href !== saved.url) history.back();
@@ -489,7 +502,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
           history.forward();
           return;
         }
-        restoreBackground();
+        if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) void navigate(saved.url, {}, 'none', true);
+        else restoreBackground();
         return;
       }
       const current = new URL(currentUrl.current);

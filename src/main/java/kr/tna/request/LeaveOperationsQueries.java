@@ -1,9 +1,13 @@
 package kr.tna.request;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +27,8 @@ final class LeaveOperationsQueries {
     static final String DEFAULT_URL = PATH + "?scope=LEAVE";
     private static final Set<String> STATUS = Set.of("PENDING", "APPROVED", "REJECTED", "ALL");
     private static final Set<String> KINDS = Set.of("", "LEAVE_DAY", "CANCEL_LEAVE");
+    private static final Set<String> PARAMETERS = Set.of("scope", "status", "leaveTypeCode", "requestKind",
+            "from", "to", "organizationId", "q", "page");
     private static final Pattern DATE = Pattern.compile("[0-9]{4}-[0-9]{2}-[0-9]{2}");
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final int PAGE_SIZE = 50;
@@ -49,6 +55,10 @@ final class LeaveOperationsQueries {
             return administration.read(actor,
                     () -> load(actor.tenantId(), status, code, kind, from, to, organizationId, q.strip(), page));
         });
+    }
+
+    String decidedByName(TnaPrincipal actor, UUID requestId) {
+        return administration.read(actor, () -> mapper.decidedByName(actor.tenantId(), requestId));
     }
 
     private Page load(UUID tenantId, String status, String code, String kind, String from, String to,
@@ -98,5 +108,33 @@ final class LeaveOperationsQueries {
             throw OrgException.invalid("휴가 대상 기간의 날짜를 확인해 주세요.");
         }
         throw OrgException.invalid("휴가 대상 기간의 날짜를 확인해 주세요.");
+    }
+
+    static String validReturnTo(String value) {
+        if (value == null || value.length() > 2048 || !value.startsWith(PATH + "?")) return null;
+        try {
+            URI uri = URI.create(value);
+            if (!PATH.equals(uri.getRawPath()) || uri.getFragment() != null || uri.getRawAuthority() != null) return null;
+            var query = new HashMap<String, String>();
+            for (String pair : uri.getRawQuery().split("&", -1)) {
+                int separator = pair.indexOf('=');
+                if (separator < 1) return null;
+                String key = pair.substring(0, separator);
+                if (!PARAMETERS.contains(key) || query.putIfAbsent(key,
+                        URLDecoder.decode(pair.substring(separator + 1), StandardCharsets.UTF_8)) != null) return null;
+            }
+            if (!"LEAVE".equals(query.get("scope"))) return null;
+            String code = query.getOrDefault("leaveTypeCode", "");
+            if (!code.isEmpty() && !"ANNUAL_LEAVE".equals(code)) return null;
+            String org = query.getOrDefault("organizationId", "");
+            UUID organizationId = org.isEmpty() ? null : UUID.fromString(org);
+            if (organizationId != null && !org.equalsIgnoreCase(organizationId.toString())) return null;
+            search(query.getOrDefault("status", "PENDING"), code, query.getOrDefault("requestKind", ""),
+                    query.getOrDefault("from", ""), query.getOrDefault("to", ""), organizationId,
+                    query.getOrDefault("q", ""), Integer.parseInt(query.getOrDefault("page", "0")));
+            return value;
+        } catch (IllegalArgumentException | OrgException invalid) {
+            return null;
+        }
     }
 }

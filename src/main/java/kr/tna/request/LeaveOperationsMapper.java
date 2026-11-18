@@ -58,6 +58,11 @@ public interface LeaveOperationsMapper {
             ) decision ON true
             """;
 
+    @Select("SELECT decision.decided_by_name FROM tna.approval_request r " + DECISION + """
+            WHERE r.tenant_id=#{tenantId} AND r.id=#{requestId} AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE')
+            """)
+    String decidedByName(@Param("tenantId") UUID tenantId, @Param("requestId") UUID requestId);
+
     @Select("""
             SELECT count(*) FILTER (WHERE r.status='PENDING') AS pending,
               count(*) FILTER (WHERE r.status='APPROVED') AS approved,

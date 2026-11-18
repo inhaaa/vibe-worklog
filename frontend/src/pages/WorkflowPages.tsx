@@ -11,6 +11,7 @@ import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
 import { CheckoutOperationsBackLink, checkoutReturn } from './CheckoutOperationsPage';
+import { LeaveOperationsBackLink, leaveOperationsReturn } from './LeaveOperationsNavigation';
 import { ApprovalStamps } from '../components/ApprovalStamps';
 import { Notice } from '../components/Notice';
 import {
@@ -183,6 +184,11 @@ function Mine({ model: m }: { model: MineModel }) {
 function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const r = m.request,
     d = m.detail;
+  const isLeave = r.kind === 'LEAVE_DAY' || r.kind === 'CANCEL_LEAVE';
+  const staffLeave = m.admin && isLeave;
+  const leaveReturn = staffLeave ? leaveOperationsReturn(m.leaveReturnTo) : null;
+  const leaveTypeName = isLeave ? d.attendancePolicy?.name : null;
+  const hasLeaveDecision = staffLeave && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const label = (value: string, names: Record<string, string>) => Object.hasOwn(names, value) ? names[value] : value;
   const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
   const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
@@ -208,6 +214,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
           <CheckoutOperationsBackLink />
+          <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
           <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
@@ -240,12 +247,20 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <h3>신청 기간</h3>
               <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
               {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
+              {leaveTypeName && <p><span className="t-muted">휴가 종류 </span><strong>{leaveTypeName}</strong></p>}
+              {staffLeave && r.submittedAt && <p><span className="t-muted">접수 시각 </span><time dateTime={r.submittedAt}>{fmtDateTime(r.submittedAt)}</time></p>}
             </section>
             <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
-            <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
+            <section className="t-request-detail-fact">
+              <h3>결재 담당</h3>
+              <p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p>
+              {hasLeaveDecision && <p><span className="t-muted">실제 처리자 </span><strong>{m.leaveDecidedByName?.trim() || '미확인'}</strong></p>}
+              <p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p>
+            </section>
           </div>
           {r.kind === 'CANCEL_LEAVE' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
-          {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
+          {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}${leaveReturn
+            ? '?' + new URLSearchParams({ returnTo: leaveReturn }) : ''}`}>원신청 보기 </a>}
         </section>
       </div>
       <div className="t-request-detail-columns">

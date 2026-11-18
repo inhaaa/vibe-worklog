@@ -30,6 +30,7 @@ export interface RequestView {
   effectStatus: string;
   version: number;
   reason: string;
+  submittedAt?: string | null;
   approverName: string;
   originalRequestId: string | null;
 }
@@ -62,6 +63,7 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
+  attendancePolicy?: { name: string } | null;
   correctionComparison?: {
     source: CorrectionTimes;
     current: CorrectionTimes;
@@ -78,6 +80,8 @@ export interface RequestDetail {
 export interface RequestDetailModel {
   request: RequestView;
   detail: RequestDetail;
+  leaveReturnTo?: string | null;
+  leaveDecidedByName?: string | null;
   ownRequest?: boolean;
   workspacePrincipal?: { roles: string[] };
   admin: boolean;

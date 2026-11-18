@@ -19,7 +19,8 @@ import org.springframework.web.servlet.view.RedirectView;
 @Controller
 public class RequestController {
     private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;private final Clock clock;private final AnnualRequestService annual;
-    public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock,AnnualRequestService annual){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;this.annual=annual;}
+    private final LeaveOperationsQueries leaveOperations;
+    public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock,AnnualRequestService annual,LeaveOperationsQueries leaveOperations){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;this.annual=annual;this.leaveOperations=leaveOperations;}
     @GetMapping("/approvals") ModelAndView inbox(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,false,page);}
     @GetMapping("/approvals/completed") ModelAndView completed(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(defaultValue="0") int page){return approvalPage(a,true,page);}
     @GetMapping(value = LeaveOperationsQueries.PATH, params = "scope!=LEAVE")
@@ -28,7 +29,17 @@ public class RequestController {
         if (parsed == null) return new ModelAndView(new RedirectView(LeaveOperationsQueries.DEFAULT_URL, true));
         return listing("출퇴근 정정 현황", flow.adminRequests(actor, parsed)).addObject("requestScope", parsed);
     }
-    @GetMapping("/requests/{id}") ModelAndView detail(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id){return detailPage(a,id);}
+    @GetMapping("/requests/{id}")
+    ModelAndView detail(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @RequestParam(required=false) String returnTo) {
+        var detail = detailPage(actor, id);
+        var request = (RequestView) detail.getModel().get("request");
+        if (actor.roles().contains("ATTENDANCE_ADMIN") && isLeave(request)) {
+            String safeReturn = LeaveOperationsQueries.validReturnTo(returnTo);
+            if (safeReturn != null) detail.addObject("leaveReturnTo", safeReturn);
+        }
+        return detail;
+    }
     @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b){check(b);return submit(()->flow.submitLeave(a,f),()->minePage(a,f),"/requests/");}
     @GetMapping("/me/requests/correction")
     ModelAndView correction(@AuthenticationPrincipal TnaPrincipal actor,
@@ -65,12 +76,19 @@ public class RequestController {
         var detail=flow.get(a,id);var r=detail.request();boolean admin=a.roles().contains("ATTENDANCE_ADMIN");boolean pending=r.status().equals("PENDING");
         boolean cancelableEffect=r.kind().equals("LEAVE_DAY")&&r.status().equals("APPROVED")&&r.effectStatus().equals("EFFECTIVE");
         boolean owningAuthor=a.accountId().equals(r.authorAccountId())&&a.employeeId().equals(r.targetEmployeeId());
-        return new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin)
+        var view = new ModelAndView("request/detail").addObject("pageCommand",UUID.randomUUID()).addObject("detail",detail).addObject("request",r).addObject("admin",admin)
                 .addObject("ownRequest",a.employeeId().equals(r.targetEmployeeId()))
                 .addObject("canDecide",pending&&a.roles().contains("APPROVER")&&a.employeeId().equals(r.currentApproverId())&&!a.employeeId().equals(r.targetEmployeeId())&&!a.accountId().equals(r.authorAccountId()))
                 .addObject("canWithdraw",pending&&a.accountId().equals(r.authorAccountId()))
                 .addObject("canCancel",cancelableEffect&&owningAuthor&&beforeLeaveStarts(a,detail))
                 .addObject("canCancelException",admin&&cancelableEffect).addObject("candidates",admin?approvers.candidates(a):List.of());
+        if (admin && isLeave(r) && Set.of("APPROVED", "REJECTED").contains(r.status())) {
+            view.addObject("leaveDecidedByName", leaveOperations.decidedByName(a, id));
+        }
+        return view;
+    }
+    private static boolean isLeave(RequestView request) {
+        return "LEAVE_DAY".equals(request.kind()) || "CANCEL_LEAVE".equals(request.kind());
     }
     private boolean beforeLeaveStarts(TnaPrincipal actor,RequestDetail detail){
         LocalDate today=commands.today();

@@ -150,6 +150,19 @@ class LeaveOperationsWebIT {
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id", rejected));
         mvc.perform(filters(view(admin)).param("status", "ALL")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.leaveOperations.rows[?(@.status == 'WITHDRAWN')]").isNotEmpty());
+        String returnTo = PATH + "?scope=LEAVE&status=APPROVED&leaveTypeCode=ANNUAL_LEAVE&q=%ED%95%A9%EC%84%B1+LV&page=1";
+        mvc.perform(get("/requests/{id}", approved).with(as(admin)).accept(PAGE_JSON).param("returnTo", returnTo))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/leaveReturnTo", returnTo))
+                .andExpect(ReactPageAssertions.data("/leaveDecidedByName", "합성 HISTORICAL"));
+        for (String unsafe : new String[]{"//external.example/admin/requests?scope=LEAVE",
+                PATH + "?scope=CORRECTION", PATH + "?scope=LEAVE&status=APPROVED&page=-1",
+                PATH + "?scope=LEAVE&q=one&q=two", PATH + "?scope=LEAVE&unknown=value"}) {
+            mvc.perform(get("/requests/{id}", approved).with(as(admin)).accept(PAGE_JSON).param("returnTo", unsafe))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.leaveReturnTo").doesNotExist());
+        }
+        mvc.perform(get("/requests/{id}", approved).with(as(worker)).accept(PAGE_JSON).param("returnTo", returnTo))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.leaveDecidedByName").doesNotExist())
+                .andExpect(jsonPath("$.data.leaveReturnTo").doesNotExist());
         assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=?", Integer.class, tenant));
     }
 
