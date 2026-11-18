@@ -3,6 +3,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
+import { CodePages } from './CodePages';
 import type { PageEnvelope } from '../types';
 
 const csrf = { token: 'csrf', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
@@ -120,6 +121,54 @@ describe('공통코드·근태코드 React 관리', () => {
     expect(groups.querySelector('[row-id="row-g-1"]')).toBeTruthy();
     expect(codes.querySelector('[row-id="row-c-1"]')).toBeTruthy();
     expect(view.container.querySelector('table')).toBeNull();
+  });
+
+  it('현재 페이지에서 선택한 근태코드의 이력만 표시하고 일괄 편집과 행 선택을 유지한다', async () => {
+    const annual = { ...type, code: 'A01' };
+    const custom = { ...type, id: 't-2', code: 'A010', name: '연차 초안' };
+    const hidden = { ...type, id: 't-3', code: 'A011', name: '다른 페이지' };
+    const entries = [custom, annual];
+    const version = (entry: typeof type, revision = 1) => ({
+      ...entry, id: `v-${entry.id}-${revision}`, typeId: entry.id, revision,
+      reason: `${entry.code} 개정 ${revision}`, createdAt: '2026-10-28T01:00:00Z',
+    });
+    const view = await show(attendance({ q: 'a01', types: entries,
+      sheet: { ...sheet(custom), rows: entries.map(row), latestRows: [...entries, hidden] },
+      versions: [version(custom), version(annual, 2), version(annual), version(hidden)] }));
+    const pick = view.getByRole('combobox', { name: '이력 조회 근태코드' }) as HTMLSelectElement;
+    expect(pick.value).toBe(annual.id);
+    expect(Array.from(pick.options, option => option.text)).toEqual(['A010 · 연차 초안', 'A01 · 종일 연차']);
+    const annualHistory = within(await view.findByRole('grid', { name: '근태코드 버전 이력' }));
+    expect(await annualHistory.findByText('A01 개정 2')).toBeTruthy();
+    expect(annualHistory.queryByText('A010 개정 1')).toBeNull();
+    fireEvent.click(view.getByLabelText('근태코드 1행 선택'));
+    await editCell(view, '근태코드 이름 2', '편집 중인 연차');
+    fireEvent.change(pick, { target: { value: custom.id } });
+    const customHistory = within(await view.findByRole('grid', { name: '근태코드 버전 이력' }));
+    expect(await customHistory.findByText('A010 개정 1')).toBeTruthy();
+    expect(customHistory.queryByText('A01 개정 2')).toBeNull();
+    expect((view.getByLabelText('근태코드 1행 선택') as HTMLInputElement).checked).toBe(true);
+    expect(payload(view)).toEqual([expect.objectContaining({ id: annual.id, name: '편집 중인 연차' })]);
+  });
+
+  it('조회 조건이나 페이지가 바뀌면 보이는 근태코드에서 이력 선택을 새로 정한다', () => {
+    const annual = { ...type, code: 'A01' };
+    const correction = { ...type, id: 't-2', code: 'A02', name: '출퇴근 정정', systemKind: 'ATTENDANCE_CORRECTION' };
+    const page = (q: string, pageNumber: number, types: typeof type[]) =>
+      <CodePages {...attendance({ q, page: pageNumber, types })} reload={() => {}} />;
+    const view = render(page('', 0, [annual, correction]));
+    const pick = () => view.getByLabelText('이력 조회 근태코드') as HTMLSelectElement;
+    fireEvent.change(pick(), { target: { value: correction.id } });
+    view.rerender(page('a01', 0, [annual, correction]));
+    expect(pick().value).toBe(annual.id);
+    fireEvent.change(pick(), { target: { value: correction.id } });
+    view.rerender(page('a01', 1, [annual, correction]));
+    expect(pick().value).toBe(annual.id);
+    view.rerender(page('attendance_correction', 0, [annual, correction]));
+    expect(pick().value).toBe(correction.id);
+    view.rerender(page('없는 코드', 0, []));
+    expect(pick().disabled).toBe(true);
+    expect(pick().value).toBe('');
   });
 
   it('근태코드 편집·불변 버전 이력을 공통 그리드로 표시한다', async () => {

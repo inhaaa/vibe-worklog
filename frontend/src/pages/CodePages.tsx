@@ -303,14 +303,19 @@ function CommonCodes({ model: m, error, busy }: { model: CommonModel; error?: st
     {error && !m.groupSheet.errors.length && !m.codeSheet.errors.length && <p className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
   </section>;
 }
-function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: string | null; busy?: boolean }) {
+function AttendanceTypeHistory({ types, history, query }: { types: Entry[]; history: TypeVersion[]; query: string }) {
+  const [selectedId, setSelectedId] = useState('');
+  const match = query.trim().toLowerCase();
+  const selectedType = types.find(type => type.id === selectedId)
+    ?? types.find(type => type.code.toLowerCase() === match)
+    ?? types.find(type => type.name.toLowerCase() === match || type.systemKind?.toLowerCase() === match)
+    ?? types[0];
+  const versions = history.filter(version => version.typeId === selectedType?.id);
   function period(version: TypeVersion) {
-    const sameType = m.versions.filter(item => item.typeId === version.typeId);
-    const nextDate = sameType.map(item => item.effectiveFrom).filter(date => date > version.effectiveFrom).sort()[0];
-    const latestRevision = Math.max(...sameType.filter(item => item.effectiveFrom === version.effectiveFrom).map(item => item.revision));
+    const nextDate = versions.map(item => item.effectiveFrom).filter(date => date > version.effectiveFrom).sort()[0];
+    const latestRevision = Math.max(...versions.filter(item => item.effectiveFrom === version.effectiveFrom).map(item => item.revision));
     return latestRevision > version.revision ? `동일 적용일의 v${latestRevision}로 대체` : nextDate ? `${fmtDate(nextDate)} 전까지` : '다음 적용일 전까지 · 현재 종료 미정';
   }
-  const versions = m.versions.filter(version => m.sheet.latestRows.some(type => type.id === version.typeId));
   const versionColumns: ColDef<TypeVersion>[] = [
     sheetColumn<TypeVersion>({ colId: 'code', headerName: '코드·이름', minWidth: 180, pinned: 'left', valueGetter: ({ data }) => data ? `${data.code} ${data.name}` : '' },
       version => <>{version.code}<small className="t-code-help">{version.name}</small></>),
@@ -325,6 +330,21 @@ function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: 
     sheetColumn<TypeVersion>({ colId: 'createdAt', headerName: '변경 사유·등록자·시각 (서울)', minWidth: 250, valueGetter: ({ data }) => data ? `${data.reason} ${data.createdByName ?? '시스템 기초'} ${fmtDateTime(data.createdAt)}` : '' },
       version => <>{version.reason}<small className="t-code-help">{version.createdByName ?? '시스템 기초'}</small><small className="t-code-help">{fmtDateTime(version.createdAt)}</small></>),
   ];
+  return <section className="wl-section t-code-versions">
+    <div className="wl-querybar">
+      <label htmlFor="attendance-history-type">이력 조회 근태코드</label>
+      <select id="attendance-history-type" className="t-select" disabled={!types.length}
+        value={selectedType?.id ?? ''} onChange={event => setSelectedId(event.target.value)}>
+        {!types.length && <option value="">조회된 근태코드 없음</option>}
+        {types.map(type => <option key={type.id} value={type.id}>{type.code} · {type.name}</option>)}
+      </select>
+    </div>
+    <WorklogSheet key={selectedType?.id} label="근태코드 버전 이력" title="근태코드 버전 이력"
+      rows={versions} columns={versionColumns} getRowId={version => version.id} emptyMessage="등록된 버전이 없습니다." />
+    <p className="t-subtle">대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
+  </section>;
+}
+function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: string | null; busy?: boolean }) {
   return <section className="t-code-management">
     <PageHeader title="근태코드 관리" help={<>
       <p>신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p>
@@ -334,15 +354,11 @@ function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: 
     </>} actions={<a className="t-btn" href="/admin/common-codes">공통코드 관리</a>} />
     <section className="wl-section">
       <form action="/admin/attendance-types" method="get" className="wl-querybar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
-      <p className="notice">신규 근태코드는 영문 대문자와 숫자 1~8자로 입력하며 초안으로 저장됩니다.</p>
+      <p className="notice">연차 코드는 종일·오전 반차·오후 반차에 함께 사용합니다. 신규 근태코드는 영문 대문자와 숫자 1~8자로 입력하며 초안으로 저장됩니다.</p>
       <CodeSheet title="근태코드" action="/admin/attendance-types/bulk" model={m.sheet} fields={typeFields} context={{ q: m.q, page: m.page }} today={m.today} error={error} busy={busy}
         pagination={<Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />} />
     </section>
-    <section className="wl-section t-code-versions">
-      <WorklogSheet label="근태코드 버전 이력" title="근태코드 버전 이력" rows={versions} columns={versionColumns} getRowId={version => version.id}
-        emptyMessage="등록된 버전이 없습니다." />
-      <p className="t-subtle">조회된 코드의 불변 정책입니다. 대상일 이하 가장 늦은 적용일에서 가장 높은 버전을 사용합니다.</p>
-    </section>
+    <AttendanceTypeHistory key={`${m.page}:${m.q}`} types={m.types} history={m.versions} query={m.q} />
   </section>;
 }
 export function CodePages({ page, data, busy }: PageProps) {
