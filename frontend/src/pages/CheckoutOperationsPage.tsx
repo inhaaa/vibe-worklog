@@ -1,6 +1,7 @@
 import { ErrorNotice, Field, Form, SelectField, duration, fmtDateTime, fmtTime } from '../ui';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
+import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
 import './CheckoutOperationsPage.css';
 
 const path = '/company/attendance';
@@ -55,35 +56,6 @@ function checkoutHref(model: CheckoutOperations, page = model.page) {
   return `${path}?${query}`;
 }
 
-export function checkoutReturn(target: string | null = new URLSearchParams(window.location.search).get('returnTo')) {
-  if (!target?.startsWith(`${path}?`)) return null;
-  const query = new URLSearchParams(target.slice(path.length + 1));
-  const date = query.get('date') ?? '';
-  const organizationId = query.get('organizationId');
-  const q = query.get('q') ?? '';
-  const status = query.get('status') ?? 'ALL';
-  const page = query.get('page') ?? '0';
-  const allowed = ['view', 'date', 'organizationId', 'q', 'status', 'page'];
-  if ([...query.keys()].some(key => !allowed.includes(key) || query.getAll(key).length !== 1)
-      || query.get('view') !== 'checkout' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
-      || q.length > 100 || !['ALL', ...Object.keys(recordLabels)].includes(status)
-      || !/^\d{1,10}$/.test(page) || Number(page) > 2_147_483_647
-      || (organizationId && !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(organizationId))) return null;
-  return `${path}?${query}`;
-}
-
-export function CheckoutOperationsBackLink({ href }: { href?: string | null }) {
-  const target = checkoutReturn(href);
-  return target ? <a className="t-btn" href={target}>퇴근 누락 목록으로</a> : null;
-}
-
-export function CompanyAttendanceViews({ checkout = false }: { checkout?: boolean }) {
-  return <nav className="checkout-views" aria-label="회사 근무현황 조회 방식">
-    <a href={path} aria-current={checkout ? undefined : 'page'}>월별 근무현황</a>
-    <a href={`${path}?view=checkout`} aria-current={checkout ? 'page' : undefined}>퇴근 누락</a>
-  </nav>;
-}
-
 function clock(value: string | null) {
   return value ? fmtTime(fmtDateTime(value).slice(11)) : '미기록';
 }
@@ -132,7 +104,7 @@ export function CheckoutOperationsPage({ model: m }: { model: CheckoutOperations
   const returnTo = checkoutHref(m);
   return <>
     <PageHeader title="회사 근무현황" />
-    <CompanyAttendanceViews checkout />
+    <CompanyAttendanceViews active="checkout" />
     <Form action={path} method="get" className="wl-querybar">
       <input type="hidden" name="view" value="checkout" />
       <Field label="근무일" name="date" type="date" value={m.date} max={m.latestDate} required />

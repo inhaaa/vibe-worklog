@@ -53,5 +53,23 @@ class WorktimeWebIT {
                 .andExpect(status().isOk()).andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
                         ReactPageAssertions.envelope(result).at("/data/checkoutReturnTo").isMissingNode()));
     }
+    @Test void monthEndReviewReturnsToTheSelectedMonthAndPageAfterRecalculation() throws Exception {
+        var session = login(true);
+        var date = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(2);
+        String month = java.time.YearMonth.from(date).toString();
+        String back = "/company/attendance?view=month-end&month=" + month + "&q=E001&reason=STALE&page=1";
+        String employee = DatabaseFixture.EMPLOYEE_A.toString();
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId",employee)
+                .param("month",month).param("workDate",date.toString()).param("returnTo",back))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/checkoutReturnTo",back));
+        mvc.perform(post("/admin/calculations").session(session).with(csrf())
+                .param("employeeId",employee).param("from",date.toString()).param("to",date.toString())
+                .param("reason","월말 확인").param("commandId",UUID.randomUUID().toString()).param("returnTo",back))
+                .andExpect(status().isSeeOther()).andExpect(redirectedUrlPattern("/admin/attendance?employeeId=*&month=*&workDate=*&returnTo=*"));
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId",employee).param("month",month)
+                .param("workDate",date.toString()).param("returnTo",back + "&month=2000-01"))
+                .andExpect(status().isOk()).andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        ReactPageAssertions.envelope(result).at("/data/checkoutReturnTo").isMissingNode()));
+    }
     private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
 }

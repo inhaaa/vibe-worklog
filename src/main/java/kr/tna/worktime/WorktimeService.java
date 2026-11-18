@@ -63,8 +63,7 @@ public final class WorktimeService {
                 var person=employee(actor.tenantId(),stored.employeeId());
                 var current=input(actor.tenantId(),person,stored.workDate());
                 var result=storedResult(stored);
-                boolean currentSource=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())
-                        &&stored.sourceFingerprint().equals(current.source());
+                boolean currentSource=current(current.clock(),current.source(),stored.inputRevision(),stored.reviewRevision(),stored.sourceFingerprint());
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
@@ -335,8 +334,7 @@ public final class WorktimeService {
                     employed && calculator.pending(current.day(), today, false, null), leave, employed);
         }
         var result = storedResult(stored);
-        boolean matches = WorktimeCalculator.current(result, current.clock().inputRevision(), current.clock().reviewRevision())
-                && stored.sourceFingerprint().equals(current.source());
+        boolean matches = current(current.clock(), current.source(), stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
         return storedDay(employee, stored, result, matches, employed && calculator.pending(current.day(), today, matches, result.actualWorkMillis()), leave, employed);
     }
     private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}
@@ -394,6 +392,26 @@ public final class WorktimeService {
         var effects=mapper.leaveEffects(tenant,employee.id(),date);
         var leave=effects.stream().map(WorktimeMapper.LeaveEffect::id).toList();
         var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
+        var day=dayInput(snapshot,assessment!=null&&assessment.generalRuleReviewed()&&employed(employee,date),
+                !pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects));
+        String source=source(snapshot,employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),
+                assessment==null?null:assessment.id(),leave,pending);
+        return new Input(snapshot,policy,assessment,leave,pending,day,source);
+    }
+
+    static String source(ClockData.DaySnapshot snapshot,LocalDate joinedOn,LocalDate leftOn,UUID policyId,
+            UUID assessmentId,List<String> leave,List<String> pending) {
+        return fingerprint(snapshot.sourceFingerprint(),snapshot.inputRevision(),snapshot.reviewRevision(),
+                joinedOn,leftOn,policyId,assessmentId,leave,pending);
+    }
+
+    static boolean current(ClockData.DaySnapshot snapshot,String source,long storedInput,long storedReview,String storedSource) {
+        return WorktimeCalculator.current(storedInput,storedReview,snapshot.inputRevision(),snapshot.reviewRevision())
+                && source.equals(storedSource);
+    }
+
+    static DayInput dayInput(ClockData.DaySnapshot snapshot,boolean reviewed,boolean pending,double leaveDays) {
+        LocalDate date=snapshot.workDate();
         var events=snapshot.effectiveEvents().stream().map(e->new ClockEvent(e.id(),EventKind.valueOf(e.kind()),e.occurredAt())).toList();
         List<Schedule> schedules=List.of();
         if(snapshot.schedule()!=null) {
@@ -406,11 +424,8 @@ public final class WorktimeService {
             var c=snapshot.confirmation();confirmation=new Confirmation(c.confirmedInputRevision(),c.reviewRevision(),c.presenceAsWork(),
                     c.breaks().stream().map(b->new Interval(b.startAt(),b.endAt())).toList());
         }
-        boolean reviewed=assessment!=null&&assessment.generalRuleReviewed()&&!date.isBefore(employee.joinedOn())
-                &&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));
-        var day=new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),snapshot.reviewRevision(),confirmation,!pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects));
-        String source=fingerprint(snapshot.sourceFingerprint(),snapshot.inputRevision(),snapshot.reviewRevision(),employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),assessment==null?null:assessment.id(),leave,pending);
-        return new Input(snapshot,policy,assessment,leave,pending,day,source);
+        return new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),
+                snapshot.reviewRevision(),confirmation,pending,leaveDays);
     }
     private List<PeriodView> weeklyPeriods(UUID tenant,LocalDate expandedFrom,LocalDate expandedTo,List<DayView> all) {
         var weeks=new ArrayList<PeriodView>();

@@ -12,7 +12,7 @@ import type { CsrfToken, PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
-import { CheckoutOperationsBackLink, checkoutReturn } from './CheckoutOperationsPage';
+import { AttendanceListBackLink, attendanceListReturn } from './CompanyAttendanceNavigation';
 import { LeaveOperationsBackLink, leaveOperationsReturn } from './LeaveOperationsNavigation';
 import { ApprovalStamps } from '../components/ApprovalStamps';
 import { InlineRequestApproval } from './RequestApprovalPreview';
@@ -226,7 +226,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
-          <CheckoutOperationsBackLink />
+          {m.admin && <AttendanceListBackLink />}
           <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
@@ -612,8 +612,8 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
-  const returnTo = m.admin ? checkoutReturn(m.checkoutReturnTo ?? null) : null;
-  const checkoutDay = returnTo ? view.days.find(day => day.workDate === m.checkoutWorkDate) : undefined;
+  const returnTo = m.admin ? attendanceListReturn(m.checkoutReturnTo ?? null) : null;
+  const reviewDay = returnTo ? view.days.find(day => day.workDate === m.checkoutWorkDate) : undefined;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
   const away = (day: DayView) => day.employed === false;
   const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
@@ -657,7 +657,7 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="근로시간" actions={checkoutDay && <CheckoutOperationsBackLink href={returnTo} />} />
+      <PageHeader title="근로시간" actions={reviewDay && <AttendanceListBackLink href={returnTo} />} />
       <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
         <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
@@ -667,10 +667,10 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      {checkoutDay && <section className="wl-section">
-        <h2>{checkoutDay.workDate} 근무일</h2>
-        <p>실근로시간 {checkoutDay.current && checkoutDay.result.actualWorkMillis != null ? duration(checkoutDay.result.actualWorkMillis) : '미확정'}</p>
-        {checkoutDay.current && checkoutDay.id && <a href={`/worktime/results/${checkoutDay.id}`}>해당 일자 집계 근거</a>}
+      {reviewDay && <section className="wl-section">
+        <h2>{reviewDay.workDate} 근무일</h2>
+        <p>실근로시간 {reviewDay.current && reviewDay.result.actualWorkMillis != null ? duration(reviewDay.result.actualWorkMillis) : '미확정'}</p>
+        {reviewDay.current && reviewDay.id && <a href={`/worktime/results/${reviewDay.id}?${new URLSearchParams({ returnTo: returnTo! })}`}>해당 일자 집계 근거</a>}
       </section>}
       <dl className="wl-summary" aria-label="월 요약">
         <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
@@ -691,15 +691,15 @@ function Month({ model: m }: { model: MonthModel }) {
             · <a href="/admin/audit">감사 이력</a>
           </p>
           <Form action="/admin/calculations" method="post" className="wl-form">
-            {checkoutDay ? <>
+            {reviewDay ? <>
               {hidden('employeeId', m.employeeId)}
-              {hidden('from', checkoutDay.workDate)}
-              {hidden('to', checkoutDay.workDate)}
+              {hidden('from', reviewDay.workDate)}
+              {hidden('to', reviewDay.workDate)}
               {hidden('returnTo', returnTo)}
             </> : periodFields}
             {hidden('commandId', m.calculateCommand)}
             <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
-            <div className="wl-form-actions"><button className="t-btn">{checkoutDay ? '대상일과 해당 주 재집계' : '월과 경계 주 재집계'}</button></div>
+            <div className="wl-form-actions"><button className="t-btn">{reviewDay ? '대상일과 해당 주 재집계' : '월과 경계 주 재집계'}</button></div>
           </Form>
           <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
@@ -892,6 +892,7 @@ function Result({ model: m }: { model: ResultModel }) {
         <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
         <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초. 날짜와 실제 발생 시각은 구분합니다.</p>
       </>} actions={<>
+        {m.admin && <AttendanceListBackLink />}
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
         {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
       </>} />

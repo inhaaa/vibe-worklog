@@ -29,7 +29,7 @@ public class WorktimeController {
             @RequestParam(required=false) String returnTo) {
         YearMonth shownMonth = month == null ? YearMonth.from(commands.today()) : month;
         var page = monthPage(a, employeeId == null ? a.employeeId() : employeeId, shownMonth, true);
-        return checkoutContext(page, workDate, shownMonth, returnTo);
+        return reviewContext(page, workDate, shownMonth, returnTo);
     }
     @GetMapping("/me/worktime") ModelAndView mine(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) @DateTimeFormat(pattern="uuuu-MM") YearMonth month){return monthPage(a,a.employeeId(),month==null?YearMonth.from(commands.today()):month,false);}
     @GetMapping("/worktime/results/{id}") ModelAndView result(@AuthenticationPrincipal TnaPrincipal actor,@PathVariable UUID id){
@@ -46,13 +46,13 @@ public class WorktimeController {
             @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam UUID commandId, @RequestParam String reason, @RequestParam(required=false) String returnTo) {
         var month = YearMonth.from(from);
-        String checkout = from.equals(to) ? checkoutReturn(from, returnTo) : null;
+        String checkout = from.equals(to) ? reviewReturn(from, returnTo) : null;
         String monthUrl = "/admin/attendance?employeeId=" + employeeId + "&month=" + month;
         String destination = checkout == null ? monthUrl : UriComponentsBuilder.fromUriString(monthUrl)
                 .queryParam("workDate", from).queryParam("returnTo", "{returnTo}")
                 .encode().buildAndExpand(checkout).toUriString();
         return submit(() -> worktime.recalculate(a, employeeId, from, to, commandId, reason),
-                () -> checkoutContext(monthPage(a, employeeId, month, true), from, month, checkout), destination, false);
+                () -> reviewContext(monthPage(a, employeeId, month, true), from, month, checkout), destination, false);
     }
     @GetMapping("/admin/work-policies") ModelAndView policies(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) UUID employeeId){return policyPage(a,employeeId==null?a.employeeId():employeeId,null,null);}
     @PostMapping("/admin/work-policies") ModelAndView policy(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("policyForm") PolicyForm f,BindingResult b){check(b);return submit(()->worktime.reviewPolicy(a,f),()->policyPage(a,a.employeeId(),f,null),"/admin/work-policies",false);}
@@ -66,22 +66,32 @@ public class WorktimeController {
         return new ModelAndView("worktime/audit-detail").addObject("audit",worktime.auditDetail(a,id));
     }
     private ModelAndView monthPage(TnaPrincipal a,UUID employeeId,YearMonth month,boolean admin){var view=worktime.month(a,employeeId,month);return new ModelAndView("worktime/month").addObject("overview",view).addObject("employeeId",employeeId).addObject("admin",admin).addObject("employees",admin?worktime.employees(a):List.of()).addObject("from",month.atDay(1)).addObject("to",month.atEndOfMonth()).addObject("calculateCommand",UUID.randomUUID()).addObject("exportCommand",UUID.randomUUID());}
-    private static ModelAndView checkoutContext(ModelAndView page, LocalDate date, YearMonth month, String returnTo) {
-        String checkout = checkoutReturn(date, returnTo);
+    private static ModelAndView reviewContext(ModelAndView page, LocalDate date, YearMonth month, String returnTo) {
+        String checkout = reviewReturn(date, returnTo);
         if (checkout != null && YearMonth.from(date).equals(month)) {
             page.addObject("checkoutWorkDate", date).addObject("checkoutReturnTo", checkout);
         }
         return page;
     }
-    private static String checkoutReturn(LocalDate date, String returnTo) {
+    private static String reviewReturn(LocalDate date, String returnTo) {
         if (date == null || returnTo == null || returnTo.length() > 2048 || !returnTo.startsWith("/company/attendance?")) return null;
         try {
             URI uri = URI.create(returnTo);
             var query = UriComponentsBuilder.fromUri(uri).build().getQueryParams();
-            var allowed = Set.of("view", "date", "organizationId", "q", "status", "page");
-            if (uri.getFragment() != null || !allowed.containsAll(query.keySet())
-                    || query.values().stream().anyMatch(values -> values.size() != 1)
-                    || !"checkout".equals(query.getFirst("view")) || !date.toString().equals(query.getFirst("date"))) return null;
+            if (uri.getFragment() != null || query.values().stream().anyMatch(values -> values.size() != 1)) return null;
+            if ("month-end".equals(query.getFirst("view"))) {
+                var allowed = Set.of("view", "month", "organizationId", "q", "reason", "page");
+                if (!allowed.containsAll(query.keySet()) || !YearMonth.from(date).toString().equals(query.getFirst("month"))) return null;
+                String reason = query.getFirst("reason");
+                String page = query.getFirst("page");
+                String organization = query.getFirst("organizationId");
+                String search = query.getFirst("q");
+                if (reason != null && !Set.of("ALL","UNCALCULATED","STALE","UNCONFIRMED","PENDING_CORRECTION").contains(reason)
+                        || page != null && (!page.matches("[0-9]{1,6}") || Integer.parseInt(page) > 100_000)
+                        || organization != null && !organization.isEmpty() && !UUID.fromString(organization).toString().equalsIgnoreCase(organization)
+                        || search != null && java.net.URLDecoder.decode(search,java.nio.charset.StandardCharsets.UTF_8).length() > 100) return null;
+            } else if (!"checkout".equals(query.getFirst("view")) || !date.toString().equals(query.getFirst("date"))
+                    || !Set.of("view","date","organizationId","q","status","page").containsAll(query.keySet())) return null;
             return returnTo;
         } catch (IllegalArgumentException exception) {
             return null;

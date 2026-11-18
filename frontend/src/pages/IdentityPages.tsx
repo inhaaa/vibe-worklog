@@ -9,7 +9,9 @@ import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetail
 import { RoleManagementPage, type RoleDirectory } from './RoleManagementPage';
 import { RoleMembersSheet } from './RoleMembersSheet';
 import { requestKindName, type LeavePart } from './leavePart';
-import { CheckoutOperationsPage, CompanyAttendanceViews, type CheckoutOperations } from './CheckoutOperationsPage';
+import { CheckoutOperationsPage, type CheckoutOperations } from './CheckoutOperationsPage';
+import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
+import { MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
 
 interface Profile {
   employeeName: string;
@@ -299,6 +301,8 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
       </RoleManagementPage>;
     }
     case 'company/attendance': {
+      const monthEnd = data.monthEndReview as MonthEndReview | undefined;
+      if (monthEnd) return <MonthEndReviewPage key={JSON.stringify([monthEnd.month,monthEnd.organizationId,monthEnd.q,monthEnd.reason,monthEnd.page])} model={monthEnd} />;
       const checkout = data.checkoutOperations as CheckoutOperations | undefined;
       return checkout
         ? <CheckoutOperationsPage key={JSON.stringify([checkout.date, checkout.organizationId, checkout.q, checkout.status, checkout.page, checkout.error])} model={checkout} />

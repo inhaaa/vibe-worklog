@@ -156,7 +156,10 @@ public final class WorktimeCalculator {
         return date.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
     }
     public static boolean current(DayResult result,long inputRevision,long reviewRevision) {
-        return result!=null && result.inputRevision()==inputRevision && result.reviewRevision()==reviewRevision;
+        return result!=null && current(result.inputRevision(),result.reviewRevision(),inputRevision,reviewRevision);
+    }
+    static boolean current(long savedInput,long savedReview,long inputRevision,long reviewRevision) {
+        return savedInput==inputRevision && savedReview==reviewRevision;
     }
 
     /**

@@ -1,0 +1,21 @@
+.month-review-list { list-style: none; padding: 0; margin: 0; }
+.month-review-row {
+  display: grid;
+  grid-template-columns: minmax(96px,.6fr) minmax(125px,1fr) minmax(130px,1fr) minmax(200px,1.5fr);
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px;
+  border-bottom: 1px solid var(--t-line);
+  overflow-wrap: anywhere;
+}
+.month-review-row small { display: block; margin-top: 4px; color: var(--t-muted); }
+.month-review-columns { background: var(--t-section); color: var(--t-muted); }
+.month-review-reasons { display: flex; flex-direction: column; gap: 3px; }
+.month-review-row .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 900px) {
+  .month-review-columns { display: none; }
+  .month-review-list .month-review-row { grid-template-columns: minmax(105px,.65fr) minmax(0,1fr); align-items: start; }
+  .month-review-row .actions { grid-column: 1 / -1; }
+  .month-review-reasons { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 2px 12px; }
+  .checkout-views { flex-wrap: wrap; gap: 2px 12px; }
+}

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.clock.ClockData.*;
@@ -49,29 +50,40 @@ public final class ClockService {
         if(!mapper.employeeExists(tenantId,employeeId))throw OrgException.notFound();
         List<Event> events=List.copyOf(mapper.events(tenantId,employeeId,date));
         var assignments=mapper.schedules(tenantId,employeeId,date,date.getDayOfWeek().getValue());
-        ScheduleData.Day schedule=null;UUID scheduleVersion=null;
-        if(assignments.size()==1) {
-            var a=assignments.getFirst();scheduleVersion=a.scheduleVersionId();
-            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),
-                    List.copyOf(schedules.breaks(tenantId,scheduleVersion,a.weekday())));
-        }
-        var calendar=mapper.calendar(tenantId,date);UUID calendarVersion=null;String dayKind="UNCONFIRMED";
-        if(calendar.size()==1){calendarVersion=calendar.getFirst().versionId();dayKind=calendar.getFirst().kind();}
+        var breaks=assignments.size()==1?schedules.breaks(tenantId,assignments.getFirst().scheduleVersionId(),date.getDayOfWeek().getValue())
+                :List.<ScheduleData.Break>of();
+        var calendars=mapper.calendar(tenantId,date);
         var revision=mapper.revision(tenantId,employeeId,date);
         long input=revision==null?0:revision.inputRevision(),review=revision==null?0:revision.reviewRevision();
         var correction=mapper.currentCorrection(tenantId,employeeId,date);
+        return projectSnapshot(employeeId,date,events,assignments,breaks,calendars.size()==1?calendars.getFirst():null,
+                input,review,correction,source->confirmation(mapper.findConfirmation(tenantId,employeeId,date,input,source)));
+    }
+
+    /** Builds the same effective day from an individual lookup or a month of preloaded evidence. */
+    public DaySnapshot projectSnapshot(UUID employeeId,LocalDate date,List<Event> events,List<ClockMapper.ScheduleRow> assignments,
+            List<ScheduleData.Break> breaks,ClockMapper.CalendarRow calendar,long input,long review,
+            ClockMapper.CorrectionRow correction,Function<String,Confirmation> findConfirmation) {
+        ScheduleData.Day schedule=null;UUID scheduleVersion=null;
+        if(assignments.size()==1) {
+            var a=assignments.getFirst();scheduleVersion=a.scheduleVersionId();
+            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),List.copyOf(breaks));
+        }
+        UUID calendarVersion=calendar==null?null:calendar.versionId();
+        String dayKind=calendar==null?"UNCONFIRMED":calendar.kind();
         List<Event> effectiveEvents=correction==null?events:project(correction,date);
         String source=fingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
         if(correction!=null)source=fingerprint(source,correction.effectId(),effectiveEvents);
-        var saved=mapper.findConfirmation(tenantId,employeeId,date,input,source);Confirmation confirmation=null;
-        if(saved!=null) {
-            try {confirmation=new Confirmation(saved.id(),saved.confirmedInputRevision(),saved.reviewRevision(),
-                    saved.presenceAsWork(),saved.breaksMatch(),saved.sourceFingerprint(),
-                    List.copyOf(Arrays.asList(json.readValue(saved.breakSnapshot(),Interval[].class))),saved.confirmedAt());}
-            catch(JacksonException exception){throw new OrgException(503,"근로 확인 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
-        }
+        var confirmation=findConfirmation.apply(source);
         if(confirmation==null&&correction!=null)confirmation=correctionConfirmation(correction,input,review,source,scheduleVersion,calendarVersion);
         return new DaySnapshot(employeeId,date,events,schedule,scheduleVersion,calendarVersion,dayKind,input,review,confirmation,source,effectiveEvents);
+    }
+    private Confirmation confirmation(ClockMapper.ConfirmationRow saved) {
+        if(saved==null)return null;
+        try {return new Confirmation(saved.id(),saved.confirmedInputRevision(),saved.reviewRevision(),
+                saved.presenceAsWork(),saved.breaksMatch(),saved.sourceFingerprint(),
+                List.copyOf(Arrays.asList(json.readValue(saved.breakSnapshot(),Interval[].class))),saved.confirmedAt());}
+        catch(JacksonException exception){throw new OrgException(503,"근로 확인 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
     }
     public UUID record(TnaPrincipal actor,String kind,UUID commandId,String remoteAddress) {
         if(kind==null||!Set.of("IN","OUT").contains(kind))throw OrgException.invalid("출근 또는 퇴근 기록을 선택해 주세요.");

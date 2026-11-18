@@ -3,15 +3,19 @@ package kr.tna;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.clock.ClockService;
+import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.OrgException;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.CorrectionForm;
 import kr.tna.request.RequestData.DecisionForm;
 import kr.tna.worktime.WorktimeData.AssessmentForm;
+import kr.tna.worktime.MonthEndReviewQueries;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,7 @@ class CheckoutOperationsWebIT {
     @Autowired ClockService clocks;
     @Autowired LeaveWorkflowService workflow;
     @Autowired WorktimeService worktime;
+    @Autowired MonthEndReviewQueries monthEndQueries;
     private JdbcTemplate db;
     private UUID tenant, schedule, network;
     private LocalDate today, date;
@@ -241,6 +246,182 @@ class CheckoutOperationsWebIT {
 
     private MockHttpServletRequestBuilder checkout(TnaPrincipal actor) {
         return get(PATH).with(as(actor)).accept(PAGE_JSON).param("view", "checkout");
+    }
+
+    @Test
+    void monthEndRestrictsTheTabToCurrentTenantAdministratorsAndValidMonths() throws Exception {
+        mvc.perform(monthEnd(representative)).andExpect(status().isForbidden());
+        mvc.perform(monthEnd(worker)).andExpect(status().isForbidden());
+        mvc.perform(monthEnd(admin)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/monthEndReview/month", YearMonth.from(today).toString()))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/latestMonth", YearMonth.from(today).toString()));
+        for (String invalid : new String[]{"0000-01", "2026-00", YearMonth.from(today).plusMonths(1).toString()}) {
+            mvc.perform(monthEnd(admin).param("month", invalid)).andExpect(status().isUnprocessableContent())
+                    .andExpect(ReactPageAssertions.dataPresent("/monthEndReview/error"))
+                    .andExpect(jsonPath("$.data.monthEndReview.rows").isEmpty());
+        }
+        mvc.perform(monthEnd(admin).param("reason", "UNKNOWN")).andExpect(status().isUnprocessableContent());
+        mvc.perform(monthEnd(admin).param("page", "-1")).andExpect(status().isUnprocessableContent());
+        UUID foreign = company();
+        var other = member(foreign, "FOREIGN", "ATTENDANCE_ADMIN");
+        mvc.perform(monthEnd(admin).param("organizationId", organization(foreign, other.accountId(), "SECRET").toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "FOREIGN"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows").isEmpty());
+        db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='ATTENDANCE_ADMIN'",
+                tenant, admin.accountId());
+        mvc.perform(monthEnd(admin)).andExpect(status().isUnauthorized());
+        assertEquals(403, assertThrows(OrgException.class,
+                () -> monthEndQueries.read(admin, null, null, "", "ALL", 0)).status());
+    }
+
+    @Test
+    void monthEndUsesEmploymentAndOrganizationOnTheWorkDateAndExcludesToday() throws Exception {
+        LocalDate first = date.minusDays(1);
+        db.update("UPDATE tna.employee SET joined_on=?,left_on=?,active=false WHERE tenant_id=? AND id=?",
+                first, today, tenant, worker.employeeId());
+        var old = organization(tenant, admin.accountId(), "OLD");
+        var moved = organization(tenant, admin.accountId(), "MOVED");
+        assignment(worker, old, first, date);
+        assignment(worker, moved, date, null);
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(first).toString()).param("q", "합성 CHECK")
+                        .param("organizationId", old.toString())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(1))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/workDate", first.toString()));
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "check-")
+                        .param("organizationId", moved.toString())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(1))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/organizationName", "합성 MOVED"))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/workDate", date.toString()));
+        db.update("UPDATE tna.employee SET left_on=? WHERE tenant_id=? AND id=?", first, tenant, worker.employeeId());
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "check-")
+                        .param("organizationId", moved.toString())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.monthEndReview.rows").isEmpty());
+    }
+
+    @Test
+    void monthEndDistinguishesNormalAbsenceFromHalfDayHolidayWorkAndPendingCorrection() throws Exception {
+        // Restrict the test employee's employment to a single day of the selected month.
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, worker.employeeId());
+        var initial = reviewRows("ALL");
+        assertEquals(1, initial.size());
+        assertEquals("[\"UNCALCULATED\",\"UNCONFIRMED\"]", initial.get(0).get("reasons").toString());
+        db.update("UPDATE tna.schedule_assignment SET schedule_version_id=? WHERE tenant_id=? AND employee_id=?",
+                schedule(false), tenant, worker.employeeId());
+        assertTrue(reviewRows("ALL").isEmpty());
+        db.update("UPDATE tna.schedule_assignment SET schedule_version_id=? WHERE tenant_id=? AND employee_id=?",
+                schedule, tenant, worker.employeeId());
+        approvedFullDayLeave();
+        assertTrue(reviewRows("ALL").isEmpty());
+        db.update("UPDATE tna.leave_request_day SET quantity_days=0.5,leave_part='AM' WHERE tenant_id=?", tenant);
+        assertEquals(1, reviewRows("UNCONFIRMED").size());
+        db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?", tenant, date);
+        assertTrue(reviewRows("ALL").isEmpty());
+        clock(worker, date, date, "IN", 9);
+        assertEquals(1, reviewRows("UNCONFIRMED").size());
+        db.update("UPDATE tna.calendar_day SET kind='WORKDAY' WHERE tenant_id=? AND work_date=?", tenant, date);
+        UUID request = correction("18:00", null, false);
+        db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?", tenant, date);
+        var pending = reviewRows("PENDING_CORRECTION").get(0);
+        assertEquals("[\"UNCALCULATED\",\"UNCONFIRMED\",\"PENDING_CORRECTION\"]", pending.get("reasons").toString());
+        assertEquals(request.toString(), pending.get("pendingRequestId").asString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), PRIVATE_REASON);
+        var current = reviewRows("UNCONFIRMED").get(0);
+        assertFalse(current.get("resultId").isNull());
+        assertEquals("[\"UNCONFIRMED\",\"PENDING_CORRECTION\"]", current.get("reasons").toString());
+        int results = count("day_result");
+        decide(request, "REJECT");
+        assertEquals("[\"STALE\",\"UNCONFIRMED\"]", reviewRows("STALE").get(0).get("reasons").toString());
+        assertEquals(results, count("day_result"));
+    }
+
+    @Test
+    void monthEndShowsOnlyRecalculationForConfirmedEvidenceAndUsesCurrentPolicyEvenWithoutARevisionBump() throws Exception {
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, worker.employeeId());
+        clock(worker, date, date, "IN", 9);
+        UUID fix = correction("18:00", null, true);
+        decide(fix, "APPROVE");
+        assertEquals("[\"UNCALCULATED\"]", reviewRows("ALL").get(0).get("reasons").toString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), PRIVATE_REASON);
+        assertTrue(reviewRows("ALL").isEmpty());
+        worktime.assess(admin, new AssessmentForm(worker.employeeId(), date, date, true, "합성 기준 변경",
+                PRIVATE_REASON, UUID.randomUUID()));
+        var stale = reviewRows("STALE");
+        assertEquals(1, stale.size());
+        assertEquals("[\"STALE\"]", stale.get(0).get("reasons").toString());
+    }
+
+    @Test
+    void monthEndKeepsPreviouslyCalculatedWorkdaysThatNowQualifyAsNormalLeave() throws Exception {
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, worker.employeeId());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), PRIVATE_REASON);
+        approvedFullDayLeave();
+        assertEquals("[\"STALE\"]", reviewRows("ALL").get(0).get("reasons").toString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), PRIVATE_REASON);
+        assertTrue(reviewRows("ALL").isEmpty());
+    }
+
+    @Test
+    void monthEndUsesEmployeesOwnWorkConfirmationAndReturnsOnlyDaysInTheSelectedMonth() throws Exception {
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, worker.employeeId());
+        clock(worker, date, date, "IN", 9);
+        clock(worker, date, date, "OUT", 18);
+        assertEquals(1, reviewRows("UNCONFIRMED").size());
+        var day = clocks.day(worker, date);
+        clocks.confirm(worker, new ConfirmationForm(date, day.inputRevision(), day.reviewRevision(), true, true,
+                day.sourceFingerprint(), UUID.randomUUID()));
+        assertEquals("[\"UNCALCULATED\"]", reviewRows("ALL").get(0).get("reasons").toString());
+        worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), PRIVATE_REASON);
+        assertTrue(reviewRows("ALL").isEmpty());
+
+        var previous = YearMonth.from(today).minusMonths(1);
+        var historical = member(tenant, "HIST", null);
+        db.update("UPDATE tna.employee SET joined_on=?,left_on=?,active=false WHERE tenant_id=? AND id=?",
+                previous.atDay(1), previous.atEndOfMonth(), tenant, historical.employeeId());
+        mvc.perform(monthEnd(admin).param("q", "HIST").param("month", previous.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(previous.lengthOfMonth()))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/workDate", previous.atEndOfMonth().toString()))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/" + (previous.lengthOfMonth() - 1) + "/workDate",
+                        previous.atDay(1).toString()));
+        mvc.perform(monthEnd(admin).param("q", "HIST").param("month", previous.minusMonths(1).toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows").isEmpty());
+    }
+
+    @Test
+    void monthEndFiltersBeforePagingAndUsesStableEmployeeNumbersOnTheSameDate() throws Exception {
+        for (int i = 0; i < 51; i++) {
+            var person = member(tenant, "PAGE-%02d".formatted(i), null);
+            db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, person.employeeId());
+        }
+        var first = monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "PAGE-").param("reason", "UNCALCULATED");
+        mvc.perform(first).andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(50))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/hasNext", true))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/employeeNo", "PAGE-00"))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/49/employeeNo", "PAGE-49"));
+        mvc.perform(first.param("page", "1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(1))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/hasPrevious", true))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/hasNext", false))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/employeeNo", "PAGE-50"));
+        db.update("UPDATE tna.employee SET employee_no='Z-PAGE-LAST' WHERE tenant_id=? AND id=?", tenant, worker.employeeId());
+        clock(worker, date, date, "IN", 9);
+        var pending = correction("18:00", null, false);
+        mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString()).param("q", "PAGE-").param("reason", "PENDING_CORRECTION"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows.length()").value(1))
+                .andExpect(ReactPageAssertions.data("/monthEndReview/rows/0/pendingRequestId", pending));
+    }
+
+    private MockHttpServletRequestBuilder monthEnd(TnaPrincipal actor) {
+        return get(PATH).with(as(actor)).accept(PAGE_JSON).param("view", "month-end");
+    }
+
+    private JsonNode reviewRows(String reason) throws Exception {
+        var result = mvc.perform(monthEnd(admin).param("month", YearMonth.from(date).toString())
+                        .param("q", "CHECK-01").param("reason", reason))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.dataPresent("/monthEndReview/rows")).andReturn();
+        assertFalse(result.getResponse().getContentAsString().contains(PRIVATE_REASON));
+        assertFalse(result.getResponse().getContentAsString().contains("sourceFingerprint"));
+        return ReactPageAssertions.envelope(result).at("/data/monthEndReview/rows");
     }
 
     private UUID correction(String out, UUID replaces, boolean confirmed) {
