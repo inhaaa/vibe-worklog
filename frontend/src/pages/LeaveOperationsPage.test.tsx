@@ -12,9 +12,9 @@ const row = {
   submittedAt: '2026-11-16T01:00:00Z', decidedAt: '2026-11-17T02:00:00Z', originalRequestId: null,
 };
 const model = {
-  status: 'APPROVED', leaveTypeCode: 'ANNUAL_LEAVE', requestKind: '', from: '2026-11-17', to: '2026-11-18',
+  status: 'APPROVED', leaveTypeCode: 'A03', requestKind: '', from: '2026-11-17', to: '2026-11-18',
   organizationId: '11111111-1111-4111-8111-111111111111', q: 'E001 & 운영', page: 1, hasNext: true, asOf: '2026-11-18',
-  leaveTypes: [{ code: 'ANNUAL_LEAVE', name: '종일 연차' }],
+  leaveTypes: [{ code: 'A03', name: '종일 연차' }],
   organizations: [{ id: '11111111-1111-4111-8111-111111111111', code: 'OP', name: '운영팀' }],
   counts: { PENDING: 3, APPROVED: 61, REJECTED: 2, ALL: 67 },
   rows: [row, { ...row, id: 'cancel', requestKind: 'CANCEL_LEAVE', effectStatus: 'EFFECTIVE', originalRequestId: 'original' }],
@@ -28,13 +28,14 @@ const url = (element: HTMLElement) => new URL(element.getAttribute('href')!, win
 it('휴가 목록의 상태와 페이지 이동에서 적용한 검색 조건을 유지한다', () => {
   const view = list({ leaveOperations: model });
   expect(view.getByRole('heading', { name: '휴가 신청 현황' })).toBeTruthy();
-  expect((view.getByLabelText('휴가 종류') as HTMLSelectElement).value).toBe('ANNUAL_LEAVE');
+  expect((view.getByRole('option', { name: 'A03 · 종일 연차' }) as HTMLOptionElement).selected).toBe(true);
+  expect((view.getByLabelText('휴가 종류') as HTMLSelectElement).value).toBe('A03');
   expect((view.getByLabelText('시작일') as HTMLInputElement).value).toBe('2026-11-17');
   expect((view.getByLabelText('종료일') as HTMLInputElement).value).toBe('2026-11-18');
   expect(view.getByRole('link', { name: '승인 61' }).getAttribute('aria-current')).toBe('page');
   const rejected = url(view.getByRole('link', { name: '반려 2' }));
   expect(Object.fromEntries(rejected.searchParams)).toMatchObject({
-    scope: 'LEAVE', status: 'REJECTED', leaveTypeCode: 'ANNUAL_LEAVE', from: '2026-11-17', to: '2026-11-18',
+    scope: 'LEAVE', status: 'REJECTED', leaveTypeCode: 'A03', from: '2026-11-17', to: '2026-11-18',
     organizationId: model.organizationId, q: model.q, page: '0',
   });
   const next = url(view.getByRole('link', { name: '다음' }));
@@ -61,7 +62,7 @@ it('원신청의 승인 이력과 취소 효력을 별도로 표시하고 상세
   const back = new URL(detail.searchParams.get('returnTo')!, window.location.origin);
   expect(back.pathname).toBe('/admin/requests');
   expect(Object.fromEntries(back.searchParams)).toMatchObject({
-    scope: 'LEAVE', status: 'APPROVED', leaveTypeCode: 'ANNUAL_LEAVE',
+    scope: 'LEAVE', status: 'APPROVED', leaveTypeCode: 'A03',
     from: '2026-11-17', to: '2026-11-18', organizationId: model.organizationId, q: model.q, page: '1',
   });
   const cancellation = within(rows[1]);

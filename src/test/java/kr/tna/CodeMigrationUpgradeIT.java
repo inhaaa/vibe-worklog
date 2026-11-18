@@ -104,7 +104,32 @@ class CodeMigrationUpgradeIT {
                     """,Integer.class));
             assertEquals(v18Rows,rows(db,v18Columns));
 
+            verifyCompactAttendanceCodeUpgrade(db, migrationSource, customer);
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
+    }
+    private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {
+        var account = db.queryForList("SELECT id FROM tna.tenant_account WHERE tenant_id=? ORDER BY id", UUID.class, customer).getFirst();
+        var customCodes = List.of("A01", "a03", "LONG_CUSTOM_CODE");
+        for (String code : customCodes) {
+            db.update("INSERT INTO tna.attendance_type(tenant_id,id,code,created_by,updated_by) VALUES(?,?,?,?,?)",
+                    customer, UUID.randomUUID(), code, account, account);
+        }
+        var originalColumns = columns(db);
+        originalColumns.get("tna.attendance_type").remove("code");
+        var before = rows(db, originalColumns);
+        var migrated = Flyway.configure().dataSource(migrations).target("26").load().migrate();
+        assertTrue(migrated.success);
+        assertEquals(1, migrated.migrationsExecuted);
+        assertEquals(before, rows(db, originalColumns));
+        assertEquals(customCodes.stream().sorted().toList(), db.queryForList("""
+                SELECT code FROM tna.attendance_type WHERE tenant_id=? AND system_kind IS NULL ORDER BY code COLLATE "C"
+                """, String.class, customer));
+        assertEquals("A04", db.queryForObject("SELECT code FROM tna.attendance_type WHERE tenant_id=? AND system_kind='ANNUAL_LEAVE'",
+                String.class, customer));
+        assertEquals("A02", db.queryForObject("SELECT code FROM tna.attendance_type WHERE tenant_id=? AND system_kind='ATTENDANCE_CORRECTION'",
+                String.class, customer));
+        assertEquals("A01", db.queryForObject("SELECT code FROM tna.attendance_type WHERE tenant_id<>? AND system_kind='ANNUAL_LEAVE'",
+                String.class, customer));
     }
     private static Map<String,List<String>> columns(JdbcTemplate db) {
         var result=new LinkedHashMap<String,List<String>>();

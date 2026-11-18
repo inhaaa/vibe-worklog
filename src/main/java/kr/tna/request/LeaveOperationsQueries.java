@@ -69,17 +69,18 @@ final class LeaveOperationsQueries {
         var organizations = List.copyOf(company.organizations(tenantId));
         Search search;
         try {
-            if (!code.isEmpty() && leaveTypes.stream().noneMatch(type -> type.code().equals(code))) {
-                throw OrgException.invalid("휴가 종류를 확인해 주세요.");
-            }
-            search = search(status, code, kind, from, to, organizationId, q, page);
+            String selected = code.isEmpty() ? "" : leaveTypes.stream()
+                    .filter(type -> type.code().equalsIgnoreCase(code) || type.systemKind().equalsIgnoreCase(code))
+                    .map(LeaveOperationsData.LeaveType::code).findFirst()
+                    .orElseThrow(() -> OrgException.invalid("휴가 종류를 확인해 주세요."));
+            search = search(status, selected, kind, from, to, organizationId, q, page);
         } catch (OrgException error) {
             return new Page(status, code, kind, from, to, organizationId, q, page, false, today, leaveTypes, organizations,
                     new Counts(0, 0, 0, 0).byStatus(), List.of(), error.getMessage());
         }
         var counts = mapper.counts(tenantId, today, search).byStatus();
         var found = mapper.rows(tenantId, today, search);
-        return new Page(status, code, kind, from, to, organizationId, q, page, found.size() > PAGE_SIZE,
+        return new Page(status, search.leaveTypeCode(), kind, from, to, organizationId, q, page, found.size() > PAGE_SIZE,
                 today, leaveTypes, organizations, counts, found.stream().limit(PAGE_SIZE).toList(), null);
     }
 
@@ -110,7 +111,7 @@ final class LeaveOperationsQueries {
         throw OrgException.invalid("휴가 대상 기간의 날짜를 확인해 주세요.");
     }
 
-    static String validReturnTo(String value) {
+    static String validReturnTo(String value, RequestData.AttendancePolicy policy) {
         if (value == null || value.length() > 2048 || !value.startsWith(PATH + "?")) return null;
         try {
             URI uri = URI.create(value);
@@ -125,7 +126,8 @@ final class LeaveOperationsQueries {
             }
             if (!"LEAVE".equals(query.get("scope"))) return null;
             String code = query.getOrDefault("leaveTypeCode", "");
-            if (!code.isEmpty() && !"ANNUAL_LEAVE".equals(code)) return null;
+            if (!code.isEmpty() && (policy == null ||
+                    !(code.equalsIgnoreCase(policy.code()) || code.equalsIgnoreCase(policy.systemKind())))) return null;
             String org = query.getOrDefault("organizationId", "");
             UUID organizationId = org.isEmpty() ? null : UUID.fromString(org);
             if (organizationId != null && !org.equalsIgnoreCase(organizationId.toString())) return null;

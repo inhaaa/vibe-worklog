@@ -14,7 +14,7 @@ public final class LeaveOperationsData {
             UUID organizationId, String q, int page, boolean hasNext, LocalDate asOf, List<LeaveType> leaveTypes,
             List<OrganizationItem> organizations, Map<String, Long> counts, List<Row> rows, String error) { }
 
-    public record LeaveType(String code, String name) { }
+    public record LeaveType(String code, String name, String systemKind) { }
 
     public record Row(UUID id, String employeeNo, String employeeName, String organizationName, String leaveTypeName,
             String requestKind, LocalDate from, LocalDate to, int quantityDays, String status, String effectStatus,

@@ -57,7 +57,7 @@ const commonFields: Field[] = [
   { key: 'active', label: '사용', kind: 'check' },
 ];
 const typeFields: Field[] = [
-  { key: 'code', label: '코드', max: 40, required: true },
+  { key: 'code', label: '코드', max: 8, required: true },
   { key: 'name', label: '이름', max: 120, required: true },
   { key: 'effectiveFrom', label: '적용일', kind: 'date', required: true },
   { key: 'unit', label: '단위', kind: 'select', choices: [['DAY', '일(DAY)'], ['HOUR', '시간(HOUR)'], ['NONE', '해당 없음']] },
@@ -73,7 +73,7 @@ function href(values: Record<string, string | number | null>, path = '/admin/com
   return `${path}?${query}`;
 }
 function systemText(kind: Value) {
-  return kind === 'ANNUAL_LEAVE' ? '시스템 종일 연차' : kind === 'ATTENDANCE_CORRECTION' ? '시스템 기록 정정' : '사용자 초안';
+  return kind === 'ANNUAL_LEAVE' ? '시스템 연차' : kind === 'ATTENDANCE_CORRECTION' ? '시스템 기록 정정' : '사용자 초안';
 }
 function useUnloadGuard(dirty: boolean) {
   useEffect(() => {
@@ -334,7 +334,7 @@ function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: 
     </>} actions={<a className="t-btn" href="/admin/common-codes">공통코드 관리</a>} />
     <section className="wl-section">
       <form action="/admin/attendance-types" method="get" className="wl-querybar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
-      <p className="notice">현재는 시스템 종일 연차와 기록 정정을 지원합니다. 신규 코드는 초안으로 등록하며 계산·차감 계약 미지원으로 신청할 수 없습니다.</p>
+      <p className="notice">신규 근태코드는 영문 대문자와 숫자 1~8자로 입력하며 초안으로 저장됩니다.</p>
       <CodeSheet title="근태코드" action="/admin/attendance-types/bulk" model={m.sheet} fields={typeFields} context={{ q: m.q, page: m.page }} today={m.today} error={error} busy={busy}
         pagination={<Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />} />
     </section>

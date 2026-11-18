@@ -103,7 +103,7 @@ export function LeaveOperationsPage({ model: m }: { model: LeaveOperations }) {
       <input type="hidden" name="status" value={m.status} />
       <SelectField label="휴가 종류" name="leaveTypeCode" value={m.leaveTypeCode}>
         <option value="">전체 휴가 종류</option>
-        {m.leaveTypes.map(option => <option key={option.code} value={option.code}>{option.name}</option>)}
+        {m.leaveTypes.map(option => <option key={option.code} value={option.code}>{option.code} · {option.name}</option>)}
       </SelectField>
       <SelectField label="신청 구분" name="requestKind" value={m.requestKind}>
         <option value="">전체 신청 구분</option><option value="LEAVE_DAY">휴가 신청</option><option value="CANCEL_LEAVE">취소 신청</option>

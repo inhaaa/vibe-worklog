@@ -37,10 +37,15 @@ public interface CodeMapper {
          SELECT * FROM tna.attendance_type_version WHERE tenant_id=t.tenant_id AND type_id=t.id ORDER BY revision DESC LIMIT 1
         )v ON true WHERE t.tenant_id=#{tenantId}
         """;
-    @Select(TYPE_SELECT+" AND (#{q}='' OR strpos(lower(t.code),lower(#{q}))>0 OR strpos(lower(v.name),lower(#{q}))>0) ORDER BY t.code,t.id LIMIT 51 OFFSET #{offset}")
+    @Select(TYPE_SELECT+"""
+        AND (#{q}='' OR strpos(lower(t.code),lower(#{q}))>0 OR strpos(lower(v.name),lower(#{q}))>0
+             OR strpos(lower(t.system_kind),lower(#{q}))>0)
+        ORDER BY t.code,t.id LIMIT 51 OFFSET #{offset}
+        """)
     List<Type> types(@Param("tenantId")UUID tenantId,@Param("q")String q,@Param("offset")int offset);
     @Select(TYPE_SELECT+" AND t.id=#{id}") Type type(@Param("tenantId")UUID tenantId,@Param("id")UUID id);
-    @Select(TYPE_SELECT+" AND t.code=#{code}") Type typeCode(@Param("tenantId")UUID tenantId,@Param("code")String code);
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.attendance_type WHERE tenant_id=#{tenantId} AND upper(code)=#{code})")
+    boolean typeCodeExists(@Param("tenantId")UUID tenantId,@Param("code")String code);
     @Select("""
         SELECT v.id,v.type_id,t.code,v.revision,v.effective_from,v.enabled,v.name,v.unit,v.pay_kind,v.deduction_rule,
          v.recognition_rule,v.basis,v.reason,v.created_at,v.created_by,e.display_name AS created_by_name

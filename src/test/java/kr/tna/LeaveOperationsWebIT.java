@@ -147,7 +147,8 @@ class LeaveOperationsWebIT {
                 .andExpect(ReactPageAssertions.data("/leaveOperations/counts/ALL", 7))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id", olderPending))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/approverName", "합성 APPROVER"))
-                .andExpect(ReactPageAssertions.data("/leaveOperations/leaveTypes/0/code", "ANNUAL_LEAVE"));
+                .andExpect(ReactPageAssertions.data("/leaveOperations/leaveTypes/0/code", "A01"))
+                .andExpect(ReactPageAssertions.data("/leaveOperations/leaveTypeCode", "A01"));
         var approvedResponse = mvc.perform(filters(view(admin)).param("status", "APPROVED")).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id", newerDecision))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/id", approved))
@@ -164,6 +165,11 @@ class LeaveOperationsWebIT {
         mvc.perform(filters(view(admin)).param("status", "ALL")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.leaveOperations.rows[?(@.status == 'WITHDRAWN')]").isNotEmpty());
         String returnTo = PATH + "?scope=LEAVE&status=APPROVED&leaveTypeCode=ANNUAL_LEAVE&q=%ED%95%A9%EC%84%B1+LV&page=1";
+        String compactReturn = returnTo.replace("ANNUAL_LEAVE","A01");
+        mvc.perform(view(admin).param("leaveTypeCode","A01").param("status","APPROVED"))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id",newerDecision));
+        mvc.perform(get("/requests/{id}", approved).with(as(admin)).accept(PAGE_JSON).param("returnTo", compactReturn))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/leaveReturnTo", compactReturn));
         mvc.perform(get("/requests/{id}", approved).with(as(admin)).accept(PAGE_JSON).param("returnTo", returnTo))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/leaveReturnTo", returnTo))
                 .andExpect(ReactPageAssertions.data("/leaveDecidedByName", "합성 HISTORICAL"));

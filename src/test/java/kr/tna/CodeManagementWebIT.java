@@ -72,6 +72,39 @@ class CodeManagementWebIT {
         assertEquals(2,count("attendance_type"));assertEquals(2,count("attendance_type_version"));
         assertEquals(1,count("common_code_group"));assertEquals(3,count("common_code"));
     }
+    @Test void systemTypesCanBeFoundByCompactCodeNameAndHistoricalKey() throws Exception {
+        for (String q : List.of("a01", "연차", "ANNUAL_LEAVE")) {
+            mvc.perform(as(get("/admin/attendance-types"),admin).accept(PAGE).param("q",q))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.attendanceTypes.types.length()").value(1))
+                    .andExpect(ReactPageAssertions.data("/attendanceTypes/types/0/code","A01"))
+                    .andExpect(ReactPageAssertions.data("/attendanceTypes/versions/0/typeId",systemType()));
+        }
+        mvc.perform(as(get("/admin/attendance-types"),admin).accept(PAGE).param("q","ATTENDANCE_CORRECTION"))
+                .andExpect(ReactPageAssertions.data("/attendanceTypes/types/0/code","A02"));
+    }
+    @Test void newCompactCodesAreUniqueAndLegacyCustomCodesRemainEditable() throws Exception {
+        var legacy = UUID.randomUUID();
+        db.update("INSERT INTO tna.attendance_type(tenant_id,id,code,created_by,updated_by) VALUES(?,?,?,?,?)",
+                tenant,legacy,"old_custom_type",admin.accountId(),admin.accountId());
+        db.update("""
+                INSERT INTO tna.attendance_type_version(tenant_id,id,type_id,revision,effective_from,enabled,name,
+                  unit,pay_kind,deduction_rule,recognition_rule,basis,reason,created_by)
+                VALUES(?,?,?,1,?,false,'기존 코드','DAY','UNSPECIFIED','NONE','NOT_SUPPORTED','기존','기존',?)
+                """,tenant,UUID.randomUUID(),legacy,today,admin.accountId());
+        mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(type(legacy,"old_custom_type",null,0L)),null))
+                .andExpect(status().isSeeOther());
+        for (String code : List.of("A_10","ABCDEFGHI","가01")) {
+            mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(type(null,code,null,null)),null))
+                    .andExpect(status().isUnprocessableEntity());
+        }
+        mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(type(null,"A01",null,null)),null))
+                .andExpect(status().isConflict());
+        mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(type(null,"101",null,null)),null))
+                .andExpect(status().isSeeOther());
+        assertEquals(2,db.queryForObject("SELECT count(*) FROM tna.attendance_type_version WHERE tenant_id=? AND type_id=?",
+                Integer.class,tenant,legacy));
+    }
     @Test void fiftyGroupsCommitAtomicallyAndExactReplayDoesNotDuplicateAudit() throws Exception {
         var rows=new ArrayList<Map<String,Object>>();for(int i=0;i<50;i++)rows.add(common(null,"G"+i,null,null));
         UUID command=UUID.randomUUID();mvc.perform(bulk("common-code-groups",command,rows,null)).andExpect(status().isSeeOther());

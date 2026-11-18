@@ -14,7 +14,7 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface LeaveOperationsMapper {
     @Select("""
-            SELECT t.code,v.name FROM tna.attendance_type t JOIN LATERAL (
+            SELECT t.code,v.name,t.system_kind FROM tna.attendance_type t JOIN LATERAL (
               SELECT name FROM tna.attendance_type_version
               WHERE tenant_id=t.tenant_id AND type_id=t.id AND effective_from<=#{today}
               ORDER BY effective_from DESC,revision DESC LIMIT 1

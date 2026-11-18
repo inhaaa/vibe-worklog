@@ -40,7 +40,8 @@ public class RequestController {
         var detail = detailPage(actor, id);
         var request = (RequestView) detail.getModel().get("request");
         if (actor.roles().contains("ATTENDANCE_ADMIN") && isLeave(request)) {
-            String safeReturn = LeaveOperationsQueries.validReturnTo(returnTo);
+            var policy = ((RequestDetail) detail.getModel().get("detail")).attendancePolicy();
+            String safeReturn = LeaveOperationsQueries.validReturnTo(returnTo, policy);
             if (safeReturn != null) detail.addObject("leaveReturnTo", safeReturn);
         }
         return detail;
