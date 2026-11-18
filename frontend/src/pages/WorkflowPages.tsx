@@ -282,6 +282,15 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               {d.days.map((day, i) => <li key={`${day.leaveDate}-${i}`}><span>{fmtDate(day.leaveDate)}</span>{r.kind === 'LEAVE_DAY' && <strong>{day.quantityDays}일</strong>}{day.zeroReason && <span className="t-muted">{zeroReason(day.zeroReason)}</span>}</li>)}
             </ul>
           </section>}
+          {!!d.scheduleChanges?.length && <section className="t-card">
+            <h2>승인 후 근무 일정 변경</h2>
+            <p>원신청의 차감 내역과 변경된 근무일을 확인하세요.</p>
+            {d.scheduleChanges.map(change => <div key={change.leaveDate}>
+              <h3>{fmtDate(change.leaveDate)}</h3>
+              <dl><dt>승인 당시 일정</dt><dd>{change.original}</dd>
+                <dt>현재 일정</dt><dd>{change.current}</dd></dl>
+            </div>)}
+          </section>}
           {d.correction && <section className="t-card">
             <h2>요청한 정정</h2>
             {comparison && <table className="t-correction-comparison" aria-label="출퇴근 시각 비교">

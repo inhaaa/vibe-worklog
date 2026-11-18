@@ -68,6 +68,7 @@ export interface RequestDetail {
   steps?: { stepNumber: number; role: string; originalApproverName: string; approverName: string;
     status: string; decidedByName: string | null; decidedAt: string | null; reason: string | null }[];
   reassignmentRequired?: boolean;
+  scheduleChanges?: {leaveDate: string; original: string; current: string}[];
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;

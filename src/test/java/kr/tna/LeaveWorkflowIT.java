@@ -27,6 +27,11 @@ import kr.tna.org.ApproverMapper;
 import kr.tna.request.RequestData.*;
 import kr.tna.schedule.ScheduleData.*;
 import kr.tna.schedule.ScheduleService;
+import kr.tna.schedule.WorkGroupData.*;
+import kr.tna.schedule.WorkGroupService;
+import kr.tna.schedule.WorkGroupAssignmentService;
+import kr.tna.schedule.WorkTimeCodeData;
+import kr.tna.schedule.WorkTimeCodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +44,9 @@ import org.springframework.test.context.DynamicPropertySource;
 class LeaveWorkflowIT {
     @Autowired LeaveWorkflowService workflow;
     @Autowired ScheduleService schedules;
+    @Autowired WorkGroupService groups;
+    @Autowired WorkGroupAssignmentService memberships;
+    @Autowired WorkTimeCodeService timeCodes;
     @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     @Autowired ClockService clocks;
@@ -69,6 +77,26 @@ class LeaveWorkflowIT {
         UUID version=schedules.versions(manager,template).getFirst().id();
         schedules.assign(manager,employee.employeeId(),new AssignmentForm(version,today,employeeVersion(),"합성 배정",UUID.randomUUID()));
         settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 검토 자료","","합성 달력",UUID.randomUUID()));
+    }
+
+    @Test void approvedFutureLeaveShowsBothSchedulesAndPreservesItsLedger() {
+        UUID bucket = bucket(3);
+        UUID request = leave(bucket, date);
+        approve(request);
+        var initial = workflow.get(manager,request);
+        assertTrue(initial.scheduleChanges().isEmpty());
+        var days = java.util.stream.IntStream.rangeClosed(1,7)
+                .mapToObj(i -> new DayForm(i,true,"10:00","19:00","12:00-13:00")).toList();
+        UUID template = schedules.create(manager,new TemplateForm("REVISED","변경 일정",date,days,null,"근무조 전환",UUID.randomUUID()));
+        UUID version = schedules.versions(manager,template).getFirst().id();
+        schedules.assign(manager,employee.employeeId(),new AssignmentForm(version,date,employeeVersion(),"예약 전환",UUID.randomUUID()));
+        var latest = workflow.get(manager,request);
+        var change = latest.scheduleChanges().getFirst();
+        assertEquals(date,change.leaveDate());
+        assertTrue(change.original().contains("09:00"));
+        assertTrue(change.current().contains("10:00"));
+        assertEquals(initial.days(),latest.days());
+        assertEquals(2,balance(bucket));
     }
 
     @Test void openingIsAnImmutableGroundedLedgerAndOwnOpeningIsBlocked() {
@@ -160,6 +188,41 @@ class LeaveWorkflowIT {
         assertStatus(422,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date.plusDays(1),null,"기간 넘김",UUID.randomUUID())));
         assertEquals(3,balance(bucket));
     }
+    @Test void revisingTheAssignedGroupWhileLeaveIsPendingBlocksFinalApprovalWithoutLedgerOrEffect() {
+        LocalDate groupStart=date.minusDays(1);
+        UUID early=workTimeVersion("W09",9),late=workTimeVersion("W10",10);
+        var week=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new WeekInput(i,early)).toList();
+        var create=new GroupCommand(null,"GA","운영조",groupStart,week,"최초 편성",null,null,null,UUID.randomUUID());
+        UUID group=groups.saveGroup(manager,create.confirm(groups.previewGroup(manager,create).token()));
+        var assignment=new AssignmentCommand(group,groupStart,List.of(employee.employeeId()),"근무조 전환",List.of(),null,UUID.randomUUID());
+        memberships.saveAssignments(manager,assignment.confirm(memberships.previewAssignments(manager,assignment).token()));
+        UUID bucket=bucket(3),request=leave(bucket,date);
+        var before=workflow.get(employee,request).request();
+        var initialLedger=workflow.ledger(manager,bucket);
+        var newWeek=week.stream().map(d->d.weekday()==date.getDayOfWeek().getValue()?new WeekInput(d.weekday(),late):d).toList();
+        var edit=new GroupCommand(group,"GA","운영조",date,newWeek,"해당 요일 출근 시각 변경",0L,null,null,UUID.randomUUID());
+        groups.saveGroup(manager,edit.confirm(groups.previewGroup(manager,edit).token()));
+
+        var rejected=assertThrows(OrgException.class,()->approve(request));
+        assertEquals(422,rejected.status());
+        assertTrue(rejected.getMessage().contains("철회 후 다시 신청"));
+        var after=workflow.get(employee,request).request();
+        assertEquals("PENDING",after.status()); assertEquals(before.version(),after.version());
+        assertEquals("NONE",after.effectStatus()); assertEquals(3,balance(bucket));
+        assertEquals(0,count("tna.request_effect","request_id='"+request+"'"));
+        assertEquals(initialLedger,workflow.ledger(manager,bucket));
+    }
+
+    private UUID workTimeVersion(String code,int startHour) {
+        var command=new WorkTimeCodeData.Command(UUID.randomUUID(),null,null,code,code,today,true,
+                java.time.LocalTime.of(startHour,0),java.time.LocalTime.of(startHour+9,0),null,null,null,null,
+                List.of(new WorkTimeCodeData.Break("REGULAR",java.time.LocalTime.NOON,java.time.LocalTime.of(13,0))),
+                "휴가 승인 검증",null);
+        UUID master=timeCodes.save(manager,command);
+        return timeCodes.catalog(manager,today).codes().stream().filter(c->c.id().equals(master))
+                .findFirst().orElseThrow().versions().getFirst().id();
+    }
+
     @Test void changedDayQuantityBlocksApprovalAndRetainsPending() {
         UUID bucket=bucket(3),request=leave(bucket,date);
         db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?",tenant,date);

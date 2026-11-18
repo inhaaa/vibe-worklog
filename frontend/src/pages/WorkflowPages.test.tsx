@@ -283,6 +283,14 @@ describe('WorkflowPages', () => {
     expect(within(target).getByText('합성 대상 사원')).toBeTruthy();
     expect(within(approval).queryByText('기안', { exact: true })).toBeNull();
   });
+  it('승인 휴가의 원래 일정과 변경된 일정을 나란히 표시한다', async () => {
+    const view = await render('request/detail', { request: { ...request, status: 'APPROVED', effectStatus: 'EFFECTIVE' },
+      detail: { days: [{ leaveDate: '2026-12-01', quantityDays: 1 }], history: [], correction: null,
+        scheduleChanges: [{ leaveDate: '2026-12-01', original: '09:00~18:00', current: '10:00~19:00' }] } });
+    expect(view.getByRole('heading', {name: '승인 후 근무 일정 변경'})).toBeTruthy();
+    expect(view.getByText('09:00~18:00')).toBeTruthy();
+    expect(view.getByText('10:00~19:00')).toBeTruthy();
+  });
   it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', async () => {
     const view = await render('request/detail', {
       request,

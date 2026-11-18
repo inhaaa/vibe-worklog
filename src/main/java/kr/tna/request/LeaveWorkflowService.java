@@ -469,7 +469,9 @@ public final class LeaveWorkflowService {
                 mapper.history(tenant, request.id()), mapper.routeSnapshot(tenant, request.id()),
                 request.attendanceTypeVersionId() == null ? null : mapper.attendancePolicy(tenant, request.attendanceTypeVersionId()),
                 comparison,mapper.decisionSteps(tenant,request.id()),
-                "PENDING".equals(request.status())&&!approvers.eligible(tenant,request.currentApproverId(),today()));
+                "PENDING".equals(request.status())&&!approvers.eligible(tenant,request.currentApproverId(),today()),
+                "LEAVE_DAY".equals(request.kind()) && "EFFECTIVE".equals(request.effectStatus())
+                        ? mapper.scheduleChanges(tenant,request.id(),request.targetEmployeeId(),today()) : List.of());
     }
 
     private CorrectionComparison correctionComparison(CorrectionDetail correction, ClockData.DaySnapshot current) {

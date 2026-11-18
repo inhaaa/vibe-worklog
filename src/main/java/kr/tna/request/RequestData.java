@@ -89,12 +89,14 @@ public final class RequestData {
     public record AttendancePolicy(UUID id,UUID typeId,String code,String systemKind,long revision,
             LocalDate effectiveFrom,boolean enabled,String name,String unit,String payKind,String deductionRule,
             String recognitionRule,String basis) { }
+    public record ScheduleChange(LocalDate leaveDate, String original, String current) {}
     public record RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
             List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy,
-            CorrectionComparison correctionComparison,List<DecisionStep> steps,boolean reassignmentRequired) {
+            CorrectionComparison correctionComparison,List<DecisionStep> steps,boolean reassignmentRequired,
+            List<ScheduleChange> scheduleChanges) {
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
                 List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy,CorrectionComparison comparison) {
-            this(request,days,correction,history,routeSnapshot,attendancePolicy,comparison,List.of(),false);
+            this(request,days,correction,history,routeSnapshot,attendancePolicy,comparison,List.of(),false,List.of());
         }
         public RequestDetail(RequestView request,List<RequestDay> days,CorrectionDetail correction,
                 List<ApprovalHistory> history,RouteSnapshot routeSnapshot,AttendancePolicy attendancePolicy) {

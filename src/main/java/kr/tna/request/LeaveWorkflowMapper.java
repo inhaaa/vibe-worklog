@@ -100,6 +100,33 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
     int reassign(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("version") long version,@Param("approverId") UUID approverId);
     @Select("SELECT leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason FROM tna.leave_request_day WHERE tenant_id=#{tenantId} AND request_id=#{requestId} ORDER BY leave_date")
     List<RequestDay> requestDays(@Param("tenantId") UUID tenantId,@Param("requestId") UUID requestId);
+    @Select("""
+        WITH changed AS (
+            SELECT d.leave_date,d.schedule_version_id AS original_id,a.schedule_version_id AS current_id
+            FROM tna.leave_request_day d
+            LEFT JOIN tna.effective_schedule_assignment a ON a.tenant_id=d.tenant_id AND a.employee_id=#{employeeId}
+              AND a.valid_from<=d.leave_date AND (a.valid_to IS NULL OR a.valid_to>d.leave_date)
+            WHERE d.tenant_id=#{tenantId} AND d.request_id=#{requestId} AND d.leave_date>=#{today}
+              AND d.schedule_version_id IS DISTINCT FROM a.schedule_version_id
+        ), plans AS (
+            SELECT c.leave_date,chosen.side,
+              CASE WHEN d.version_id IS NULL THEN '근무 미배정' WHEN NOT d.workday THEN '비근로일'
+                   ELSE concat(d.start_time,'~',d.end_time,CASE WHEN b.times IS NOT NULL THEN ' · 예정 휴게 '||b.times END)
+              END AS description
+            FROM changed c CROSS JOIN LATERAL (VALUES ('original',c.original_id),('current',c.current_id)) chosen(side,id)
+            LEFT JOIN tna.schedule_day d ON d.tenant_id=#{tenantId} AND d.version_id=chosen.id
+              AND d.weekday=extract(isodow FROM c.leave_date)
+            LEFT JOIN LATERAL (
+                SELECT string_agg(concat(start_time,'~',end_time),', ' ORDER BY start_time) AS times
+                FROM tna.schedule_break WHERE tenant_id=d.tenant_id AND version_id=d.version_id AND weekday=d.weekday
+            ) b ON true
+        )
+        SELECT o.leave_date,o.description AS original,n.description AS current
+        FROM plans o JOIN plans n ON n.leave_date=o.leave_date
+        WHERE o.side='original' AND n.side='current' AND o.description<>n.description ORDER BY o.leave_date
+        """)
+    List<ScheduleChange> scheduleChanges(UUID tenantId, UUID requestId, UUID employeeId, LocalDate today);
+
     @Insert("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason) VALUES(#{tenantId},#{id},#{requestId},#{d.leaveDate},#{d.quantityDays},#{d.scheduleVersionId},#{d.calendarVersionId},#{d.zeroReason})")
     int insertDay(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("requestId") UUID requestId,@Param("d") RequestDay day);
     @Select("""
