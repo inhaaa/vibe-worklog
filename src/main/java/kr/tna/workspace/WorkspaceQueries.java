@@ -50,7 +50,7 @@ public final class WorkspaceQueries {
             var employee = employees.findSelf(actor.tenantId(), actor.employeeId());
             if (employee == null) throw OrgException.notFound();
             var buckets = leave.buckets(actor, actor.employeeId());
-            Long available = buckets.isEmpty() ? null : buckets.stream().mapToLong(bucket -> bucket.availableDays()).sum();
+            Double available = buckets.isEmpty() ? null : buckets.stream().mapToDouble(bucket -> bucket.availableDays()).sum();
             return new HomeView(employee, data.days().stream().filter(day -> day.today()).findFirst().orElseThrow(),
                     data.days(), available, data.requests().stream().filter(row -> "PENDING".equals(row.status())).count(),
                     data.requests().stream().limit(3).map(row -> item(row, null, false)).toList());
@@ -95,10 +95,10 @@ public final class WorkspaceQueries {
         return new ReadResult(days, requests);
     }
 
-    private static RequestItem item(RequestView row, Integer quantity, boolean dated) {
+    private static RequestItem item(RequestView row, Double quantity, boolean dated) {
         String kind = switch (row.kind()) {
-            case "LEAVE_DAY" -> "종일 연차";
-            case "CANCEL_LEAVE" -> "연차 취소";
+            case "LEAVE_DAY" -> leaveName(row.leavePart());
+            case "CANCEL_LEAVE" -> "FULL".equals(row.leavePart()) ? "연차 취소" : leaveName(row.leavePart()) + " 취소";
             case "ATTENDANCE_CORRECTION" -> "정정 신청";
             case "OVERTIME" -> "연장근무 신청";
             case "CANCEL_OVERTIME" -> "연장근무 취소";
@@ -120,10 +120,18 @@ public final class WorkspaceQueries {
             default -> row.status();
         };
         boolean effective = "LEAVE_DAY".equals(row.kind()) && "APPROVED".equals(row.status())
-                && "EFFECTIVE".equals(row.effectStatus()) && (!dated || Integer.valueOf(1).equals(quantity));
+                && "EFFECTIVE".equals(row.effectStatus()) && (!dated || quantity != null && quantity > 0);
         String tone = "PENDING".equals(row.status()) ? "amber" : "APPROVED".equals(row.status())
                 && "EFFECTIVE".equals(row.effectStatus()) ? "green" : "gray";
         return new RequestItem(row, kind, status, tone, effective);
+    }
+
+    private static String leaveName(String part) {
+        return switch (part) {
+            case "AM" -> "오전 반차";
+            case "PM" -> "오후 반차";
+            default -> "종일 연차";
+        };
     }
 
     private LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))); }

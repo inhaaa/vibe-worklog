@@ -25,7 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public final class AnnualRequestController {
     private static final Set<String> QUERY=Set.of("year","typeId","status","page","authoredPage","createdId");
     private static final Set<String> CONTEXT=Set.of("year","typeId","status","page","authoredPage","mode","kind","_csrf");
-    private static final Set<String> LEAVE=Set.of("routeToken","bucketId","from","to","predecessorRequestId","reason","commandId");
+    private static final Set<String> LEAVE=Set.of("routeToken","bucketId","from","to","leavePart","predecessorRequestId","reason","commandId");
     private static final Set<String> CORRECTION=Set.of("routeToken","workDate","baseInputRevision","sourceFingerprint","inAction","requestedInAt","outAction","requestedOutAt","presenceAsWork","breaksConfirmed","_presenceAsWork","_breaksConfirmed","actualBreaks","replacesRequestId","predecessorRequestId","reason","commandId");
     private final AnnualRequestService service;
     private final LeaveWorkflowService flow;

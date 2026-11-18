@@ -74,11 +74,14 @@ public interface LeaveOperationsMapper {
             SELECT r.id,employee.employee_no,employee.display_name AS employee_name,o.name AS organization_name,
               v.name AS leave_type_name,r.kind AS request_kind,COALESCE(original.from_date,r.from_date) AS "from",
               COALESCE(original.to_date,r.to_date) AS "to",
-              COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d
-                WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(original.id,r.id)),0)::integer AS quantity_days,
+              COALESCE(days.quantity_days,0) AS quantity_days,
               r.status,COALESCE(eff.effect_status,'NONE') AS effect_status,approver.display_name AS approver_name,
-              decision.decided_by_name,r.submitted_at,decision.decided_at,r.original_request_id,r.current_step,r.total_steps
+              decision.decided_by_name,r.submitted_at,decision.decided_at,r.original_request_id,r.current_step,r.total_steps,COALESCE(days.leave_part,'FULL') AS leave_part
             """ + REQUESTS + """
+            LEFT JOIN LATERAL (
+              SELECT sum(d.quantity_days) AS quantity_days, min(d.leave_part) AS leave_part FROM tna.leave_request_day d
+              WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(original.id,r.id)
+            ) days ON true
             LEFT JOIN tna.organization o ON o.tenant_id=ea.tenant_id AND o.id=ea.organization_id
             JOIN tna.employee approver ON approver.tenant_id=r.tenant_id AND approver.id=r.current_approver_id
             LEFT JOIN tna.request_effect eff ON eff.tenant_id=r.tenant_id AND eff.request_id=r.id

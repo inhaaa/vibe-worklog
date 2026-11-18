@@ -36,7 +36,7 @@ class WorkspaceHomeDataTest {
                 date, date, false, 1L, "EFFECTIVE", 1, null, null);
         var item = new RequestItem(request, "종일 연차", "승인 유효", "green", true);
         var today = new DayView(day, List.of(item), true, true);
-        var view = new HomeView(new EmployeeOverview("가상 직원", "가상 회사"), today, List.of(today), 0L, 1L, List.of(item));
+        var view = new HomeView(new EmployeeOverview("가상 직원", "가상 회사"), today, List.of(today), 0.0, 1L, List.of(item));
 
         var json = JsonMapper.builder().build().valueToTree(WorkspaceHomeData.from(view));
         assertEquals(now.toString(), json.at("/today/inRecordedAt").asString());

@@ -81,7 +81,7 @@ public final class WorkspaceData {
     }
 
     public record HomeView(EmployeeOverview employee, DayView today, List<DayView> week,
-            Long availableLeaveDays, long pendingRequests, List<RequestItem> recentRequests) { }
+            Double availableLeaveDays, long pendingRequests, List<RequestItem> recentRequests) { }
 
     public record MonthView(YearMonth month, LocalDate selectedDate, List<DayView> days,
             List<Integer> leadingBlanks, YearMonth previousMonth, YearMonth nextMonth, DayView selectedDay,

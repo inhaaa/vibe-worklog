@@ -105,6 +105,11 @@ class CodeMigrationUpgradeIT {
             assertEquals(v18Rows,rows(db,v18Columns));
 
             verifyCompactAttendanceCodeUpgrade(db, migrationSource, customer);
+            var v26Columns = columns(db);
+            var v26Rows = rows(db,v26Columns);
+            assertTrue(Flyway.configure().dataSource(migrationSource).target("27").load().migrate().success);
+            assertEquals(v26Rows,rows(db,v26Columns));
+            assertEquals(2, db.queryForObject("SELECT count(*) FROM tna.leave_request_day WHERE leave_part='FULL' AND quantity_days=1", Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {

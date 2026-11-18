@@ -79,6 +79,81 @@ class LeaveWorkflowIT {
         settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 검토 자료","","합성 달력",UUID.randomUUID()));
     }
 
+    @Test void halfDaysShareOneDayAndOnlyOverlappingPartsAreBlocked() {
+        UUID bucket = bucket(2);
+        var am = new LeaveForm(bucket,date,date,null,"오전 반차",UUID.randomUUID(),"AM");
+        var pm = new LeaveForm(bucket,date,date,null,"오후 반차",UUID.randomUUID(),"PM");
+        var preview = workflow.previewLeave(employee,am);
+        assertEquals(0.5,preview.quantityDays());
+        UUID morning = workflow.submitLeave(employee,am);
+        assertEquals(morning,workflow.submitLeave(employee,am));
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,am.reason(),am.commandId(),"PM")));
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"중복 오전",UUID.randomUUID(),"AM")));
+        assertStatus(409,()->leave(bucket,date));
+        UUID afternoon = workflow.submitLeave(employee,pm);
+        assertEquals(1,workflow.buckets(employee,employee.employeeId()).getFirst().pendingDays());
+        approve(morning);
+        assertEquals("AM",workflow.get(employee,morning).request().leavePart());
+        assertEquals(0.5,workflow.get(employee,morning).days().getFirst().quantityDays());
+        assertEquals(1.5,balance(bucket));
+        assertEquals(0.5,workflow.buckets(employee,employee.employeeId()).getFirst().futureApprovedDays());
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"승인된 오전",UUID.randomUUID(),"AM")));
+        approve(afternoon);
+        UUID cancel = workflow.requestCancellation(employee,morning,new CancelForm(false,1L,"오전만 취소",UUID.randomUUID()));
+        assertEquals("AM",workflow.get(employee,cancel).request().leavePart());
+        assertEquals(0.5,workflow.get(employee,cancel).request().quantityDays());
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"취소 결재 중인 오전",UUID.randomUUID(),"AM")));
+        approve(cancel);
+        assertEquals(1.5,balance(bucket));
+        assertEquals("EFFECTIVE",workflow.get(employee,afternoon).request().effectStatus());
+        assertStatus(409,()->leave(bucket,date));
+        assertNotNull(workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"취소된 오전 재신청",UUID.randomUUID(),"AM")));
+    }
+
+    @Test void rejectedAndWithdrawnHalfDaysReleaseOnlyTheirSlot() {
+        UUID bucket = bucket(1);
+        UUID rejected = workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"오후",UUID.randomUUID(),"PM"));
+        workflow.decide(approver,rejected,new DecisionForm("REJECT",0L,"반려",UUID.randomUUID()));
+        UUID withdrawn = workflow.submitLeave(employee,new LeaveForm(bucket,date,date,rejected,"다시 신청",UUID.randomUUID(),"PM"));
+        workflow.withdraw(employee,withdrawn,new DecisionForm("WITHDRAW",0L,"직원 철회",UUID.randomUUID()));
+        assertNotNull(workflow.submitLeave(employee,new LeaveForm(bucket,date,date,withdrawn,"오후 재신청",UUID.randomUUID(),"PM")));
+        assertEquals(1,balance(bucket));
+        assertEquals(0,count("tna.leave_ledger","entry_kind='USE'"));
+    }
+
+    @Test void aHalfDayRequiresOneScheduledDayAndASupportedPart() {
+        UUID bucket = bucket(1);
+        assertStatus(422,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date.plusDays(1),null,"복수일",UUID.randomUUID(),"AM")));
+        assertStatus(422,()->workflow.previewLeave(employee,new LeaveForm(bucket,date,date,null,"오타",UUID.randomUUID(),"HOUR")));
+        db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?",tenant,date);
+        assertStatus(422,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"휴일 반차",UUID.randomUUID(),"PM")));
+    }
+
+    @Test void storedDayAndLedgerRejectValuesThatWouldRoundToHalf() {
+        UUID bucket = bucket(1);
+        UUID leave = workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"오전",UUID.randomUUID(),"AM"));
+        approve(leave);
+        assertStatus(422,()->workflow.adjust(manager,bucket,new AdjustmentForm(-1,today,1L,"합성 근거","잔여 반일 초과",UUID.randomUUID())));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->db.update(
+                "UPDATE tna.leave_request_day SET quantity_days=0.51 WHERE tenant_id=? AND request_id=?",tenant,leave));
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->db.update(
+                "UPDATE tna.leave_ledger SET signed_quantity_days=-0.51 WHERE tenant_id=? AND bucket_id=? AND entry_kind='USE'",tenant,bucket));
+        assertEquals(0.5,balance(bucket));
+    }
+
+    @Test void fullDayBlocksMorningAndAfternoonAndHalfDayRequiresRemainingBalanceOnApproval() {
+        UUID bucket = bucket(1);
+        UUID full = leave(bucket,date);
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"오전",UUID.randomUUID(),"AM")));
+        assertStatus(409,()->workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"오후",UUID.randomUUID(),"PM")));
+        var next = date.plusDays(1);
+        UUID half = workflow.submitLeave(employee,new LeaveForm(bucket,next,next,null,"다음날 오전",UUID.randomUUID(),"AM"));
+        approve(full);
+        assertStatus(422,()->approve(half));
+        assertEquals("PENDING",workflow.get(employee,half).request().status());
+        assertEquals(0,balance(bucket));
+    }
+
     @Test void approvedFutureLeaveShowsBothSchedulesAndPreservesItsLedger() {
         UUID bucket = bucket(3);
         UUID request = leave(bucket, date);
@@ -268,13 +343,21 @@ class LeaveWorkflowIT {
         assertStatus(403,()->workflow.get(foreign,request));
         assertStatus(404,()->workflow.get(employee,UUID.randomUUID()));
     }
-    @Test void simultaneousApprovalsCannotOverspendTheSameBucket() throws Exception {
-        UUID bucket=bucket(1),first=leave(bucket,date),second=leave(bucket,date.plusDays(1));var start=new CountDownLatch(1);
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"FULL","AM"})
+    void simultaneousApprovalsCannotOverspendTheSameBucket(String part) throws Exception {
+        UUID bucket=bucket(1);
+        boolean half="AM".equals(part);
+        if(half) approve(workflow.submitLeave(employee,new LeaveForm(bucket,date.minusDays(1),date.minusDays(1),null,"선사용",UUID.randomUUID(),"PM")));
+        UUID first=workflow.submitLeave(employee,new LeaveForm(bucket,date,date,null,"첫 신청",UUID.randomUUID(),part));
+        LocalDate next=date.plusDays(1);
+        UUID second=workflow.submitLeave(employee,new LeaveForm(bucket,next,next,null,"두 번째 신청",UUID.randomUUID(),part));
+        var start=new CountDownLatch(1);
         try(var executor=Executors.newVirtualThreadPerTaskExecutor()) {
             var a=executor.submit(()->approveAfter(start,first));var b=executor.submit(()->approveAfter(start,second));start.countDown();
             assertEquals(1,a.get(10,TimeUnit.SECONDS)+b.get(10,TimeUnit.SECONDS));
         }
-        assertEquals(0,balance(bucket));assertEquals(1,count("tna.leave_ledger","entry_kind='USE'"));
+        assertEquals(0,balance(bucket));assertEquals(half?2:1,count("tna.leave_ledger","entry_kind='USE'"));
     }
     @Test void ledgerFailureRollsBackDecisionEffectAndAuditTogether() {
         UUID bucket=bucket(1),request=leave(bucket,date);String constraint="synthetic_ledger_failure_"+tenant.toString().replace("-","");
@@ -314,7 +397,7 @@ class LeaveWorkflowIT {
         var snapshot=clocks.day(employee,correctionDate);
         UUID id=workflow.submitCorrection(employee,new CorrectionForm(null,correctionDate,snapshot.inputRevision(),snapshot.sourceFingerprint(),"SET",correctionDate+"T09:00","SET",correctionDate+"T18:00",true,true,correctionDate+"T12:00/"+correctionDate+"T13:00",replaces,null,false,"합성 누락 정정",UUID.randomUUID()));assertNotNull(id);return id;
     }
-    private int balance(UUID bucket) {return workflow.buckets(manager,employee.employeeId()).stream().filter(b->b.id().equals(bucket)).findFirst().orElseThrow().balanceDays();}
+    private double balance(UUID bucket) {return workflow.buckets(manager,employee.employeeId()).stream().filter(b->b.id().equals(bucket)).findFirst().orElseThrow().balanceDays();}
     private long employeeVersion() {return db.queryForObject("SELECT version FROM tna.employee WHERE tenant_id=? AND id=?",Long.class,tenant,employee.employeeId());}
     private int count(String table,String condition) {return db.queryForObject("SELECT count(*) FROM "+table+" WHERE tenant_id=? AND "+condition,Integer.class,tenant);}
     private int approveAfter(CountDownLatch start,UUID request) throws Exception {start.await();try{workflow.decide(approver,request,new DecisionForm("APPROVE",0L,"동시 승인",UUID.randomUUID()));return 1;}catch(OrgException error){assertEquals(422,error.status());return 0;}}

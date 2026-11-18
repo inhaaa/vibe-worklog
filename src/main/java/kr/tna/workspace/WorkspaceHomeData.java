@@ -12,10 +12,10 @@ import kr.tna.workspace.WorkspaceData.RequestItem;
 
 /** Home needs display summaries. Detailed evidence and reasons stay on their own pages. */
 public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> week,
-        Long availableLeaveDays, long pendingRequests, List<RecentRequest> recentRequests) {
+        Double availableLeaveDays, long pendingRequests, List<RecentRequest> recentRequests) {
     public record Employee(String employeeName) { }
     public record DateLabel(LocalDate workDate) { }
-    public record LeaveStatus(boolean effectiveLeave) { }
+    public record LeaveStatus(boolean effectiveLeave, String leavePart) { }
     public record TimelineEntry(LocalTime time, String title, String kind) { }
     public record Today(DateLabel snapshot, String scheduleText, String calendarText, String confirmationText,
             Instant inRecordedAt, Instant outRecordedAt, List<TimelineEntry> timeline, List<LeaveStatus> requests) { }
@@ -47,6 +47,7 @@ public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> we
     }
 
     private static List<LeaveStatus> effectiveLeave(DayView day) {
-        return day.requests().stream().anyMatch(RequestItem::effectiveLeave) ? List.of(new LeaveStatus(true)) : List.of();
+        return day.requests().stream().filter(RequestItem::effectiveLeave)
+                .map(item -> new LeaveStatus(true, item.request().leavePart())).toList();
     }
 }

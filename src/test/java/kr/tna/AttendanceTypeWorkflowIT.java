@@ -154,7 +154,7 @@ class AttendanceTypeWorkflowIT {
     }
     private void approve(UUID request) {flow.decide(approver,request,new DecisionForm("APPROVE",flow.get(approver,request).request().version(),"합성 승인",UUID.randomUUID()));}
     private int count(String table) {return db.queryForObject("SELECT count(*) FROM tna."+table+" WHERE tenant_id=?",Integer.class,tenant);}
-    private int balance() {return flow.buckets(worker,worker.employeeId()).getFirst().balanceDays();}
+    private double balance() {return flow.buckets(worker,worker.employeeId()).getFirst().balanceDays();}
     private void assertStatus(int expected,Runnable action) {assertEquals(expected,assertThrows(OrgException.class,action::run).status());}
     private TnaPrincipal member(Set<String> roles) {
         UUID employee=UUID.randomUUID(),account=UUID.randomUUID();

@@ -102,7 +102,7 @@ public class RequestController {
     }
     private boolean beforeLeaveStarts(TnaPrincipal actor,RequestDetail detail){
         LocalDate today=commands.today();
-        for(var day:detail.days())if(day.quantityDays()==1){
+        for(var day:detail.days())if(day.quantityDays()>0){
             if(day.leaveDate().isBefore(today))return false;
             if(day.leaveDate().isAfter(today))return true;
             var snapshot=clocks.day(actor,day.leaveDate());

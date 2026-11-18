@@ -9,18 +9,25 @@ import org.springframework.format.annotation.DateTimeFormat;
 public final class RequestData {
     private RequestData() { }
     public record Bucket(UUID id,UUID employeeId,String employeeName,LocalDate baseDate,LocalDate usableFrom,
-            LocalDate usableTo,String sourceReference,long version,int balanceDays,int availableDays,int pendingDays,int futureApprovedDays) { }
+            LocalDate usableTo,String sourceReference,long version,double balanceDays,double availableDays,double pendingDays,double futureApprovedDays) { }
     public record BucketForm(UUID employeeId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate baseDate,
             @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate usableFrom,
             @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate usableTo,Integer quantityDays,
             String sourceReference,String reason,UUID commandId) { }
     public record AdjustmentForm(Integer quantityDays,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate effectiveOn,
             Long expectedVersion,String sourceReference,String reason,UUID commandId) { }
-    public record LedgerEntry(UUID id,UUID bucketId,UUID employeeId,String entryKind,int signedQuantityDays,
+    public record LedgerEntry(UUID id,UUID bucketId,UUID employeeId,String entryKind,double signedQuantityDays,
             LocalDate effectiveOn,UUID requestEffectId,LocalDate leaveDate,UUID reversesEntryId,
             String sourceReference,String reason,Instant createdAt) { }
     public record LeaveForm(UUID bucketId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
-            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,UUID predecessorRequestId,String reason,UUID commandId) { }
+            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,UUID predecessorRequestId,String reason,UUID commandId,String leavePart) {
+        public LeaveForm {
+            if (leavePart == null) leavePart = "FULL";
+        }
+        public LeaveForm(UUID bucketId,LocalDate from,LocalDate to,UUID predecessorRequestId,String reason,UUID commandId) {
+            this(bucketId,from,to,predecessorRequestId,reason,commandId,"FULL");
+        }
+    }
     public record CorrectionForm(UUID targetEmployeeId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate workDate,
             Long baseInputRevision,String sourceFingerprint,String inAction,String requestedInAt,String outAction,
             String requestedOutAt,boolean presenceAsWork,boolean breaksConfirmed,String actualBreaks,
@@ -36,8 +43,8 @@ public final class RequestData {
             String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
             Long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
-            long version,String effectStatus,int quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId,
-            String formCode,String formName,int currentStep,int totalSteps,boolean legacyForm) {
+            long version,String effectStatus,double quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId,
+            String formCode,String formName,int currentStep,int totalSteps,boolean legacyForm,String leavePart) {
         @org.apache.ibatis.annotations.AutomapConstructor public RequestView { }
         public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
             String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
@@ -45,7 +52,7 @@ public final class RequestData {
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
             long version,String effectStatus,int quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId) {
             this(id,targetEmployeeId,targetEmployeeName,authorAccountId,kind,status,currentApproverId,approverName,
-                 approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,routeSnapshotId,attendanceTypeVersionId,null,null,1,1,true);
+                 approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,routeSnapshotId,attendanceTypeVersionId,null,null,1,1,true,"FULL");
         }
         public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
                 String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
@@ -66,7 +73,12 @@ public final class RequestData {
                     originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,null,null);
         }
     }
-    public record RequestDay(LocalDate leaveDate,int quantityDays,UUID scheduleVersionId,UUID calendarVersionId,String zeroReason) { }
+    public record RequestDay(LocalDate leaveDate,double quantityDays,UUID scheduleVersionId,UUID calendarVersionId,String zeroReason,String leavePart) {
+        @org.apache.ibatis.annotations.AutomapConstructor public RequestDay { }
+        public RequestDay(LocalDate leaveDate,double quantityDays,UUID scheduleVersionId,UUID calendarVersionId,String zeroReason) {
+            this(leaveDate,quantityDays,scheduleVersionId,calendarVersionId,zeroReason,"FULL");
+        }
+    }
     public record CorrectionDetail(LocalDate workDate,long baseInputRevision,String sourceFingerprint,
             String inAction,String outAction,Instant requestedInAt,Instant requestedOutAt,boolean presenceAsWork,
             boolean breaksConfirmed,String actualBreaks,UUID replacesRequestId,String beforeSnapshot) { }

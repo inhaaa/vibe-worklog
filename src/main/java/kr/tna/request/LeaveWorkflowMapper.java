@@ -15,28 +15,33 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
           r.approver_assignment_version,r.submitted_at,r.reason,r.predecessor_request_id,r.original_request_id,
           r.leave_bucket_id,r.from_date,r.to_date,r.exceptional,r.version,
           COALESCE(f.effect_status,'NONE') AS effect_status,
-          COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id),0)::integer AS quantity_days,
+          COALESCE(leave_info.quantity_days,0) AS quantity_days,
           r.route_snapshot_id,r.attendance_type_version_id,
           COALESCE(fm.code,CASE r.kind WHEN 'LEAVE_DAY' THEN 'L01' WHEN 'CANCEL_LEAVE' THEN 'L02' ELSE 'A01' END) AS form_code,
           COALESCE(fv.name,CASE r.kind WHEN 'LEAVE_DAY' THEN '휴가 신청서' WHEN 'CANCEL_LEAVE' THEN '휴가 취소 신청서' ELSE '출퇴근 정정 신청서' END) AS form_name,
-          r.current_step,r.total_steps,(r.form_version_id IS NULL) AS legacy_form
+          r.current_step,r.total_steps,(r.form_version_id IS NULL) AS legacy_form,
+          CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(leave_info.leave_part,'FULL') END AS leave_part
         FROM tna.approval_request r
         LEFT JOIN tna.request_form_version fv ON fv.tenant_id=r.tenant_id AND fv.id=r.form_version_id
         LEFT JOIN tna.request_form fm ON fm.tenant_id=fv.tenant_id AND fm.id=fv.form_id
         JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
         JOIN tna.employee p ON p.tenant_id=r.tenant_id AND p.id=r.current_approver_id
         LEFT JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id
+        LEFT JOIN LATERAL (
+          SELECT sum(d.quantity_days) AS quantity_days,min(d.leave_part) AS leave_part
+          FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)
+        ) leave_info ON r.kind IN ('LEAVE_DAY','CANCEL_LEAVE')
         """;
     String BUCKET_SELECT="""
         SELECT b.id,b.employee_id,e.display_name AS employee_name,b.base_date,b.usable_from,b.usable_to,
           b.source_reference,b.version,
-          COALESCE((SELECT sum(l.signed_quantity_days) FROM tna.leave_ledger l WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id),0)::integer AS balance_days,
+          COALESCE((SELECT sum(l.signed_quantity_days) FROM tna.leave_ledger l WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id),0) AS balance_days,
           CASE WHEN b.base_date<=#{today} AND b.usable_from<=#{today} AND(b.usable_to IS NULL OR b.usable_to>=#{today}) THEN
-            COALESCE((SELECT sum(l.signed_quantity_days) FROM tna.leave_ledger l WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id),0) ELSE 0 END::integer AS available_days,
+            COALESCE((SELECT sum(l.signed_quantity_days) FROM tna.leave_ledger l WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id),0) ELSE 0 END AS available_days,
           COALESCE((SELECT sum(d.quantity_days) FROM tna.approval_request r JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
-            WHERE r.tenant_id=b.tenant_id AND r.leave_bucket_id=b.id AND r.kind='LEAVE_DAY' AND r.status='PENDING'),0)::integer AS pending_days,
-          COALESCE((SELECT count(*) FROM tna.leave_ledger l JOIN tna.request_effect f ON f.tenant_id=l.tenant_id AND f.id=l.request_effect_id
-            WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id AND l.entry_kind='USE' AND l.leave_date>#{today} AND f.effect_status='EFFECTIVE'),0)::integer AS future_approved_days
+            WHERE r.tenant_id=b.tenant_id AND r.leave_bucket_id=b.id AND r.kind='LEAVE_DAY' AND r.status='PENDING'),0) AS pending_days,
+          COALESCE((SELECT sum(-l.signed_quantity_days) FROM tna.leave_ledger l JOIN tna.request_effect f ON f.tenant_id=l.tenant_id AND f.id=l.request_effect_id
+            WHERE l.tenant_id=b.tenant_id AND l.bucket_id=b.id AND l.entry_kind='USE' AND l.leave_date>#{today} AND f.effect_status='EFFECTIVE'),0) AS future_approved_days
         FROM tna.leave_bucket b JOIN tna.employee e ON e.tenant_id=b.tenant_id AND e.id=b.employee_id
         """;
     @Select(BUCKET_SELECT+" WHERE b.tenant_id=#{tenantId} AND b.employee_id=#{employeeId} ORDER BY b.usable_to NULLS LAST,b.usable_from,b.id")
@@ -60,7 +65,7 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
         VALUES(#{tenantId},#{id},#{bucketId},#{employeeId},#{kind},#{quantity},#{effectiveOn},#{effectId},#{leaveDate},#{reverses},#{source},#{reason},#{actorId})
         """)
     int insertLedger(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("bucketId") UUID bucketId,
-        @Param("employeeId") UUID employeeId,@Param("kind") String kind,@Param("quantity") int quantity,
+        @Param("employeeId") UUID employeeId,@Param("kind") String kind,@Param("quantity") double quantity,
         @Param("effectiveOn") LocalDate effectiveOn,@Param("effectId") UUID effectId,@Param("leaveDate") LocalDate leaveDate,
         @Param("reverses") UUID reverses,@Param("source") String source,@Param("reason") String reason,@Param("actorId") UUID actorId);
     @Select(REQUEST_SELECT+" WHERE r.tenant_id=#{tenantId} AND r.id=#{id}")
@@ -98,7 +103,7 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
     int transition(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("version") long version,@Param("status") String status);
     @Update("UPDATE tna.approval_request SET current_approver_id=#{approverId},version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND status='PENDING' AND version=#{version}")
     int reassign(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("version") long version,@Param("approverId") UUID approverId);
-    @Select("SELECT leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason FROM tna.leave_request_day WHERE tenant_id=#{tenantId} AND request_id=#{requestId} ORDER BY leave_date")
+    @Select("SELECT leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason,leave_part FROM tna.leave_request_day WHERE tenant_id=#{tenantId} AND request_id=#{requestId} ORDER BY leave_date")
     List<RequestDay> requestDays(@Param("tenantId") UUID tenantId,@Param("requestId") UUID requestId);
     @Select("""
         WITH changed AS (
@@ -127,16 +132,17 @@ public interface LeaveWorkflowMapper extends FormStepMapper {
         """)
     List<ScheduleChange> scheduleChanges(UUID tenantId, UUID requestId, UUID employeeId, LocalDate today);
 
-    @Insert("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason) VALUES(#{tenantId},#{id},#{requestId},#{d.leaveDate},#{d.quantityDays},#{d.scheduleVersionId},#{d.calendarVersionId},#{d.zeroReason})")
+    @Insert("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason,leave_part) VALUES(#{tenantId},#{id},#{requestId},#{d.leaveDate},#{d.quantityDays},#{d.scheduleVersionId},#{d.calendarVersionId},#{d.zeroReason},#{d.leavePart})")
     int insertDay(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("requestId") UUID requestId,@Param("d") RequestDay day);
     @Select("""
         SELECT EXISTS(SELECT 1 FROM tna.approval_request r JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
           LEFT JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id
           WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.kind='LEAVE_DAY' AND d.leave_date=#{date}
-            AND d.quantity_days=1 AND (#{exceptId}::uuid IS NULL OR r.id<>#{exceptId})
+            AND d.quantity_days>0 AND (#{part}='FULL' OR d.leave_part IN ('FULL',#{part}))
+            AND (#{exceptId}::uuid IS NULL OR r.id<>#{exceptId})
             AND(r.status='PENDING' OR (r.status='APPROVED' AND f.effect_status='EFFECTIVE')))
         """)
-    boolean overlappingLeave(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("exceptId") UUID exceptId);
+    boolean overlappingLeave(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("part") String part,@Param("exceptId") UUID exceptId);
     @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND original_request_id=#{id} AND kind IN ('CANCEL_LEAVE','CANCEL_OVERTIME') AND status='PENDING')")
     boolean pendingCancellation(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("SELECT EXISTS(SELECT 1 FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND from_date=#{date} AND status='PENDING')")

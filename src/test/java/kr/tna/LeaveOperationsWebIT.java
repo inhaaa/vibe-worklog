@@ -152,7 +152,7 @@ class LeaveOperationsWebIT {
         var approvedResponse = mvc.perform(filters(view(admin)).param("status", "APPROVED")).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id", newerDecision))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/id", approved))
-                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/quantityDays", 2))
+                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/quantityDays", 2.0))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/leaveTypeName", pinnedName()))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/decidedByName", "합성 HISTORICAL"))
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/1/decidedAt", baseTime.plusSeconds(30).toString()))
@@ -197,7 +197,7 @@ class LeaveOperationsWebIT {
         mvc.perform(view(admin).param("requestKind", "CANCEL_LEAVE"))
                 .andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/originalRequestId", original))
-                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/quantityDays", 2));
+                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/quantityDays", 2.0));
         db.update("UPDATE tna.approval_request SET status='APPROVED' WHERE tenant_id=? AND id=?", tenant, cancellation);
         db.update("UPDATE tna.request_effect SET effect_status='CANCELED' WHERE tenant_id=? AND id=?", tenant, effect);
         effect(cancellation, "CANCEL", effect);
