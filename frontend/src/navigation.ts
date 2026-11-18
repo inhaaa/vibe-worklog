@@ -27,6 +27,7 @@ const navigation: NavigationGroup[] = [
       item('schedule', '근무 일정', '/me/schedule', employee, 'workspace/schedule'),
       item('worktime', '근로시간', '/me/worktime', employee, 'worktime/month'),
       item('correction', '출퇴근 정정 신청', '/me/requests/correction', employee, 'request/correction'),
+      item('overtime', '연장근무 신청', '/me/overtime', employee, 'overtime/employee'),
     ] },
     { id: 'my-requests', label: '휴가·신청', children: [
       item('new-leave', '휴가 신청', '/me/requests/new?kind=LEAVE_DAY', employee),
@@ -58,6 +59,7 @@ const navigation: NavigationGroup[] = [
       item('company-attendance', '회사 근무현황', '/company/attendance', company, 'company/attendance'),
       item('admin-correction', '출퇴근 정정 현황', '/admin/requests?scope=CORRECTION', admin),
       item('company-correction', '회사 정정 현황', '/company/requests?scope=CORRECTION', ['COMPANY_REPRESENTATIVE']),
+      item('overtime-status', '연장근무 신청현황', '/admin/overtime', admin, 'overtime/admin'),
       item('attendance-report', '근태 집계·Excel', '/admin/attendance', admin, 'worktime/month'),
     ] },
     { id: 'work-operations', label: '근무 기준', children: [
@@ -138,9 +140,10 @@ export function getNavigationContext(page: string, location: string, data: Recor
     const self = data.employeeHeader as { employeeId?: string } | undefined;
     const mine = data.ownRequest === true || data.canWithdraw === true || data.canCancel === true || (self?.employeeId != null && self.employeeId === request?.targetEmployeeId);
     const sourcePath = source.split('?')[0];
-    href = ['/me/requests', '/approvals', '/approvals/completed', '/admin/requests', '/company/requests'].includes(sourcePath)
-      ? source : mine ? '/me/requests' : data.canDecide === true ? '/approvals' : data.admin === true
-        ? requestHref('/admin/requests', request?.kind === 'ATTENDANCE_CORRECTION' ? 'CORRECTION' : 'LEAVE')
+    const overtime = request?.kind === 'OVERTIME' || request?.kind === 'CANCEL_OVERTIME';
+    href = ['/me/overtime', '/admin/overtime', '/me/requests', '/approvals', '/approvals/completed', '/admin/requests', '/company/requests'].includes(sourcePath)
+      ? source : mine ? (overtime ? '/me/overtime' : '/me/requests') : data.canDecide === true ? '/approvals' : data.admin === true
+        ? overtime ? '/admin/overtime' : requestHref('/admin/requests', request?.kind === 'ATTENDANCE_CORRECTION' ? 'CORRECTION' : 'LEAVE')
         : request?.status && request.status !== 'PENDING' ? '/approvals/completed' : '/approvals';
   } else if (page === 'request/list') {
     href = pathname === '/admin/requests' ? requestHref(pathname, data.requestScope ?? searchParams.get('scope'))

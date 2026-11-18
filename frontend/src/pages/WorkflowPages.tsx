@@ -119,7 +119,7 @@ function storedIntervals(value: string | null): string {
 }
 
 const requestName = (value: string, names: Record<string, string>) => names[value] ?? value;
-const requestKindName = (kind: string) => requestName(kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
+const requestKindName = (kind: string) => requestName(kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소' });
 const requestStateName = (status: string) => requestName(status, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
 const requestEffectName = (effect: string) => requestName(effect, { EFFECTIVE: '반영', CANCELED: '취소', SUPERSEDED: '대체', NONE: '미반영' });
 
@@ -185,15 +185,16 @@ function Mine({ model: m }: { model: MineModel }) {
 function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const r = m.request,
     d = m.detail;
+  const overtime = r.kind === 'OVERTIME' || r.kind === 'CANCEL_OVERTIME';
   const isLeave = r.kind === 'LEAVE_DAY' || r.kind === 'CANCEL_LEAVE';
   const staffLeave = m.admin && isLeave;
   const leaveReturn = staffLeave ? leaveOperationsReturn(m.leaveReturnTo) : null;
   const leaveTypeName = isLeave ? d.attendancePolicy?.name : null;
   const hasLeaveDecision = staffLeave && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const label = (value: string, names: Record<string, string>) => Object.hasOwn(names, value) ? names[value] : value;
-  const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
+  const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소' });
   const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
-  const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
+  const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: overtime ? '취소됨' : '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
   const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', STEP_APPROVED: '중간 승인', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
   const steps = d.steps ?? [];
   const activeStep = steps.find(step => step.status === 'ACTIVE');
@@ -223,7 +224,10 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
           <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
-          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
+          {overtime ? <>
+            {m.admin && <a className="t-btn t-request-detail-back" href="/admin/overtime">연장근무 신청현황</a>}
+            {m.ownRequest && <a className="t-btn t-request-detail-back" href="/me/overtime">내 연장근무 신청</a>}
+          </> : <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>}
         </div>} />
       <div className="t-request-detail-document">
         <section className="t-card wl-detail-approval" aria-labelledby="request-record-approval-title">
@@ -258,6 +262,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <h3>신청 기간</h3>
               <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
               {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
+              {d.overtime && <p className="t-request-detail-quantity">{d.overtime.startTime.slice(0,5)}~{d.overtime.endTime.slice(0,5)} · {d.overtime.requestedMinutes}분</p>}
               {leaveTypeName && <p><span className="t-muted">휴가 종류 </span><strong>{leaveTypeName}</strong></p>}
               {staffLeave && r.submittedAt && <p><span className="t-muted">접수 시각 </span><time dateTime={r.submittedAt}>{fmtDateTime(r.submittedAt)}</time></p>}
             </section>
@@ -269,6 +274,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p>
             </section>
           </div>
+          {r.kind === 'CANCEL_OVERTIME' && r.status === 'PENDING' && <Notice>취소 결재 중에는 원래 승인한 연장근무가 유효합니다.</Notice>}
           {r.kind === 'CANCEL_LEAVE' && r.status === 'PENDING' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
           {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}${leaveReturn
             ? '?' + new URLSearchParams({ returnTo: leaveReturn }) : ''}`}>원신청 보기 </a>}
@@ -356,8 +362,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
                 <FormTable>
                   <Reason label="취소 요청 사유" value={m.cancelReason}/>
                   <p>
-                    예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
-                    필요합니다.
+                    {overtime ? '예정 시작 전까지 승인된 구간 전체의 취소를 요청할 수 있습니다.' : '예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가 필요합니다.'}
                   </p>
                 </FormTable>
                 <InlineRequestApproval approval={m.cancelApproval}/>

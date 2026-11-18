@@ -65,6 +65,7 @@ export interface ApprovalHistory {
   reason: string;
 }
 export interface RequestDetail {
+  overtime?: { workDate: string; startTime: string; endTime: string; requestedMinutes: number } | null;
   steps?: { stepNumber: number; role: string; originalApproverName: string; approverName: string;
     status: string; decidedByName: string | null; decidedAt: string | null; reason: string | null }[];
   reassignmentRequired?: boolean;

@@ -37,6 +37,14 @@ const request = {
   approverName: '승인자',
   originalRequestId: null,
 };
+it('연장 취소 결재 중에는 원승인이 유효하고 신청 구간과 분이 표시된다',async()=>{
+  const view=await render('request/detail',{request:{...request,kind:'CANCEL_OVERTIME',originalRequestId:'origin'},
+    detail:{days:[],history:[],overtime:{workDate:'2026-12-02',startTime:'18:30:00',endTime:'21:00:00',requestedMinutes:135}},
+    ownRequest:true,pageCommand:'c',candidates:[]});
+  expect(view.getByText('18:30~21:00 · 135분')).toBeTruthy();
+  expect(view.getByText('취소 결재 중에는 원래 승인한 연장근무가 유효합니다.')).toBeTruthy();
+  expect(view.getByRole('link',{name:'내 연장근무 신청'}).getAttribute('href')).toBe('/me/overtime');
+});
 it('취소 신청 결재선이 달라지면 기존 사유와 새 확인값으로 다시 제출할 수 있다',async()=>{
   const view=await render('request/detail',{request:{...request,status:'APPROVED',effectStatus:'EFFECTIVE'},
     detail:{days:[],history:[]},canCancel:true,cancelReason:'이미 입력한 휴가 취소 사유',

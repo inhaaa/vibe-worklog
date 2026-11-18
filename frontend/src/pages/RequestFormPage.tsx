@@ -5,7 +5,7 @@ import { fetchPage } from '../transport';
 import './RequestFormPage.css';
 
 const path='/admin/request-forms';
-const kinds:Record<string,string>={LEAVE_DAY:'휴가 신청',CANCEL_LEAVE:'휴가 취소',ATTENDANCE_CORRECTION:'출퇴근 정정'};
+const kinds:Record<string,string>={LEAVE_DAY:'휴가 신청',CANCEL_LEAVE:'휴가 취소',ATTENDANCE_CORRECTION:'출퇴근 정정',OVERTIME:'연장근무',CANCEL_OVERTIME:'연장근무 취소'};
 type Row={id:string;code:string;name:string;kind:string;version:number;enabled:boolean;routeVersionId:string|null;routeName:string|null;routeRevision:number|null;nextFrom:string|null};
 type History={id:string;revision:number;effectiveFrom:string;enabled:boolean;name:string;routeVersionId:string|null;reason:string;changedBy:string|null;createdAt:string};
 type Route={id:string;name:string;code:string;active:boolean;revision:number;approverKind:string;terminalUnit:string|null};

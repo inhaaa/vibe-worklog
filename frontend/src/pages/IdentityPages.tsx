@@ -92,7 +92,7 @@ const statuses: Record<string, string> = {
 };
 const kinds: Record<string, string> = {
   LEAVE_DAY: '종일 연차',
-  CANCEL_LEAVE: '연차 취소',
+  CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소',
   ATTENDANCE_CORRECTION: '기록 정정',
 };
 const effects: Record<string, string> = {

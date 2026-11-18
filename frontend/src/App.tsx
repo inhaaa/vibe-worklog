@@ -4,6 +4,7 @@ import type { PageEnvelope, PageProps } from './types';
 import { CsrfContext, Form } from './ui';
 import { encodeForm, fetchPage, PageDownload, PageRequestError } from './transport';
 import { AdminPages } from './pages/AdminPages';
+import { OvertimePage } from './pages/OvertimePage';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
@@ -96,6 +97,8 @@ const titles: Record<string, string> = {
   'clock/history': '출퇴근 내역',
   'clock/period': '출퇴근 기간 조회',
   'org/onboarding': '입사 예정 관리',
+  'overtime/employee': '연장근무 신청',
+  'overtime/admin': '연장근무 신청현황',
   'request/mine': '내 근태현황·신청',
   'request/attributions': '기초 묶음 귀속연도',
   'request/detail': '신청 상세',
@@ -285,6 +288,7 @@ function Content(props: PageProps) {
       <LeaveAttributionPage {...props} />
       <PersonnelPage {...props} />
       <AdminPages {...props} />
+      <OvertimePage {...props} />
       <WorkflowPages {...props} />
     </>
   );

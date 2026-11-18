@@ -13,7 +13,7 @@ import './RequestWorkspace.css';
 import { RequestApprovalPreview } from './RequestApprovalPreview';
 import { Notice } from '../components/Notice';
 
-const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' }[kind] ?? kind);
+const kindName = (kind: string) => ({ LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소' }[kind] ?? kind);
 const statusName = (status: string) => ({ PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' }[status] ?? status);
 const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? '확인 필요');
 const hidden = (name: string, value: string | number | boolean | null | undefined) => <input type="hidden" name={name} value={value == null ? '' : String(value)} />;

@@ -5,7 +5,7 @@ import './ApprovalWorkspace.css';
 const label = (value: string, names: Record<string, string>) =>
   Object.hasOwn(names, value) ? names[value] : value;
 const kindName = (value: string) => label(value, {
-  LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소',
+  LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소', OVERTIME: '연장근무', CANCEL_OVERTIME: '연장근무 취소',
 });
 const statusName = (value: string) => label(value, {
   PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회',
