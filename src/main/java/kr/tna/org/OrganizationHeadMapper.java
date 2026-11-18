@@ -154,7 +154,7 @@ public interface OrganizationHeadMapper {
             LEFT JOIN tna.organization_head_assignment h ON h.tenant_id=o.tenant_id AND h.organization_id=o.id
               AND h.superseded_at IS NULL AND h.valid_from &lt;= #{today} AND (h.valid_to IS NULL OR h.valid_to>#{today})
             LEFT JOIN tna.employee e ON e.tenant_id=h.tenant_id AND e.id=h.employee_id
-            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=m.tenant_id AND sa.employee_id=m.id
+            LEFT JOIN tna.effective_schedule_assignment sa ON sa.tenant_id=m.tenant_id AND sa.employee_id=m.id
               AND sa.valid_from &lt;= #{today} AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version v ON v.tenant_id=sa.tenant_id AND v.id=sa.schedule_version_id
             LEFT JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id

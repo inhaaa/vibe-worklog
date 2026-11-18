@@ -84,7 +84,7 @@ public interface EmployeeAdminMapper {
             LEFT JOIN tna.employee_assignment a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
               AND #{today}>=a.valid_from AND (a.valid_to IS NULL OR a.valid_to>#{today})
             LEFT JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
-            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
+            LEFT JOIN tna.effective_schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
               AND #{today}>=sa.valid_from AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version v ON v.tenant_id=sa.tenant_id AND v.id=sa.schedule_version_id
             LEFT JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id

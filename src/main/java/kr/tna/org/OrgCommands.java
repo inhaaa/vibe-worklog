@@ -53,7 +53,7 @@ public final class OrgCommands {
         });
     }
 
-    <T> T readShared(TnaPrincipal actor, Supplier<T> action) {
+    public <T> T readShared(TnaPrincipal actor, Supplier<T> action) {
         return read(actor, () -> {
             jdbc.queryForObject("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text),0))",
                     Object.class, actor.tenantId());

@@ -305,6 +305,70 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
                 () -> assertEquals(before, demoState(), "서비스 호출도 사원·인사·상태 이력·감사를 바꾸지 않는다"));
     }
 
+    @Test
+    void sharedAssignmentsAndGroupRevisionsCoveringAFutureSharedMemberAreReadOnly() throws Exception {
+        var session=publicLogin("198.51.100.241");
+        var db=demoDb();
+        var tenant=LocalDemoLogin.TENANT_ID;
+        var actor=LocalDemoLogin.ACCOUNT_ID;
+        var group=UUID.randomUUID();
+        var version=UUID.randomUUID();
+        var code=UUID.randomUUID();
+        var daily=UUID.randomUUID();
+        var date=LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(2);
+        var member=LocalDemoLogin.APPROVER_EMPLOYEE_ID;
+        var json=tools.jackson.databind.json.JsonMapper.builder().build();
+        var base="/admin/schedules/workgroups/";
+        try {
+            db.update("INSERT INTO tna.work_time_code(tenant_id,id,code) VALUES (?,?,'WD')",tenant,code);
+            db.update("""
+                    INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,start_time,end_time,reason,created_by)
+                    VALUES (?,?,?,1,?,true,'공유 기준',TIME '09:00',TIME '18:00','검증',?)
+                    """,tenant,daily,code,date,actor);
+            db.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'GD','공유 조',?,?)",tenant,group,actor,actor);
+            db.update("INSERT INTO tna.work_group(tenant_id,id) VALUES (?,?)",tenant,group);
+            db.update("INSERT INTO tna.schedule_version(tenant_id,id,template_id,revision,valid_from,reason,created_by) VALUES (?,?,?,1,?,'원래 일정',?)",
+                    tenant,version,group,date,actor);
+            db.update("""
+                    INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,work_group_id,valid_from,reason,created_by,updated_by)
+                    VALUES (?,?,?,?,?,?,'보호 대상의 후속 전입',?,?)
+                    """,tenant,UUID.randomUUID(),member,version,group,date.plusDays(9),actor,actor);
+
+            var transfer=new kr.tna.schedule.WorkGroupData.AssignmentCommand(group,date,List.of(LocalDemoLogin.EMPLOYEE_ID),
+                    "공유 배정 시도",List.of(),null,UUID.randomUUID());
+            var transferPreview=publicMvc.perform(post(base+"assignments/preview").session(session).with(csrf())
+                    .contentType("application/json").content(json.writeValueAsString(transfer))).andExpect(status().isOk()).andReturn();
+            var transferToken=json.readTree(transferPreview.getResponse().getContentAsByteArray()).path("token").asString();
+            publicMvc.perform(post(base+"assignments/save").session(session).with(csrf()).contentType("application/json")
+                    .content(json.writeValueAsString(transfer.confirm(transferToken)))).andExpect(status().isForbidden());
+
+            var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new kr.tna.schedule.WorkGroupData.WeekInput(i,daily)).toList();
+            var revision=new kr.tna.schedule.WorkGroupData.GroupCommand(group,"GD","공유 조",date.plusDays(3),days,"공유 시간표 변경",
+                    0L,null,null,UUID.randomUUID());
+            var revisionPreview=publicMvc.perform(post(base+"groups/preview").session(session).with(csrf())
+                    .contentType("application/json").content(json.writeValueAsString(revision))).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.incoming[0].id").value(member.toString())).andReturn();
+            var revisionToken=json.readTree(revisionPreview.getResponse().getContentAsByteArray()).path("token").asString();
+            publicMvc.perform(post(base+"groups/save").session(session).with(csrf()).contentType("application/json")
+                    .content(json.writeValueAsString(revision.confirm(revisionToken)))).andExpect(status().isForbidden());
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.schedule_assignment WHERE tenant_id=?",Integer.class,tenant));
+            assertEquals(1,db.queryForObject("SELECT count(*) FROM tna.schedule_version WHERE tenant_id=?",Integer.class,tenant));
+        } finally {
+            db.update("DELETE FROM tna.schedule_assignment WHERE tenant_id=? AND work_group_id=?",tenant,group);
+            var versions=db.queryForList("SELECT id FROM tna.schedule_version WHERE tenant_id=? AND template_id=?",UUID.class,tenant,group);
+            for(UUID published:versions) {
+                db.update("DELETE FROM tna.work_group_day WHERE tenant_id=? AND schedule_version_id=?",tenant,published);
+                db.update("DELETE FROM tna.schedule_break WHERE tenant_id=? AND version_id=?",tenant,published);
+                db.update("DELETE FROM tna.schedule_day WHERE tenant_id=? AND version_id=?",tenant,published);
+            }
+            db.update("DELETE FROM tna.schedule_version WHERE tenant_id=? AND template_id=?",tenant,group);
+            db.update("DELETE FROM tna.work_group WHERE tenant_id=? AND id=?",tenant,group);
+            db.update("DELETE FROM tna.schedule_template WHERE tenant_id=? AND id=?",tenant,group);
+            db.update("DELETE FROM tna.work_time_code_version WHERE tenant_id=? AND id=?",tenant,daily);
+            db.update("DELETE FROM tna.work_time_code WHERE tenant_id=? AND id=?",tenant,code);
+        }
+    }
+
     private MockHttpSession publicLogin(String remoteAddress) throws Exception {
         return (MockHttpSession) publicMvc.perform(post("/login").with(csrf())
                         .param("email", "admin").param("password", "admin")

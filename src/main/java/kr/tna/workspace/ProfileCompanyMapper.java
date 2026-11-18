@@ -38,7 +38,7 @@ public interface ProfileCompanyMapper {
             LEFT JOIN tna.organization_head_assignment oh ON oh.tenant_id=o.tenant_id AND oh.organization_id=o.id
               AND oh.superseded_at IS NULL AND oh.valid_from<=#{today} AND (oh.valid_to IS NULL OR oh.valid_to>#{today})
             LEFT JOIN tna.employee he ON he.tenant_id=oh.tenant_id AND he.id=oh.employee_id
-            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
+            LEFT JOIN tna.effective_schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
               AND sa.valid_from<=#{today} AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version sv ON sv.tenant_id=sa.tenant_id AND sv.id=sa.schedule_version_id
             LEFT JOIN tna.schedule_template t ON t.tenant_id=sv.tenant_id AND t.id=sv.template_id

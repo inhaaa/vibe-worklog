@@ -32,7 +32,7 @@ public interface ClockMapper {
             """)
     boolean recorded(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("kind") String kind);
     @Select("""
-            SELECT a.schedule_version_id,d.weekday,d.workday,d.start_time,d.end_time FROM tna.schedule_assignment a
+            SELECT a.schedule_version_id,d.weekday,d.workday,d.start_time,d.end_time FROM tna.effective_schedule_assignment a
             JOIN tna.schedule_version v ON v.tenant_id=a.tenant_id AND v.id=a.schedule_version_id
             JOIN tna.schedule_day d ON d.tenant_id=v.tenant_id AND d.version_id=v.id AND d.weekday=#{weekday}
             WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId}

@@ -60,6 +60,7 @@ public final class ScheduleService {
         String action="SCHEDULE_REVISE";
         return commands.execute(actor,form.commandId(),action,"SCHEDULE_TEMPLATE",hash(action,templateId,values),values.reason(),()->{
             Template before=requireTemplate(actor.tenantId(),templateId);
+            requireFixedTemplate(actor.tenantId(), templateId);
             checkVersion(form.expectedVersion(),before.version());
             if(!before.code().equals(values.code()))throw OrgException.invalid("템플릿 코드는 변경할 수 없습니다.");
             List<TemplateVersion> history=mapper.versions(actor.tenantId(),templateId);
@@ -92,7 +93,10 @@ public final class ScheduleService {
             TemplateVersion version=requireVersion(actor.tenantId(),form.scheduleVersionId());
             Template template=requireTemplate(actor.tenantId(),version.templateId());
             if(!template.active()||start.isBefore(version.validFrom()))throw OrgException.invalid("활성 템플릿의 사용 시작일 이후에 배정해 주세요.");
-            List<Assignment> history=mapper.assignments(actor.tenantId(),employeeId);
+            requireFixedTemplate(actor.tenantId(), template.id());
+            if (mapper.hasGroupAssignment(actor.tenantId(), employeeId, start))
+                throw OrgException.invalid("근무조 소속 사원의 일정 변경은 사원 배정에서 진행해 주세요.");
+            List<Assignment> history=mapper.physicalAssignments(actor.tenantId(),employeeId);
             Assignment previous=history.isEmpty()?null:history.getFirst();
             if(previous!=null&&(!start.isAfter(previous.validFrom())||previous.validTo()!=null&&start.isBefore(previous.validTo()))) {
                 throw OrgException.invalid("마지막 일정 배정 시작일보다 늦은 적용일을 입력해 주세요.");
@@ -117,6 +121,9 @@ public final class ScheduleService {
     }
     private List<Day> readDays(UUID tenant,UUID version) {
         return mapper.days(tenant,version).stream().map(d->new Day(d.weekday(),d.workday(),d.startTime(),d.endTime(),List.copyOf(mapper.breaks(tenant,version,d.weekday())))).toList();
+    }
+    private void requireFixedTemplate(UUID tenant, UUID id) {
+        if (mapper.isWorkGroup(tenant, id)) throw OrgException.invalid("근무조 변경은 근무 설정의 근무조에서 진행해 주세요.");
     }
     private Template requireTemplate(UUID tenant,UUID id) {
         Template template=mapper.template(tenant,id);
