@@ -48,6 +48,7 @@ public final class ScheduleService {
         Values values=normalize(form);
         String action="SCHEDULE_CREATE";
         return commands.execute(actor,form.commandId(),action,"SCHEDULE_TEMPLATE",hash(action,null,values),values.reason(),()->{
+            requireNewVersionDate(values.validFrom());
             UUID id=UUID.randomUUID();
             changed(mapper.insertTemplate(actor.tenantId(),id,values.code(),values.name(),actor.accountId()));
             TemplateVersion version=insertVersion(actor,id,1,values);
@@ -59,6 +60,7 @@ public final class ScheduleService {
         Values values=normalize(form);
         String action="SCHEDULE_REVISE";
         return commands.execute(actor,form.commandId(),action,"SCHEDULE_TEMPLATE",hash(action,templateId,values),values.reason(),()->{
+            requireNewVersionDate(values.validFrom());
             Template before=requireTemplate(actor.tenantId(),templateId);
             requireFixedTemplate(actor.tenantId(), templateId);
             checkVersion(form.expectedVersion(),before.version());
@@ -140,7 +142,6 @@ public final class ScheduleService {
     private Values normalize(TemplateForm form) {
         if(form==null)throw OrgException.invalid("일정 정보를 입력해 주세요.");
         String code=requiredText(form.code(),40,"템플릿 코드"),name=requiredText(form.name(),120,"템플릿 이름"),reason=requiredText(form.reason(),500,"변경 사유");
-        if(form.validFrom()==null||form.validFrom().isBefore(commands.today()))throw OrgException.invalid("버전 사용 시작일은 오늘 이후여야 합니다.");
         if(form.days()==null||form.days().size()!=7)throw OrgException.invalid("월요일부터 일요일까지 일곱 요일을 입력해 주세요.");
         var weekdays=new HashSet<Integer>();var days=new ArrayList<Day>();
         for(DayForm day:form.days()) {
@@ -170,6 +171,9 @@ public final class ScheduleService {
         days.sort(Comparator.comparingInt(Day::weekday));
         return new Values(code,name,form.validFrom(),List.copyOf(days),form.expectedVersion(),reason);
     }
+    private void requireNewVersionDate(LocalDate date) {
+        if (date == null || date.isBefore(commands.today())) throw OrgException.invalid("버전 사용 시작일은 오늘 이후여야 합니다.");
+    }
     private LocalTime time(String value) {
         if(value==null||!value.strip().matches("[0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\\.[0-9]{1,3})?)?"))throw OrgException.invalid("시각은 HH:mm[:ss[.SSS]] 형식으로 입력해 주세요.");
         try{return LocalTime.parse(value.strip());}
@@ -177,7 +181,14 @@ public final class ScheduleService {
     }
     private static boolean blank(String value){return value==null||value.isBlank();}
     private static void changed(int count){if(count!=1)throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 내용을 확인해 주세요.");}
-    private static String hash(String action,UUID id,Values values){return fingerprint(action,id,values.code(),values.name(),values.validFrom(),values.days(),values.expectedVersion(),values.reason());}
+    private static String hash(String action, UUID id, Values values) {
+        // V31 명령 지문은 이 다섯 필드로 만든 Day 문자열을 포함한다.
+        record Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<Break> breaks) { }
+        var days = values.days().stream().map(d -> new Day(d.weekday(), d.workday(), d.startTime(),
+                d.endTime(), d.breaks())).toList();
+        return fingerprint(action, id, values.code(), values.name(), values.validFrom(), days,
+                values.expectedVersion(), values.reason());
+    }
     private record Values(String code,String name,LocalDate validFrom,List<Day> days,Long expectedVersion,String reason) { }
     private record VersionState(Template template,TemplateVersion version,List<Day> days) { }
     private record AssignmentState(long employeeVersion,Assignment previous,Assignment current) { }
