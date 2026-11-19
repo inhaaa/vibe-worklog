@@ -11,7 +11,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 @Mapper
-public interface CheckoutFollowUpMapper {
+public interface CheckoutFollowUpMapper extends ClosedAttendanceMonths {
     record OpenRow(UUID id, UUID employeeId, LocalDate workDate, String reason, UUID lastRequestId, String requestStatus,
             long inputRevision, long reviewRevision, UUID scheduleVersionId, Boolean workday, LocalTime startTime,
             LocalTime endTime, String breaks, UUID calendarVersionId, String dayKind, String events,

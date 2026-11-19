@@ -63,13 +63,15 @@ public final class WorktimeService {
                 var person=employee(actor.tenantId(),stored.employeeId());
                 var current=input(actor.tenantId(),person,stored.workDate());
                 var result=storedResult(stored);
-                boolean currentSource=current(current.clock(),current.source(),stored.inputRevision(),stored.reviewRevision(),stored.sourceFingerprint());
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
+                boolean isLatest = stored.id().equals(latest.id());
+                boolean employed = employed(person,stored.workDate());
+                boolean currentSource = current(current.clock(),current.source(),stored.inputRevision(),stored.reviewRevision(),stored.sourceFingerprint())
+                        || (isLatest && employed && !mapper.closedMonths(actor.tenantId(),stored.workDate(),stored.workDate()).isEmpty());
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
-                boolean employed=employed(person,stored.workDate());
                 return new ResultDetail(storedDay(person,stored,result,currentSource,
-                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),stored.id().equals(latest.id()),latest.id(),run,
+                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),isLatest,latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
@@ -80,6 +82,7 @@ public final class WorktimeService {
     public boolean correctionSuggested(TnaPrincipal actor,LocalDate date) {
         if(actor==null)throw OrgException.forbidden();
         return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());
+            if (!mapper.closedMonths(actor.tenantId(),date,date).isEmpty()) return false;
             return correctionEligible(input(actor.tenantId(),employee,date),employed(employee,date),LocalDate.now(clock.withZone(SEOUL)));});
     }
 
@@ -95,14 +98,16 @@ public final class WorktimeService {
             UUID tenant = actor.tenantId();
             var employee = employee(tenant, employeeId);
             var stored = latestDays(tenant, employee, range.from(), range.to());
+            var closedMonths = Set.copyOf(mapper.closedMonths(tenant, range.from(), range.to()));
             var rows = new ArrayList<AttendanceHistory.Row>();
             for (LocalDate date = range.to(); !date.isBefore(range.from()); date = date.minusDays(1)) {
                 var in = input(tenant, employee, date);
                 var day = in.clock();
                 var saved = stored.get(date);
-                var view = dayView(employee, in, saved, range.today());
+                boolean closed = closedMonths.contains(date.withDayOfMonth(1));
+                var view = dayView(employee, in, saved, range.today(), closed);
                 boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
-                boolean suggest = past && day.confirmation() == null && correctionEligible(in, view.employed(), range.today())
+                boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(in, view.employed(), range.today())
                         && !clocks.canConfirm(day);
                 rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
                         in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
@@ -142,7 +147,7 @@ public final class WorktimeService {
     public UUID recalculate(TnaPrincipal actor,UUID employeeId,LocalDate from,LocalDate to,UUID commandId,String reason) {
         range(from,to);UUID target=target(actor,employeeId);String checked=requiredText(reason,500,"재집계 사유"),action="WORKTIME_RECALCULATE";
         return administration.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,target,from,to,checked),checked,()->
-                calculate(actor,employee(actor.tenantId(),target),from,to,WorktimeCalculator.weekStart(from),WorktimeCalculator.weekStart(to).plusDays(6)));
+                calculate(actor,employee(actor.tenantId(),target),from,to));
     }
     /**
      * 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
@@ -154,9 +159,12 @@ public final class WorktimeService {
         String action="WORKTIME_AUTO_CALCULATE";
         UUID commandId=UUID.nameUUIDFromBytes((action+":"+confirmationCommandId).getBytes(StandardCharsets.UTF_8));
         return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"근무 확인 후 자동 계산","EMPLOYEE",
-                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate,WorktimeCalculator.weekStart(workDate),WorktimeCalculator.weekStart(workDate).plusDays(6)));
+                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate));
     }
-    private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to,LocalDate start,LocalDate end) {
+    private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to) {
+        var weeks=CalculationWindow.weeks(from,to);
+        var window=weeks.openDates(from,to,mapper.closedMonths(actor.tenantId(),weeks.start(),weeks.end()));
+        LocalDate start=window.start(),end=window.end();
         UUID target=employee.id(),runId=UUID.randomUUID();
         changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
         for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
@@ -184,6 +192,7 @@ public final class WorktimeService {
         if(form==null)throw OrgException.invalid("회사 검토 정보를 입력해 주세요.");period(form.from(),form.to());
         String basis=requiredText(form.basis(),500,"주 기산점 검토 근거"),reason=requiredText(form.reason(),500,"등록 사유"),action="WORK_POLICY_REVIEW";
         return administration.execute(actor,form.commandId(),action,"WORK_POLICY",fingerprint(action,form.from(),form.to(),form.mondayWeekReviewed(),basis,reason),reason,()->{
+            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
             UUID id=UUID.randomUUID();int revision=mapper.nextPolicy(actor.tenantId());
             changed(mapper.insertPolicy(actor.tenantId(),id,revision,form.from(),exclusive(form.to()),form.mondayWeekReviewed(),basis,actor.accountId()));
             return new Change(id,null,Map.of("revision",revision,"mondayWeekReviewed",form.mondayWeekReviewed(),"basis",basis));
@@ -193,7 +202,9 @@ public final class WorktimeService {
         if(form==null||form.employeeId()==null)throw OrgException.invalid("대상 사원을 선택해 주세요.");period(form.from(),form.to());
         String basis=requiredText(form.basis(),500,"일반 규정 검토 근거"),reason=requiredText(form.reason(),500,"등록 사유"),action="EMPLOYMENT_RULE_ASSESS";
         return administration.execute(actor,form.commandId(),action,"RULE_ASSESSMENT",fingerprint(action,form.employeeId(),form.from(),form.to(),form.generalRuleReviewed(),basis,reason),reason,()->{
-            employee(actor.tenantId(),form.employeeId());UUID id=UUID.randomUUID();int revision=mapper.nextAssessment(actor.tenantId(),form.employeeId());
+            employee(actor.tenantId(),form.employeeId());
+            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
+            UUID id=UUID.randomUUID();int revision=mapper.nextAssessment(actor.tenantId(),form.employeeId());
             changed(mapper.insertAssessment(actor.tenantId(),id,form.employeeId(),revision,form.from(),exclusive(form.to()),form.generalRuleReviewed(),basis,actor.accountId()));
             return new Change(id,null,Map.of("employeeId",form.employeeId(),"revision",revision,"generalRuleReviewed",form.generalRuleReviewed(),"basis",basis));
         });
@@ -226,8 +237,10 @@ public final class WorktimeService {
             for(var day:days) {
                 var evidence=day.id()==null?null:mapper.exportEvidence(actor.tenantId(),day.id());
                 var saved=evidence==null||evidence.clockJson()==null?null:json.readValue(evidence.clockJson(),ClockData.DaySnapshot.class);
+                String freshness = day.current() ? "작성 시점 현재" : "오래됨 · 재집계 필요";
+                if (day.id() == null) freshness = day.current() ? "월 마감 근거로 확인" : "미산정";
                 var r=day.result();rows.add(row(day.employeeNo(),day.employeeName(),day.workDate().toString(),r.status().name(),
-                        day.id()==null?"미산정":day.current()?"작성 시점 현재":"오래됨 · 재집계 필요",r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
+                        freshness,r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
                         r.confirmedBreakMillis(),r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                         String.join(";",r.reasons().stream().sorted().toList()),day.id()==null?null:day.id().toString(),day.runId()==null?null:day.runId().toString(),
                         day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:EXPORT_INSTANT.format(day.calculatedAt()),
@@ -323,24 +336,32 @@ public final class WorktimeService {
     }
     private List<DayView> readDays(UUID tenant,Employee employee,LocalDate from,LocalDate to) {
         var stored = latestDays(tenant, employee, from, to);
+        var closedMonths = Set.copyOf(mapper.closedMonths(tenant, from, to));
         LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            days.add(dayView(employee, input(tenant, employee, date), stored.get(date), today));
+            days.add(dayView(employee, input(tenant, employee, date), stored.get(date), today, closedMonths.contains(date.withDayOfMonth(1))));
         }return List.copyOf(days);
     }
-    private DayView dayView(Employee employee, Input current, WorktimeMapper.ResultRow stored, LocalDate today) {
+    private DayView dayView(Employee employee, Input current, WorktimeMapper.ResultRow stored, LocalDate today, boolean closed) {
         LocalDate date = current.clock().workDate();
         double leave = current.day().approvedLeaveDays();
         boolean employed = employed(employee, date);
         if (stored == null) {
+            if (closed && employed && !current.day().pendingCorrection()) {
+                var confirmed = calculator.day(current.day());
+                if (Long.valueOf(0).equals(confirmed.actualWorkMillis())) {
+                    return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null,
+                            current.source(), true, confirmed, false, leave, true);
+                }
+            }
             var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave,
                     current.clock().inputRevision(), current.clock().reviewRevision(), Set.of("NOT_CALCULATED", "LEGAL_OVERTIME_UNDETERMINED"));
             return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null, current.source(), false, missing,
                     employed && calculator.pending(current.day(), today, false, null), leave, employed);
         }
         var result = storedResult(stored);
-        boolean matches = current(current.clock(), current.source(), stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
+        boolean matches = (closed && employed) || current(current.clock(), current.source(), stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
         return storedDay(employee, stored, result, matches, employed && calculator.pending(current.day(), today, matches, result.actualWorkMillis()), leave, employed);
     }
     private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}

@@ -53,6 +53,7 @@ public final class CheckoutFollowUpService {
                     || employee.leftOn() != null && date.isAfter(employee.leftOn())) {
                 throw OrgException.invalid("어제까지의 재직 중 근무일을 선택해 주세요.");
             }
+            followUps.requireOpen(actor.tenantId(), date, date);
             var snapshot = clocks.snapshot(actor.tenantId(), target, date);
             var leave = WorktimeMapper.LeaveEffect.totalDays(worktime.leaveEffects(actor.tenantId(), target, date));
             boolean pending = !worktime.pendingCorrections(actor.tenantId(), target, date).isEmpty();

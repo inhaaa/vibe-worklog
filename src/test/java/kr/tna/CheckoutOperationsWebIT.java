@@ -1,5 +1,7 @@
 package kr.tna;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -10,10 +12,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.zip.ZipInputStream;
+import kr.tna.clock.AttendanceHistory;
+import kr.tna.clock.AttendanceSettingsData.CalendarForm;
+import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockService;
 import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgException;
+import kr.tna.org.EmployeeService;
+import kr.tna.org.OrgData.EmployeeForm;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.CorrectionForm;
 import kr.tna.request.RequestData.DecisionForm;
@@ -58,6 +67,8 @@ class CheckoutOperationsWebIT {
     @Autowired WorktimeService worktime;
     @Autowired CheckoutFollowUpService followUps;
     @Autowired MonthEndReviewQueries monthEndQueries;
+    @Autowired AttendanceSettingsService attendanceSettings;
+    @Autowired EmployeeService employees;
     private JdbcTemplate db;
     private UUID tenant, schedule, network;
     private LocalDate today, date;
@@ -329,6 +340,64 @@ class CheckoutOperationsWebIT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.monthEndReview.rows[0].workDate").value(date.toString()));
         mvc.perform(get("/me/attendance/follow-ups").with(as(worker)).accept(PAGE_JSON))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.checkoutFollowUps.rows").isEmpty());
+    }
+
+    @Test
+    void closedMonthKeepsConfirmedHoursAndNormalZeroAfterAFutureDepartureIsRecorded() throws Exception {
+        var month = YearMonth.from(today).minusYears(2);
+        date = month.atDay(2);
+        var zero = month.atDay(22);
+        var historical = member(tenant, "CLOSED-DAY", null);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, historical.employeeId());
+        schedule(historical, schedule(true));
+        String holidays = date.datesUntil(month.atEndOfMonth().plusDays(1)).filter(day -> !day.equals(date))
+                .map(day -> day + "|NON_WORKDAY|휴무일|합성 달력").collect(Collectors.joining("\n"));
+        attendanceSettings.calendar(admin, new CalendarForm(date, month.atEndOfMonth(), true, "합성 근무 달력", holidays, "마감 점검", UUID.randomUUID()));
+        clock(historical, date, date, "IN", 9);
+        clock(historical, date, date, "OUT", 18);
+        var day = clocks.day(historical, date);
+        clocks.confirm(historical, new ConfirmationForm(date, day.inputRevision(), day.reviewRevision(), true, true, day.sourceFingerprint(), UUID.randomUUID()));
+        worktime.recalculate(admin, historical.employeeId(), date, date, UUID.randomUUID(), "마감 전 집계");
+        var saved = worktime.days(admin, historical.employeeId(), date, date).getFirst();
+        assertEquals(28_800_000L, saved.result().actualWorkMillis());
+        assertNull(worktime.days(admin, historical.employeeId(), zero, zero).getFirst().id());
+        assertTrue(monthEndQueries.read(admin, month.toString(), null, "", "ALL", 0).rows().isEmpty());
+
+        var command = Map.of("month", month.toString(), "action", "CLOSE", "expectedVersion", 0,
+                "reason", "월 근태 확인 완료", "commandId", UUID.randomUUID());
+        mvc.perform(post("/admin/attendance/month-close").with(as(admin)).with(csrf()).contentType("application/json")
+                        .content(JsonMapper.builder().build().writeValueAsString(command)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CLOSED"));
+        var person = employees.get(admin, historical.employeeId());
+        employees.update(admin, person.id(), new EmployeeForm(person.employeeNo(), person.displayName(), person.joinedOn(),
+                today.plusMonths(1), true, person.version(), "향후 퇴직 예정일 등록", UUID.randomUUID()));
+
+        var current = worktime.days(admin, person.id(), date, date).getFirst();
+        assertTrue(current.current());
+        assertEquals(saved.id(), current.id());
+        assertEquals(28_800_000L, current.result().actualWorkMillis());
+        assertTrue(worktime.detail(admin, saved.id()).day().current());
+        var rest = worktime.days(admin, person.id(), zero, zero).getFirst();
+        assertTrue(rest.current());
+        assertNull(rest.id());
+        assertEquals(0L, rest.result().actualWorkMillis());
+        assertFalse(rest.pending());
+        var export = worktime.prepareExport(admin, person.id(), zero, zero, UUID.randomUUID(), "마감 근거 확인");
+        try (var workbook = new ZipInputStream(new ByteArrayInputStream(worktime.download(admin, export)))) {
+            String sheet = null;
+            for (var entry = workbook.getNextEntry(); entry != null; entry = workbook.getNextEntry()) {
+                if (entry.getName().equals("xl/worksheets/sheet1.xml")) {
+                    sheet = new String(workbook.readAllBytes(), StandardCharsets.UTF_8);
+                    break;
+                }
+            }
+            assertNotNull(sheet);
+            assertTrue(sheet.contains("월 마감 근거로 확인"), "마감 월의 근거 있는 0시간을 출력에서도 구별한다");
+        }
+        assertTrue(monthEndQueries.read(admin, month.toString(), null, "", "ALL", 0).rows().isEmpty());
+        long authVersion = db.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND id=?", Long.class, tenant, historical.accountId());
+        var signedInAgain = new TnaPrincipal(tenant, historical.accountId(), person.id(), authVersion, historical.roles(), Instant.now());
+        assertEquals(28_800_000L, worktime.attendanceHistory(signedInAgain, AttendanceHistory.Range.of(today, date, date)).getFirst().actualWorkMillis());
     }
 
     @Test

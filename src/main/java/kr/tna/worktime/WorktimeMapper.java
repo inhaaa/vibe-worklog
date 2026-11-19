@@ -8,7 +8,7 @@ import kr.tna.worktime.WorktimeData.*;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface WorktimeMapper {
+public interface WorktimeMapper extends ClosedAttendanceMonths {
     @Select("""
             SELECT after_state::text FROM tna.org_audit_event
             WHERE tenant_id=#{tenantId} AND command_id=#{commandId} AND target_id=#{batchId}

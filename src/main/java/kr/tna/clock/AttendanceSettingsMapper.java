@@ -5,10 +5,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.clock.AttendanceSettingsData.*;
+import kr.tna.worktime.ClosedAttendanceMonths;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface AttendanceSettingsMapper {
+public interface AttendanceSettingsMapper extends ClosedAttendanceMonths {
     @Select("SELECT id,network::text AS network,label,valid_from,valid_to,reason,version FROM tna.allowed_network WHERE tenant_id=#{tenantId} ORDER BY valid_from DESC,id")
     List<Network> networks(@Param("tenantId") UUID tenantId);
     @Select("SELECT id,network::text AS network,label,valid_from,valid_to,reason,version FROM tna.allowed_network WHERE tenant_id=#{tenantId} AND id=#{id}")

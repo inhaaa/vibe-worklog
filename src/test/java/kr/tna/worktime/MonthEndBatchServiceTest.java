@@ -8,9 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.common.tenant.CompanyReadAccess;
 import kr.tna.org.OrgException;
 import kr.tna.worktime.CheckoutFollowUpService.DayKey;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,13 +23,20 @@ class MonthEndBatchServiceTest {
     private final TnaPrincipal actor = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1,
             Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"), Instant.now());
     private final MonthEndReviewQueries queries = mock(MonthEndReviewQueries.class);
-    private final MonthEndBatchService batches = new MonthEndBatchService(queries, null, null, null, null);
+    private final CompanyReadAccess company = mock(CompanyReadAccess.class);
+    private final WorktimeMapper mapper = mock(WorktimeMapper.class);
+    private final MonthEndBatchService batches = new MonthEndBatchService(queries, null, mapper, null, company);
     private final UUID first = UUID.randomUUID(), second = UUID.randomUUID();
     private final LocalDate marchFirst = LocalDate.of(2024, 3, 1);
     private final DayKey firstDay = new DayKey(first, marchFirst);
     private final DayKey nextDay = new DayKey(first, marchFirst.plusDays(1));
     private final DayKey otherPerson = new DayKey(second, marchFirst);
     private final List<DayKey> selection = List.of(firstDay, otherPerson, nextDay);
+
+    @BeforeEach
+    void authorizedCompanyRead() {
+        when(company.read(eq(actor), any())).thenAnswer(call -> call.<Supplier<?>>getArgument(1).get());
+    }
 
     @Test
     void previewUsesThePageOrderAndOneWeekPerEmployeeAcrossTheMonthBoundary() {
@@ -57,6 +67,15 @@ class MonthEndBatchServiceTest {
         var keys = List.of(firstDay, new DayKey(UUID.randomUUID(), marchFirst));
         var error = assertThrows(OrgException.class, () -> batches.preview(actor, selection(keys)));
         assertEquals(409, error.status());
+    }
+
+    @Test
+    void yearEndExpansionStopsAtClosedJanuaryAndAnExplicitDecemberRequestIsRejected() {
+        LocalDate first = LocalDate.of(2024, 12, 30), last = first.plusDays(1);
+        var week = CalculationWindow.weeks(first, last);
+        assertEquals(new CalculationWindow(first, last), week.openDates(first, last, List.of(last.plusDays(1))));
+        assertEquals(409, assertThrows(OrgException.class, () ->
+                week.openDates(first, last.plusDays(1), List.of(last.plusDays(1)))).status());
     }
 
     private MonthEndBatchService.Selection selection(List<DayKey> keys) {

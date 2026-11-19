@@ -10,7 +10,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.clock.AttendanceSettingsData.CalendarForm;
+import kr.tna.clock.AttendanceSettingsService;
+import kr.tna.org.BulkData;
 import kr.tna.org.EmployeeService;
+import kr.tna.org.OrgBulkService;
 import kr.tna.org.OrgData.AssignmentForm;
 import kr.tna.org.OrgData.EmployeeForm;
 import kr.tna.org.OrgException;
@@ -29,6 +33,8 @@ class EmployeeServiceIT {
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
     private static final LocalDate JOINED = TODAY.minusYears(1);
     @Autowired EmployeeService employees;
+    @Autowired AttendanceSettingsService attendanceSettings;
+    @Autowired OrgBulkService bulk;
     private JdbcTemplate database;
     private TnaPrincipal actor;
     private UUID tenant;
@@ -54,6 +60,86 @@ class EmployeeServiceIT {
                 VALUES (?, ?, '합성 직원 테스트')
                 """, tenant, "EMP-" + tenant);
         actor = admin("ADMIN-1");
+    }
+
+    @Test
+    void employmentEditsKeepUnresolvedCheckoutDaysReachableAndRollBackTheWholeSheet() {
+        UUID id = create("FOLLOW-UP");
+        LocalDate day = TODAY.minusDays(7);
+        database.update("""
+                INSERT INTO tna.checkout_follow_up(tenant_id,id,employee_id,work_date,requested_by,reason)
+                VALUES (?,?,?,?,?,'합성 퇴근 보완')
+                """, tenant, UUID.randomUUID(), id, day, actor.accountId());
+        var edit = form("FOLLOW-UP", "퇴사일 수정", JOINED, day.minusDays(1), true, 0L);
+        var error = assertThrows(OrgException.class, () -> employees.update(actor, id, edit));
+        assertEquals(409, error.status());
+        assertTrue(error.getMessage().contains(day.toString()));
+        assertTrue(error.getMessage().contains("보완"));
+        assertNull(employees.get(actor, id).leftOn());
+        assertEquals(0, count("tna.org_audit_event", "command_id", edit.commandId()));
+
+        var batch = new BulkData.Form<>(UUID.randomUUID(), "소급 일괄 수정", List.of(
+                new BulkData.EmployeeRow(UUID.randomUUID().toString(), null, null, BulkData.Operation.CREATE, "FOLLOW-NEW", "신규", TODAY, null, true),
+                new BulkData.EmployeeRow(UUID.randomUUID().toString(), id, 0L, BulkData.Operation.UPDATE, "FOLLOW-UP", "입사일 수정", day.plusDays(1), null, true)));
+        var bulkError = assertThrows(OrgException.class, () -> bulk.employees(actor, batch));
+        assertEquals(409, bulkError.status());
+        assertTrue(bulkError.getMessage().contains(day.toString()));
+        assertEquals(0, count("tna.org_audit_event", "command_id", batch.commandId()));
+        assertEquals(0, database.queryForObject("SELECT count(*) FROM tna.employee WHERE tenant_id=? AND employee_no='FOLLOW-NEW'", Integer.class, tenant));
+        assertEquals(0, employees.get(actor, id).version());
+
+        employees.update(actor, id, form("FOLLOW-UP", "이름만 변경", JOINED, null, true, 0L));
+        employees.update(actor, id, form("FOLLOW-UP", "보완일 포함", day, day, true, 1L));
+        assertEquals(day, employees.get(actor, id).leftOn());
+    }
+
+    @Test
+    void anAlreadyOutOfEmploymentFollowUpAllowsUnrelatedEditsAndRepairOfEmploymentDates() {
+        UUID id = create("OLD-FOLLOW");
+        LocalDate orphan = JOINED.minusDays(1);
+        database.update("""
+                INSERT INTO tna.checkout_follow_up(tenant_id,id,employee_id,work_date,requested_by,reason)
+                VALUES (?,?,?,?,?,'이관된 보완 요청')
+                """, tenant, UUID.randomUUID(), id, orphan, actor.accountId());
+        employees.update(actor, id, form("OLD-FOLLOW", "퇴직 예정", JOINED, TODAY.plusDays(10), true, 0L));
+        employees.update(actor, id, form("OLD-FOLLOW", "입사일 복구", orphan, TODAY.plusDays(10), true, 1L));
+        assertEquals(orphan, employees.get(actor, id).joinedOn());
+        assertStatus(409, () -> employees.update(actor, id,
+                form("OLD-FOLLOW", "다시 보완일이 빠짐", JOINED, TODAY.plusDays(10), true, 2L)));
+    }
+
+    @Test
+    void closedMonthProtectsEmploymentDaysAndCalendarButAllowsFutureEmploymentChanges() {
+        var month = TODAY.withDayOfMonth(1).minusMonths(1);
+        var last = month.plusMonths(1).minusDays(1);
+        UUID original = create("CLOSE-OLD");
+        database.update("""
+                INSERT INTO tna.attendance_month_closure
+                    (tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,?,?,1,'CLOSED','합성 월마감',?,'합성 담당자')
+                """, tenant, UUID.randomUUID(), month, actor.accountId());
+
+        assertStatus(409, () -> employees.create(actor, form("CLOSE-RETRO", "소급 입사", last, null, true, null)));
+        assertStatus(409, () -> employees.update(actor, original, form("CLOSE-OLD", "소급 퇴직", JOINED, last.minusDays(1), true, 0L)));
+        assertStatus(409, () -> attendanceSettings.calendar(actor, new CalendarForm(last, last.plusDays(1), true, "기준", "", "달력 수정", UUID.randomUUID())));
+        var mixed = List.of(
+                new BulkData.EmployeeRow(UUID.randomUUID().toString(), null, null, BulkData.Operation.CREATE, "CLOSE-NEW", "신규", TODAY, null, true),
+                new BulkData.EmployeeRow(UUID.randomUUID().toString(), original, 0L, BulkData.Operation.UPDATE, "CLOSE-OLD", "소급", JOINED, month, true));
+        assertStatus(409, () -> bulk.employees(actor, new BulkData.Form<>(UUID.randomUUID(), "일괄 변경", mixed)));
+        assertEquals(0, database.queryForObject("SELECT count(*) FROM tna.employee WHERE tenant_id=? AND employee_no IN ('CLOSE-NEW','CLOSE-RETRO')", Integer.class, tenant));
+        assertEquals(0, employees.get(actor, original).version());
+
+        employees.update(actor, original, form("CLOSE-OLD", "이름 변경", JOINED, last, true, 0L));
+        assertEquals(last, employees.get(actor, original).leftOn());
+        employees.update(actor, original, form("CLOSE-OLD", "이름 변경", JOINED, TODAY.plusDays(2), true, 1L));
+        assertNotNull(employees.create(actor, form("CLOSE-NEXT", "다음 달 입사", last.plusDays(1), null, true, null)));
+        assertNotNull(attendanceSettings.calendar(actor, new CalendarForm(last.plusDays(1), last.plusDays(1), true, "기준", "", "새 달", UUID.randomUUID())));
+        database.update("""
+                INSERT INTO tna.attendance_month_closure
+                    (tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,?,?,2,'OPEN','합성 재개',?,'합성 담당자')
+                """, tenant, UUID.randomUUID(), month, actor.accountId());
+        assertNotNull(employees.create(actor, form("CLOSE-RETRO", "재개 후 소급 입사", last, null, true, null)));
     }
 
     @Test

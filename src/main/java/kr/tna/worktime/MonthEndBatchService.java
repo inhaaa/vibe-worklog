@@ -3,11 +3,13 @@ package kr.tna.worktime;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -57,7 +59,8 @@ public final class MonthEndBatchService {
     }
 
     public Preview preview(TnaPrincipal actor, Selection form) {
-        return currentPreview(actor, checkedSelection(actor, form));
+        var selection = checkedSelection(actor, form);
+        return company.read(actor, () -> currentPreview(actor, selection));
     }
 
     public Result execute(TnaPrincipal actor, Command command) {
@@ -101,6 +104,10 @@ public final class MonthEndBatchService {
     private Preview currentPreview(TnaPrincipal actor, Selection selection) {
         var batch = queries.readForBatch(actor, selection.month(), selection.organizationId(), selection.q(), selection.reason(), selection.page());
         if (batch.page().error() != null) throw OrgException.invalid(batch.page().error());
+        var month = batch.page().month();
+        var monthWeeks = CalculationWindow.weeks(month.atDay(1), month.atEndOfMonth());
+        var closed = mapper.closedMonths(actor.tenantId(), monthWeeks.start(), monthWeeks.end());
+        if (closed.contains(month.atDay(1))) throw ClosedAttendanceMonths.closedMonth(month.atDay(1));
         var selected = Set.copyOf(selection.rows());
         var rows = new ArrayList<PreviewRow>();
         var bases = new ArrayList<String>();
@@ -108,10 +115,11 @@ public final class MonthEndBatchService {
             if (!selected.contains(row.dayKey())) continue;
             var basis = batch.bases().get(row.dayKey());
             if (basis == null) throw changed();
-            var start = WorktimeCalculator.weekStart(row.workDate());
+            var window = CalculationWindow.weeks(row.workDate(), row.workDate()).openDates(row.workDate(), row.workDate(), closed);
             rows.add(new PreviewRow(row.employeeId(), row.employeeNo(), row.employeeName(), row.workDate(),
-                    start, start.plusDays(6), row.reasons()));
-            bases.add(OrgCommands.fingerprint(row.employeeId(), row.workDate(), row.employeeNo(), row.employeeName(), row.reasons(), basis));
+                    window.start(), window.end(), row.reasons()));
+            bases.add(OrgCommands.fingerprint(row.employeeId(), row.workDate(), row.employeeNo(), row.employeeName(),
+                    row.reasons(), basis, window.start(), window.end()));
         }
         if (rows.size() != selected.size()) throw changed();
         String token = OrgCommands.fingerprint("MONTH_END_PREVIEW_1", actor.tenantId(), actor.accountId(), selection.fingerprint(), bases);
@@ -120,10 +128,13 @@ public final class MonthEndBatchService {
 
     private Result calculate(TnaPrincipal actor, Preview preview, String reason) {
         var saved = new HashMap<DayKey, WorktimeMapper.ResultRow>();
-        for (var week : weeks(preview.rows())) {
-            LocalDate end = week.start().plusDays(6);
-            UUID run = worktime.recalculate(actor, week.employeeId(), week.start(), end, UUID.randomUUID(), reason);
-            for (var row : mapper.latest(actor.tenantId(), week.employeeId(), week.start(), end)) {
+        for (var entry : weeks(preview.rows()).entrySet()) {
+            var dates = entry.getValue();
+            var from = Collections.min(dates);
+            var through = Collections.max(dates);
+            var employee = entry.getKey().employeeId();
+            UUID run = worktime.recalculate(actor, employee, from, through, UUID.randomUUID(), reason);
+            for (var row : mapper.latest(actor.tenantId(), employee, from, through)) {
                 if (run.equals(row.runId())) saved.put(new DayKey(row.employeeId(), row.workDate()), row);
             }
         }
@@ -140,9 +151,12 @@ public final class MonthEndBatchService {
         return new Result(UUID.randomUUID(), preview.weekCount(), List.copyOf(rows));
     }
 
-    private static Set<Week> weeks(List<PreviewRow> rows) {
-        var weeks = new LinkedHashSet<Week>();
-        for (var row : rows) weeks.add(new Week(row.employeeId(), row.weekStart()));
+    private static Map<Week, List<LocalDate>> weeks(List<PreviewRow> rows) {
+        var weeks = new LinkedHashMap<Week, List<LocalDate>>();
+        for (var row : rows) {
+            var week = new Week(row.employeeId(), WorktimeCalculator.weekStart(row.workDate()));
+            weeks.computeIfAbsent(week, ignored -> new ArrayList<>()).add(row.workDate());
+        }
         return weeks;
     }
 

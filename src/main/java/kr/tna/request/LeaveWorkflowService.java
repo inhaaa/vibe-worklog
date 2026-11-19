@@ -151,6 +151,7 @@ public final class LeaveWorkflowService {
                 fingerprint(action,date,start,end,basisToken,routeToken,reason),reason,"EMPLOYEE",()->{
             var employee=currentEmployee(actor.tenantId(),actor.employeeId(),false);
             employmentDate(employee,date);
+            mapper.requireOpen(actor.tenantId(),date,date);
             var basis=overtime.evaluate(actor.tenantId(),actor.employeeId(),date,start,end,true);
             if(!basis.basisToken().equals(basisToken))
                 throw OrgException.conflict("근무 기준이 달라졌습니다. 신청 시간을 다시 확인해 주세요.");
@@ -200,6 +201,7 @@ public final class LeaveWorkflowService {
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());
             if(form.exceptional()||form.targetEmployeeId()!=null&&!form.targetEmployeeId().equals(actor.employeeId()))throw OrgException.forbidden();
             var employee=currentEmployee(actor.tenantId(),actor.employeeId(),false);employmentDate(employee,form.workDate());
+            mapper.requireOpen(actor.tenantId(),form.workDate(),form.workDate());
             predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"ATTENDANCE_CORRECTION");
             var before=clocks.snapshot(actor.tenantId(),actor.employeeId(),form.workDate());checkVersion(form.baseInputRevision(),before.inputRevision());
             if(!before.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("원천·일정이 변경되었습니다. 최신 내용을 확인해 주세요.");
@@ -215,7 +217,7 @@ public final class LeaveWorkflowService {
     private double available(TnaPrincipal actor){return mapper.listBuckets(actor.tenantId(),actor.employeeId(),today()).stream().mapToDouble(Bucket::availableDays).sum();}
     private String leaveReason(LeaveForm form){
         if(form==null||form.bucketId()==null||form.from()==null||form.to()==null||form.from().isAfter(form.to())
-                ||form.from().isBefore(today())||ChronoUnit.DAYS.between(form.from(),form.to())>=366)
+                ||ChronoUnit.DAYS.between(form.from(),form.to())>=366)
             throw OrgException.invalid("오늘 이후 같은 묶음 안의 366일 이내 기간을 입력해 주세요.");
         if(!Set.of("FULL","AM","PM").contains(form.leavePart()))throw OrgException.invalid("종일, 오전 반차 또는 오후 반차를 선택해 주세요.");
         if(!"FULL".equals(form.leavePart())&&!form.from().equals(form.to()))throw OrgException.invalid("반차는 하루 단위로 신청해 주세요.");
@@ -224,6 +226,8 @@ public final class LeaveWorkflowService {
     private List<RequestDay> validateLeaveInput(TnaPrincipal actor,LeaveForm form){
         currentEmployee(actor.tenantId(),actor.employeeId(),false);var bucket=bucket(actor.tenantId(),form.bucketId());
         if(!bucket.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
+        mapper.requireOpen(actor.tenantId(),form.from(),form.to());
+        if(form.from().isBefore(today()))throw OrgException.invalid("오늘 이후의 연차 사용 기간을 입력해 주세요.");
         bucketPeriod(bucket,form.from(),form.to());predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
         var days=days(actor.tenantId(),actor.employeeId(),form.from(),form.to(),form.leavePart());
         if(days.stream().noneMatch(day->day.quantityDays()>0))throw OrgException.invalid("소정근로일이 없는 기간입니다.");
@@ -267,6 +271,7 @@ public final class LeaveWorkflowService {
             UUID target=form.targetEmployeeId()==null?actor.employeeId():form.targetEmployeeId();
             if(!form.exceptional()&&!target.equals(actor.employeeId()))throw OrgException.forbidden();
             var employee=currentEmployee(actor.tenantId(),target,form.exceptional());employmentDate(employee,form.workDate());
+            mapper.requireOpen(actor.tenantId(),form.workDate(),form.workDate());
             predecessor(actor.tenantId(),form.predecessorRequestId(),target,"ATTENDANCE_CORRECTION");
             var before=clocks.snapshot(actor.tenantId(),target,form.workDate());
             checkVersion(form.baseInputRevision(),before.inputRevision());
@@ -299,6 +304,7 @@ public final class LeaveWorkflowService {
             if(overtimeRequest && form.exceptional()) throw OrgException.forbidden();
             if(!(overtimeRequest || original.kind().equals("LEAVE_DAY"))||!original.status().equals("APPROVED")||!original.effectStatus().equals("EFFECTIVE"))throw OrgException.invalid("현재 유효한 승인 건만 취소 신청할 수 있습니다.");
             currentEmployee(actor.tenantId(),original.targetEmployeeId(),form.exceptional());
+            mapper.requireOpen(actor.tenantId(),original.fromDate(),original.toDate());
             if(overtimeRequest) {
                 var detail=mapper.overtime(actor.tenantId(),original.id());
                 overtime.requireAdvance(detail.workDate(),detail.startTime());
@@ -316,9 +322,11 @@ public final class LeaveWorkflowService {
             var before=request(actor.tenantId(),requestId);
             if(!before.currentApproverId().equals(actor.employeeId()))throw OrgException.forbidden();
             independent(actor.tenantId(),before.targetEmployeeId(),before.authorAccountId(),actor.employeeId());
-            checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
-            if(!approvers.eligible(actor.tenantId(),actor.employeeId(),today()))throw OrgException.forbidden();
+            checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
             String status=form.decision().equals("APPROVE")?"APPROVED":"REJECTED";
+            if(status.equals("APPROVED"))currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
+            if(!approvers.eligible(actor.tenantId(),actor.employeeId(),today()))throw OrgException.forbidden();
+            mapper.requireOpen(actor.tenantId(),before.fromDate(),before.toDate());
             if(!before.legacyForm())changed(mapper.decideStep(actor.tenantId(),requestId,before.currentStep(),actor.employeeId(),status,reason));
             if("APPROVED".equals(status)&&before.currentStep()<before.totalSteps()) {
                 changed(mapper.activateStep(actor.tenantId(),requestId,before.currentStep()+1));
@@ -350,6 +358,7 @@ public final class LeaveWorkflowService {
         return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(form.expectedStep(),action,requestId,form.expectedVersion(),reason),reason,"EMPLOYEE",()->{
             var before=request(actor.tenantId(),requestId);if(!before.authorAccountId().equals(actor.accountId()))throw OrgException.forbidden();
             checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
+            mapper.requireOpen(actor.tenantId(),before.fromDate(),before.toDate());
             mapper.closeSteps(actor.tenantId(),requestId);
             changed(mapper.transition(actor.tenantId(),requestId,before.version(),"WITHDRAWN"));
             if(before.kind().equals("ATTENDANCE_CORRECTION"))changed(mapper.reviseDay(actor.tenantId(),before.targetEmployeeId(),before.fromDate(),0));
@@ -362,6 +371,7 @@ public final class LeaveWorkflowService {
         String reason=requiredText(form.reason(),500,"재할당 사유"),action="REQUEST_REASSIGN";
         return administration.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(form.expectedStep(),action,requestId,form.approverEmployeeId(),form.expectedVersion(),reason),reason,()->{
             var before=request(actor.tenantId(),requestId);checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
+            mapper.requireOpen(actor.tenantId(),before.fromDate(),before.toDate());
             independent(actor.tenantId(),before.targetEmployeeId(),before.authorAccountId(),form.approverEmployeeId());
             employee(actor.tenantId(),form.approverEmployeeId());if(!approvers.eligible(actor.tenantId(),form.approverEmployeeId(),today()))throw OrgException.invalid("현재 재직 중인 적격 승인자가 필요합니다.");
             if(!before.legacyForm()) {

@@ -244,6 +244,18 @@ class LeaveWorkflowIT {
         assertNotNull(leave(bucket,date));
     }
     @Autowired kr.tna.approval.RequestFormMapper requestForms;
+    @Test void completedLeaveSubmissionCanBeRetriedAfterItsDatesHavePassed() {
+        var form=new LeaveForm(bucket(2),date,date,null,"지난 신청의 재전송",UUID.randomUUID());
+        UUID original=workflow.submitLeave(employee,form);
+        approve(original);
+        Instant nextMonth=date.plusMonths(1).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+        var after=new LeaveWorkflowService(workflowMapper,businessCommands,administrativeCommands,
+                workflowEmployees,workflowApprovers,clocks,Clock.fixed(nextMonth,ZoneId.of("Asia/Seoul")),requestForms);
+        assertEquals(original,after.submitLeave(employee,form));
+        assertStatus(422,()->after.submitLeave(employee,new LeaveForm(form.bucketId(),date,date,null,"새 소급 연차",UUID.randomUUID())));
+        assertEquals(1,count("tna.leave_ledger","entry_kind='USE'"));
+    }
+
     @Test void cancellationApprovalRechecksThatTheLeaveHasNotAlreadyStarted() {
         UUID bucket=bucket(2),original=leave(bucket,date);approve(original);
         UUID cancellation=workflow.requestCancellation(employee,original,new CancelForm(false,1L,"시작 전 일반 취소 요청",UUID.randomUUID()));

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import kr.tna.org.OrgData.Assignment;
 import kr.tna.org.OrgData.Employee;
+import kr.tna.worktime.ClosedAttendanceMonths;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -12,7 +13,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
-public interface EmployeeAdminMapper {
+public interface EmployeeAdminMapper extends ClosedAttendanceMonths {
     String DIRECTORY_FILTER = """
               AND (e.employee_no ILIKE #{search} OR e.display_name ILIKE #{search})
               AND (#{status}='all' OR e.active=(#{status}='active'))
@@ -135,6 +136,16 @@ public interface EmployeeAdminMapper {
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     Employee get(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
+
+    @Select("""
+            SELECT work_date FROM tna.checkout_follow_up
+            WHERE tenant_id=#{tenantId} AND employee_id=#{before.id} AND resolved_at IS NULL
+              AND work_date BETWEEN #{before.joinedOn} AND coalesce(#{before.leftOn}::date, 'infinity'::date)
+              AND work_date NOT BETWEEN #{joined} AND coalesce(#{left}::date, 'infinity'::date)
+            ORDER BY work_date LIMIT 1
+            """)
+    LocalDate firstNewlyExcludedFollowUp(@Param("tenantId") UUID tenantId, @Param("before") Employee before,
+            @Param("joined") LocalDate joined, @Param("left") LocalDate left);
 
     @Select("""
             SELECT id,employee_no,display_name,joined_on,left_on,active,version FROM tna.employee

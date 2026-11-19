@@ -5,10 +5,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.request.RequestData.*;
+import kr.tna.worktime.ClosedAttendanceMonths;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface LeaveWorkflowMapper extends FormStepMapper {
+public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMonths {
     @Update("""
             UPDATE tna.checkout_follow_up SET last_request_id=#{requestId}
             WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date=#{workDate} AND resolved_at IS NULL

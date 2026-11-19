@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.clock.ClockData.Event;
+import kr.tna.worktime.ClosedAttendanceMonths;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -13,7 +14,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
-public interface ClockMapper {
+public interface ClockMapper extends ClosedAttendanceMonths {
     @Select("SELECT current_setting('app.tenant_id',true)")
     String currentTenant();
     @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")

@@ -1,6 +1,7 @@
 package kr.tna.org;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +116,7 @@ public final class EmployeeService {
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
                 fingerprint(action, values.employeeNo(), values.displayName(), values.joinedOn(),
                         values.leftOn(), values.active(), form.expectedVersion(), reason), reason, () -> {
+                    mapper.requireOpen(actor.tenantId(), values.joinedOn(), values.leftOn());
                     String number = values.employeeNo() == null
                             ? EmployeeNumbers.next(values.joinedOn(), mapper.employeeNumbers(actor.tenantId())) : values.employeeNo();
                     var employee = new Employee(UUID.randomUUID(), number, values.displayName(),
@@ -157,6 +159,7 @@ public final class EmployeeService {
 
     private Employee applyUpdate(TnaPrincipal actor, Employee before, EmployeeValues values) {
         UUID id = before.id();
+        requireOpenEmployment(mapper, actor.tenantId(), before, values.joinedOn(), values.leftOn());
         if (!before.joinedOn().equals(values.joinedOn()) && joinedOnLocked(actor, id)) {
             throw OrgException.invalid("최초 발령이 확정된 사원의 입사일은 변경할 수 없습니다.");
         }
@@ -173,6 +176,35 @@ public final class EmployeeService {
         requireChanged(mapper.update(actor.tenantId(), after, before.version(), actor.accountId()));
         if (employmentChanged) mapper.revokeSessions(actor.tenantId(), id);
         return after;
+    }
+
+    static void requireOpenEmployment(EmployeeAdminMapper mapper, UUID tenant, Employee before, LocalDate joined, LocalDate left) {
+        if (before == null) {
+            mapper.requireOpen(tenant, joined, left);
+            return;
+        }
+        if (before.joinedOn().equals(joined) && Objects.equals(before.leftOn(), left)) return;
+        LocalDate excluded = mapper.firstNewlyExcludedFollowUp(tenant, before, joined, left);
+        if (excluded != null) {
+            throw OrgException.conflict(excluded + " 근무일의 퇴근 보완 요청을 먼저 처리한 뒤 재직 기간을 변경해 주세요.");
+        }
+        LocalDate start = before.joinedOn().isBefore(joined) ? before.joinedOn() : joined;
+        LocalDate end = null;
+        if (before.leftOn() != null && left != null) end = before.leftOn().isAfter(left) ? before.leftOn() : left;
+        for (LocalDate closed : mapper.closedMonths(tenant, start, end)) {
+            var month = YearMonth.from(closed);
+            if (!Objects.equals(inMonth(month, before.joinedOn(), before.leftOn()), inMonth(month, joined, left))) {
+                throw OrgException.conflict(month + " 근태가 마감되었습니다. 월 마감을 재개한 뒤 재직 기간을 변경해 주세요.");
+            }
+        }
+    }
+
+    private record EmploymentPeriod(LocalDate first, LocalDate last) { }
+
+    private static EmploymentPeriod inMonth(YearMonth month, LocalDate joined, LocalDate left) {
+        LocalDate first = joined.isAfter(month.atDay(1)) ? joined : month.atDay(1);
+        LocalDate last = left != null && left.isBefore(month.atEndOfMonth()) ? left : month.atEndOfMonth();
+        return last.isBefore(first) ? null : new EmploymentPeriod(first, last);
     }
 
     public List<Assignment> assignments(TnaPrincipal actor, UUID employeeId) {

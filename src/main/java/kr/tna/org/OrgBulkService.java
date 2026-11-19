@@ -143,6 +143,12 @@ public final class OrgBulkService {
                     var changes = new ArrayList<BulkData.Change>();
                     for (var entry : changed.entrySet()) {
                         Employee old = before.get(entry.getKey()), current = after.get(entry.getKey());
+                        try {
+                            EmployeeService.requireOpenEmployment(employees, actor.tenantId(), old, current.joinedOn(), current.leftOn());
+                        } catch (OrgException conflict) {
+                            String field = old == null || !old.joinedOn().equals(current.joinedOn()) ? "joinedOn" : "leftOn";
+                            throw issue(entry.getValue(), field, conflict.status(), conflict.getMessage());
+                        }
                         if (old == null) changed(employees.insert(actor.tenantId(), current, actor.accountId()));
                         else {
                             changed(employees.update(actor.tenantId(), current, old.version(), actor.accountId()));

@@ -109,6 +109,7 @@ public final class ClockService {
         return commands.execute(actor,form.commandId(),action,"WORK_CONFIRMATION",
                 fingerprint(action,form.workDate(),form.baseInputRevision(),form.expectedReviewRevision(),form.presenceAsWork(),form.breaksMatch(),form.sourceFingerprint()),
                 "본인 실제 근로·예정 휴게 일치 확인","EMPLOYEE",()->{
+            mapper.requireOpen(actor.tenantId(),form.workDate(),form.workDate());
             DaySnapshot day=snapshot(actor.tenantId(),actor.employeeId(),form.workDate());
             checkVersion(form.baseInputRevision(),day.inputRevision());checkVersion(form.expectedReviewRevision(),day.reviewRevision());
             if(!day.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("기록·일정·휴일이 변경되었습니다. 최신 내용을 확인해 주세요.");
