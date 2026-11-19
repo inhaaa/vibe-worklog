@@ -45,6 +45,8 @@ class V30ReleaseDataTest(unittest.TestCase):
         expected = {18: set(), 30: set()}
         for sql in migrations.glob("V*__*.sql"):
             version = int(sql.name[1:].split("__")[0])
+            if version > 30:
+                continue
             names = re.findall(r"CREATE TABLE ((?:tna|platform)\.\w+)", sql.read_text("utf-8"), re.I)
             expected[18 if version <= 18 else 30].update(names)
         self.assertEqual(expected, {18: self.tool.LEGACY, 30: self.tool.NEW})
@@ -52,7 +54,7 @@ class V30ReleaseDataTest(unittest.TestCase):
     def test_new_and_changed_app_grants_match_flyway(self):
         parsed = set()
         for sql in (ROOT / "src/main/resources/db/migration").glob("V*__*.sql"):
-            if int(sql.name[1:].split("__")[0]) < 19:
+            if not 19 <= int(sql.name[1:].split("__")[0]) <= 30:
                 continue
             text = sql.read_text("utf-8")
             for permissions, names in re.findall(r"GRANT (.*?)\s+ON (tna\.[\w.,\s]+?) TO tna_app;", text, re.S):
