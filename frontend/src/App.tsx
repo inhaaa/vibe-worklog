@@ -453,12 +453,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       } catch (error) {
         if (requestId !== serial.current || controller.signal.aborted) return;
         if (error instanceof PageDownload) {
-          const objectUrl = URL.createObjectURL(error.blob);
-          const link = document.createElement('a');
-          link.href = objectUrl;
-          link.download = error.filename;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+          error.save();
           setNotice('파일을 다운로드했습니다.');
         } else {
           const message =

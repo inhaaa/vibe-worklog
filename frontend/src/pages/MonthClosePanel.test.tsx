@@ -21,8 +21,12 @@ const reopening = { ...closure, status: 'OPEN', version: 2, reason: '소급 정�
 const asJson = (body: unknown, status = 200, media = 'application/json') =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': media } });
 function install(send: typeof fetch, readList: typeof fetch = async () => listResponse(review)) {
-  vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) =>
-    String(url).startsWith('/company/attendance?') ? readList(url, options) : send(url, options));
+  vi.stubGlobal('fetch', (url: RequestInfo | URL, options?: RequestInit) => {
+    if (String(url).startsWith('/admin/attendance/month-close/export-options?')) {
+      return Promise.resolve(asJson({ month: review.month, version: 1, departments: [] }));
+    }
+    return String(url).startsWith('/company/attendance?') ? readList(url, options) : send(url, options);
+  });
 }
 function listResponse(model: typeof review) {
   return asJson({ page: 'company/attendance', csrf, data: { monthEndReview: model, canViewCheckout: true,

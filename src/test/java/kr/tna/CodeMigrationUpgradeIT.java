@@ -147,8 +147,130 @@ class CodeMigrationUpgradeIT {
             assertEquals(v29Rows, rows(db, v29Columns));
             assertEquals(v29Access, access(db).stream().filter(row -> !"attendance_month_closure".equals(row.get("relname"))).toList());
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.attendance_month_closure", Integer.class));
+            verifyMonthCloseExportUpgrade(db, migrationSource);
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
+    private static void verifyMonthCloseExportUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {
+        seedMonthCloseEvidence(db);
+        assertEquals(12, db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                SELECT a.tenant_id,gen_random_uuid(),d.month_start,d.version,
+                     CASE WHEN d.version%2=1 THEN 'CLOSED' ELSE 'OPEN' END,'이관 전 마감 이력',a.id,'기존 마감자'
+                FROM (SELECT DISTINCT ON (tenant_id) tenant_id,id FROM tna.tenant_account ORDER BY tenant_id,id) a
+                CROSS JOIN (VALUES (DATE '2026-08-01',1),(DATE '2026-08-01',2),(DATE '2026-09-01',1),
+                         (DATE '2026-09-01',2),(DATE '2026-09-01',3),(DATE '2026-10-01',1)) d(month_start,version)
+                """));
+        UUID backdatedClosure = seedBackdatedEmploymentAfterClose(db);
+        var originalColumns = columns(db);
+        var originalRows = rows(db, originalColumns);
+        var toV31 = Flyway.configure().dataSource(migrations).target("31").load();
+        assertEquals(1, toV31.migrate().migrationsExecuted);
+        assertEquals(0, toV31.migrate().migrationsExecuted);
+        assertEquals(originalRows, rows(db, originalColumns));
+        assertEquals(List.of("BACKDATED-HIRE", "REVISED-START"), db.queryForList("""
+                SELECT employee_no FROM tna.attendance_month_export_row
+                WHERE closure_id=? AND employed_days=1 AND worked_days IS NULL AND actual_millis IS NULL ORDER BY employee_no
+                """, String.class, backdatedClosure));
+        assertEquals(List.of("UNCHANGED"), db.queryForList("""
+                SELECT employee_no FROM tna.attendance_month_export_row
+                WHERE closure_id=? AND employed_days=1 AND worked_days=0 AND actual_millis=0
+                """, String.class, backdatedClosure));
+        assertEquals(13, db.queryForObject("SELECT count(*) FROM tna.attendance_month_closure WHERE NOT export_at_close", Integer.class));
+        assertEquals(List.of("2025-03-01/1/3", "2026-09-01/3/4", "2026-10-01/1/4"), db.queryForList("""
+                SELECT c.month_start::text||'/'||c.version||'/'||count(*)
+                FROM tna.attendance_month_export_row r JOIN tna.attendance_month_closure c
+                    ON c.tenant_id=r.tenant_id AND c.id=r.closure_id
+                GROUP BY c.month_start,c.version ORDER BY c.month_start
+                """, String.class));
+        assertEquals(2, db.queryForObject("SELECT count(DISTINCT tenant_id) FROM tna.attendance_month_export_row", Integer.class));
+        assertEquals(1, db.queryForObject("""
+                SELECT count(*) FROM tna.attendance_month_export_row WHERE leave_days=0.5
+                    AND actual_millis=14400000 AND worked_days=1 AND employed_days=31
+                """, Integer.class));
+        assertEquals(1, db.queryForObject("""
+                SELECT count(*) FROM tna.attendance_month_export_row WHERE closure_id<>? AND actual_millis IS NULL AND worked_days IS NULL
+                """, Integer.class, backdatedClosure));
+        assertEquals(0.5, db.queryForObject("SELECT sum(leave_days) FROM tna.attendance_month_export_row", Double.class));
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM pg_policies WHERE policyname='month_close_export_registry_scan'", Integer.class));
+        assertTrue(db.queryForObject("""
+                SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
+                WHERE oid='tna.attendance_month_export_row'::regclass
+                """, Boolean.class));
+        for (String role : List.of("tna_auth", "tna_operator")) {
+            assertFalse(db.queryForObject("SELECT has_table_privilege(?, 'tna.attendance_month_export_row', 'SELECT')", Boolean.class, role));
+        }
+        for (String privilege : List.of("UPDATE", "DELETE")) {
+            assertFalse(db.queryForObject("SELECT has_table_privilege('tna_app','tna.attendance_month_export_row',?)", Boolean.class, privilege));
+        }
+    }
+
+    private static UUID seedBackdatedEmploymentAfterClose(JdbcTemplate db) {
+        var owner = db.queryForMap("SELECT tenant_id,id FROM tna.tenant_account ORDER BY tenant_id,id LIMIT 1");
+        var tenant = owner.get("tenant_id");
+        db.update("""
+                INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on,left_on,created_at)
+                VALUES (?,gen_random_uuid(),'UNCHANGED','기존 재직자',DATE '2025-03-31',DATE '2025-03-31',TIMESTAMPTZ '2025-03-01 09:00:00+09'),
+                       (?,gen_random_uuid(),'REVISED-START','입사일 소급 수정',DATE '2025-04-01',DATE '2025-04-01',TIMESTAMPTZ '2025-03-01 09:00:00+09')
+                """, tenant, tenant);
+        var closure = UUID.randomUUID();
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name,changed_at)
+                VALUES (?,?,DATE '2025-03-01',1,'CLOSED','기존 월 마감',?,'이전 마감자',TIMESTAMPTZ '2025-04-02 09:00:00+09')
+                """, tenant, closure, owner.get("id"));
+        db.update("""
+                INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on,left_on,created_at)
+                VALUES (?,gen_random_uuid(),'BACKDATED-HIRE','마감 뒤 소급 등록',DATE '2025-03-31',DATE '2025-03-31',TIMESTAMPTZ '2025-04-03 09:00:00+09')
+                """, tenant);
+        db.update("""
+                UPDATE tna.employee SET joined_on=DATE '2025-03-31',updated_at=TIMESTAMPTZ '2025-04-03 09:00:00+09'
+                WHERE tenant_id=? AND employee_no='REVISED-START'
+                """, tenant);
+        return closure;
+    }
+
+    /** One effective half-day, a revised calculation, and a separate employee whose result was unconfirmed. */
+    private static void seedMonthCloseEvidence(JdbcTemplate db) {
+        var old = db.queryForMap("""
+                SELECT tenant_id,id,target_employee_id AS employee,author_account_id AS actor,current_approver_id AS approver
+                FROM tna.approval_request WHERE kind='LEAVE_DAY' AND status='APPROVED' ORDER BY tenant_id LIMIT 1
+                """);
+        UUID half = UUID.randomUUID();
+        assertEquals(1, db.update("""
+                INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
+                        approver_assignment_id,approver_assignment_version,reason,leave_bucket_id,from_date,to_date,
+                        client_command_id,attendance_type_version_id)
+                SELECT tenant_id,?,target_employee_id,author_account_id,kind,status,current_approver_id,approver_assignment_id,
+                       approver_assignment_version,'이관된 반차',leave_bucket_id,from_date-1,to_date-1,gen_random_uuid(),attendance_type_version_id
+                FROM tna.approval_request WHERE tenant_id=? AND id=?
+                """, half, old.get("tenant_id"), old.get("id")));
+        db.update("""
+                INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,leave_part)
+                SELECT tenant_id,gen_random_uuid(),?,leave_date-1,0.5,schedule_version_id,calendar_version_id,'AM'
+                FROM tna.leave_request_day WHERE tenant_id=? AND request_id=?
+                """, half, old.get("tenant_id"), old.get("id"));
+        db.update("""
+                INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by)
+                VALUES (?,gen_random_uuid(),?,?,'LEAVE',?)
+                """, old.get("tenant_id"), half, old.get("employee"), old.get("actor"));
+        for (int i = 0; i < 3; i++) {
+            boolean unknown = i == 2;
+            Object employee = old.get(unknown ? "approver" : "employee");
+            var run = UUID.randomUUID();
+            db.update("""
+                    INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,
+                            engine_version,status,finished_at)
+                    VALUES (?,?,?,?,DATE '2026-10-28',DATE '2026-10-28',DATE '2026-10-26',DATE '2026-11-01',
+                            'CALC-1','COMPLETED',CURRENT_TIMESTAMP)
+                    """, old.get("tenant_id"), run, employee, old.get("actor"));
+            db.update("""
+                    INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,
+                            review_revision,source_fingerprint,rule_version,status,actual_work_millis,leave_days,reason_codes,input_refs)
+                    VALUES (?,gen_random_uuid(),?,?,DATE '2026-10-28',?,0,0,repeat('a',64),'CALC-1',?,?,0,'[]','[]')
+                    """, old.get("tenant_id"), run, employee, unknown ? 1 : i + 1, unknown ? "REVIEW_REQUIRED" : "CALCULATED",
+                    unknown ? null : Long.valueOf(i == 0 ? 28800000L : 14400000L));
+        }
+    }
+
     private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {
         var account = db.queryForList("SELECT id FROM tna.tenant_account WHERE tenant_id=? ORDER BY id", UUID.class, customer).getFirst();
         var customCodes = List.of("A01", "a03", "LONG_CUSTOM_CODE");

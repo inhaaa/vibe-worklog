@@ -1,0 +1,64 @@
+package kr.tna.worktime;
+
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+import java.util.zip.ZipInputStream;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class MonthCloseWorkbookTest {
+    @Test
+    void countsTransferredPeopleOnceAndWritesDecimalsAsNumbersAndNamesAsText() throws Exception {
+        var person = UUID.randomUUID();
+        var assigned = new MonthCloseExportMapper.Row(person, "0001", "=예시", UUID.randomUUID(), "A", "부서A",
+                12, 2, 7_200_000L, 0.5);
+        var unassigned = new MonthCloseExportMapper.Row(person, "0001", "=예시", null, null, null,
+                18, 1, 3_600_000L, 0);
+        String sheet = worksheet(List.of(assigned, unassigned), true);
+        assertTrue(sheet.contains("회사 전체"));
+        assertTrue(sheet.contains("소속 미등록"));
+        assertTrue(sheet.contains("2026-11-01 10:00"));
+        assertTrue(sheet.contains("=예시"));
+        assertFalse(sheet.contains("<f>"));
+        assertTrue(sheet.contains("<v>0.5</v>"));
+        String summary = summaryRow(sheet);
+        assertTrue(summary.contains("<v>30</v>"));
+        assertTrue(summary.contains("<v>1</v>"));
+        assertTrue(summary.contains("<v>3.0</v>"));
+    }
+
+    @Test
+    void unknownWorkRemainsUnknownInTheCompanyTotalEvenWhenOtherPeopleHaveKnownHours() throws Exception {
+        var unknown = new MonthCloseExportMapper.Row(UUID.randomUUID(), "1", "가", null, null, null,
+                2, null, null, 0.5);
+        var known = new MonthCloseExportMapper.Row(UUID.randomUUID(), "2", "나", null, null, null,
+                1, 0, 0L, 0);
+        String sheet = worksheet(List.of(unknown, known), false);
+        assertTrue(sheet.contains("기존 마감 · 이관 시점 기준"));
+        String summary = summaryRow(sheet);
+        assertEquals(2, summary.split(">미확정<", -1).length - 1);
+        assertTrue(summary.contains("<v>0.5</v>"));
+    }
+
+    private static String summaryRow(String sheet) {
+        int start = sheet.indexOf(">범위 합계<");
+        return sheet.substring(start, sheet.indexOf("</row>", start));
+    }
+
+    private static String worksheet(List<MonthCloseExportMapper.Row> rows, boolean atClose) throws Exception {
+        var event = new MonthCloseExportMapper.Event(UUID.randomUUID(), 1, "CLOSED",
+                Instant.parse("2026-11-01T01:00:00Z"), "담당자", atClose);
+        byte[] bytes = MonthCloseWorkbook.write("2026-10", event, "회사 전체", rows);
+        try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+            for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+                if (entry.getName().equals("xl/worksheets/sheet1.xml")) {
+                    return new String(zip.readAllBytes(), StandardCharsets.UTF_8);
+                }
+            }
+        }
+        throw new AssertionError("worksheet missing");
+    }
+}

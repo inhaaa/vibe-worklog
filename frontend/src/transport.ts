@@ -16,6 +16,14 @@ export class PageDownload extends Error {
   ) {
     super('파일 다운로드');
   }
+  save() {
+    const objectUrl = URL.createObjectURL(this.blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = this.filename;
+    try { link.click(); }
+    finally { setTimeout(() => URL.revokeObjectURL(objectUrl), 0); }
+  }
 }
 export function encodeForm(data: FormData): URLSearchParams {
   const encoded = new URLSearchParams();
@@ -44,7 +52,7 @@ export async function fetchPage(
   send: typeof fetch = fetch,
 ): Promise<{ envelope: PageEnvelope; url: string; status: number }> {
   const headers = new Headers(options.headers);
-  headers.set('Accept', PAGE_ACCEPT);
+  if (!headers.has('Accept')) headers.set('Accept', PAGE_ACCEPT);
   const response = await send(url, {
     ...options,
     headers,

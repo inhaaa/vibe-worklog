@@ -4,6 +4,7 @@ import type { CsrfToken } from '../types';
 import { ErrorNotice, fmtDateTime } from '../ui';
 import { monthEndAccessDenied, monthEndReason, monthEndRequest } from './monthEndApi';
 import { monthCloseListHref } from './CompanyAttendanceNavigation';
+import { MonthCloseExport } from './MonthCloseExport';
 
 const path = '/admin/attendance/month-close';
 type Status = 'OPEN' | 'CLOSED';
@@ -207,6 +208,8 @@ export function MonthClosePanel({ month, source, csrf, otherWork, onMode, onStat
             setReason(''); setError(''); setCheck(undefined); focusTrigger.current = true; setPhase('ready');
           }}>취소</button>}</div>
       </form>}
+      {closed && !editing && phase === 'ready' && <MonthCloseExport
+        month={month} version={snapshot.version} deny={deny} onRefresh={refreshMonth} />}
       {snapshot.history.length > 0 && <div className="month-close-history"><h3>마감 처리 이력 <small>서울 시각</small></h3>
         <ol aria-label="마감 처리 이력">{snapshot.history.map(item => <li key={item.version}>
           <strong>{item.status === 'CLOSED' ? '마감' : '재개'}</strong><time dateTime={item.changedAt}>{fmtDateTime(item.changedAt)}</time>

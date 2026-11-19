@@ -65,6 +65,8 @@ public class SecurityConfiguration {
                                 "/admin/calculations/month-end", "/admin/calculations/month-end/preview",
                                 "/admin/attendance/month-close", "/admin/attendance/month-close/check").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close", "/admin/attendance/month-close/blockers").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close/export-options",
+                                "/admin/attendance/month-close/export").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups").hasRole("EMPLOYEE")
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**", "/admin/access",
