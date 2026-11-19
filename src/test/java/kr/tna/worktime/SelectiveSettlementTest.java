@@ -51,7 +51,16 @@ class SelectiveSettlementTest {
         assertNull(result.paidLeaveMillis());
         assertNull(result.remainingMillis());
         assertNull(result.differenceMillis());
-        assertEquals(List.of("SELECTIVE_WINDOW_REVIEW"), result.warnings());
+        assertEquals(List.of("CALENDAR_UNCONFIRMED", "PENDING_CORRECTION", "SELECTIVE_WINDOW_REVIEW"), result.warnings());
+    }
+
+    @Test void showsActionableReasonsForUnconfirmedWorkWithoutRepeatingThem() {
+        Set<String> reasons = Set.of("BREAK_UNCONFIRMED", "SELECTIVE_SETTLEMENT_APPLIES", "LEGAL_OVERTIME_UNDETERMINED");
+        var days = List.of(new SelectiveSettlement.Day(MONTH.atDay(1), "CALENDAR_MONTH", 420, 0, null, false, reasons),
+                new SelectiveSettlement.Day(MONTH.atDay(2), "CALENDAR_MONTH", 420, 0, null, false, reasons));
+        var period = SelectiveSettlement.periods(MONTH, AFTER, days).getFirst();
+        assertEquals(List.of("BREAK_UNCONFIRMED"), period.warnings());
+        assertEquals(2, period.unconfirmedDays());
     }
 
     @Test void halfDayLeaveUsesMillisecondsAndTodayDoesNotFinalizeAnOpenPeriod() {

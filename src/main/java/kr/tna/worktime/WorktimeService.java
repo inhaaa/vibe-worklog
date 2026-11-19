@@ -166,8 +166,10 @@ public final class WorktimeService {
         String source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
                 leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
         boolean matches = row.storedSource() != null && current(snapshot, source, row.storedInput(), row.storedReview(), row.storedSource());
+        Set<String> reasons = matches ? Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class))
+                : Set.of(row.storedSource() == null ? "NOT_CALCULATED" : "STALE_RESULT");
         return settlementDay(snapshot, WorktimeMapper.LeaveEffect.totalDays(leave), !pending.isEmpty(),
-                matches ? row.actualWorkMillis() : null, matches ? row.reasonCodes() : null);
+                matches ? row.actualWorkMillis() : null, reasons);
     }
 
     private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row) {
@@ -177,19 +179,19 @@ public final class WorktimeService {
         var employment = frozen.employment();
         if (row.workDate().isBefore(employment.joinedOn()) ||
                 employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;
-        return settlementDay(frozen.clock(), row.storedLeaveDays(), !frozen.pending().isEmpty(), row.actualWorkMillis(), row.reasonCodes());
+        return settlementDay(frozen.clock(), row.storedLeaveDays(), !frozen.pending().isEmpty(), row.actualWorkMillis(),
+                Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class)));
     }
 
     private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, boolean pending,
-            Long actual, String reasonCodes) {
+            Long actual, Set<String> reasons) {
         var schedule = snapshot.schedule();
         Integer target = null;
         if (snapshot.calendarVersionId() != null && !"UNCONFIRMED".equals(snapshot.dayKind())) {
             target = schedule.workday() && "WORKDAY".equals(snapshot.dayKind()) ? schedule.standardMinutes() : Integer.valueOf(0);
         }
         if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && !pending && leave == 0) return null;
-        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual, pending,
-                Set.copyOf(MonthEndReviewQueries.list(reasonCodes, String[].class)));
+        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual, pending, reasons);
     }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(month==null)throw OrgException.invalid("조회 월을 입력해 주세요.");UUID target=target(actor,employeeId);

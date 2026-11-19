@@ -13,7 +13,10 @@ import java.util.UUID;
 
 /** 선택근무 기간의 목표와 유급휴가, 확인 실근로를 각각 집계한다. */
 public final class SelectiveSettlement {
-    private static final Set<String> PERIOD_WARNINGS = Set.of("SELECTIVE_WINDOW_REVIEW", "SELECTIVE_CORE_REVIEW", "LEAVE_WORK_CONFLICT");
+    private static final Set<String> PERIOD_WARNINGS = Set.of("SELECTIVE_WINDOW_REVIEW", "SELECTIVE_CORE_REVIEW",
+            "LEAVE_WORK_CONFLICT", "NOT_CALCULATED", "STALE_RESULT", "BREAK_UNCONFIRMED", "WORK_UNCONFIRMED",
+            "CONFIRMATION_STALE", "INVALID_BREAK_INTERVAL", "INVALID_CLOCK_ORDER", "DUPLICATE_CLOCK_EVENT",
+            "CROSS_MIDNIGHT_UNSUPPORTED", "INVALID_SCHEDULE");
     private SelectiveSettlement() { }
 
     public record Overview(YearMonth month, UUID employeeId, String employeeNo, String employeeName, List<Period> periods) { }
@@ -61,16 +64,22 @@ public final class SelectiveSettlement {
         boolean knownCalendar = true;
         var warnings = new TreeSet<String>();
         for (var day : days) {
-            if (day.targetMinutes() == null) knownCalendar = false;
+            if (day.targetMinutes() == null) {
+                knownCalendar = false;
+                warnings.add("CALENDAR_UNCONFIRMED");
+            }
             else {
                 target += day.targetMinutes();
                 paid += Math.round(day.targetMinutes() * 60_000L * day.approvedLeaveDays());
             }
             if (day.actualWorkMillis() != null && !day.pendingCorrection()) work += day.actualWorkMillis();
+            if (day.pendingCorrection()) warnings.add("PENDING_CORRECTION");
             if (day.actualWorkMillis() == null || day.pendingCorrection() || day.targetMinutes() == null
                     || day.reasons().contains("LEAVE_WORK_CONFLICT")) unconfirmed++;
             for (String reason : day.reasons()) {
-                if (PERIOD_WARNINGS.contains(reason)) warnings.add(reason);
+                boolean missingPastClock = !day.date().isAfter(today)
+                        && ("MISSING_CLOCK_IN".equals(reason) || "MISSING_CLOCK_OUT".equals(reason));
+                if (missingPastClock || PERIOD_WARNINGS.contains(reason)) warnings.add(reason);
             }
         }
         Long difference = unconfirmed == 0 && today.isAfter(range.to()) ? work + paid - target * 60_000L : null;

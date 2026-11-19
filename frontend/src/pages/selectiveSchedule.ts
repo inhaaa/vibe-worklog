@@ -15,6 +15,20 @@ export const periodNames: Record<SettlementPeriod, string> = {
 };
 
 export const selectiveReasonLabels: Record<string, string> = {
+  NOT_CALCULATED: '아직 계산하지 않은 근무일이 있습니다.',
+  STALE_RESULT: '근무 자료가 변경되어 재집계가 필요합니다.',
+  PENDING_CORRECTION: '결재 대기 중인 정정 신청이 있습니다.',
+  CALENDAR_UNCONFIRMED: '회사 달력에서 근로일 여부를 확인해 주세요.',
+  BREAK_UNCONFIRMED: '실제 휴게시간을 확인해 주세요.',
+  WORK_UNCONFIRMED: '출퇴근 구간의 실제 근로시간을 확인해 주세요.',
+  CONFIRMATION_STALE: '기록이 변경되어 근로·휴게시간을 다시 확인해야 합니다.',
+  INVALID_BREAK_INTERVAL: '실제 휴게 구간을 확인해 주세요.',
+  MISSING_CLOCK_IN: '출근 기록이 없는 날이 있습니다.',
+  MISSING_CLOCK_OUT: '퇴근 기록이 없는 날이 있습니다.',
+  INVALID_CLOCK_ORDER: '출근과 퇴근의 시각 순서를 확인해 주세요.',
+  DUPLICATE_CLOCK_EVENT: '중복된 출퇴근 기록을 확인해 주세요.',
+  CROSS_MIDNIGHT_UNSUPPORTED: '자정을 넘긴 근무 기록을 확인해 주세요.',
+  INVALID_SCHEDULE: '근무일의 시간 설정을 확인해 주세요.',
   LEAVE_WORK_CONFLICT: '승인된 종일 휴가와 출퇴근 기록이 겹칩니다.',
   SELECTIVE_CORE_REVIEW: '코어시간의 근무 기록을 확인해 주세요.',
   SELECTIVE_WINDOW_REVIEW: '선택 가능 시간 밖의 근무 기록을 확인해 주세요.',

@@ -937,8 +937,8 @@ function Result({ model: m }: { model: ResultModel }) {
         )}
         <ul>
           {day.result.reasons.map((reason) => (
-            <li key={reason}>{reason === 'LEAVE_WORK_CONFLICT' && d.clock?.schedule?.workMode !== 'SELECTIVE'
-              ? reason : selectiveReasonLabels[reason] ?? reason}</li>
+            <li key={reason}>{d.clock?.schedule?.workMode === 'SELECTIVE' || reason.startsWith('SELECTIVE_')
+              ? selectiveReasonLabels[reason] ?? reason : reason}</li>
           ))}
         </ul>
       </section>

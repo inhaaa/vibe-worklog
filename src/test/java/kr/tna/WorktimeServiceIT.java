@@ -352,6 +352,7 @@ class WorktimeServiceIT {
                 tenant,UUID.randomUUID(),request,employee.employeeId(),manager.accountId());
         var own = reports.ownSettlements(employee, "2024-02");
         assertEquals(1, own.periods().size());
+        assertTrue(own.periods().getFirst().warnings().contains("NOT_CALCULATED"));
         assertEquals(own, reports.adminSettlements(manager, employee.employeeId(), "2024-02"));
         db.update("UPDATE tna.employee SET left_on=? WHERE tenant_id=? AND id=?", saturday,tenant,employee.employeeId());
         reports.recalculate(manager,employee.employeeId(),thursday,saturday,UUID.randomUUID(),"월경계 정산");
@@ -367,6 +368,7 @@ class WorktimeServiceIT {
                 tenant,employee.employeeId(),friday);
         var stale=reports.adminSettlements(manager,employee.employeeId(),"2024-03").periods().getFirst();
         assertEquals(1,stale.unconfirmedDays());
+        assertTrue(stale.warnings().contains("STALE_RESULT"));
         assertEquals(4*3_600_000L,stale.confirmedWorkMillis());
         assertNull(stale.differenceMillis());
     }

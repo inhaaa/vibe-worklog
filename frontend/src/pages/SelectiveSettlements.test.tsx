@@ -52,6 +52,17 @@ it('담당자 조회는 선택 사원만 요청하고 사원이 바뀐 뒤 도�
   expect(scope.queryByText('2026-12-28 ~ 2027-01-03')).toBeNull();
 });
 
+it('미확정 일수가 남은 이유를 직원이 구분할 수 있다', async () => {
+  const warnings = ['BREAK_UNCONFIRMED', 'PENDING_CORRECTION', 'CALENDAR_UNCONFIRMED', 'NOT_CALCULATED', 'STALE_RESULT'];
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...report, periods: [{ ...period, warnings }] })));
+  render(monthPage());
+  const heading = await screen.findByText('2026-12-28 ~ 2027-01-03');
+  const list = within(heading.closest('article')!);
+  for (const label of [/실제 휴게/, /정정 신청/, /회사 달력/, /아직 계산/, /재집계/]) {
+    expect(list.getByText(label)).toBeTruthy();
+  }
+});
+
 it('진행 중에는 현재 확인분 기준 남은 시간을 표시하고 기준이 미확정인 주에는 0을 표시하지 않는다', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...report, periods: [period, {
     ...period, fromDate: '2027-01-04', toDate: '2027-01-10', targetMinutes: null, paidLeaveMillis: null, remainingMillis: null,
