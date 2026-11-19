@@ -149,6 +149,7 @@ class CodeMigrationUpgradeIT {
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.attendance_month_closure", Integer.class));
             verifyMonthCloseExportUpgrade(db, migrationSource);
             verifySelectiveWorkUpgrade(db, migrationSource);
+            verifySelectiveCloseUpgrade(db, migrationSource, url);
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 
@@ -189,6 +190,83 @@ class CodeMigrationUpgradeIT {
                 SELECT has_column_privilege('tna_app','tna.work_time_code_version','work_mode','INSERT')
                     AND NOT has_any_column_privilege('tna_app','tna.work_time_code_version','UPDATE')
                 """,Boolean.class));
+    }
+
+    private static void verifySelectiveCloseUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, String url) throws Exception {
+        var owners=db.queryForList("SELECT DISTINCT ON (tenant_id) tenant_id,id FROM tna.tenant_account ORDER BY tenant_id,id");
+        var tenant=owners.getFirst().get("tenant_id");
+        var account=owners.getFirst().get("id");
+        var closure=UUID.randomUUID();
+        assertEquals(4,db.update("""
+                INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on,left_on,created_at)
+                SELECT ?,gen_random_uuid(),code,code,joined,left_on,DATE '2024-01-01' FROM (VALUES
+                    ('V33-FULL',DATE '2024-11-01',NULL::date),('V33-PART',DATE '2024-11-05',DATE '2024-11-05'),
+                    ('V33-UNKNOWN',DATE '2024-11-05',DATE '2024-11-05'),('V33-OUT',DATE '2024-12-01',NULL::date)
+                ) people(code,joined,left_on)
+                """,tenant));
+        assertEquals(4,db.update("""
+                INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,
+                        engine_version,status,finished_at)
+                SELECT tenant_id,gen_random_uuid(),id,?,DATE '2024-11-05',DATE '2024-11-06',DATE '2024-11-04',DATE '2024-11-10',
+                       'CALC-1','COMPLETED',CURRENT_TIMESTAMP FROM tna.employee WHERE tenant_id=? AND employee_no LIKE 'V33-%'
+                """,account,tenant));
+        assertEquals(8,db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                        source_fingerprint,rule_version,status,actual_work_millis,leave_days,reason_codes,input_refs,calculated_at)
+                SELECT r.tenant_id,gen_random_uuid(),r.id,r.employee_id,DATE '2024-11-05'+n,1,0,0,repeat('a',64),
+                       'CALC-1','CALCULATED',25200000,0,'[]','[{"clock":{"schedule":{"workMode":"SELECTIVE"}}}]',DATE '2024-11-10'
+                FROM tna.employee e JOIN tna.calculation_run r ON r.tenant_id=e.tenant_id AND r.employee_id=e.id
+                CROSS JOIN generate_series(0,1) n WHERE e.tenant_id=? AND e.employee_no LIKE 'V33-%'
+                """,tenant));
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name,changed_at)
+                VALUES (?,?,DATE '2024-11-01',1,'CLOSED','이전 선택 마감',?,'합성 담당자',DATE '2024-12-01')
+                """,tenant,closure,account);
+        db.update("UPDATE tna.employee SET joined_on=DATE '2025-01-05',left_on=NULL,updated_at=DATE '2024-12-07' WHERE tenant_id=? AND employee_no IN ('V33-FULL','V33-UNKNOWN')",tenant);
+        assertEquals(1,db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                        source_fingerprint,rule_version,status,actual_work_millis,leave_days,reason_codes,input_refs,calculated_at)
+                SELECT r.tenant_id,gen_random_uuid(),r.run_id,r.employee_id,r.work_date,2,0,0,r.source_fingerprint,
+                       r.rule_version,r.status,3600000,0,'[]',r.input_refs,DATE '2024-12-08'
+                FROM tna.day_result r JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.employee_id
+                WHERE r.tenant_id=? AND e.employee_no='V33-FULL' AND r.work_date=DATE '2024-11-05'
+                """,tenant));
+        var original=columns(db);
+        var data=rows(db,original);
+        var permissions=access(db);
+        var upgrade=Flyway.configure().dataSource(migrations).target("33").load();
+        assertEquals(1,upgrade.migrate().migrationsExecuted);
+        assertEquals(0,upgrade.migrate().migrationsExecuted);
+        assertEquals(data,rows(db,original));
+        assertEquals(permissions,access(db).stream().filter(row->!"attendance_month_selective_member".equals(row.get("relname"))).toList());
+        assertEquals(List.of("V33-FULL/05.1,06.1","V33-PART/05.1","V33-UNKNOWN/UNKNOWN"),db.queryForList("""
+                SELECT e.employee_no||'/'||coalesce((SELECT string_agg(to_char(r.work_date,'DD')||'.'||r.result_revision,',' ORDER BY r.work_date)
+                        FROM tna.day_result r WHERE r.tenant_id=m.tenant_id AND r.id=ANY(m.result_ids)),'UNKNOWN')
+                FROM tna.attendance_month_selective_member m JOIN tna.employee e ON e.tenant_id=m.tenant_id AND e.id=m.employee_id
+                WHERE m.tenant_id=? AND m.closure_id=? ORDER BY e.employee_no
+                """,String.class,tenant,closure));
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM pg_policies WHERE policyname='selective_close_registry_scan'",Integer.class));
+        assertTrue(db.queryForObject("SELECT relrowsecurity AND relforcerowsecurity FROM pg_class WHERE oid='tna.attendance_month_selective_member'::regclass",Boolean.class));
+        assertFalse(db.queryForObject("""
+                SELECT has_any_column_privilege('tna_app','tna.attendance_month_selective_member','UPDATE')
+                    OR has_table_privilege('tna_app','tna.attendance_month_selective_member','DELETE')
+                    OR has_table_privilege('tna_auth','tna.attendance_month_selective_member','SELECT')
+                    OR has_table_privilege('tna_operator','tna.attendance_month_selective_member','SELECT')
+                """,Boolean.class));
+        var app=new DriverManagerDataSource(url,DatabaseFixture.APP_USER,DatabaseFixture.APP_PASSWORD);
+        try(var connection=app.getConnection();var query=connection.createStatement()) {
+            connection.setAutoCommit(false);
+            for (var owner : owners) {
+                query.execute("SELECT set_config('app.tenant_id','"+owner.get("tenant_id")+"',true)");
+                try(var result=query.executeQuery("SELECT count(*) FROM tna.attendance_month_selective_member")) {
+                    assertTrue(result.next());
+                    assertEquals(owner.get("tenant_id").equals(tenant)?3:0,result.getInt(1));
+                }
+            }
+            var denied=assertThrows(java.sql.SQLException.class,()->query.executeUpdate("INSERT INTO tna.attendance_month_selective_member(tenant_id,closure_id,employee_id) VALUES ('"+tenant+"','"+closure+"',gen_random_uuid())"));
+            assertEquals("42501",denied.getSQLState());
+            connection.rollback();
+        }
     }
 
     private static void verifyMonthCloseExportUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {

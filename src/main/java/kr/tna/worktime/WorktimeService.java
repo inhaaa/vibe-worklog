@@ -148,10 +148,9 @@ public final class WorktimeService {
         var employee = employee(tenant, employeeId);
         var from = WorktimeCalculator.weekStart(month.atDay(1));
         var through = WorktimeCalculator.weekStart(month.atEndOfMonth()).plusDays(6);
-        var closed = Set.copyOf(mapper.closedMonths(tenant, from, through));
         var days = new ArrayList<SelectiveSettlement.Day>();
         for (var row : mapper.settlementDays(tenant, employeeId, from, through)) {
-            var day = closed.contains(row.workDate().withDayOfMonth(1)) ? closedSettlementDay(row) : openSettlementDay(employee, row);
+            var day = row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row);
             if (day != null) days.add(day);
         }
         return new SelectiveSettlement.Overview(month, employeeId, employee.employeeNo(), employee.displayName(),
@@ -172,10 +171,16 @@ public final class WorktimeService {
                 matches ? row.actualWorkMillis() : null, reasons);
     }
 
-    private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row) {
+    private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row, YearMonth month) {
         if (row.savedSelectiveInputs() == null) return null;
         var frozen = frozenEvidence(row.savedSelectiveInputs(), row.employeeId(), row.workDate());
         if (!frozen.complete()) throw new OrgException(503, "마감 시점의 정산 근거를 확인할 수 없습니다.");
+        if (row.unknownMembership()) {
+            if (month.equals(YearMonth.from(row.workDate())) || "ISO_WEEK".equals(frozen.clock().schedule().settlementPeriod())) {
+                throw new OrgException(503, YearMonth.from(row.workDate()) + " 마감 당시 재직일을 확인할 수 없습니다. 근태 담당자가 해당 월을 재개해 다시 마감해 주세요.");
+            }
+            return null;
+        }
         var employment = frozen.employment();
         if (row.workDate().isBefore(employment.joinedOn()) ||
                 employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;

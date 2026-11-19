@@ -63,6 +63,13 @@ it('미확정 일수가 남은 이유를 직원이 구분할 수 있다', async 
   }
 });
 
+it('이전 마감의 재직일 근거를 확인할 수 없으면 담당자에게 대상 월과 재마감 안내를 표시한다', async () => {
+  const message = '2026-12 마감 당시 재직일을 확인할 수 없습니다. 근태 담당자가 해당 월을 재개해 다시 마감해 주세요.';
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ message }, { status: 503 })));
+  render(monthPage(true));
+  expect((await screen.findByRole('alert')).textContent).toContain(message);
+});
+
 it('진행 중에는 현재 확인분 기준 남은 시간을 표시하고 기준이 미확정인 주에는 0을 표시하지 않는다', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ ...report, periods: [period, {
     ...period, fromDate: '2027-01-04', toDate: '2027-01-10', targetMinutes: null, paidLeaveMillis: null, remainingMillis: null,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageRequestError } from '../transport';
 import { duration } from '../ui';
 import { monthEndAccessDenied, monthEndRequest } from './monthEndApi';
 import { periodNames, selectiveReasonLabels, type SettlementPeriod } from './selectiveSchedule';
@@ -52,8 +53,10 @@ export function SelectiveSettlements({ month, employeeId, admin }: { month: stri
       }
       setReport(result);
     }).catch(cause => {
-      if (!cancel.signal.aborted) setError(monthEndAccessDenied(cause) ? '로그인 상태와 정산 조회 권한을 확인해 주세요.'
-        : '선택근무 정산을 불러오지 못했습니다.');
+      if (cancel.signal.aborted) return;
+      if (monthEndAccessDenied(cause)) setError('로그인 상태와 정산 조회 권한을 확인해 주세요.');
+      else if (cause instanceof PageRequestError && cause.status === 503) setError(cause.message);
+      else setError('선택근무 정산을 불러오지 못했습니다.');
     });
     return () => cancel.abort();
   }, [admin, employeeId, month, attempt]);

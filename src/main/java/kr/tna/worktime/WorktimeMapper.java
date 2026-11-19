@@ -16,13 +16,18 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
             UUID calendarVersionId, String dayKind, String events, String correction, String confirmations,
             UUID policyId, UUID assessmentId, String leaveEffects, String pendingCorrections,
             String storedSource, Long storedInput, Long storedReview, Long actualWorkMillis, Double storedLeaveDays,
-            String reasonCodes, String savedSelectiveInputs) implements MonthEndReviewMapper.DayEvidence { }
+            String reasonCodes, String savedSelectiveInputs, boolean closed, boolean unknownMembership)
+            implements MonthEndReviewMapper.DayEvidence { }
 
     // A month's complete ISO boundary weeks contain at most 42 dates. Read sources and saved results together.
     @Select("""
             WITH dates AS (
                 SELECT #{employeeId}::uuid AS employee_id,#{from}::date+n AS work_date
                 FROM generate_series(0,41) n WHERE #{from}::date+n<=#{through}
+            ), closures AS (
+                SELECT DISTINCT ON (month_start) id,month_start,status,changed_at FROM tna.attendance_month_closure
+                WHERE tenant_id=#{tenantId} AND month_start>=date_trunc('month',#{from}::date::timestamp)::date
+                  AND month_start<=#{through}::date ORDER BY month_start,version DESC
             )
             SELECT d.employee_id,d.work_date,coalesce(rev.input_revision,0) AS input_revision,
                 coalesce(rev.review_revision,0) AS review_revision,s.version_id AS schedule_version_id,s.workday,
@@ -31,8 +36,12 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
                 policy.id AS policy_id,assessment.id AS assessment_id,l.effects AS leave_effects,p.ids AS pending_corrections,
                 r.source_fingerprint AS stored_source,r.input_revision AS stored_input,r.review_revision AS stored_review,
                 r.actual_work_millis,r.leave_days AS stored_leave_days,r.reason_codes::text AS reason_codes,
-                CASE WHEN r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE' THEN r.input_refs::text END AS saved_selective_inputs
+                CASE WHEN r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE' THEN r.input_refs::text END AS saved_selective_inputs,
+                c.id IS NOT NULL AS closed,m.employee_id IS NOT NULL AND m.result_ids IS NULL AS unknown_membership
             FROM dates d
+            LEFT JOIN closures c ON c.month_start=date_trunc('month',d.work_date::timestamp)::date AND c.status='CLOSED'
+            LEFT JOIN tna.attendance_month_selective_member m ON m.tenant_id=#{tenantId} AND m.closure_id=c.id
+                AND m.employee_id=d.employee_id
             """ + MonthEndReviewMapper.DAY_EVIDENCE_JOINS + MonthEndReviewMapper.LEAVE_AND_POLICY_JOINS + """
             LEFT JOIN LATERAL (
                 SELECT jsonb_agg(id ORDER BY id)::text AS ids FROM tna.approval_request
@@ -41,8 +50,10 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
             ) p ON true
             LEFT JOIN LATERAL (
                 SELECT source_fingerprint,input_revision,review_revision,actual_work_millis,leave_days,reason_codes,input_refs
-                FROM tna.day_result WHERE tenant_id=#{tenantId} AND employee_id=d.employee_id AND work_date=d.work_date
-                ORDER BY result_revision DESC LIMIT 1
+                FROM tna.day_result dr WHERE dr.tenant_id=#{tenantId} AND dr.employee_id=d.employee_id AND dr.work_date=d.work_date
+                    AND (c.id IS NULL OR dr.id=ANY(m.result_ids) OR
+                         (m.employee_id IS NOT NULL AND m.result_ids IS NULL AND dr.calculated_at<=c.changed_at))
+                ORDER BY dr.result_revision DESC LIMIT 1
             ) r ON true
             WHERE s.work_mode='SELECTIVE' OR r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE'
             ORDER BY d.work_date
