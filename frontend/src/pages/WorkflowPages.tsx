@@ -6,6 +6,8 @@ import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { LeaveBalanceBatch } from './LeaveBalanceBatch';
+import { SelectiveSettlements } from './SelectiveSettlements';
+import { selectiveHours, selectiveReasonLabels } from './selectiveSchedule';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import type { CsrfToken, PageProps } from '../types';
@@ -677,6 +679,7 @@ function Month({ model: m }: { model: MonthModel }) {
         <div data-tone={summary.pendingDays ? 'warn' : undefined}><dt>확인 전</dt><dd>{summary.pendingDays}일</dd></div>
         <div><dt>휴가</dt><dd>{leaveDays}일</dd></div>
       </dl>
+      <SelectiveSettlements key={[m.admin, m.employeeId, view.month].join('/')} admin={m.admin} employeeId={m.employeeId} month={view.month} />
       <section className="wl-section">
         <WorklogSheet label="일별 근로시간" title="일별" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
@@ -811,9 +814,8 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
         {c.schedule && (
           <>
             <p>{c.schedule.workday ? '소정 근무일' : '소정 비근무일'}</p>
-            <p>
-              예정 시작·종료 {fmtTime(c.schedule.startTime)} / {fmtTime(c.schedule.endTime)}
-            </p>
+            {c.schedule.workMode === 'SELECTIVE' ? <p>{selectiveHours(c.schedule)}</p>
+              : <p>예정 시작·종료 {fmtTime(c.schedule.startTime)} / {fmtTime(c.schedule.endTime)}</p>}
             <h3>예정 휴게</h3>
             <ul>
               {c.schedule.breaks.map((b, i) => (
@@ -935,7 +937,8 @@ function Result({ model: m }: { model: ResultModel }) {
         )}
         <ul>
           {day.result.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
+            <li key={reason}>{reason === 'LEAVE_WORK_CONFLICT' && d.clock?.schedule?.workMode !== 'SELECTIVE'
+              ? reason : selectiveReasonLabels[reason] ?? reason}</li>
           ))}
         </ul>
       </section>
@@ -1145,17 +1148,27 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
 }
 
 const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
+function confirmationTime(value: string) {
+  const seoul = fmtDateTime(value).slice(11);
+  const millis = new Date(value).getUTCMilliseconds();
+  return millis ? seoul + '.' + String(millis).padStart(3, '0') : fmtTime(seoul);
+}
 function scheduleLine(day: DaySnapshot) {
   if (day.schedule == null) return null;
   const head = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
+    : day.schedule.workMode === 'SELECTIVE' ? selectiveHours(day.schedule)
     : `예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`;
-  const line = [head, ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  const pauseLabel = day.schedule.workMode === 'SELECTIVE' ? '예정 휴게' : '휴게';
+  const line = [head, ...day.schedule.breaks.map(b => `${pauseLabel} ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
   return day.calendarVersionId == null ? `${line} · 캘린더 미확인` : line;
 }
 export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
     d = m.day,
     f = m.confirmationForm;
+  const selective = d.schedule?.workMode === 'SELECTIVE';
+  const breaksId = useId();
+  const correctionHref = `/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`;
   const time = (event: ClockEvent) => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt);
   const columns = [
     sheetColumn<ClockEvent>({ field: 'kind', headerName: '구분', minWidth: 120, pinned: 'left', valueGetter: ({ data }) => data ? eventName(data.kind) : '' }, event => eventName(event.kind)),
@@ -1193,7 +1206,7 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
         </p>
       )}
       {needsCorrection && (
-        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={`/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`}>정정 신청</a></p>
+        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={correctionHref}>정정 신청</a></p>
       )}
       {canConfirm && (
         <Form action="/me/work-confirmations" method="post" className="wl-form">
@@ -1210,13 +1223,19 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
                 휴게를 뺀 실제 근로가 맞습니다
               </label>
               <label className="checkbox-label">
-                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required />
-                휴게가 예정과 같습니다
+                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required
+                  aria-describedby={selective ? breaksId : undefined} />
+                {selective ? '표시된 휴게가 실제와 같습니다' : '휴게가 예정과 같습니다'}
               </label>
+              {selective && <div className="t-subtle" id={breaksId}>
+                <p>확인할 휴게 {m.confirmationBreaks == null ? '미확인' : m.confirmationBreaks.length
+                  ? m.confirmationBreaks.map(b => confirmationTime(b.startAt) + ' ~ ' + confirmationTime(b.endAt)).join(', ') : '없음'}</p>
+                <p>실제 휴게가 다르면 <a href={correctionHref}>정정 신청</a></p>
+              </div>}
             </FormRow>
           </FormTable>
           <div className="wl-form-actions">
-            <button type="submit" className="t-btn primary">근무 확인</button>
+            <button type="submit" className="t-btn primary" disabled={selective && m.confirmationBreaks == null}>근무 확인</button>
           </div>
         </Form>
       )}

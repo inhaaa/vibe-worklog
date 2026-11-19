@@ -2,6 +2,7 @@ package kr.tna.worktime;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.worktime.WorktimeData.*;
@@ -9,6 +10,46 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface WorktimeMapper extends ClosedAttendanceMonths {
+    record SettlementRow(UUID employeeId, LocalDate workDate, long inputRevision, long reviewRevision,
+            UUID scheduleVersionId, Boolean workday, LocalTime startTime, LocalTime endTime, String breaks,
+            String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod,
+            UUID calendarVersionId, String dayKind, String events, String correction, String confirmations,
+            UUID policyId, UUID assessmentId, String leaveEffects, String pendingCorrections,
+            String storedSource, Long storedInput, Long storedReview, Long actualWorkMillis, Double storedLeaveDays,
+            String reasonCodes, String savedSelectiveInputs) implements MonthEndReviewMapper.DayEvidence { }
+
+    // A month's complete ISO boundary weeks contain at most 42 dates. Read sources and saved results together.
+    @Select("""
+            WITH dates AS (
+                SELECT #{employeeId}::uuid AS employee_id,#{from}::date+n AS work_date
+                FROM generate_series(0,41) n WHERE #{from}::date+n<=#{through}
+            )
+            SELECT d.employee_id,d.work_date,coalesce(rev.input_revision,0) AS input_revision,
+                coalesce(rev.review_revision,0) AS review_revision,s.version_id AS schedule_version_id,s.workday,
+                s.start_time,s.end_time,s.breaks,s.work_mode,s.core_start,s.core_end,s.standard_minutes,s.settlement_period,
+                cal.version_id AS calendar_version_id,cal.kind AS day_kind,rec.events,cor.correction,conf.confirmations,
+                policy.id AS policy_id,assessment.id AS assessment_id,l.effects AS leave_effects,p.ids AS pending_corrections,
+                r.source_fingerprint AS stored_source,r.input_revision AS stored_input,r.review_revision AS stored_review,
+                r.actual_work_millis,r.leave_days AS stored_leave_days,r.reason_codes::text AS reason_codes,
+                CASE WHEN r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE' THEN r.input_refs::text END AS saved_selective_inputs
+            FROM dates d
+            """ + MonthEndReviewMapper.DAY_EVIDENCE_JOINS + MonthEndReviewMapper.LEAVE_AND_POLICY_JOINS + """
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(id ORDER BY id)::text AS ids FROM tna.approval_request
+                WHERE tenant_id=#{tenantId} AND target_employee_id=d.employee_id AND kind='ATTENDANCE_CORRECTION'
+                    AND status='PENDING' AND from_date=d.work_date
+            ) p ON true
+            LEFT JOIN LATERAL (
+                SELECT source_fingerprint,input_revision,review_revision,actual_work_millis,leave_days,reason_codes,input_refs
+                FROM tna.day_result WHERE tenant_id=#{tenantId} AND employee_id=d.employee_id AND work_date=d.work_date
+                ORDER BY result_revision DESC LIMIT 1
+            ) r ON true
+            WHERE s.work_mode='SELECTIVE' OR r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE'
+            ORDER BY d.work_date
+            """)
+    List<SettlementRow> settlementDays(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("from") LocalDate from, @Param("through") LocalDate through);
+
     @Select("""
             SELECT after_state::text FROM tna.org_audit_event
             WHERE tenant_id=#{tenantId} AND command_id=#{commandId} AND target_id=#{batchId}

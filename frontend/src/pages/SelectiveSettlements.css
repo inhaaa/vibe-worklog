@@ -1,0 +1,17 @@
+.selective-settlements article {
+  border-top: 1px solid var(--g200);
+  padding: 14px 0;
+}
+.selective-settlements article h3 {
+  margin: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.selective-settlements article p { margin: 6px 0 12px; }
+.selective-settlements .wl-info-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.75rem), 1fr));
+}
+.selective-settlements article ul {
+  margin: 10px 0 0;
+  padding-inline-start: 1.4em;
+}

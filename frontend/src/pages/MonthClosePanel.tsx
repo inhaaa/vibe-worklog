@@ -190,6 +190,9 @@ export function MonthClosePanel({ month, source, csrf, otherWork, onMode, onStat
     {snapshot && <>
       <p>{closed ? '마감한 달의 정정·재집계·보완 요청을 처리하려면 먼저 재개해 주세요.'
         : '목록의 조회 조건과 관계없이 회사 전체의 근태를 점검합니다.'}</p>
+      {!editing && !otherWork && phase === 'ready' && <p>
+        <a href={'/admin/attendance?month=' + month + '#selective-settlements'}>사원별 선택근무 정산</a>
+      </p>}
       {!snapshot.pastMonth && <p>{nextMonthStart(month)}부터 마감할 수 있습니다.</p>}
       {!editing && <button ref={trigger} className="t-btn" type="button" disabled={otherWork || phase !== 'ready'}
         onClick={closed ? startEditing : inspect}>{closed ? '월 마감 재개' : phase === 'checking' ? '회사 전체 점검 중' : '회사 전체 마감 점검'}</button>}

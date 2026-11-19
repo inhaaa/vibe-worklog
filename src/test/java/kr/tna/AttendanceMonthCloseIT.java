@@ -15,9 +15,15 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import kr.tna.clock.AttendanceSettingsData.CalendarForm;
+import kr.tna.clock.AttendanceSettingsService;
+import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.OrgException;
+import kr.tna.request.LeaveWorkflowService;
+import kr.tna.request.RequestData.CorrectionForm;
+import kr.tna.request.RequestData.DecisionForm;
 import kr.tna.worktime.AttendanceMonthCloseService;
 import kr.tna.worktime.MonthEndReviewMapper;
 import kr.tna.worktime.MonthEndReviewQueries;
@@ -59,6 +65,9 @@ class AttendanceMonthCloseIT {
     @Autowired AttendanceMonthCloseService months;
     @Autowired MonthEndReviewQueries reviews;
     @Autowired WorktimeService worktime;
+    @Autowired kr.tna.clock.ClockService clocks;
+    @Autowired AttendanceSettingsService settings;
+    @Autowired LeaveWorkflowService workflow;
     @MockitoSpyBean MonthEndReviewMapper reviewMapper;
     private JdbcTemplate db;
     private UUID tenant;
@@ -392,7 +401,17 @@ class AttendanceMonthCloseIT {
 
     private UUID knownRestDay() {
         UUID worker = employee("월말 입사자", LAST, null);
-        UUID template = UUID.randomUUID(), version = UUID.randomUUID(), calendar = UUID.randomUUID();
+        restSchedule(worker);
+        UUID calendar = UUID.randomUUID();
+        db.update("INSERT INTO tna.calendar_version(tenant_id,id,revision,valid_from,valid_to,reason,created_by) VALUES (?,?,1,?,?,'합성 달력',?)",
+                tenant, calendar, LAST, LAST.plusDays(1), admin.accountId());
+        db.update("INSERT INTO tna.calendar_day(tenant_id,version_id,work_date,kind,name,basis) VALUES (?,?,?,'NON_WORKDAY','휴무','합성 달력')",
+                tenant, calendar, LAST);
+        return worker;
+    }
+
+    private UUID restSchedule(UUID worker) {
+        UUID template = UUID.randomUUID(), version = UUID.randomUUID();
         db.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'REST','휴무 일정',?,?)",
                 tenant, template, admin.accountId(), admin.accountId());
         db.update("INSERT INTO tna.schedule_version(tenant_id,id,template_id,revision,valid_from,reason,created_by) VALUES (?,?,?,1,?,'휴무 일정',?)",
@@ -400,11 +419,153 @@ class AttendanceMonthCloseIT {
         db.update("INSERT INTO tna.schedule_day(tenant_id,version_id,weekday,workday) VALUES (?,?,7,false)", tenant, version);
         db.update("INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'휴무 배정',?,?)",
                 tenant, UUID.randomUUID(), worker, version, LAST, admin.accountId(), admin.accountId());
-        db.update("INSERT INTO tna.calendar_version(tenant_id,id,revision,valid_from,valid_to,reason,created_by) VALUES (?,?,1,?,?,'합성 달력',?)",
-                tenant, calendar, LAST, LAST.plusDays(1), admin.accountId());
-        db.update("INSERT INTO tna.calendar_day(tenant_id,version_id,work_date,kind,name,basis) VALUES (?,?,?,'NON_WORKDAY','휴무','합성 달력')",
-                tenant, calendar, LAST);
+        return version;
+    }
+
+    private void useSelectiveCode(UUID version) {
+        UUID code = UUID.randomUUID(), codeVersion = UUID.randomUUID();
+        db.update("INSERT INTO tna.work_time_code(tenant_id,id,code) VALUES (?,?,'FL')", tenant, code);
+        db.update("""
+                INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,start_time,end_time,
+                    work_mode,standard_minutes,settlement_period,reason,created_by)
+                VALUES (?,?,?,1,?,true,'선택근무',TIME '07:00',TIME '20:00','SELECTIVE',421,'CALENDAR_MONTH','합성',?)
+                """, tenant, codeVersion, code, LAST, admin.accountId());
+        db.update("UPDATE tna.schedule_day SET workday=true,start_time=TIME '07:00',end_time=TIME '20:00' WHERE tenant_id=? AND version_id=?", tenant, version);
+        db.update("INSERT INTO tna.work_group_day(tenant_id,schedule_version_id,weekday,code_version_id) VALUES (?,?,7,?)", tenant, version, codeVersion);
+    }
+
+    private UUID selectiveFullDayLeaveWorker() {
+        UUID worker = knownRestDay();
+        UUID version = db.queryForObject("SELECT schedule_version_id FROM tna.schedule_assignment WHERE tenant_id=? AND employee_id=?", UUID.class, tenant, worker);
+        UUID calendar = db.queryForObject("SELECT id FROM tna.calendar_version WHERE tenant_id=?", UUID.class, tenant);
+        useSelectiveCode(version);
+        db.update("UPDATE tna.calendar_day SET kind='WORKDAY' WHERE tenant_id=? AND work_date=?", tenant, LAST);
+        UUID assignment = UUID.randomUUID(), bucket = UUID.randomUUID(), request = UUID.randomUUID();
+        db.update("""
+                INSERT INTO tna.approver_assignment(tenant_id,id,employee_id,approver_employee_id,valid_from,reason,created_by,updated_by)
+                VALUES (?,?,?,?,?,'합성',?,?)
+                """, tenant, assignment, worker, admin.employeeId(), LAST, admin.accountId(), admin.accountId());
+        db.update("INSERT INTO tna.leave_bucket(tenant_id,id,employee_id,base_date,usable_from,source_reference,created_by) VALUES (?,?,?,?,?,'합성',?)",
+                tenant, bucket, worker, LAST, LAST, admin.accountId());
+        db.update("""
+                INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
+                    approver_assignment_id,approver_assignment_version,reason,leave_bucket_id,from_date,to_date,
+                    client_command_id,attendance_type_version_id)
+                SELECT ?,?,?,?,'LEAVE_DAY','APPROVED',?,?,0,'합성',?,?,?,?,v.id FROM tna.attendance_type_version v
+                    JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id
+                    WHERE t.tenant_id=? AND t.system_kind='ANNUAL_LEAVE' AND v.revision=1
+                """, tenant, request, worker, admin.accountId(), admin.employeeId(), assignment, bucket, LAST, LAST, UUID.randomUUID(), tenant);
+        db.update("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id) VALUES (?,?,?,?,1,?,?)",
+                tenant, UUID.randomUUID(), request, LAST, version, calendar);
+        db.update("INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by) VALUES (?,?,?,?,'LEAVE',?)",
+                tenant, UUID.randomUUID(), request, worker, admin.accountId());
         return worker;
+    }
+
+    @Test
+    void selectiveFullDayLeaveRequiresCalculationAndClosedSettlementKeepsItsOriginalInputs() throws Exception {
+        UUID worker = selectiveFullDayLeaveWorker();
+        var open = selectivePeriod(worker);
+        assertEquals(421, open.path("targetMinutes").asInt());
+        assertEquals(1, open.path("unconfirmedDays").asInt());
+        assertEquals(0L, open.get("remainingMillis").asLong());
+        assertTrue(open.path("differenceMillis").isNull());
+        assertEquals(1, check(MONTH).path("uncalculatedDays").asInt());
+        worktime.recalculate(admin, worker, LAST, LAST, UUID.randomUUID(), "선택근무 휴가 정산");
+        var calculated = selectivePeriod(worker);
+        assertEquals(0, calculated.path("unconfirmedDays").asInt());
+        assertEquals(421 * 60_000L, calculated.path("paidLeaveMillis").asLong());
+        assertEquals(0, calculated.path("confirmedWorkMillis").asLong());
+        assertEquals(0, calculated.path("differenceMillis").asLong());
+        assertTrue(check(MONTH).path("canClose").asBoolean());
+        body(change(admin, "CLOSE", 0, UUID.randomUUID(), "선택근무 마감"), 200);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", LAST.plusDays(1), tenant, worker);
+        db.update("UPDATE tna.work_time_code_version SET standard_minutes=360 WHERE tenant_id=? AND work_mode='SELECTIVE'", tenant);
+        assertEquals(calculated, selectivePeriod(worker));
+    }
+
+    @Test
+    void confirmedWorkConflictingWithApprovedFullDayLeaveHoldsTheSelectiveMonthOpen() throws Exception {
+        UUID worker = selectiveFullDayLeaveWorker(), account = UUID.randomUUID(), network = UUID.randomUUID();
+        db.update("UPDATE tna.work_time_code_version SET core_start=TIME '10:00',core_end=TIME '11:00' WHERE tenant_id=? AND work_mode='SELECTIVE'",tenant);
+        db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,'synthetic')",
+                tenant, account, worker, account + "@example.test");
+        db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')",tenant,account);
+        db.update("INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by) VALUES (?,?,CAST('127.0.0.1/32' AS cidr),'합성',?,'합성',?)",
+                tenant,network,java.sql.Timestamp.from(LAST.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant()),admin.accountId());
+        for (String kind:List.of("IN","OUT")) {
+            var at=java.sql.Timestamp.from(LAST.atTime("IN".equals(kind)?9:10,0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
+            db.update("""
+                    INSERT INTO tna.attendance_event(tenant_id,id,employee_id,event_kind,occurred_at,received_at,client_command_id,
+                        source,validated_ip,network_id,assigned_work_date) VALUES (?,?,?,?,?,?,?,'IP',CAST('127.0.0.1' AS inet),?,?)
+                    """,tenant,UUID.randomUUID(),worker,kind,at,at,UUID.randomUUID(),network,LAST);
+        }
+        db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision) VALUES (?,?,?,2,0)",tenant,worker,LAST);
+        var employee = new TnaPrincipal(tenant,account,worker,1,Set.of("EMPLOYEE"),Instant.now());
+        var source=clocks.day(employee,LAST);
+        clocks.confirm(employee,new kr.tna.clock.ClockData.ConfirmationForm(LAST,2L,0L,true,true,source.sourceFingerprint(),UUID.randomUUID()));
+        worktime.recalculate(admin,worker,LAST,LAST,UUID.randomUUID(),"종일휴가 일자의 실근로 확인");
+        var period=selectivePeriod(worker);
+        assertEquals(3_600_000L,period.path("confirmedWorkMillis").asLong());
+        assertEquals(421*60_000L,period.path("paidLeaveMillis").asLong());
+        assertEquals(1,period.path("unconfirmedDays").asInt());
+        assertTrue(period.path("differenceMillis").isNull());
+        assertEquals(1,check(MONTH).path("unconfirmedDays").asInt());
+        assertEquals("LEAVE_WORK_CONFLICT",period.at("/warnings/0").asString());
+        body(change(admin,"CLOSE",0,UUID.randomUUID(),"종일휴가와 실근로 충돌 점검"),409);
+        db.update("UPDATE tna.request_effect SET effect_status='CANCELED' WHERE tenant_id=? AND employee_id=? AND effect_kind='LEAVE'",tenant,worker);
+        worktime.recalculate(admin,worker,LAST,LAST,UUID.randomUUID(),"휴가 취소 반영");
+        var resolved=selectivePeriod(worker);
+        assertEquals("SELECTIVE_CORE_REVIEW",resolved.at("/warnings/0").asString());
+        assertEquals(-361*60_000L,resolved.path("differenceMillis").asLong());
+        assertTrue(check(MONTH).path("canClose").asBoolean());
+    }
+
+    private JsonNode selectivePeriod(UUID worker) throws Exception {
+        var result=body(get(PATH + "/selective-settlements").with(as(admin)).param("month", MONTH)
+                .param("employeeId",worker.toString()).accept("application/json"), 200);
+        assertEquals(1, result.path("periods").size());
+        return result.at("/periods/0");
+    }
+
+    @Test
+    void approvedSelectiveCorrectionNeedsAKnownCalendarBeforeTheMonthCanClose() throws Exception {
+        var employee = account("선택근무 사원", Set.of("EMPLOYEE"));
+        var approver = account("승인자", Set.of("EMPLOYEE", "APPROVER"));
+        UUID worker = employee.employeeId();
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", LAST, tenant, worker);
+        useSelectiveCode(restSchedule(worker));
+        db.update("""
+                INSERT INTO tna.approver_assignment(tenant_id,id,employee_id,approver_employee_id,valid_from,reason,created_by,updated_by)
+                VALUES (?,?,?,?,?,'합성 지정',?,?)
+                """, tenant, UUID.randomUUID(), worker, approver.employeeId(), LAST, admin.accountId(), admin.accountId());
+
+        var before = clocks.day(employee, LAST);
+        assertNull(before.calendarVersionId());
+        UUID correction = workflow.submitCorrection(employee, new CorrectionForm(null, LAST, before.inputRevision(),
+                before.sourceFingerprint(), "SET", LAST + "T09:00", "SET", LAST + "T10:00", true, true, "",
+                null, null, false, "누락 기록 정정", UUID.randomUUID()));
+        workflow.decide(approver, correction, new DecisionForm("APPROVE", 0L, "실근로 확인", UUID.randomUUID()));
+        worktime.recalculate(admin, worker, LAST, LAST, UUID.randomUUID(), "승인 정정 반영");
+        var pending = selectivePeriod(worker);
+        assertEquals(3_600_000L, pending.get("confirmedWorkMillis").asLong());
+        assertTrue(pending.get("targetMinutes").isNull());
+        assertEquals(1, pending.get("unconfirmedDays").asInt());
+        var beforeClose = check(MONTH);
+        assertEquals(1, beforeClose.get("unconfirmedDays").asInt());
+        assertFalse(beforeClose.get("canClose").asBoolean());
+        body(change(admin, "CLOSE", 0, UUID.randomUUID(), "달력 미등록"), 409);
+
+        settings.calendar(admin, new CalendarForm(LAST, LAST, true, "근로일 확인", "", "달력 등록", UUID.randomUUID()));
+        var registered = clocks.day(employee, LAST);
+        clocks.confirm(employee, new ConfirmationForm(LAST, registered.inputRevision(), registered.reviewRevision(),
+                true, true, registered.sourceFingerprint(), UUID.randomUUID()));
+        worktime.recalculate(admin, worker, LAST, LAST, UUID.randomUUID(), "등록된 달력과 근무 확인 반영");
+        var settled = selectivePeriod(worker);
+        assertEquals(421, settled.get("targetMinutes").asInt());
+        assertEquals(0, settled.get("unconfirmedDays").asInt());
+        assertTrue(check(MONTH).get("canClose").asBoolean());
+        body(change(admin, "CLOSE", 0, UUID.randomUUID(), "달력 확인 후 마감"), 200);
     }
 
     private UUID employee(String name, LocalDate joined, LocalDate left) {

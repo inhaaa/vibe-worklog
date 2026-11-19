@@ -18,6 +18,24 @@ class WorktimeWebIT {
     @DynamicPropertySource static void database(DynamicPropertyRegistry r){var d=DatabaseFixture.start();r.add("spring.datasource.url",d::jdbcUrl);r.add("spring.datasource.username",()->DatabaseFixture.APP_USER);r.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);r.add("tna.auth.url",d::jdbcUrl);r.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);r.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);}
     @BeforeEach void seed(){var d=DatabaseFixture.start();d.seedIdentity(kr.tna.common.auth.PasswordPolicy.passwordEncoder().encode(PASSWORD));new JdbcTemplate(d.adminDataSource()).update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",DatabaseFixture.TENANT_A,DatabaseFixture.ACCOUNT_A);}
     @Test void managerCanOpenMonthlyReviewAndPolicyForms() throws Exception{var s=login(true);mvc.perform(get("/admin/attendance").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());mvc.perform(get("/admin/work-policies").session(s)).andExpect(status().isOk());}
+    @Test void selectiveSettlementReadsStayWithinTheCurrentEmployeeCompanyAndRole() throws Exception {
+        var employee = login(false);
+        var admin = login(true);
+        String path = "/admin/attendance/month-close/selective-settlements";
+        mvc.perform(get("/worktime/selective-settlements").session(employee).param("month","2024-03")
+                .param("employeeId", DatabaseFixture.EMPLOYEE_A.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.employeeId").value(DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(jsonPath("$.periods").isEmpty());
+        mvc.perform(get(path).session(employee).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path).session(admin).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(path).session(admin).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_A.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.employeeId").value(DatabaseFixture.EMPLOYEE_A.toString()));
+        mvc.perform(get(path).session(admin).param("month","2024-03")).andExpect(status().isBadRequest());
+        mvc.perform(get("/worktime/selective-settlements").session(employee).param("month","2024-13"))
+                .andExpect(status().isUnprocessableEntity());
+    }
     @Test void employeeCanReadOwnMonthButCannotCalculateExportOrReadAudit() throws Exception{var s=login(false);mvc.perform(get("/me/worktime").session(s)).andExpect(status().isOk());for(String p:java.util.List.of("/admin/attendance","/admin/audit","/admin/work-policies"))mvc.perform(get(p).session(s)).andExpect(status().isForbidden());mvc.perform(post("/admin/calculations").session(s).with(csrf())).andExpect(status().isForbidden());}
     @Test void stateChangesRequireCsrfAndMalformedIdentifiersAreSafe() throws Exception{var s=login(true);mvc.perform(post("/admin/calculations").session(s)).andExpect(status().isForbidden());mvc.perform(get("/admin/reports/exports/not-an-id/download").session(s)).andExpect(status().isBadRequest());}
     @Test void calculationAndReviewExportReturnAuthorizedXlsx() throws Exception {

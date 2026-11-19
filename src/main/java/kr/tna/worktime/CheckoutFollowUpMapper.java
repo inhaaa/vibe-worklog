@@ -14,7 +14,8 @@ import org.apache.ibatis.annotations.Select;
 public interface CheckoutFollowUpMapper extends ClosedAttendanceMonths {
     record OpenRow(UUID id, UUID employeeId, LocalDate workDate, String reason, UUID lastRequestId, String requestStatus,
             long inputRevision, long reviewRevision, UUID scheduleVersionId, Boolean workday, LocalTime startTime,
-            LocalTime endTime, String breaks, UUID calendarVersionId, String dayKind, String events,
+            LocalTime endTime, String breaks, String workMode, LocalTime coreStart, LocalTime coreEnd,
+            Integer standardMinutes, String settlementPeriod, UUID calendarVersionId, String dayKind, String events,
             String correction, String confirmations, double approvedLeaveDays, UUID effectiveRequestId) implements MonthEndReviewMapper.DayEvidence { }
 
     @Insert("""
@@ -29,6 +30,7 @@ public interface CheckoutFollowUpMapper extends ClosedAttendanceMonths {
             SELECT d.id,d.employee_id,d.work_date,d.reason,d.last_request_id,r.status AS request_status,
                    coalesce(rev.input_revision,0) AS input_revision,coalesce(rev.review_revision,0) AS review_revision,
                    s.version_id AS schedule_version_id,s.workday,s.start_time,s.end_time,s.breaks,
+                   s.work_mode,s.core_start,s.core_end,s.standard_minutes,s.settlement_period,
                    cal.version_id AS calendar_version_id,cal.kind AS day_kind,rec.events,cor.correction,conf.confirmations,
                    (SELECT coalesce(sum(ld.quantity_days),0)
             """ + MonthEndReviewMapper.SAME_DAY_APPROVED_LEAVE + """

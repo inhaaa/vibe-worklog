@@ -36,6 +36,13 @@ function page(model = review, roles = ['ATTENDANCE_ADMIN']) {
   return <IdentityPages page="company/attendance" data={{ monthEndReview: model, canViewCheckout: true,
     workspacePrincipal: { roles } }} csrf={csrf} reload={vi.fn()} />;
 }
+it('담당자는 월말 확인 대상이 없는 달에도 같은 월의 사원별 선택근무 정산으로 이동한다', async () => {
+  install(async () => asJson(open));
+  render(page({ ...review, rows: [] }));
+  await screen.findByText('마감 전');
+  expect(screen.getByRole('link', { name: '사원별 선택근무 정산' }).getAttribute('href'))
+    .toBe('/admin/attendance?month=2026-10#selective-settlements');
+});
 const button = (name: string) => screen.getByRole<HTMLButtonElement>('button', { name });
 const edit = () => button('보완 요청');
 const all = () => screen.getByRole<HTMLInputElement>('checkbox', { name: '현재 페이지 전체 선택' });

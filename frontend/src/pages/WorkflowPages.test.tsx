@@ -630,12 +630,15 @@ describe('WorkflowPages', () => {
   it('저장 당시 원천·유효 사건을 서로 다른 그리드와 사건 ID로 표시한다', async () => {
     const effective = { id: 'effective-1', kind: 'IN', occurredAt: '2026-10-26T00:01:00.456Z' };
     const view = await render('worktime/result', { month: '2026-10', admin: false, times: {}, detail: {
-      day: { ...day, id: 'result-1', result, resultRevision: 1, ruleVersion: 'CALC-1', current: true },
+      day: { ...day, id: 'result-1', result: { ...result, reasons: ['SELECTIVE_SETTLEMENT_APPLIES', 'SELECTIVE_CORE_REVIEW'] },
+        resultRevision: 1, ruleVersion: 'CALC-1', current: true },
       completeEvidence: true, latestVersion: true, latestResultId: 'result-1',
       clock: { ...day, effectiveEvents: [effective] }, run: null, policy: null, assessment: null, employment: null,
       leaveEffects: [], pendingCorrections: [],
     } });
     expect(view.getByText('유효한 계산 결과')).toBeTruthy();
+    expect(view.getByText('선택근무 정산기간 적용')).toBeTruthy();
+    expect(view.getByText(/코어시간.*확인/)).toBeTruthy();
     const source = view.getByRole('region', { name: '당시 원천 출퇴근' });
     const changed = view.getByRole('region', { name: '당시 유효 출퇴근' });
     expect(within(source).getByRole('grid', { name: '당시 원천 출퇴근' })).toBeTruthy();
@@ -774,6 +777,27 @@ describe('WorkflowPages', () => {
     expect(view2.container.querySelector('form[action="/me/work-confirmations"]')).toBeTruthy();
     expect(view2.container.textContent).toContain('정정 반영 기록');
     expect(view2.container.textContent).toMatch(/출근 · .*퇴근 · /);
+  });
+  it('선택근무의 근무 확인에는 실제 체류 안에 남은 휴게만 보여주고 차이가 있으면 해당 날짜로 정정을 연다', async () => {
+    const schedule = { ...confirmable.schedule, workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
+      coreStart: null, coreEnd: null, standardMinutes: 480, settlementPeriod: 'CALENDAR_MONTH' };
+    const out = { id: 'out', kind: 'OUT', occurredAt: '2026-10-26T11:00:00Z' };
+    const clock = (start: string) => {
+      const events = [{ id: 'in', kind: 'IN', occurredAt: '2026-10-26T' + start + 'Z' }, out];
+      return { ...confirmable, events, effectiveEvents: events, schedule };
+    };
+    const partial = await render('clock/history', { day: clock('03:30:00'), confirmationForm, confirmationBreaks: [
+      { startAt: '2026-10-26T03:30:00Z', endAt: '2026-10-26T04:00:00Z' },
+    ] });
+    const form = partial.container.querySelector('form[action="/me/work-confirmations"]')!;
+    expect(form.textContent).toContain('확인할 휴게 12:30 ~ 13:00');
+    expect(form.textContent).not.toContain('12:00');
+    expect(form.textContent).toContain('실제 휴게가 다르면 정정 신청');
+    expect(partial.getByRole('link', { name: '정정 신청' }).getAttribute('href')).toContain('date=2026-10-26');
+    partial.unmount();
+    const none = await render('clock/history', { day: clock('04:00:00'), confirmationForm, confirmationBreaks: [] });
+    expect(none.container.querySelector('form[action="/me/work-confirmations"]')?.textContent).toContain('확인할 휴게 없음');
+    expect(none.getByRole('button', { name: '근무 확인' })).toBeTruthy();
   });
   it('정정 신청 링크는 서버의 정정 안내 값을 따르고 확인할 수 있는 날에는 보이지 않는다', async () => {
     const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };

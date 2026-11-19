@@ -20,15 +20,21 @@ import java.util.UUID;
 public final class WorktimeCalculator {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final long HOUR = 3_600_000L;
+    private static final String SELECTIVE_SETTLEMENT = "SELECTIVE_SETTLEMENT_APPLIES";
     private static final Set<String> INFORMATIONAL = Set.of("LEGAL_OVERTIME_UNDETERMINED",
-            "APPROVED_LEAVE_NO_ATTENDANCE", "NO_CLOCK_ON_CONFIRMED_NON_WORKDAY");
+            "APPROVED_LEAVE_NO_ATTENDANCE", "NO_CLOCK_ON_CONFIRMED_NON_WORKDAY", SELECTIVE_SETTLEMENT);
 
     public enum Status { CALCULATED, REVIEW_REQUIRED, NO_SCHEDULED_WORK }
     public enum DayKind { WORKDAY, NON_WORKDAY, HOLIDAY, UNCONFIRMED }
     public enum EventKind { IN, OUT }
     public record Interval(Instant start, Instant end) { }
     public record ClockEvent(UUID commandId, EventKind kind, Instant occurredAt) { }
-    public record Schedule(boolean workday, Instant start, Instant end, List<Interval> plannedBreaks) { }
+    public record Schedule(boolean workday, Instant start, Instant end, List<Interval> plannedBreaks,
+                           boolean selective, Integer standardMinutes, Interval core) {
+        public Schedule(boolean workday, Instant start, Instant end, List<Interval> plannedBreaks) {
+            this(workday, start, end, plannedBreaks, false, null, null);
+        }
+    }
     public record Confirmation(long confirmedInputRevision, long reviewRevision, boolean presenceAsWork,
                                List<Interval> actualBreaks) { }
     public record DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules,
@@ -55,6 +61,8 @@ public final class WorktimeCalculator {
         if (input.pendingCorrection()) reasons.add("PENDING_CORRECTION");
 
         Schedule schedule = input.schedules().size()==1 ? input.schedules().getFirst() : null;
+        boolean selective = schedule != null && schedule.selective();
+        if (selective) reasons.add(SELECTIVE_SETTLEMENT);
         Long scheduled = null;
         List<Interval> scheduledWork = null;
         if (schedule==null) reasons.add(input.schedules().isEmpty()?"SCHEDULE_MISSING":"SCHEDULE_CONFLICT");
@@ -70,7 +78,17 @@ public final class WorktimeCalculator {
             if (breaks==null || breaks.stream().mapToLong(WorktimeCalculator::length).sum()
                     != schedule.plannedBreaks().stream().mapToLong(WorktimeCalculator::length).sum()) {
                 reasons.add("INVALID_SCHEDULE");
-            } else { scheduledWork=subtract(bounds,breaks); scheduled=total(scheduledWork); }
+            } else if (selective && (schedule.standardMinutes() == null || schedule.standardMinutes() <= 0
+                    || schedule.core() != null && (!valid(schedule.core().start(), schedule.core().end())
+                    || schedule.core().start().isBefore(bounds.start()) || schedule.core().end().isAfter(bounds.end())))) {
+                reasons.add("INVALID_SCHEDULE");
+            } else {
+                scheduledWork=subtract(bounds,breaks);
+                if (!selective) scheduled=total(scheduledWork);
+                else if (input.dayKind()!=DayKind.UNCONFIRMED) {
+                    scheduled=input.dayKind()==DayKind.WORKDAY?schedule.standardMinutes()*60_000L:0L;
+                }
+            }
         }
 
         var uniqueEvents = new LinkedHashMap<UUID,ClockEvent>();
@@ -116,7 +134,13 @@ public final class WorktimeCalculator {
                         if (breaks==null) reasons.add("INVALID_BREAK_INTERVAL");
                         else {
                             var work=subtract(bounds,breaks); actual=total(work); confirmedBreak=total(breaks);
-                            if (scheduledWork!=null) {
+                            if (selective && scheduledWork!=null && schedule.workday()) {
+                                var window=new Interval(schedule.start(),schedule.end());
+                                outside=actual-work.stream().mapToLong(interval->intersection(interval,window)).sum();
+                                if (outside>0) reasons.add("SELECTIVE_WINDOW_REVIEW");
+                                if (input.dayKind()==DayKind.WORKDAY && input.approvedLeaveDays()==0 && schedule.core()!=null
+                                        && !coversCore(schedule.core(),scheduledWork,work)) reasons.add("SELECTIVE_CORE_REVIEW");
+                            } else if (!selective && scheduledWork!=null) {
                                 long inside=0;
                                 for (var real:work) for (var planned:scheduledWork) inside+=intersection(real,planned);
                                 outside=actual-inside;
@@ -137,7 +161,7 @@ public final class WorktimeCalculator {
                 }
             }
         }
-        if (actual!=null && input.generalRuleReviewed()) overEight=Math.max(0L,actual-8*HOUR);
+        if (!selective && actual!=null && input.generalRuleReviewed()) overEight=Math.max(0L,actual-8*HOUR);
         boolean review=reasons.stream().anyMatch(reason->!INFORMATIONAL.contains(reason));
         Status status=review || actual==null?Status.REVIEW_REQUIRED
                 :noEvents && nonWorkday && input.approvedLeaveDays()==0?Status.NO_SCHEDULED_WORK:Status.CALCULATED;
@@ -191,10 +215,13 @@ public final class WorktimeCalculator {
         var reasons=new TreeSet<String>();
         if (unconfirmed>0) reasons.add("PARTIAL_TOTAL");
         if (days.stream().anyMatch(day->day.status()==Status.REVIEW_REQUIRED)) reasons.add("INPUT_REVIEW_REQUIRED");
-        if (week && !basisReviewed) reasons.add("WEEK_BASIS_UNCONFIRMED");
-        if (week && !classificationsComplete) reasons.add("WEEK_REFERENCE_UNCONFIRMED");
+        boolean selectiveWeek=week && days.stream().anyMatch(day->day.reasons().contains(SELECTIVE_SETTLEMENT));
+        if (week && !selectiveWeek && !basisReviewed) reasons.add("WEEK_BASIS_UNCONFIRMED");
+        if (week && !selectiveWeek && !classificationsComplete) reasons.add("WEEK_REFERENCE_UNCONFIRMED");
         if (overForty!=null && overForty>12*HOUR) reasons.add("WEEK_LIMIT_REVIEW");
-        return new PeriodResult(start,end,reasons.isEmpty()?Status.CALCULATED:Status.REVIEW_REQUIRED,confirmed,unconfirmed,
+        Status status=reasons.isEmpty()?Status.CALCULATED:Status.REVIEW_REQUIRED;
+        if (selectiveWeek) reasons.add(SELECTIVE_SETTLEMENT);
+        return new PeriodResult(start,end,status,confirmed,unconfirmed,
                 overForty,overEight,List.copyOf(days),Set.copyOf(reasons));
     }
 
@@ -234,6 +261,16 @@ public final class WorktimeCalculator {
         }
         if (cursor.isBefore(bounds.end())) work.add(new Interval(cursor,bounds.end()));
         return work;
+    }
+    private static boolean coversCore(Interval core,List<Interval> scheduledWork,List<Interval> actualWork) {
+        for (var planned:scheduledWork) {
+            Instant from=core.start().isAfter(planned.start())?core.start():planned.start();
+            Instant to=core.end().isBefore(planned.end())?core.end():planned.end();
+            if (!from.isBefore(to)) continue;
+            var required=new Interval(from,to);
+            if (actualWork.stream().mapToLong(real->intersection(real,required)).sum()<length(required)) return false;
+        }
+        return true;
     }
     private static long intersection(Interval a,Interval b) {
         Instant start=a.start().isAfter(b.start())?a.start():b.start();

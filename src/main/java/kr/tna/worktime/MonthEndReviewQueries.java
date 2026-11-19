@@ -167,7 +167,10 @@ public final class MonthEndReviewQueries {
         boolean pending = candidate.pendingRequestId() != null;
         double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
         var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays);
-        boolean unconfirmed = calculator.day(input).actualWorkMillis() == null;
+        var calculated = calculator.day(input);
+        boolean selective = "SELECTIVE".equals(candidate.workMode());
+        boolean unconfirmed = calculated.actualWorkMillis() == null
+                || selective && (snapshot.calendarVersionId() == null || calculated.reasons().contains("LEAVE_WORK_CONFLICT"));
         String source = null;
         if (candidate.resultId() != null || includeBasis) {
             source = WorktimeService.source(snapshot, candidate.joinedOn(), candidate.leftOn(), candidate.policyId(),
@@ -176,7 +179,11 @@ public final class MonthEndReviewQueries {
         }
         var reasons = new ArrayList<String>(3);
         if (candidate.resultId() == null) {
-            if (unconfirmed || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) reasons.add("UNCALCULATED");
+            boolean selectiveWorkday = selective && Boolean.TRUE.equals(candidate.workday())
+                    && "WORKDAY".equals(candidate.dayKind());
+            if (selectiveWorkday || unconfirmed || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) {
+                reasons.add("UNCALCULATED");
+            }
         } else if (!WorktimeService.current(snapshot, source, candidate.storedInput(), candidate.storedReview(), candidate.storedSource())) {
             reasons.add("STALE");
         }
@@ -191,7 +198,8 @@ public final class MonthEndReviewQueries {
     static ClockData.DaySnapshot snapshot(ClockService clocks, MonthEndReviewMapper.DayEvidence row) {
         var schedules = row.scheduleVersionId() == null ? List.<ClockMapper.ScheduleRow>of()
                 : List.of(new ClockMapper.ScheduleRow(row.scheduleVersionId(), row.workDate().getDayOfWeek().getValue(),
-                        row.workday(), row.startTime(), row.endTime()));
+                        row.workday(), row.startTime(), row.endTime(), row.workMode(), row.coreStart(), row.coreEnd(),
+                        row.standardMinutes(), row.settlementPeriod()));
         var calendar = row.calendarVersionId() == null ? null : new ClockMapper.CalendarRow(row.calendarVersionId(), row.dayKind());
         var correction = row.correction() == null ? null : JSON.readValue(row.correction(), ClockMapper.CorrectionRow.class);
         var confirmations = list(row.confirmations(), ClockData.Confirmation[].class);
@@ -200,7 +208,7 @@ public final class MonthEndReviewQueries {
                 correction, source -> confirmations.stream().filter(c -> c.sourceFingerprint().equals(source)).findFirst().orElse(null));
     }
 
-    private static <T> List<T> list(String value, Class<T[]> type) {
+    static <T> List<T> list(String value, Class<T[]> type) {
         return value == null ? List.of() : List.of(JSON.readValue(value, type));
     }
 }

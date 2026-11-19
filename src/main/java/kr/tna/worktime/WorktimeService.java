@@ -131,6 +131,66 @@ public final class WorktimeService {
         if(employeeId==null||month==null||month.getYear()<1||month.getYear()>9999)throw OrgException.invalid("대상 사원과 조회 월을 확인해 주세요.");
         return companyAccess.read(actor,()->readDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()));
     }
+
+    public SelectiveSettlement.Overview ownSettlements(TnaPrincipal actor, String rawMonth) {
+        var employeeId = target(actor, null);
+        return read(actor, employeeId, () -> settlements(actor.tenantId(), employeeId, AttendanceMonthCloseService.month(rawMonth)));
+    }
+
+    public SelectiveSettlement.Overview adminSettlements(TnaPrincipal actor, UUID employeeId, String rawMonth) {
+        return commands.read(actor, () -> administration.readShared(actor, () -> {
+            if (employeeId == null) throw OrgException.invalid("정산을 조회할 사원을 선택해 주세요.");
+            return settlements(actor.tenantId(), employeeId, AttendanceMonthCloseService.month(rawMonth));
+        }));
+    }
+
+    private SelectiveSettlement.Overview settlements(UUID tenant, UUID employeeId, YearMonth month) {
+        var employee = employee(tenant, employeeId);
+        var from = WorktimeCalculator.weekStart(month.atDay(1));
+        var through = WorktimeCalculator.weekStart(month.atEndOfMonth()).plusDays(6);
+        var closed = Set.copyOf(mapper.closedMonths(tenant, from, through));
+        var days = new ArrayList<SelectiveSettlement.Day>();
+        for (var row : mapper.settlementDays(tenant, employeeId, from, through)) {
+            var day = closed.contains(row.workDate().withDayOfMonth(1)) ? closedSettlementDay(row) : openSettlementDay(employee, row);
+            if (day != null) days.add(day);
+        }
+        return new SelectiveSettlement.Overview(month, employeeId, employee.employeeNo(), employee.displayName(),
+                SelectiveSettlement.periods(month, LocalDate.now(clock.withZone(SEOUL)), days));
+    }
+
+    private SelectiveSettlement.Day openSettlementDay(Employee employee, WorktimeMapper.SettlementRow row) {
+        if (!"SELECTIVE".equals(row.workMode()) || !employed(employee, row.workDate())) return null;
+        var snapshot = MonthEndReviewQueries.snapshot(clocks, row);
+        var leave = MonthEndReviewQueries.list(row.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
+        var pending = MonthEndReviewQueries.list(row.pendingCorrections(), String[].class);
+        String source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
+                leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
+        boolean matches = row.storedSource() != null && current(snapshot, source, row.storedInput(), row.storedReview(), row.storedSource());
+        return settlementDay(snapshot, WorktimeMapper.LeaveEffect.totalDays(leave), !pending.isEmpty(),
+                matches ? row.actualWorkMillis() : null, matches ? row.reasonCodes() : null);
+    }
+
+    private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row) {
+        if (row.savedSelectiveInputs() == null) return null;
+        var frozen = frozenEvidence(row.savedSelectiveInputs(), row.employeeId(), row.workDate());
+        if (!frozen.complete()) throw new OrgException(503, "마감 시점의 정산 근거를 확인할 수 없습니다.");
+        var employment = frozen.employment();
+        if (row.workDate().isBefore(employment.joinedOn()) ||
+                employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;
+        return settlementDay(frozen.clock(), row.storedLeaveDays(), !frozen.pending().isEmpty(), row.actualWorkMillis(), row.reasonCodes());
+    }
+
+    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, boolean pending,
+            Long actual, String reasonCodes) {
+        var schedule = snapshot.schedule();
+        Integer target = null;
+        if (snapshot.calendarVersionId() != null && !"UNCONFIRMED".equals(snapshot.dayKind())) {
+            target = schedule.workday() && "WORKDAY".equals(snapshot.dayKind()) ? schedule.standardMinutes() : Integer.valueOf(0);
+        }
+        if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && !pending && leave == 0) return null;
+        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual, pending,
+                Set.copyOf(MonthEndReviewQueries.list(reasonCodes, String[].class)));
+    }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(month==null)throw OrgException.invalid("조회 월을 입력해 주세요.");UUID target=target(actor,employeeId);
         return read(actor,target,()->{
@@ -444,7 +504,9 @@ public final class WorktimeService {
         if(snapshot.schedule()!=null) {
             var s=snapshot.schedule();schedules=List.of(new Schedule(s.workday(),s.startTime()==null?null:date.atTime(s.startTime()).atZone(SEOUL).toInstant(),
                     s.endTime()==null?null:date.atTime(s.endTime()).atZone(SEOUL).toInstant(),s.breaks().stream().map(b->new Interval(
-                    date.atTime(b.startTime()).atZone(SEOUL).toInstant(),date.atTime(b.endTime()).atZone(SEOUL).toInstant())).toList()));
+                    date.atTime(b.startTime()).atZone(SEOUL).toInstant(),date.atTime(b.endTime()).atZone(SEOUL).toInstant())).toList(),
+                    "SELECTIVE".equals(s.workMode()), s.standardMinutes(), s.coreStart()==null?null:new Interval(
+                    date.atTime(s.coreStart()).atZone(SEOUL).toInstant(),date.atTime(s.coreEnd()).atZone(SEOUL).toInstant())));
         }
         Confirmation confirmation=null;
         if(snapshot.confirmation()!=null) {
