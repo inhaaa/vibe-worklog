@@ -18,6 +18,23 @@ const props = { date, today: '2026-11-18', csrf, onSaved: vi.fn(), onBusy: vi.fn
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
+it('근무조 편성과 개정 미리보기에서 선택 가능 시간·코어·표준 시간과 정산 기간을 구분한다', async () => {
+  const policy = { workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00', coreStart: '10:00',
+    coreEnd: '15:00', standardMinutes: 450, settlementPeriod: 'ISO_WEEK' };
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.includes('/codes?')
+    ? json({ date, codes: [{ id: 'c1', code: 'W01', versions: [{ ...version, ...policy, scheduledMinutes: 450 }] }] })
+    : json({ token: 'review', beforeDays: [day], days: [{ ...day, ...policy, minutes: 450 }], weeklyMinutes: 450,
+      affected: [], departing: [], incoming: [], conflicts: [] })));
+  const view = render(<GroupEditor {...props} group={group} />);
+  await view.findAllByText(/선택 가능 07:00/);
+  fireEvent.change(view.getByLabelText('변경 사유'), { target: { value: '정산 기간 확인' } });
+  fireEvent.click(view.getByLabelText(/1차 개정 교체/));
+  fireEvent.click(view.getByRole('button', { name: '개정 미리보기' }));
+  const preview = await view.findByRole('region', { name: '근무조 개정 미리보기' });
+  const row = within(preview).getAllByRole('row')[1];
+  expect(row.lastElementChild?.textContent).toMatch(/선택 가능 07:00.*22:00.*코어 10:00.*15:00.*7시간 30분.*1주/);
+});
+
 it('요일별 시간코드를 편성하고 주간 소정시간과 영향 명단을 확인한 개정만 저장한다', async () => {
   const writes: Record<string, unknown>[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {

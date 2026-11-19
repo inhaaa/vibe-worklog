@@ -62,8 +62,16 @@ class WorkTimeCodeIT {
         var initial=command(null,null,date,true,null);
         UUID codeId=service.save(admin,initial);
         assertEquals(codeId,service.save(admin,initial));
+        assertEquals(kr.tna.org.OrgCommands.fingerprint(initial.id(),initial.expectedVersion(),initial.code(),
+                initial.name(),initial.effectiveFrom(),initial.enabled(),initial.startTime(),initial.endTime(),
+                initial.beforeStart(),initial.beforeEnd(),initial.afterStart(),initial.afterEnd(),initial.breaks(),
+                initial.reason(),initial.replaceVersionId()),db.queryForObject(
+                "SELECT input_hash FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
+                String.class,tenant,initial.commandId()));
         var first=service.catalog(admin,date).codes().getFirst();
         assertEquals("001",first.code());
+        assertEquals("FIXED",first.versions().getFirst().workMode());
+        assertNull(first.versions().getFirst().standardMinutes());
         assertEquals(480,first.versions().getFirst().scheduledMinutes());
         assertEquals(135,first.versions().getFirst().overtimeMinutes());
         var stop=command(codeId,first.version(),date.plusDays(5),false,null);

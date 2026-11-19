@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +14,8 @@ import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgException;
 import kr.tna.schedule.WorkGroupService;
 import kr.tna.schedule.WorkGroupData.*;
+import kr.tna.schedule.WorkTimeCodeData;
+import kr.tna.schedule.WorkTimeCodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +28,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class WorkGroupServiceIT {
     @Autowired WorkGroupService service;
     @Autowired kr.tna.schedule.WorkGroupAssignmentService assignments;
+    @Autowired WorkTimeCodeService codes;
     private JdbcTemplate db;
     private TnaPrincipal admin;
     private UUID tenant, early, late;
@@ -101,6 +105,62 @@ class WorkGroupServiceIT {
         assertThrows(OrgException.class,()->service.previewGroup(admin,invalid));
         var employee = new TnaPrincipal(tenant,admin.accountId(),admin.employeeId(),1,Set.of("EMPLOYEE"),Instant.now());
         assertEquals(403,assertThrows(OrgException.class,()->service.groups(employee,start)).status());
+    }
+
+    @Test void selectiveGroupKeepsDailyStandardsAndItsPinnedPolicyUntilTheGroupRevisionChanges() {
+        var monday=start.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
+        var regular=selective("SEL1",null,null,today,420,null);
+        var shortDay=selective("SEL2",null,null,today,300,"CALENDAR_MONTH");
+        var initial=mixedWeek(null,"GS",monday,null,regular.id(),shortDay.id());
+        var preview=service.previewGroup(admin,initial);
+        assertEquals(4*420+300,preview.weeklyMinutes());
+        assertEquals(420,preview.days().getFirst().minutes());
+        assertEquals("SELECTIVE",preview.days().getFirst().workMode());
+        assertEquals(LocalTime.of(10,0),preview.days().getFirst().coreStart());
+        assertEquals(0,preview.days().getLast().minutes());
+        UUID group=service.saveGroup(admin,initial.confirm(preview.token())), employee=employee("선택근무");
+        assign(group,monday,List.of(employee));
+        var future=monday.plusWeeks(1);
+        var code=codes.catalog(admin,monday).codes().stream().filter(c->c.code().equals("SEL1")).findFirst().orElseThrow();
+        var revised=selective("SEL1",code.id(),code.version(),future,360,"ISO_WEEK");
+        var pinned=service.groups(admin,future).stream().filter(g->g.id().equals(group)).findFirst().orElseThrow().days().getFirst();
+        assertEquals(420,pinned.minutes());
+        assertEquals("CALENDAR_MONTH",pinned.settlementPeriod());
+        var change=mixedWeek(group,"GS",future,0L,revised.id(),revised.id());
+        service.saveGroup(admin,change.confirm(service.previewGroup(admin,change).token()));
+        assertEquals(shortDay.id(),codeAt(employee,future.minusDays(3)));
+        assertEquals(revised.id(),codeAt(employee,future));
+        var newDay=service.groups(admin,future).stream().filter(g->g.id().equals(group)).findFirst().orElseThrow().days().getFirst();
+        assertEquals("ISO_WEEK",newDay.settlementPeriod());
+        assertEquals(360,newDay.standardMinutes());
+    }
+
+    @Test void groupRejectsMixedModesAndDifferentSelectiveSettlementPeriods() {
+        var month=selective("SM",null,null,today,420,"CALENDAR_MONTH");
+        var week=selective("SW",null,null,today,420,"ISO_WEEK");
+        var fixed=mixedWeek(null,"MX",start,null,month.id(),early);
+        var periods=mixedWeek(null,"MP",start,null,week.id(),month.id());
+        assertEquals(422,assertThrows(OrgException.class,()->service.previewGroup(admin,fixed)).status());
+        assertEquals(422,assertThrows(OrgException.class,()->service.previewGroup(admin,periods)).status());
+    }
+
+    private WorkTimeCodeData.Version selective(String code,UUID id,Long expected,LocalDate date,int minutes,String period) {
+        var command=new WorkTimeCodeData.Command(UUID.randomUUID(),id,expected,code,code,date,true,
+                LocalTime.of(7,0),LocalTime.of(20,0),null,null,null,null,
+                List.of(new WorkTimeCodeData.Break("REGULAR",LocalTime.NOON,LocalTime.of(13,0))),
+                "선택근무 합성",null,"SELECTIVE",LocalTime.of(10,0),LocalTime.of(15,0),minutes,period);
+        UUID master=codes.save(admin,command);
+        assertEquals(master,codes.save(admin,command));
+        var version=codes.catalog(admin,date).codes().stream().filter(c->c.id().equals(master)).findFirst().orElseThrow().versions().getFirst();
+        assertEquals(minutes,version.scheduledMinutes());
+        assertEquals("SELECTIVE",version.workMode());
+        assertEquals(0,version.overtimeMinutes());
+        return version;
+    }
+
+    private GroupCommand mixedWeek(UUID id,String code,LocalDate date,Long version,UUID weekdays,UUID friday) {
+        var days=IntStream.rangeClosed(1,7).mapToObj(day->new WeekInput(day,day<5?weekdays:day==5?friday:null)).toList();
+        return new GroupCommand(id,code,code,date,days,"요일별 기준",version,null,null,UUID.randomUUID());
     }
 
     @Test void firstAssignmentTodayCanStartButOngoingWorkCannotSwitchEvenWithExplicitReservation() {

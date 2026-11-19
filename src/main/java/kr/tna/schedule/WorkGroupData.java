@@ -23,7 +23,12 @@ public final class WorkGroupData {
         }
     }
     public record WeekDay(int weekday, UUID codeVersionId, String code, LocalTime startTime, LocalTime endTime,
-            List<Break> breaks, int minutes) {}
+            List<Break> breaks, int minutes, String workMode, LocalTime coreStart, LocalTime coreEnd,
+            Integer standardMinutes, String settlementPeriod) {
+        static WeekDay off(int weekday) {
+            return new WeekDay(weekday,null,null,null,null,List.of(),0,null,null,null,null,null);
+        }
+    }
     public record Revision(UUID id, int revision, LocalDate validFrom, String reason) {}
     public record Group(UUID id, String code, String name, long version, UUID revisionId, Integer revision,
             LocalDate validFrom, List<WeekDay> days, List<Revision> revisions) {}

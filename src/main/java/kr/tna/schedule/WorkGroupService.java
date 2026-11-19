@@ -128,7 +128,7 @@ public final class WorkGroupService {
                 throw OrgException.invalid("각 요일을 한 번씩 지정해 주세요.");
             UUID id=input.codeVersionId();
             if(id==null) {
-                weekdays.put(input.weekday(),new WeekDay(input.weekday(),null,null,null,null,List.of(),0));
+                weekdays.put(input.weekday(),WeekDay.off(input.weekday()));
                 continue;
             }
             var code=codes.computeIfAbsent(id,k->groups.code(tenant,k,date));
@@ -137,22 +137,29 @@ public final class WorkGroupService {
             if(!code.enabled()||!id.equals(code.currentVersion()))
                 throw OrgException.invalid(code.code()+"의 적용일 현재 사용 가능한 버전을 선택해 주세요.");
             var intervals=breaks.computeIfAbsent(id,k->groups.codeBreaks(tenant,k));
-            weekdays.put(input.weekday(),day(input.weekday(),id,code.code(),code.startTime(),code.endTime(),intervals));
+            weekdays.put(input.weekday(),day(code.day(input.weekday()),intervals));
         }
         if(codes.isEmpty()) throw OrgException.invalid("최소 한 근로일에 근무시간코드를 지정해 주세요.");
+        if(codes.values().stream().map(WorkGroupMapper.CodeTimes::workMode).distinct().count()>1)
+            throw OrgException.invalid("한 근무조의 근로일은 모두 고정근무 또는 모두 선택근무로 지정해 주세요.");
+        if(codes.values().stream().map(WorkGroupMapper.CodeTimes::settlementPeriod).distinct().count()>1)
+            throw OrgException.invalid("한 근무조의 선택근무일은 같은 정산기간을 사용해야 합니다.");
         return List.copyOf(weekdays.values());
     }
 
     private List<WeekDay> readDays(UUID tenant, Revision revision) {
         if(revision==null) return List.of();
-        return groups.days(tenant,revision.id()).stream().map(d->day(d.weekday(),d.codeVersionId(),d.code(),
-                d.startTime(),d.endTime(),d.codeVersionId()==null?List.of():schedules.breaks(tenant,revision.id(),d.weekday()))).toList();
+        return groups.days(tenant,revision.id()).stream().map(d->day(d,
+                d.codeVersionId()==null?List.of():schedules.breaks(tenant,revision.id(),d.weekday()))).toList();
     }
 
-    private static WeekDay day(int weekday, UUID id, String code, LocalTime start, LocalTime end, List<Break> breaks) {
-        int minutes=start==null?0:Math.toIntExact(Duration.between(start,end).toMinutes()
+    private static WeekDay day(WorkGroupMapper.DayTimes d, List<Break> breaks) {
+        if(d.codeVersionId()==null) return WeekDay.off(d.weekday());
+        int minutes="SELECTIVE".equals(d.workMode())?d.standardMinutes():
+                Math.toIntExact(Duration.between(d.startTime(),d.endTime()).toMinutes()
                 -breaks.stream().mapToLong(b->Duration.between(b.startTime(),b.endTime()).toMinutes()).sum());
-        return new WeekDay(weekday,id,code,start,end,breaks,minutes);
+        return new WeekDay(d.weekday(),d.codeVersionId(),d.code(),d.startTime(),d.endTime(),breaks,minutes,
+                d.workMode(),d.coreStart(),d.coreEnd(),d.standardMinutes(),d.settlementPeriod());
     }
 
     Template requireGroup(UUID tenant, UUID id) {

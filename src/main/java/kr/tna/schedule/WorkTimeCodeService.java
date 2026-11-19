@@ -34,11 +34,11 @@ public final class WorkTimeCodeService {
             var revisions = new HashMap<UUID,List<Version>>();
             for (var row : mapper.versions(tenant)) {
                 var breaks = pauses.getOrDefault(row.id(), List.of());
-                var totals = WorkTimeCodeRules.validate(row.startTime(),row.endTime(),row.beforeStart(),row.beforeEnd(),
-                        row.afterStart(),row.afterEnd(),breaks);
+                var totals = WorkTimeCodeRules.validate(row,breaks);
                 var version = new Version(row.id(),row.revision(),row.effectiveFrom(),row.enabled(),row.name(),
                         row.startTime(),row.endTime(),row.beforeStart(),row.beforeEnd(),row.afterStart(),row.afterEnd(),
-                        breaks,totals.scheduledMinutes(),totals.overtimeMinutes(),row.reason(),uses.getOrDefault(row.id(),List.of()));
+                        breaks,totals.scheduledMinutes(),totals.overtimeMinutes(),row.reason(),uses.getOrDefault(row.id(),List.of()),
+                        row.workMode(),row.coreStart(),row.coreEnd(),row.standardMinutes(),row.settlementPeriod());
                 revisions.computeIfAbsent(row.codeId(),ignored -> new ArrayList<>()).add(version);
             }
             var codes = mapper.masters(tenant).stream().map(m -> new Code(m.id(),m.code(),m.version(),
@@ -50,9 +50,17 @@ public final class WorkTimeCodeService {
     public UUID save(TnaPrincipal actor, Command c) {
         if (c == null) throw OrgException.invalid("근무시간코드를 입력해 주세요.");
         return commands.execute(actor,c.commandId(),"WORK_TIME_CODE_SAVE","WORK_TIME_CODE",
-                OrgCommands.fingerprint(c.id(),c.expectedVersion(),c.code(),c.name(),c.effectiveFrom(),c.enabled(),
-                        c.startTime(),c.endTime(),c.beforeStart(),c.beforeEnd(),c.afterStart(),c.afterEnd(),
-                        c.breaks(),c.reason(),c.replaceVersionId()),c.reason(),() -> saveLocked(actor,c));
+                fingerprint(c),c.reason(),() -> saveLocked(actor,c));
+    }
+
+    private static String fingerprint(Command c) {
+        String fixed=OrgCommands.fingerprint(c.id(),c.expectedVersion(),c.code(),c.name(),c.effectiveFrom(),c.enabled(),
+                c.startTime(),c.endTime(),c.beforeStart(),c.beforeEnd(),c.afterStart(),c.afterEnd(),
+                c.breaks(),c.reason(),c.replaceVersionId());
+        // Previously saved fixed commands must keep their original replay key.
+        if ("FIXED".equals(c.workMode()) && c.coreStart()==null && c.coreEnd()==null
+                && c.standardMinutes()==null && c.settlementPeriod()==null) return fixed;
+        return OrgCommands.fingerprint(fixed,c.workMode(),c.coreStart(),c.coreEnd(),c.standardMinutes(),c.settlementPeriod());
     }
 
     private OrgCommands.Change saveLocked(TnaPrincipal actor, Command c) {
@@ -62,7 +70,7 @@ public final class WorkTimeCodeService {
         if (c.effectiveFrom() == null || c.effectiveFrom().isBefore(commands.today()) || c.effectiveFrom().getYear()>9999)
             throw OrgException.invalid("사용 시작일은 서울 기준 오늘 이후 날짜로 입력해 주세요.");
         if (c.enabled() == null) throw OrgException.invalid("사용 여부를 선택해 주세요.");
-        WorkTimeCodeRules.validate(c.startTime(),c.endTime(),c.beforeStart(),c.beforeEnd(),c.afterStart(),c.afterEnd(),c.breaks());
+        WorkTimeCodeRules.validate(c,c.breaks());
         UUID tenant = actor.tenantId(), codeId = c.id();
         Master old = null;
         long revision = 1;

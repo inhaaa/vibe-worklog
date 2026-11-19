@@ -4,13 +4,10 @@ import type { CsrfToken } from '../types';
 import type { WorkTimeCatalog } from './WorkTimeCodesTab';
 import { useReviewedCommand, useScheduleQuery } from './workgroupApi';
 import type { AssignmentReview, Employee, Group, GroupReview, Weekday } from './workgroupApi';
+import { hoursAndMinutes as hours, selectiveHours } from './selectiveSchedule';
 
 type Props = { date: string; today: string; csrf: CsrfToken; group?: Group; onBusy: (busy: boolean) => void; onSaved: (id: string) => void };
 const labels = ['월', '화', '수', '목', '금', '토', '일'];
-function hours(minutes: number) {
-  const h = Math.floor(minutes / 60), m = minutes % 60;
-  return [h ? h + '시간' : '', (m || !h) ? m + '분' : ''].filter(Boolean).join(' ');
-}
 function weekDate(date: string, index: number) {
   const result = new Date(date + 'T00:00:00Z');
   result.setUTCDate(result.getUTCDate() + index - (result.getUTCDay() + 6) % 7);
@@ -21,6 +18,7 @@ function shift(day?: Weekday) {
   if (!day.codeVersionId) return '비근로일';
   const time = (v: string | null) => v?.slice(0, 5);
   const breaks = day.breaks.map(b => time(b.startTime) + '–' + time(b.endTime)).join(', ');
+  if (day.workMode === 'SELECTIVE') return day.code + ' · ' + selectiveHours(day) + (breaks ? ' · 예정 휴게 ' + breaks : '');
   return day.code + ' · ' + time(day.startTime) + '–' + time(day.endTime) + (breaks ? ' · 휴게 ' + breaks : '') + ' · 소정 ' + hours(day.minutes);
 }
 function People({ title, rows }: { title: string; rows: Employee[] }) {
@@ -29,7 +27,7 @@ function People({ title, rows }: { title: string; rows: Employee[] }) {
 }
 function GroupComparison({ date, preview }: { date: string; preview: GroupReview }) {
   return <>
-    <p>적용 시작 {date} · 주간 소정 {hours(preview.weeklyMinutes)}</p>
+    <p>적용 시작 {date} · {preview.days.some(d => d.workMode === 'SELECTIVE') ? '주간 표준시간 합계' : '주간 소정'} {hours(preview.weeklyMinutes)}</p>
     <div className="table-scroll" tabIndex={0} role="region" aria-label="개정 전후 시간표"><table>
       <thead><tr><th>날짜</th><th>변경 전</th><th>변경 후</th></tr></thead><tbody>{labels.map((label, i) =>
         <tr key={label}><th scope="row">{weekDate(date, i)} ({label}){weekDate(date, i) < date && ' · 적용 전'}</th>
@@ -73,8 +71,9 @@ export function GroupEditor({ date, today, csrf, group, onSaved, onBusy, onRefre
         const options = selected && !applicable.some(v => v.id === selected.id) ? [selected, ...applicable] : applicable;
         return <label key={l}><span>{l}요일 <small>{weekDate(date, i)}</small></span>
           <select aria-label={l + '요일 근무시간코드'} value={days[i]} onChange={e => { action.clear(); setDays(days.map((id, index) => index === i ? e.target.value : id)); }}>
-            <option value="">비근로일</option>{options.map(v => <option key={v.id} value={v.id} disabled={!v.latest || !v.enabled}>{v.code} · {v.name} ({v.revision}차)</option>)}</select>
-          {selected && <small>{selected.startTime?.slice(0, 5)}–{selected.endTime?.slice(0, 5)} · 소정 {hours(selected.scheduledMinutes)}</small>}
+            <option value="">비근로일</option>{options.map(v => <option key={v.id} value={v.id} disabled={!v.latest || !v.enabled}>{v.code} · {v.name} ({v.revision}차{v.workMode === 'SELECTIVE' && ' · 선택근무'})</option>)}</select>
+          {selected && <small>{selected.workMode === 'SELECTIVE' ? selectiveHours(selected)
+            : selected.startTime?.slice(0, 5) + '–' + selected.endTime?.slice(0, 5) + ' · 소정 ' + hours(selected.scheduledMinutes)}</small>}
         </label>;
       })}</div>
       <label>변경 사유<textarea required maxLength={500} rows={2} value={reason} onChange={e => { action.clear(); setReason(e.target.value); }} /></label>

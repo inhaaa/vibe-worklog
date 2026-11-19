@@ -36,7 +36,8 @@ public interface WorkGroupMapper {
     List<Revision> revisions(UUID tenant, UUID group);
 
     @Select("""
-            SELECT d.weekday,gd.code_version_id,c.code,d.start_time,d.end_time
+            SELECT d.weekday,gd.code_version_id,c.code,d.start_time,d.end_time,
+                   v.work_mode,v.core_start,v.core_end,v.standard_minutes,v.settlement_period
             FROM tna.schedule_day d
             LEFT JOIN tna.work_group_day gd ON gd.tenant_id=d.tenant_id AND gd.schedule_version_id=d.version_id AND gd.weekday=d.weekday
             LEFT JOIN tna.work_time_code_version v ON v.tenant_id=gd.tenant_id AND v.id=gd.code_version_id
@@ -49,7 +50,8 @@ public interface WorkGroupMapper {
             SELECT v.id,c.code,v.start_time,v.end_time,v.effective_from,v.enabled,
                    (SELECT u.id FROM tna.work_time_code_version u WHERE u.tenant_id=v.tenant_id
                     AND u.code_id=v.code_id AND u.effective_from<=#{date}
-                    ORDER BY u.effective_from DESC,u.revision DESC LIMIT 1) AS current_version
+                    ORDER BY u.effective_from DESC,u.revision DESC LIMIT 1) AS current_version,
+                   v.work_mode,v.core_start,v.core_end,v.standard_minutes,v.settlement_period
             FROM tna.work_time_code_version v JOIN tna.work_time_code c ON c.tenant_id=v.tenant_id AND c.id=v.code_id
             WHERE v.tenant_id=#{tenant} AND v.id=#{id}
             """)
@@ -179,7 +181,13 @@ public interface WorkGroupMapper {
             """)
     int assign(UUID tenant, UUID id, UUID employee, UUID group, UUID schedule, LocalDate date, LocalDate until, String reason, UUID actor);
 
-    record CodeTimes(UUID id,String code,LocalTime startTime,LocalTime endTime,LocalDate effectiveFrom,boolean enabled,UUID currentVersion) {}
-    record DayTimes(int weekday, UUID codeVersionId, String code, LocalTime startTime, LocalTime endTime) {}
+    record CodeTimes(UUID id,String code,LocalTime startTime,LocalTime endTime,LocalDate effectiveFrom,boolean enabled,
+            UUID currentVersion,String workMode,LocalTime coreStart,LocalTime coreEnd,Integer standardMinutes,String settlementPeriod) {
+        DayTimes day(int weekday) {
+            return new DayTimes(weekday,id,code,startTime,endTime,workMode,coreStart,coreEnd,standardMinutes,settlementPeriod);
+        }
+    }
+    record DayTimes(int weekday, UUID codeVersionId, String code, LocalTime startTime, LocalTime endTime,
+            String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod) {}
     record Period(UUID id, UUID workGroupId, UUID scheduleVersionId, LocalDate validFrom, LocalDate validTo, long version) {}
 }

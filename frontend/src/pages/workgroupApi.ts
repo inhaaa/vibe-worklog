@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CsrfToken } from '../types';
+import type { WorkPolicy } from './selectiveSchedule';
 
 export const base = '/admin/schedules/workgroups';
 export type Employee = {
   id: string; number: string; name: string; organization: string | null; currentGroup: string | null; version: number;
 };
-export type Weekday = {
+export type Weekday = WorkPolicy & {
   weekday: number; codeVersionId: string | null; code: string | null; startTime: string | null; endTime: string | null;
   breaks: { startTime: string; endTime: string }[]; minutes: number;
 };

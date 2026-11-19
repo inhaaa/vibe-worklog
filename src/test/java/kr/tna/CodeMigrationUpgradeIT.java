@@ -148,8 +148,49 @@ class CodeMigrationUpgradeIT {
             assertEquals(v29Access, access(db).stream().filter(row -> !"attendance_month_closure".equals(row.get("relname"))).toList());
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.attendance_month_closure", Integer.class));
             verifyMonthCloseExportUpgrade(db, migrationSource);
+            verifySelectiveWorkUpgrade(db, migrationSource);
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
+
+    private static void verifySelectiveWorkUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {
+        assertEquals(2,db.update("""
+                INSERT INTO tna.work_time_code(tenant_id,id,code)
+                SELECT id,gen_random_uuid(),'OLD32' FROM platform.tenant_registry
+                """));
+        assertEquals(4,db.update("""
+                INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,
+                    start_time,end_time,after_start,after_end,reason,created_by)
+                SELECT c.tenant_id,gen_random_uuid(),c.id,n,DATE '2026-01-01'+n,true,'이전 고정 코드',
+                       TIME '09:00',TIME '18:00',TIME '18:30',TIME '20:00','기존 기준',
+                       (SELECT id FROM tna.tenant_account WHERE tenant_id=c.tenant_id ORDER BY id LIMIT 1)
+                FROM tna.work_time_code c CROSS JOIN generate_series(1,2) n WHERE c.code='OLD32'
+                """));
+        assertEquals(4,db.update("""
+                INSERT INTO tna.work_time_code_break(tenant_id,version_id,kind,start_time,end_time)
+                SELECT v.tenant_id,v.id,'REGULAR',TIME '12:00',TIME '13:00'
+                FROM tna.work_time_code_version v JOIN tna.work_time_code c ON c.tenant_id=v.tenant_id AND c.id=v.code_id
+                WHERE c.code='OLD32'
+                """));
+        var oldColumns=columns(db);
+        var oldRows=rows(db,oldColumns);
+        var oldAccess=access(db);
+        var upgrade=Flyway.configure().dataSource(migrations).target("32").load();
+        assertEquals(1,upgrade.migrate().migrationsExecuted);
+        assertEquals(0,upgrade.migrate().migrationsExecuted);
+        assertEquals(oldRows,rows(db,oldColumns));
+        assertEquals(oldAccess,access(db,true));
+        assertEquals(4,db.queryForObject("""
+                SELECT count(*) FROM tna.work_time_code_version v
+                JOIN tna.work_time_code c ON c.tenant_id=v.tenant_id AND c.id=v.code_id
+                WHERE c.code='OLD32' AND v.work_mode='FIXED' AND v.core_start IS NULL AND v.core_end IS NULL
+                    AND v.standard_minutes IS NULL AND v.settlement_period IS NULL
+                """,Integer.class));
+        assertTrue(db.queryForObject("""
+                SELECT has_column_privilege('tna_app','tna.work_time_code_version','work_mode','INSERT')
+                    AND NOT has_any_column_privilege('tna_app','tna.work_time_code_version','UPDATE')
+                """,Boolean.class));
+    }
+
     private static void verifyMonthCloseExportUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {
         seedMonthCloseEvidence(db);
         assertEquals(12, db.update("""
@@ -310,14 +351,18 @@ class CodeMigrationUpgradeIT {
             result.put(table,db.queryForObject("SELECT md5(coalesce(jsonb_agg(to_jsonb(r) ORDER BY to_jsonb(r)::text),'[]'::jsonb)::text) FROM (SELECT "+projection+" FROM "+table+")r",String.class));
         });return result;
     }
-    private static List<Map<String,Object>> access(JdbcTemplate db) {return db.queryForList("""
+    private static List<Map<String,Object>> access(JdbcTemplate db) {return access(db,false);}
+    private static List<Map<String,Object>> access(JdbcTemplate db,boolean beforeSelectiveColumns) {return db.queryForList("""
         SELECT n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity,c.relacl::text,
          (SELECT jsonb_agg(jsonb_build_array(p.policyname,p.permissive,p.roles,p.cmd,p.qual,p.with_check) ORDER BY p.policyname)::text FROM pg_policies p WHERE p.schemaname=n.nspname AND p.tablename=c.relname) AS policies,
-         (SELECT jsonb_agg(jsonb_build_array(a.attname,a.attacl::text) ORDER BY a.attnum)::text FROM pg_attribute a WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'attendance_type_version_id') AS columns
+         (SELECT jsonb_agg(jsonb_build_array(a.attname,a.attacl::text) ORDER BY a.attnum)::text FROM pg_attribute a
+          WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'attendance_type_version_id'
+            AND NOT (? AND c.relname='work_time_code_version'
+                     AND a.attname IN ('work_mode','standard_minutes','core_start','core_end','settlement_period'))) AS columns
         FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
         WHERE n.nspname IN ('tna','platform') AND c.relkind='r' AND c.relname NOT IN ('common_code_group','common_code','attendance_type','attendance_type_version')
         ORDER BY n.nspname,c.relname
-        """);}
+        """,beforeSelectiveColumns);}
     private static void seed(JdbcTemplate db,TransactionTemplate tx) {
         UUID tenant=UUID.randomUUID(),target=UUID.randomUUID(),approver=UUID.randomUUID(),account=UUID.randomUUID(),approverAccount=UUID.randomUUID(),assignment=UUID.randomUUID(),bucket=UUID.randomUUID();
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'V13 합성 회사')",tenant,"UPGRADE-"+tenant);

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { CsrfToken } from '../types';
+import { hoursAndMinutes as hm, periodNames, selectiveHours, type WorkMode, type WorkPolicy, type SettlementPeriod } from './selectiveSchedule';
 import './WorkTimeCodesTab.css';
 
 const endpoint = '/admin/schedules/workgroups/codes';
 type BreakKind = 'REGULAR' | 'BEFORE' | 'AFTER';
 type Pause = {kind:BreakKind; start:string; end:string};
 type GroupUse = {groupId:string; code:string; name:string};
-export type WorkTimeCodeVersion = {
+export type WorkTimeCodeVersion = WorkPolicy & {
   id:string; revision:number; effectiveFrom:string; enabled:boolean; name:string;
   startTime:string; endTime:string; beforeStart:string|null; beforeEnd:string|null;
   afterStart:string|null; afterEnd:string|null; breaks:Pause[]; scheduledMinutes:number;
@@ -19,13 +20,12 @@ type Props = {date:string; today?:string; csrf:Csrf; onSaved?:()=>void; onBusy?:
 type Times = {startTime:string; endTime:string; beforeStart:string; beforeEnd:string; afterStart:string; afterEnd:string};
 const labels:Record<BreakKind,string> = {REGULAR:'정규 휴게',BEFORE:'출근 전 연장 휴게',AFTER:'퇴근 후 연장 휴게'};
 const time = (value:string|null|undefined) => value?.slice(0,5) ?? '';
-const hm = (minutes:number) => [minutes>=60 ? Math.floor(minutes/60)+'시간' : '',minutes%60 ? minutes%60+'분' : ''].filter(Boolean).join(' ') || '0분';
 function span(start:string,end:string) {
   function minutes(value:string) { const [h,m]=value.split(':').map(Number); return h*60+m; }
   return Math.max(0,minutes(end)-minutes(start)) || 0;
 }
-function TimeInput({label,value,change}:{label:string;value:string;change:(value:string)=>void}) {
-  return <label>{label}<input type="time" className="t-input" value={value} required step={60} onChange={e=>change(e.target.value)}/></label>;
+function TimeInput({label,value,change,min,max}:{label:string;value:string;change:(value:string)=>void;min?:string;max?:string}) {
+  return <label>{label}<input type="time" className="t-input" value={value} min={min} max={max} required step={60} onChange={e=>change(e.target.value)}/></label>;
 }
 function Editor({date,today,code,version,csrf,finish,cancel,onBusy}:{date:string;today:string;code?:WorkTimeCode;version?:WorkTimeCodeVersion;
   csrf:Csrf;finish:(id:string)=>void;cancel:()=>void;onBusy:(busy:boolean)=>void}) {
@@ -33,6 +33,13 @@ function Editor({date,today,code,version,csrf,finish,cancel,onBusy}:{date:string
   const [name,setName]=useState(version?.name??'');
   const [effective,setEffective]=useState(date);
   const [enabled,setEnabled]=useState(version?.enabled??true);
+  const [workMode,setWorkMode]=useState<WorkMode>(version?.workMode ?? 'FIXED');
+  const [useCore,setUseCore]=useState(Boolean(version?.coreStart));
+  const [coreStart,setCoreStart]=useState(time(version?.coreStart));
+  const [coreEnd,setCoreEnd]=useState(time(version?.coreEnd));
+  const [standardMinutes,setStandardMinutes]=useState(String(version?.standardMinutes ?? 480));
+  const [period,setPeriod]=useState<SettlementPeriod>(version?.settlementPeriod ?? 'CALENDAR_MONTH');
+  const selective=workMode==='SELECTIVE';
   const [reason,setReason]=useState('');
   const [confirmed,setConfirmed]=useState('');
   const attempt=useRef('');
@@ -76,9 +83,11 @@ function Editor({date,today,code,version,csrf,finish,cancel,onBusy}:{date:string
     sending.current=true;
     setError('');setPending(true);onBusy(true);
     if(!uncertain) attempt.current=JSON.stringify({id:code?.id??null,expectedVersion:code?.version??null,code:key,name,effectiveFrom:effective,
-      enabled,startTime:times.startTime,endTime:times.endTime,beforeStart:windows.BEFORE?times.beforeStart:null,
-      beforeEnd:windows.BEFORE?times.beforeEnd:null,afterStart:windows.AFTER?times.afterStart:null,afterEnd:windows.AFTER?times.afterEnd:null,
-      breaks:breaks.filter(b=>b.kind==='REGULAR'||windows[b.kind]),reason,commandId:crypto.randomUUID(),replaceVersionId:reserved?.id??null});
+      enabled,workMode,startTime:times.startTime,endTime:times.endTime,coreStart:selective&&useCore?coreStart:null,
+      coreEnd:selective&&useCore?coreEnd:null,standardMinutes:selective?Number(standardMinutes):null,settlementPeriod:selective?period:null,
+      beforeStart:!selective&&windows.BEFORE?times.beforeStart:null,beforeEnd:!selective&&windows.BEFORE?times.beforeEnd:null,
+      afterStart:!selective&&windows.AFTER?times.afterStart:null,afterEnd:!selective&&windows.AFTER?times.afterEnd:null,
+      breaks:breaks.filter(b=>b.kind==='REGULAR'||(!selective&&windows[b.kind])),reason,commandId:crypto.randomUUID(),replaceVersionId:reserved?.id??null});
     try {
       const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',
         headers:{'Content-Type':'application/json','Accept':'application/json',[csrf.headerName]:csrf.token},
@@ -106,10 +115,27 @@ function Editor({date,today,code,version,csrf,finish,cancel,onBusy}:{date:string
         <label>사용 시작일<input className="t-input" type="date" value={effective} min={today} required onChange={e=>{setEffective(e.target.value);setConfirmed('');}}/></label>
         <label>사용 상태<select className="t-select" value={enabled?'yes':'no'} onChange={e=>setEnabled(e.target.value==='yes')}>
           <option value="yes">사용</option><option value="no">사용 중지</option></select></label>
+        <label>근무 방식<select className="t-select" value={workMode} onChange={e=>setWorkMode(e.target.value as WorkMode)}>
+          <option value="FIXED">고정근무</option><option value="SELECTIVE">선택근무</option></select></label>
       </div>
-      <h4>정규 근무와 휴게</h4>
-      <div className="wt-fields">{input('startTime','정규 출근')}{input('endTime','정규 퇴근')}</div>
+      <h4>{selective?'선택근무 시간과 휴게':'정규 근무와 휴게'}</h4>
+      <div className="wt-fields">{input('startTime',selective?'선택 가능 시작':'정규 출근')}{input('endTime',selective?'선택 가능 종료':'정규 퇴근')}</div>
+      {selective && <div className="wt-window">
+        <label><input type="checkbox" checked={useCore} onChange={e=>setUseCore(e.target.checked)}/>코어시간 사용</label>
+        {useCore && <div className="wt-fields"><TimeInput label="코어 시작" value={coreStart} change={setCoreStart} min={times.startTime} max={times.endTime}/>
+          <TimeInput label="코어 종료" value={coreEnd} change={setCoreEnd} min={times.startTime} max={times.endTime}/></div>}
+      </div>}
       {pauseRows('REGULAR')}
+      {selective ? <>
+        <h4>정산 기준</h4>
+        <div className="wt-fields"><label>표준 1일 근로시간(분)<input className="t-input" type="number" min="1" max={Math.max(0, regular-paused('REGULAR'))}
+          step="1" required value={standardMinutes} onChange={e=>setStandardMinutes(e.target.value)}/></label>
+          <label>정산 기간<select className="t-select" value={period} onChange={e=>setPeriod(e.target.value as SettlementPeriod)}>
+            <option value="CALENDAR_MONTH">{periodNames.CALENDAR_MONTH}</option><option value="ISO_WEEK">{periodNames.ISO_WEEK}</option>
+          </select></label>
+        </div>
+        <p className="t-subtle">정산 기간의 목표시간과 유급휴가는 표준 1일 근로시간을 기준으로 계산합니다.</p>
+      </> : <>
       <p className="wt-totals"><span>정규 구간 {hm(regular)}</span><span>예정 휴게 {hm(paused('REGULAR'))}</span>
         <strong>소정시간 {hm(Math.max(0,regular-paused('REGULAR')))}</strong></p>
       <h4>연장 신청 기준</h4>
@@ -121,7 +147,7 @@ function Editor({date,today,code,version,csrf,finish,cancel,onBusy}:{date:string
             {input(before?'beforeEnd':'afterEnd',label+' 허용 종료')}</div>{pauseRows(kind)}</>}
         </div>;
       })}
-      <p><strong>최대 신청 가능 시간 {hm(Math.max(0,overtime))}</strong></p>
+      <p><strong>최대 신청 가능 시간 {hm(Math.max(0,overtime))}</strong></p></>}
       <label>변경 사유<input className="t-input" value={reason} required maxLength={500} onChange={e=>setReason(e.target.value)}/></label>
       {reserved && <label className="wt-confirm"><input type="checkbox" checked={confirmed===reserved.id}
         onChange={e=>setConfirmed(e.target.checked?reserved.id:'')}/>{effective} 적용 예약 v{reserved.revision} 정정</label>}
@@ -184,7 +210,7 @@ export function WorkTimeCodesTab({date,today=date,csrf,onSaved,onBusy}:Props) {
         {visible.map(row=>{
           const current=effective(row);const display=displayVersion(row);
           return <button type="button" disabled={busy} className="wt-row" key={row.id} aria-pressed={selected===row.id} onClick={()=>{setSelected(row.id);setEditing(false);setMessage('');}}>
-            <strong>{row.code} {display?.name}</strong><span>{!current?'사용 예정':current.enabled?'사용':'사용 중지'}</span>
+            <strong>{row.code} {display?.name}</strong><span>{display?.workMode==='SELECTIVE' && '선택근무 · '}{!current?'사용 예정':current.enabled?'사용':'사용 중지'}</span>
           </button>;
         })}
       </div>
@@ -195,10 +221,11 @@ export function WorkTimeCodesTab({date,today=date,csrf,onSaved,onBusy}:Props) {
           <h4>버전별 근무 기준</h4>
           {code.versions.map(v=><article key={v.id} className="wt-revision">
             <h4>v{v.revision} · {v.name}</h4><p>{v.effectiveFrom}부터 · {v.enabled?'사용':'사용 중지'}</p>
+            {v.workMode==='SELECTIVE' ? <p>{selectiveHours(v)}</p> : <>
             <p>정규 {time(v.startTime)}~{time(v.endTime)} · 소정시간 {hm(v.scheduledMinutes)}</p>
             {v.beforeStart && <p>출근 전 연장 {time(v.beforeStart)}~{time(v.beforeEnd)}</p>}
             {v.afterStart && <p>퇴근 후 연장 {time(v.afterStart)}~{time(v.afterEnd)}</p>}
-            <p>최대 신청 가능 시간 {hm(v.overtimeMinutes)}</p>
+            <p>최대 신청 가능 시간 {hm(v.overtimeMinutes)}</p></>}
             {v.breaks.map(b=><p key={b.kind+b.start}>{labels[b.kind]} {time(b.start)}~{time(b.end)}</p>)}
             <p>조회일 사용 근무조 {v.groups?.map(g=>g.code+' '+g.name).join(', ')||'없음'}</p><p>변경 사유 {v.reason}</p>
             {code.versions.find(r=>r.effectiveFrom===v.effectiveFrom)?.id===v.id && v.effectiveFrom>=today &&

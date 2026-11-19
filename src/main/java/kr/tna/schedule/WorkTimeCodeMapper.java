@@ -19,7 +19,7 @@ public interface WorkTimeCodeMapper {
 
     @Select("""
             SELECT id,code_id,revision,effective_from,enabled,name,start_time,end_time,before_start,before_end,
-                   after_start,after_end,reason
+                   after_start,after_end,reason,work_mode,core_start,core_end,standard_minutes,settlement_period
             FROM tna.work_time_code_version WHERE tenant_id=#{tenant} ORDER BY effective_from DESC,revision DESC
             """)
     List<VersionRow> versions(UUID tenant);
@@ -54,9 +54,11 @@ public interface WorkTimeCodeMapper {
 
     @Insert("""
             INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,start_time,
-                end_time,before_start,before_end,after_start,after_end,reason,created_by)
+                end_time,before_start,before_end,after_start,after_end,reason,created_by,
+                work_mode,core_start,core_end,standard_minutes,settlement_period)
             VALUES (#{tenant},#{id},#{codeId},#{revision},#{c.effectiveFrom},#{c.enabled},#{name},#{c.startTime},
-                #{c.endTime},#{c.beforeStart},#{c.beforeEnd},#{c.afterStart},#{c.afterEnd},#{c.reason},#{actor})
+                #{c.endTime},#{c.beforeStart},#{c.beforeEnd},#{c.afterStart},#{c.afterEnd},#{c.reason},#{actor},
+                #{c.workMode},#{c.coreStart},#{c.coreEnd},#{c.standardMinutes},#{c.settlementPeriod})
             """)
     void append(@Param("tenant") UUID tenant,@Param("id") UUID id,@Param("codeId") UUID codeId,
             @Param("revision") long revision,@Param("name") String name,@Param("c") Command c,@Param("actor") UUID actor);

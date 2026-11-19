@@ -9,10 +9,34 @@ import java.util.Map;
 import java.util.Set;
 import kr.tna.org.OrgException;
 import kr.tna.schedule.WorkTimeCodeData.Break;
+import kr.tna.schedule.WorkTimeCodeData.Policy;
 import kr.tna.schedule.WorkTimeCodeData.Totals;
 
 public final class WorkTimeCodeRules {
     private WorkTimeCodeRules() {}
+
+    public static Totals validate(Policy policy, List<Break> breaks) {
+        if ("FIXED".equals(policy.workMode())) {
+            if (policy.coreStart()!=null || policy.coreEnd()!=null || policy.standardMinutes()!=null || policy.settlementPeriod()!=null)
+                throw OrgException.invalid("고정근무에는 선택근무의 코어시간·표준분·정산기간을 지정할 수 없습니다.");
+            return validate(policy.startTime(),policy.endTime(),policy.beforeStart(),policy.beforeEnd(),
+                    policy.afterStart(),policy.afterEnd(),breaks);
+        }
+        if (!"SELECTIVE".equals(policy.workMode())) throw OrgException.invalid("근무유형을 확인해 주세요.");
+        if (policy.beforeStart()!=null || policy.beforeEnd()!=null || policy.afterStart()!=null || policy.afterEnd()!=null)
+            throw OrgException.invalid("선택근무에는 고정근무의 출근 전·퇴근 후 연장시간을 지정할 수 없습니다.");
+        var window=validate(policy.startTime(),policy.endTime(),null,null,null,null,breaks);
+        if (policy.standardMinutes()==null || policy.standardMinutes()<1 || policy.standardMinutes()>window.scheduledMinutes())
+            throw OrgException.invalid("표준 근로시간은 1분부터 선택 가능 시간에서 예정 휴게를 뺀 분까지 입력해 주세요.");
+        if (!"CALENDAR_MONTH".equals(policy.settlementPeriod()) && !"ISO_WEEK".equals(policy.settlementPeriod()))
+            throw OrgException.invalid("정산기간은 역월 또는 월요일부터 일요일까지의 주를 선택해 주세요.");
+        if (policy.coreStart()!=null || policy.coreEnd()!=null) {
+            minutes(policy.coreStart(),policy.coreEnd(),"코어시간");
+            if (policy.coreStart().isBefore(policy.startTime()) || policy.coreEnd().isAfter(policy.endTime()))
+                throw OrgException.invalid("코어시간은 선택 가능 시간 안에 입력해 주세요.");
+        }
+        return new Totals(policy.standardMinutes(),0);
+    }
 
     public static Totals validate(LocalTime start, LocalTime end, LocalTime beforeStart, LocalTime beforeEnd,
             LocalTime afterStart, LocalTime afterEnd, List<Break> breaks) {
