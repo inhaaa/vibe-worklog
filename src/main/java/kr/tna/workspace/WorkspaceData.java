@@ -25,8 +25,12 @@ public final class WorkspaceData {
             var entries = new ArrayList<TimelineEntry>();
             var schedule = snapshot.schedule();
             if (schedule != null && schedule.workday()) {
-                addPlanned(entries, schedule.startTime(), "예정 근무 시작");
-                addPlanned(entries, schedule.endTime(), "예정 근무 종료");
+                addPlanned(entries, schedule.startTime(), schedule.selective() ? "선택 가능 시작" : "예정 근무 시작");
+                addPlanned(entries, schedule.endTime(), schedule.selective() ? "선택 가능 종료" : "예정 근무 종료");
+                if (schedule.selective()) {
+                    addPlanned(entries, schedule.coreStart(), "코어타임 시작");
+                    addPlanned(entries, schedule.coreEnd(), "코어타임 종료");
+                }
                 for (var pause : schedule.breaks()) {
                     addPlanned(entries, pause.startTime(), "예정 휴게 시작");
                     addPlanned(entries, pause.endTime(), "예정 휴게 종료");
@@ -56,7 +60,7 @@ public final class WorkspaceData {
             if (!schedule.workday()) return "소정 비근로일";
             var format = DateTimeFormatter.ofPattern("HH:mm");
             return schedule.startTime() == null || schedule.endTime() == null ? "근무 시각 미확인"
-                    : format.format(schedule.startTime()) + " ~ " + format.format(schedule.endTime());
+                    : (schedule.selective() ? "선택 가능 " : "") + format.format(schedule.startTime()) + " ~ " + format.format(schedule.endTime());
         }
         public String calendarText() {
             return switch (snapshot.dayKind()) {

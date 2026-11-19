@@ -20,7 +20,7 @@ it('입사 예정일을 바꾸면 선택한 조의 유효 개정과 요일별 �
     {...group,id:'v2',revision:2,validFrom:'2026-12-01',validTo:null}],
     scheduleDays:[
       {versionId:'v1',weekday:2,group:true,templateCode:'G01',workCode:'W01',workday:true,startTime:'09:00:00',endTime:'18:00:00'},
-      {versionId:'v2',weekday:2,group:true,templateCode:'G01',workCode:'W02',workday:true,startTime:'10:00:00',endTime:'19:00:00'},
+      {versionId:'v2',weekday:2,group:true,templateCode:'G01',workCode:'W02',workday:true,workMode:'SELECTIVE',startTime:'07:00:00',endTime:'22:00:00'},
       {versionId:'v2',weekday:6,group:true,templateCode:'G01',workCode:null,workday:false}]};
   const view=render(<OnboardingPage data={{onboarding:model}}/>);
   const select=view.getByLabelText('최초 근무') as HTMLSelectElement;
@@ -28,7 +28,7 @@ it('입사 예정일을 바꾸면 선택한 조의 유효 개정과 요일별 �
   expect(view.getByText(/G01 운영조 · W01 · 09:00~18:00/)).toBeTruthy();
   fireEvent.change(view.getByLabelText('입사 예정일'),{target:{value:'2026-12-01'}});
   expect(select.value).toBe('v2');
-  expect(view.getByText(/G01 운영조 · W02 · 10:00~19:00/)).toBeTruthy();
+  expect(view.getByText(/G01 운영조 · W02 · 선택 가능 07:00~22:00/)).toBeTruthy();
   fireEvent.change(view.getByLabelText('입사 예정일'),{target:{value:'2026-12-05'}});
   expect(view.getByText(/G01 운영조 · 비근로일/)).toBeTruthy();
   expect(new FormData(select.form!).get('scheduleVersionId')).toBe('v2');

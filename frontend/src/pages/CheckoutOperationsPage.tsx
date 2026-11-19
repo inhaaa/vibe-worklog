@@ -2,6 +2,7 @@ import { ErrorNotice, Field, Form, SelectField, duration, fmtDateTime, fmtTime }
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
+import type { WorkMode } from './selectiveSchedule';
 import './CheckoutOperationsPage.css';
 
 const path = '/company/attendance';
@@ -21,6 +22,7 @@ interface CheckoutRow {
   organizationName: string | null;
   workDate: string;
   scheduledEnd: string | null;
+  workMode?: WorkMode | null;
   sourceIn: string | null;
   sourceOut: string | null;
   effectiveIn: string | null;
@@ -81,7 +83,7 @@ function EmployeeCheckout({ row, returnTo }: { row: CheckoutRow; returnTo: strin
         <dl className="checkout-facts">
           <div><dt>근무일</dt><dd>{row.workDate}</dd></div>
           <div><dt>당시 소속</dt><dd>{row.organizationName ?? '소속 미등록'}</dd></div>
-          <div><dt>예정 퇴근</dt><dd>{fmtTime(row.scheduledEnd)}</dd></div>
+          <div><dt>{row.workMode === 'SELECTIVE' ? '선택 가능 종료' : '예정 퇴근'}</dt><dd>{fmtTime(row.scheduledEnd)}</dd></div>
           <div><dt>원천 출근</dt><dd>{clock(row.sourceIn)}</dd></div>
           <div><dt>원천 퇴근</dt><dd>{clock(row.sourceOut)}</dd></div>
           <div><dt>유효 출근</dt><dd>{clock(row.effectiveIn)}</dd></div>

@@ -1,11 +1,12 @@
 import { combinedLeavePart, type LeavePart } from './leavePart';
+import type { Schedule } from './WorkflowTypes';
 
 export interface SummaryRequest { request: { id: string; leavePart?: LeavePart | null }; tone: string; effectiveLeave: boolean }
 export interface SummaryDay<R extends SummaryRequest = SummaryRequest> {
   snapshot: {
     workDate: string;
     dayKind: string;
-    schedule: { workday: boolean; startTime: string | null; endTime: string | null; breaks: { startTime: string; endTime: string }[] } | null;
+    schedule: Schedule | null;
   };
   requests: R[];
 }
@@ -30,6 +31,7 @@ export function dayClass(day: SummaryDay, part = approvedPart(day)): DayClass {
   if (part === 'FULL') return 'leave';
   if (!schedule || dayKind === 'UNCONFIRMED') return 'unknown';
   if (!schedule.workday || dayKind === 'HOLIDAY' || dayKind === 'NON_WORKDAY') return 'off';
+  if (schedule.workMode === 'SELECTIVE' && schedule.standardMinutes == null) return 'unknown';
   return 'work';
 }
 
@@ -37,6 +39,7 @@ export function dayClass(day: SummaryDay, part = approvedPart(day)): DayClass {
 function plannedMillis(day: SummaryDay, kind: DayClass) {
   const schedule = day.snapshot.schedule;
   if (kind !== 'work' || !schedule) return 0;
+  if (schedule.workMode === 'SELECTIVE' && schedule.standardMinutes != null) return schedule.standardMinutes * 60_000;
   const breaks = schedule.breaks.reduce((sum, pause) => sum + Math.max(0, clockMillis(pause.endTime) - clockMillis(pause.startTime)), 0);
   return Math.max(0, clockMillis(schedule.endTime) - clockMillis(schedule.startTime) - breaks);
 }

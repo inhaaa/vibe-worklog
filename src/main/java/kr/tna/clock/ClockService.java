@@ -6,12 +6,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -67,16 +69,31 @@ public final class ClockService {
         ScheduleData.Day schedule=null;UUID scheduleVersion=null;
         if(assignments.size()==1) {
             var a=assignments.getFirst();scheduleVersion=a.scheduleVersionId();
-            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),List.copyOf(breaks));
+            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),List.copyOf(breaks),
+                    a.workMode(),a.coreStart(),a.coreEnd(),a.standardMinutes(),a.settlementPeriod());
         }
         UUID calendarVersion=calendar==null?null:calendar.versionId();
         String dayKind=calendar==null?"UNCONFIRMED":calendar.kind();
         List<Event> effectiveEvents=correction==null?events:project(correction,date);
-        String source=fingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
+        String source=sourceFingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
         if(correction!=null)source=fingerprint(source,correction.effectId(),effectiveEvents);
         var confirmation=findConfirmation.apply(source);
         if(confirmation==null&&correction!=null)confirmation=correctionConfirmation(correction,input,review,source,scheduleVersion,calendarVersion);
         return new DaySnapshot(employeeId,date,events,schedule,scheduleVersion,calendarVersion,dayKind,input,review,confirmation,source,effectiveEvents);
+    }
+
+    private static String sourceFingerprint(UUID employee, LocalDate date, List<Event> events,
+            List<ClockMapper.ScheduleRow> rows, ScheduleData.Day schedule, UUID calendar, String dayKind) {
+        if (rows.stream().anyMatch(row -> "SELECTIVE".equals(row.workMode())))
+            return fingerprint(employee,date,events,rows,schedule,calendar,dayKind);
+        // V31 signed the record names, fields and order below. Existing confirmations and closed results use those bytes.
+        record ScheduleRow(UUID scheduleVersionId, int weekday, boolean workday, LocalTime startTime, LocalTime endTime) {}
+        record Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<ScheduleData.Break> breaks) {}
+        var oldRows = rows.stream().map(row -> new ScheduleRow(row.scheduleVersionId(), row.weekday(),
+                row.workday(), row.startTime(), row.endTime())).toList();
+        var oldDay = schedule == null ? null : new Day(schedule.weekday(), schedule.workday(),
+                schedule.startTime(), schedule.endTime(), schedule.breaks());
+        return fingerprint(employee,date,events,oldRows,oldDay,calendar,dayKind);
     }
     private Confirmation confirmation(ClockMapper.ConfirmationRow saved) {
         if(saved==null)return null;
@@ -127,9 +144,13 @@ public final class ClockService {
         });
     }
     public boolean canConfirm(DaySnapshot day) {
+        return confirmableBreaks(day).isPresent();
+    }
+    public Optional<List<Interval>> confirmableBreaks(DaySnapshot day) {
         Instant now=clock.instant();
-        return day.confirmation()==null&&!day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())
-                &&confirmationCheck(day,now).error()==null;
+        if (day.confirmation()!=null || day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())) return Optional.empty();
+        var check = confirmationCheck(day,now);
+        return check.error()==null ? Optional.of(check.breaks()) : Optional.empty();
     }
     private static ConfirmationCheck confirmationCheck(DaySnapshot day,Instant now) {
         var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
@@ -142,6 +163,11 @@ public final class ClockService {
             return new ConfirmationCheck(List.of(),"확인할 수 없는 출퇴근 구간입니다. 정정을 신청해 주세요.");
         List<Interval> breaks=day.schedule().breaks().stream().map(b->new Interval(
                 day.workDate().atTime(b.startTime()).atZone(SEOUL).toInstant(),day.workDate().atTime(b.endTime()).atZone(SEOUL).toInstant())).toList();
+        if (day.schedule().selective()) {
+            var overlapping = breaks.stream().map(b -> new Interval(b.startAt().isBefore(start) ? start : b.startAt(),
+                    b.endAt().isAfter(end) ? end : b.endAt())).filter(b -> b.startAt().isBefore(b.endAt())).toList();
+            return new ConfirmationCheck(overlapping,null);
+        }
         if(breaks.stream().anyMatch(b->b.startAt().isBefore(start)||b.endAt().isAfter(end)))
             return new ConfirmationCheck(List.of(),"예정 휴게가 실제 출퇴근 구간 밖입니다. 실제 휴게 정정을 신청해 주세요.");
         return new ConfirmationCheck(breaks,null);

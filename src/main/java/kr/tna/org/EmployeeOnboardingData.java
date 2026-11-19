@@ -29,7 +29,7 @@ public final class EmployeeOnboardingData {
     public record ScheduleOption(UUID id, UUID templateId, String templateName, int revision, LocalDate validFrom,
                                  long templateVersion, boolean group, LocalDate validTo) { }
     public record ScheduleDayOption(UUID versionId, int weekday, boolean group, String templateCode,
-                                    String workCode, boolean workday, LocalTime startTime, LocalTime endTime) { }
+                                    String workCode, boolean workday, LocalTime startTime, LocalTime endTime, String workMode) { }
 
     public record View(Instant asOf, LocalDate today, String q, State state, LocalDate from, LocalDate to, int page,
                        boolean hasNext, List<Row> rows, Row detail, List<OrganizationOption> organizations,

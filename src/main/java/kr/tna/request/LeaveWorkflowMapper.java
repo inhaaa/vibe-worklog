@@ -124,11 +124,17 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
         ), plans AS (
             SELECT c.leave_date,chosen.side,
               CASE WHEN d.version_id IS NULL THEN '근무 미배정' WHEN NOT d.workday THEN '비근로일'
-                   ELSE concat(d.start_time,'~',d.end_time,CASE WHEN b.times IS NOT NULL THEN ' · 예정 휴게 '||b.times END)
+                   ELSE concat(CASE WHEN cv.work_mode='SELECTIVE' THEN '선택 가능 ' END,d.start_time,'~',d.end_time,
+                         CASE WHEN b.times IS NOT NULL THEN ' · 예정 휴게 '||b.times END,
+                         CASE WHEN cv.work_mode='SELECTIVE' THEN concat(' · 표준 ',cv.standard_minutes,'분',
+                             CASE WHEN cv.core_start IS NOT NULL THEN concat(' · 코어 ',cv.core_start,'~',cv.core_end) END,
+                             CASE cv.settlement_period WHEN 'ISO_WEEK' THEN ' · 주 정산' ELSE ' · 월 정산' END) END)
               END AS description
             FROM changed c CROSS JOIN LATERAL (VALUES ('original',c.original_id),('current',c.current_id)) chosen(side,id)
             LEFT JOIN tna.schedule_day d ON d.tenant_id=#{tenantId} AND d.version_id=chosen.id
               AND d.weekday=extract(isodow FROM c.leave_date)
+            LEFT JOIN tna.work_group_day gd ON gd.tenant_id=d.tenant_id AND gd.schedule_version_id=d.version_id AND gd.weekday=d.weekday
+            LEFT JOIN tna.work_time_code_version cv ON cv.tenant_id=gd.tenant_id AND cv.id=gd.code_version_id
             LEFT JOIN LATERAL (
                 SELECT string_agg(concat(start_time,'~',end_time),', ' ORDER BY start_time) AS times
                 FROM tna.schedule_break WHERE tenant_id=d.tenant_id AND version_id=d.version_id AND weekday=d.weekday

@@ -124,7 +124,7 @@ public final class CheckoutOperationsQueries {
                 Objects.requireNonNullElse(employee.organizationName(), "소속 미등록"), day.workDate(),
                 day.schedule().endTime(), entry.sourceIn(), null, entry.effectiveIn(), entry.effectiveOut(),
                 entry.requestId(), entry.requestState(), entry.recordState(), result.state(), result.actualWorkMillis(),
-                result.calculatedAt(), result.reason());
+                result.calculatedAt(), result.reason(), day.schedule().workMode());
     }
 
     private Result result(TnaPrincipal actor, CheckoutCase entry) {

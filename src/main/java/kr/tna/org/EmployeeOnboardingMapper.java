@@ -83,7 +83,7 @@ public interface EmployeeOnboardingMapper {
     @Select("""
             <script>
             SELECT d.version_id,d.weekday,(g.id IS NOT NULL) AS "group",t.code AS template_code,
-                   c.code AS work_code,d.workday,d.start_time,d.end_time
+                   c.code AS work_code,d.workday,d.start_time,d.end_time,COALESCE(cv.work_mode,'FIXED') AS work_mode
             FROM tna.schedule_day d
             JOIN tna.schedule_version v ON v.tenant_id=d.tenant_id AND v.id=d.version_id
             JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id

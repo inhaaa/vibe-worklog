@@ -149,7 +149,7 @@ describe('내 정보·권한 목록·회사 현황', () => {
       date, latestDate: '2026-10-27', organizationId: 'o-1', options: [organization], q: '김 & 개발',
       status: 'CORRECTED', page: 1, hasPrevious: true, hasNext: true, error: null,
       rows: [{ employeeId: 'e-1', employeeNo: 'E001', employeeName: '김직원', organizationName: '개발팀', workDate: date,
-        scheduledEnd: '18:00', sourceIn: '2026-10-26T00:00:00Z', sourceOut: null, effectiveIn: '2026-10-26T00:00:00Z',
+        scheduledEnd: '22:00', workMode: 'SELECTIVE', sourceIn: '2026-10-26T00:00:00Z', sourceOut: null, effectiveIn: '2026-10-26T00:00:00Z',
         effectiveOut: '2026-10-26T09:00:00Z', requestId: 'r-1', requestState: 'APPROVED', recordState: 'CORRECTED',
         resultState: 'RECALCULATION_REQUIRED', actualWorkMillis: null, calculatedAt: null, resultReason: null }],
     } });
@@ -158,7 +158,8 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect(view.getByText('재집계 필요')).toBeTruthy();
     const row = view.getByText('E001 · 김직원').closest('details')!;
     expect(row.textContent).toContain('미기록');
-    expect(row.textContent).toContain('18:00');
+    expect(row.textContent).toContain('선택 가능 종료22:00');
+    expect(row.textContent).not.toContain('예정 퇴근');
     expect(row.textContent).toContain('미확정');
     fireEvent.click(row.querySelector('summary')!);
     const requestLink = new URL(within(row).getByText('정정 상세').getAttribute('href')!, location.origin);

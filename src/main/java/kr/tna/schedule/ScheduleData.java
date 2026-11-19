@@ -10,7 +10,16 @@ public final class ScheduleData {
     private ScheduleData() { }
     public record Template(UUID id, String code, String name, boolean active, long version) { }
     public record TemplateVersion(UUID id, UUID templateId, int revision, LocalDate validFrom, String reason) { }
-    public record Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<Break> breaks) { }
+    public record Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<Break> breaks,
+                      String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod) {
+        public Day {
+            if (workMode == null) workMode = "FIXED";
+        }
+        public Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<Break> breaks) {
+            this(weekday, workday, startTime, endTime, breaks, "FIXED", null, null, null, null);
+        }
+        public boolean selective() { return "SELECTIVE".equals(workMode); }
+    }
     public record Break(LocalTime startTime, LocalTime endTime) { }
     public record DayForm(int weekday, boolean workday, String startTime, String endTime, String breaks) { }
     public record TemplateForm(String code, String name,

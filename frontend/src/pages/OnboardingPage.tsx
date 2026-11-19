@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import type { FormHTMLAttributes } from 'react';
 import { PageHeader } from '../components/PageHeader';
+import type { WorkMode } from './selectiveSchedule';
 import { ErrorNotice, Field, Form, FormRow, FormTable, SelectField, TextAreaField, fmtDateTime } from '../ui';
 
 type State = 'PLANNED' | 'CONFIRMED' | 'WITHDRAWN';
@@ -23,7 +24,8 @@ interface Model {
   page: number; hasNext?: boolean; rows: Row[]; detail?: Row | null; form: Command;
   organizations: { id: string; code: string; name: string; version: number }[];
   scheduleVersions: { id: string; templateId?: string; templateName: string; revision: number; validFrom: string; templateVersion: number; group?: boolean; validTo?: string | null }[];
-  scheduleDays?: {versionId:string;weekday:number;group:boolean;templateCode:string;workCode:string|null;workday:boolean;startTime:string|null;endTime:string|null}[];
+  scheduleDays?: {versionId:string;weekday:number;group:boolean;templateCode:string;workCode:string|null;workday:boolean;
+    startTime:string|null;endTime:string|null;workMode?:WorkMode|null}[];
   action?: Action | null; publicDemo?: boolean; possibleDuplicate?: boolean;
   inviteEligible?: boolean; retrySameCommand?: boolean;
 }
@@ -65,7 +67,8 @@ function ScheduleSummary({model,id,date,name}:{model:Model;id?:string|null;date:
   const time=(value:string)=>value.replace(/:00(?:\.0+)?$/,(match,offset)=>offset>=5?'':match);
   let summary='입사일 시간표 미등록';
   if(day) {
-    const hours=day.workday ? (day.startTime && day.endTime ? time(day.startTime)+'~'+time(day.endTime) : '근무 시각 미확인') : '비근로일';
+    const hours=day.workday ? (day.startTime && day.endTime
+      ? (day.workMode==='SELECTIVE'?'선택 가능 ':'')+time(day.startTime)+'~'+time(day.endTime) : '근무 시각 미확인') : '비근로일';
     summary=[(day.group?'근무조 ':'기존 고정배정 ')+[day.templateCode,name].filter(Boolean).join(' '),day.workCode,hours].filter(Boolean).join(' · ');
   }
   return <p aria-label="입사일 근무 기준" aria-live="polite">입사일 근무 기준 {summary}</p>;

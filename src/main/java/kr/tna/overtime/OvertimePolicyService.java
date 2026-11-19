@@ -60,6 +60,8 @@ public final class OvertimePolicyService {
             reason = "비근로일에는 연장근무 사전신청을 할 수 없습니다.";
         else if (!"WORKDAY".equals(kind) || snapshot.calendarVersionId() == null)
             reason = "근무일의 회사 캘린더를 확인해 주세요.";
+        else if ("SELECTIVE".equals(policy.workMode()))
+            reason = "선택근무는 근무현황에서 정산기간의 실적을 확인해 주세요.";
         else if (policy.codeVersionId() == null || policy.beforeStart() == null && policy.afterStart() == null)
             reason = "이 근무시간코드에는 연장 신청 허용 시간이 없습니다.";
 

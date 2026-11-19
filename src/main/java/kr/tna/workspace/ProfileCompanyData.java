@@ -47,7 +47,7 @@ public final class ProfileCompanyData {
     public record CheckoutRow(UUID employeeId, String employeeNo, String employeeName, String organizationName,
             LocalDate workDate, LocalTime scheduledEnd, Instant sourceIn, Instant sourceOut, Instant effectiveIn,
             Instant effectiveOut, UUID requestId, String requestState, String recordState, String resultState,
-            Long actualWorkMillis, Instant calculatedAt, String resultReason) { }
+            Long actualWorkMillis, Instant calculatedAt, String resultReason, String workMode) { }
 
     public record CompanyRequest(UUID id, String employeeNo, String employeeName, String organizationName,
             String kind, String status, LocalDate fromDate, LocalDate toDate, double quantityDays,

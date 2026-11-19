@@ -1,4 +1,5 @@
 import type { LeavePart } from './leavePart';
+import type { WorkPolicy } from './selectiveSchedule';
 
 export interface EmployeeChoice {
   id: string;
@@ -131,7 +132,7 @@ export interface ClockInterval {
   startAt: string;
   endAt: string;
 }
-export interface Schedule {
+export interface Schedule extends WorkPolicy {
   workday: boolean;
   startTime: string | null;
   endTime: string | null;
@@ -172,6 +173,7 @@ export interface ClockModel {
   today?: string;
   isToday?: boolean;
   canConfirm?: boolean;
+  confirmationBreaks?: ClockInterval[];
   correctionSuggested?: boolean;
   inCommand?: string;
   outCommand?: string;

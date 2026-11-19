@@ -32,10 +32,29 @@ public interface ClockMapper extends ClosedAttendanceMonths {
               AND assigned_work_date=#{date} AND event_kind=#{kind})
             """)
     boolean recorded(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("kind") String kind);
-    @Select("""
-            SELECT a.schedule_version_id,d.weekday,d.workday,d.start_time,d.end_time FROM tna.effective_schedule_assignment a
+    String SELECTIVE_POLICY_COLUMNS = """
+            COALESCE(time_code.work_mode, rest_policy.work_mode, 'FIXED') AS work_mode,
+            time_code.core_start,time_code.core_end,time_code.standard_minutes,
+            COALESCE(time_code.settlement_period,rest_policy.settlement_period) AS settlement_period
+            """;
+    // Rest days have no code of their own. The group revision has one settlement period for all working days.
+    String SELECTIVE_POLICY_JOINS = """
+            LEFT JOIN tna.work_group_day code_day ON code_day.tenant_id=d.tenant_id
+                AND code_day.schedule_version_id=d.version_id AND code_day.weekday=d.weekday
+            LEFT JOIN tna.work_time_code_version time_code ON time_code.tenant_id=code_day.tenant_id
+                AND time_code.id=code_day.code_version_id
+            LEFT JOIN LATERAL (
+                SELECT c.work_mode,c.settlement_period FROM tna.work_group_day wd
+                JOIN tna.work_time_code_version c ON c.tenant_id=wd.tenant_id AND c.id=wd.code_version_id
+                WHERE NOT d.workday AND wd.tenant_id=d.tenant_id AND wd.schedule_version_id=d.version_id
+                  AND c.work_mode='SELECTIVE' ORDER BY wd.weekday LIMIT 1
+            ) rest_policy ON true
+            """;
+    @Select("SELECT a.schedule_version_id,d.weekday,d.workday,d.start_time,d.end_time, " + SELECTIVE_POLICY_COLUMNS + """
+            FROM tna.effective_schedule_assignment a
             JOIN tna.schedule_version v ON v.tenant_id=a.tenant_id AND v.id=a.schedule_version_id
             JOIN tna.schedule_day d ON d.tenant_id=v.tenant_id AND d.version_id=v.id AND d.weekday=#{weekday}
+            """ + SELECTIVE_POLICY_JOINS + """
             WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId}
               AND a.valid_from<=#{date} AND(a.valid_to IS NULL OR a.valid_to>#{date}) AND v.valid_from<=#{date}
             ORDER BY a.id
@@ -110,7 +129,13 @@ public interface ClockMapper extends ClosedAttendanceMonths {
     CorrectionRow currentCorrection(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
     record CorrectionRow(UUID effectId,UUID requestId,String inAction,String outAction,Instant requestedInAt,Instant requestedOutAt,
                          String beforeSnapshot,String validatedInputRefs,Instant effectiveAt) { }
-    record ScheduleRow(UUID scheduleVersionId,int weekday,boolean workday,LocalTime startTime,LocalTime endTime) { }
+    record ScheduleRow(UUID scheduleVersionId,int weekday,boolean workday,LocalTime startTime,LocalTime endTime,
+                       String workMode,LocalTime coreStart,LocalTime coreEnd,Integer standardMinutes,String settlementPeriod) {
+        @org.apache.ibatis.annotations.AutomapConstructor public ScheduleRow { }
+        public ScheduleRow(UUID version, int weekday, boolean workday, LocalTime start, LocalTime end) {
+            this(version, weekday, workday, start, end, "FIXED", null, null, null, null);
+        }
+    }
     record CalendarRow(UUID versionId,String kind) { }
     record Revision(long inputRevision,long reviewRevision) { }
     record ConfirmationRow(UUID id,long confirmedInputRevision,long reviewRevision,boolean presenceAsWork,

@@ -44,6 +44,21 @@ const renderMarkup = async (element: ReactElement) => {
 };
 afterEach(cleanup);
 describe('개인 홈과 일정', () => {
+  it('선택근무의 코어·정산 기준을 보여 주고 달력의 시간은 표준 1일 시간으로 합산한다', () => {
+    const schedule = { workday: true, workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
+      coreStart: '10:00', coreEnd: '15:00', standardMinutes: 450, settlementPeriod: 'ISO_WEEK',
+      breaks: [{ startTime: '12:00', endTime: '13:00' }] };
+    const selected = { ...day, scheduleText: '선택 가능 07:00 ~ 22:00', snapshot: { ...snapshot, schedule, dayKind: 'WORKDAY' } };
+    const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-10', selectedDate: '2026-10-26', days: [selected], selectedDay: selected, leadingBlanks: [],
+      assignment: { group: true, name: '선택조', code: 'G01', workCode: 'SEL1', workName: '선택근무', overtimeBreaks: [], overtimeMinutes: 0 },
+    } })} />);
+    const detail = within(view.getByRole('region', { name: '선택한 날짜 상세' }));
+    expect(detail.getByText('코어시간').nextElementSibling?.textContent).toBe('10:00 ~ 15:00');
+    expect(detail.getByText('정산 기간').nextElementSibling?.textContent).toBe('1주 (월~일)');
+    expect(detail.queryByText('요일별 연장 기준')).toBeNull();
+    expect(view.container.querySelector('.wl-summary')?.textContent).toContain('1일 · 7:30');
+  });
   it('선택일의 근무조와 근무코드, 연장 허용 구간과 예정 휴게를 조회한다', () => {
     const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
       month: '2026-10', selectedDate: '2026-10-26', days: [day], selectedDay: day, leadingBlanks: [],

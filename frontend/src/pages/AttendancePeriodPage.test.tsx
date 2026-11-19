@@ -7,6 +7,15 @@ afterEach(cleanup);
 
 const csrf = { token: 'csrf', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
 
+it('선택근무의 기간 목록에서 선택 가능 시간과 실제 기록을 구분한다', () => {
+  render(<WorkflowPages page="clock/period" csrf={csrf} reload={() => {}} data={{ attendancePeriod: {
+    today: '2026-11-17', from: '2026-11-01', to: '2026-11-17', missingOnly: false,
+    rows: [{ workDate: '2026-11-16', scheduleKind: 'WORKDAY', workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
+      inAt: null, outAt: null, recordStatus: 'NONE', workStatus: 'ABSENT', actualWorkMillis: null }],
+  } }} />);
+  expect(screen.getByRole('cell', { name: '선택 가능 07:00 ~ 22:00' })).toBeTruthy();
+});
+
 it('보이는 기간과 누락 조건을 URL에 유지하고 날짜 상세와 정정을 연다', () => {
   render(<WorkflowPages page="clock/period" csrf={csrf} reload={() => {}} data={{
     attendancePeriod: {

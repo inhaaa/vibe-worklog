@@ -1,6 +1,7 @@
 import type { PageProps } from '../types';
 import type { ReactNode } from 'react';
 import { dayClass, formatMinutes, pendingRequests, tally, weekOf } from './scheduleSummary';
+import { coreHours, hoursAndMinutes, periodNames } from './selectiveSchedule';
 import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
@@ -352,6 +353,7 @@ function Schedule({ data }: PageProps) {
   const pending = pendingRequests(calendar.days);
   const week = weekOf(calendar.days, calendar.selectedDate);
   const weekTally = tally(week.days);
+  const hasSelectiveDays = (days: WorkspaceDay[]) => days.some(day => day.snapshot.schedule?.workMode === 'SELECTIVE');
   const todo = [
     ...pending.map(({ item, date }) => ({ key: `request-${item.request.id}`, date, label: item.kindLabel, state: item.statusLabel, tone: 'amber', href: `/requests/${item.request.id}` })),
     ...calendar.days.filter(entry => dayClass(entry) === 'unknown').map(entry => ({
@@ -432,7 +434,7 @@ function Schedule({ data }: PageProps) {
         <a className="t-btn primary" href={`/me/requests/new?${new URLSearchParams({ year })}`}>근태 신청</a>
       </>} />
       <dl className="wl-summary" aria-label={`${year}년 ${Number(month)}월 요약`}>
-        <div><dt>예정 근무</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
+        <div><dt>{hasSelectiveDays(calendar.days) ? '근무 기준시간' : '예정 근무'}</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
         <div><dt>승인 연차</dt><dd>{summary.leaveDays}일</dd></div>
         <div data-tone={pending.length ? 'warn' : undefined}><dt>검토 중</dt><dd>{pending.length}건</dd></div>
         <div data-tone={summary.unknownDays ? 'danger' : undefined}><dt>확인 필요</dt><dd>{summary.unknownDays}일</dd></div>
@@ -529,7 +531,7 @@ function Schedule({ data }: PageProps) {
               <section className="wl-side-block" aria-labelledby={`${sideId}-week`}>
                 <h3 id={`${sideId}-week`}>주간 근무</h3>
                 <p className="wl-side-period">{shortDate(week.from)} – {shortDate(week.to)}{week.partial && ' · 이번 달 날짜만'}</p>
-                <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>예정</small></p>
+                <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>{hasSelectiveDays(week.days) ? '표준시간 포함' : '예정'}</small></p>
                 <dl className="wl-side-facts">
                   <div data-kind="work"><dt>예정 근무</dt><dd>{weekTally.workDays}일</dd></div>
                   <div data-kind="leave"><dt>승인 연차</dt><dd>{weekTally.leaveDays}일</dd></div>
@@ -574,10 +576,17 @@ function Schedule({ data }: PageProps) {
               <dt>{calendar.assignment.group ? '근무조' : '기존 고정배정'}</dt>
               <dd>{calendar.assignment.code} · {calendar.assignment.name}</dd>
             </div>}
+            {selected.snapshot.schedule?.workMode === 'SELECTIVE' && <>
+              <div><dt>코어시간</dt><dd>{coreHours(selected.snapshot.schedule)}</dd></div>
+              <div><dt>표준 1일 근로시간</dt><dd>{selected.snapshot.schedule.standardMinutes == null
+                ? '미확인' : hoursAndMinutes(selected.snapshot.schedule.standardMinutes)}</dd></div>
+              <div><dt>정산 기간</dt><dd>{selected.snapshot.schedule.settlementPeriod
+                ? periodNames[selected.snapshot.schedule.settlementPeriod] : '미확인'}</dd></div>
+            </>}
             {calendar.assignment?.workCode && <div>
               <dt>근무시간코드</dt><dd>{calendar.assignment.workCode} · {calendar.assignment.workName}</dd>
             </div>}
-            {calendar.assignment?.workCode && <div>
+            {calendar.assignment?.workCode && selected.snapshot.schedule?.workMode !== 'SELECTIVE' && <div>
               <dt>요일별 연장 기준</dt>
               <dd>{calendar.assignment.beforeStart && <span>출근 전 {calendar.assignment.beforeStart.slice(0,5)}~{calendar.assignment.beforeEnd?.slice(0,5)} </span>}
                 {calendar.assignment.afterStart && <span>퇴근 후 {calendar.assignment.afterStart.slice(0,5)}~{calendar.assignment.afterEnd?.slice(0,5)} </span>}
@@ -619,6 +628,8 @@ function Schedule({ data }: PageProps) {
             </div>
           </div>
           <div className="t-attendance-detail-actions">
+            {selected.snapshot.schedule?.workMode === 'SELECTIVE' && <a className="t-btn secondary"
+              href={'/me/worktime?month=' + calendar.month + '#selective-settlements'}>이 달 선택근무 정산</a>}
             <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>출퇴근 기록</a>
             <a className="t-btn secondary" href="/me/requests">휴가·정정 신청</a>
           </div>

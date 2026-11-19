@@ -174,6 +174,28 @@ class LeaveWorkflowIT {
         assertEquals(2,balance(bucket));
     }
 
+    @Test void futureLeaveShowsAnAdjustedStandardEvenWhenTheHoursOnTheClockAreUnchanged() {
+        UUID bucket = bucket(2), request = leave(bucket,date);
+        approve(request);
+        var pause = new WorkTimeCodeData.Break("REGULAR",java.time.LocalTime.NOON,java.time.LocalTime.of(13,0));
+        var code = new WorkTimeCodeData.Command(UUID.randomUUID(),null,null,"SEL","선택",today,true,
+                java.time.LocalTime.of(9,0),java.time.LocalTime.of(18,0),null,null,null,null,
+                List.of(pause),"휴가 기준 변경",null,"SELECTIVE",null,null,420,"CALENDAR_MONTH");
+        UUID codeId = timeCodes.save(manager,code);
+        UUID version = timeCodes.catalog(manager,today).codes().stream().filter(c -> c.id().equals(codeId))
+                .findFirst().orElseThrow().versions().getFirst().id();
+        var week = java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i -> new WeekInput(i,version)).toList();
+        var group = new GroupCommand(null,"SEL","선택조",date,week,"근무조 편성",null,null,null,UUID.randomUUID());
+        UUID groupId = groups.saveGroup(manager,group.confirm(groups.previewGroup(manager,group).token()));
+        var assign = new AssignmentCommand(groupId,date,List.of(employee.employeeId()),"근무조 배정",List.of(),null,UUID.randomUUID());
+        memberships.saveAssignments(manager,assign.confirm(memberships.previewAssignments(manager,assign).token()));
+        var detail = workflow.get(manager,request);
+        assertEquals("APPROVED", detail.request().status());
+        assertEquals(1,balance(bucket));
+        assertEquals(1,detail.scheduleChanges().size());
+        assertTrue(detail.scheduleChanges().getFirst().current().contains("표준 420분"));
+    }
+
     @Test void openingIsAnImmutableGroundedLedgerAndOwnOpeningIsBlocked() {
         UUID bucket=bucket(3);var value=workflow.buckets(employee,employee.employeeId()).getFirst();
         assertEquals(3,value.balanceDays());assertEquals(3,value.availableDays());

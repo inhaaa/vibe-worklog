@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PageHeader } from '../components/PageHeader';
 import { Form, duration, fmtDateTime, fmtTime } from '../ui';
+import type { WorkMode } from './selectiveSchedule';
 import './AttendancePeriodPage.css';
 
 const attendance = '/me/attendance';
@@ -15,6 +16,7 @@ const recordLabels = {
 interface Row {
   workDate: string;
   scheduleKind: keyof typeof scheduleLabels;
+  workMode?: WorkMode | null;
   startTime: string | null;
   endTime: string | null;
   inAt: string | null;
@@ -86,7 +88,7 @@ export function AttendancePeriodPage({ model, error }: { model: AttendancePeriod
           <tbody role="rowgroup">{rows.map(row => <tr key={row.workDate} role="row">
             <th scope="row" role="rowheader"><a href={`${attendance}?date=${row.workDate}`}>{row.workDate}</a></th>
             <td role="cell" data-label="예정">{row.scheduleKind === 'WORKDAY' && row.startTime && row.endTime
-              ? `${fmtTime(row.startTime)} ~ ${fmtTime(row.endTime)}` : scheduleLabels[row.scheduleKind]}</td>
+              ? (row.workMode === 'SELECTIVE' ? '선택 가능 ' : '') + fmtTime(row.startTime) + ' ~ ' + fmtTime(row.endTime) : scheduleLabels[row.scheduleKind]}</td>
             <td role="cell" data-label="출근">{clock(row.inAt)}</td>
             <td role="cell" data-label="퇴근">{clock(row.outAt)}</td>
             <td role="cell" data-label="상태" className="attendance-period-status"><span>{recordLabels[row.recordStatus]}</span>

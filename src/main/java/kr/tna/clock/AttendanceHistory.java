@@ -38,14 +38,14 @@ public final class AttendanceHistory {
     public record Period(LocalDate today, LocalDate from, LocalDate to, boolean missingOnly, List<Row> rows) { }
     public record Row(LocalDate workDate, ScheduleKind scheduleKind, LocalTime startTime, LocalTime endTime,
             Instant inAt, Instant outAt, RecordStatus recordStatus, boolean corrected, boolean pendingCorrection,
-            WorkStatus workStatus, Long actualWorkMillis, boolean correctionSuggested) { }
+            WorkStatus workStatus, Long actualWorkMillis, boolean correctionSuggested, String workMode) { }
 
     public static Row row(DaySnapshot day, LocalDate today, boolean employed, boolean approvedLeave,
             boolean pendingCorrection, boolean pendingWork, boolean staleWork, Long actualWorkMillis, boolean correctionSuggested) {
         LocalDate date = day.workDate();
         if (!employed) {
             return new Row(date, ScheduleKind.OUTSIDE_EMPLOYMENT, null, null, null, null,
-                    RecordStatus.NONE, false, false, WorkStatus.ABSENT, null, false);
+                    RecordStatus.NONE, false, false, WorkStatus.ABSENT, null, false, null);
         }
         var schedule = day.schedule();
         var scheduleKind = scheduleKind(day, approvedLeave);
@@ -67,7 +67,7 @@ public final class AttendanceHistory {
                 : staleWork ? WorkStatus.STALE : WorkStatus.ABSENT;
         return new Row(date, scheduleKind, schedule == null ? null : schedule.startTime(), schedule == null ? null : schedule.endTime(),
                 invalid ? null : in, invalid ? null : out, recordStatus, !events.equals(day.events()), pendingCorrection,
-                workStatus, actualWorkMillis, correctionSuggested);
+                workStatus, actualWorkMillis, correctionSuggested, schedule == null ? null : schedule.workMode());
     }
 
     private static Instant uniqueTime(List<Event> events) {
