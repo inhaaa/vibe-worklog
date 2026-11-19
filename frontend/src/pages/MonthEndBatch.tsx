@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { PAGE_ACCEPT, PageRequestError } from '../transport';
+import { PageRequestError } from '../transport';
 import type { CsrfToken } from '../types';
 import { duration, ErrorNotice } from '../ui';
 import { monthEndReasons } from './CompanyAttendanceNavigation';
 import type { MonthEndReview } from './MonthEndReviewPage';
+import { monthEndAccessDenied, monthEndReason, monthEndRequest } from './monthEndApi';
 
 type Reason = keyof typeof monthEndReasons;
 type Day = { employeeId: string; workDate: string };
@@ -18,24 +19,6 @@ type Command = BatchSelection & { previewToken: string; calculationReason: strin
 const path = '/admin/calculations/month-end';
 export const dayKey = (row: Day) => row.employeeId + '/' + row.workDate;
 const reasonNames = (reasons: Reason[]) => reasons.map(reason => monthEndReasons[reason]).join(' · ');
-const denied = (error: unknown): error is PageRequestError => error instanceof PageRequestError &&
-  (error.status === 401 || error.status === 403 || error.reauthenticate);
-// Match String.strip() in OrgCommands.requiredText, including its non-breaking space exceptions.
-const javaWhitespace = '[\\u0009-\\u000d\\u001c-\\u0020\\u1680\\u2000-\\u2006\\u2008-\\u200a\\u2028\\u2029\\u205f\\u3000]';
-const reasonEdges = new RegExp('^' + javaWhitespace + '+|' + javaWhitespace + '+$', 'gu');
-
-async function post<T>(url: string, body: BatchSelection | Command, csrf: CsrfToken, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { method: 'POST', credentials: 'same-origin', signal,
-    headers: { Accept: 'application/json, ' + PAGE_ACCEPT + ';q=0.9', 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },
-    body: JSON.stringify(body) });
-  if (response.redirected) throw new PageRequestError(401, '다시 로그인해 주세요.');
-  if (!response.ok) {
-    const problem = await response.json().catch(() => null);
-    throw new PageRequestError(response.status, problem?.message || problem?.data?.message || '선택한 대상의 현재 상태를 다시 확인해 주세요.',
-      problem?.data?.reauthenticate === true);
-  }
-  return response.json() as Promise<T>;
-}
 
 function matches<T extends DisplayDay>(result: { weekCount: number; rows: T[] }, target: BatchSelection, valid: (row: T) => boolean) {
   const keys = new Set(target.rows.map(dayKey));
@@ -69,22 +52,19 @@ export function MonthEndBatch({ target, csrf, returnTo, close, onCalculated, ref
   const running = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const reasonInput = useRef<HTMLInputElement>(null);
-  const trimmed = reason.replace(reasonEdges, '');
-  const length = Array.from(trimmed).length;
-  const forbiddenCharacters = /[\p{Cc}\p{Cs}]/u.test(trimmed);
-  const validReason = length >= 1 && length <= 500 && !forbiddenCharacters;
+  const { trimmed, length, forbiddenCharacters, validReason } = monthEndReason(reason);
   const locallyInvalid = Boolean(reason) && !validReason;
 
   useEffect(() => {
     if (step !== 'previewing') return;
     const controller = new AbortController();
-    post<Preview>(path + '/preview', target, csrf, controller.signal).then(result => {
+    monthEndRequest<Preview>(path + '/preview', { csrf, body: target }, controller.signal).then(result => {
       if (controller.signal.aborted) return;
       if (!result?.previewToken || !matches(result, target, row => Boolean(row.weekStart && row.weekEnd))) throw new Error();
       setPreview(result); setStep('ready');
     }).catch(failure => {
       if (controller.signal.aborted) return;
-      if (denied(failure)) { deny(failure); return; }
+      if (monthEndAccessDenied(failure)) { deny(failure); return; }
       setError(failure instanceof PageRequestError ? failure.message : '미리보기를 불러오지 못했습니다.');
       setStep('reviewAgain');
     });
@@ -98,7 +78,7 @@ export function MonthEndBatch({ target, csrf, returnTo, close, onCalculated, ref
       if (!controller.signal.aborted) setList('current');
     }).catch(failure => {
       if (controller.signal.aborted) return;
-      if (denied(failure)) { deny(failure); return; }
+      if (monthEndAccessDenied(failure)) { deny(failure); return; }
       setList('failed');
     });
     return () => controller.abort();
@@ -115,13 +95,13 @@ export function MonthEndBatch({ target, csrf, returnTo, close, onCalculated, ref
     command.current ??= { ...target, previewToken: preview.previewToken, calculationReason: trimmed, commandId: crypto.randomUUID() };
     setStep('saving'); setError('');
     try {
-      const result = await post<Receipt>(path, command.current, csrf);
+      const result = await monthEndRequest<Receipt>(path, { csrf, body: command.current });
       if (!result?.batchId || result.weekCount !== preview.weekCount || !matches(result, target, row =>
         typeof row.resultId === 'string' && row.resultId.length > 0 &&
         (row.actualWorkMillis === null || (Number.isSafeInteger(row.actualWorkMillis) && row.actualWorkMillis >= 0)))) throw new Error();
       onCalculated(); setReceipt(result); setStep('result');
     } catch (failure) {
-      if (denied(failure)) { deny(failure); return; }
+      if (monthEndAccessDenied(failure)) { deny(failure); return; }
       if (failure instanceof PageRequestError && failure.status < 500) {
         command.current = null;
         setError(failure.message);
@@ -174,7 +154,7 @@ export function MonthEndBatch({ target, csrf, returnTo, close, onCalculated, ref
     data-unsaved-changes={step === 'uncertain' || (step === 'ready' && Boolean(trimmed))}>
     <h3 ref={heading} tabIndex={-1}>재집계 미리보기</h3>
     <p>선택한 근무일 {preview.rows.length}건 · 사원별 주간 집계 {preview.weekCount}건</p>
-    <p>선택한 날이 속한 월요일부터 일요일까지 재집계합니다.</p>
+    <p>선택한 날이 속한 주를 재집계합니다. 인접 월이 마감되면 아래 계산 범위에 표시한 열린 날짜만 저장합니다.</p>
     <ul className="month-review-batch-rows" aria-label="선택한 근무일과 재집계 범위">{preview.rows.map(row =>
       <li key={dayKey(row)}>
         <div><strong>{row.employeeNo} · {row.employeeName}</strong><time dateTime={row.workDate}>{row.workDate}</time></div>

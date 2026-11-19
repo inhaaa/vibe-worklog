@@ -5,6 +5,7 @@ import { App } from '../App';
 import { getNavigationContext } from '../navigation';
 import { HomeCheckoutFollowUps, MyCheckoutFollowUps } from './CheckoutFollowUps';
 import { IdentityPages } from './IdentityPages';
+import { stubOpenMonth } from './monthEndTestSupport';
 
 const csrf = { token: 'csrf-test', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
 const selected = { employeeId: 'employee-a', employeeNo: '101', employeeName: '한사원', workDate: '2026-11-06',
@@ -22,7 +23,8 @@ function manager(rows: object[] = [selected], roles = ['ATTENDANCE_ADMIN']) {
 }
 const owner = (rows: object[], page = 0, hasNext = false) => <IdentityPages page="attendance/follow-ups" csrf={csrf} reload={() => {}}
   data={{checkoutFollowUps: {rows, page, hasNext}, workspacePrincipal:{roles:['EMPLOYEE']}}} />;
-function openComposer() {
+async function openComposer() {
+  await screen.findByText('마감 전');
   fireEvent.click(screen.getByRole('button', {name:'보완 요청'}));
   return within(screen.getByRole('form', {name:'퇴근 누락 보완 요청'}));
 }
@@ -33,9 +35,9 @@ afterEach(() => {cleanup(); vi.unstubAllGlobals();});
 it('담당자는 해당 사원과 근무일을 확인한 뒤 CSRF를 포함해 한 번 요청하고 같은 월말 목록을 다시 조회한다', async () => {
   let finish!: (response: Response) => void;
   const send = vi.fn<typeof fetch>(() => new Promise(resolve => {finish = resolve;}));
-  vi.stubGlobal('fetch', send);
+  stubOpenMonth(send);
   const {reload} = manager([selected, {...selected,employeeId:'other', employeeNo:'102',employeeName:'다른사원',checkoutFollowUpEligible:false}]);
-  const form = openComposer();
+  const form = await openComposer();
   expect(form.getByText(/한사원/)).toBeTruthy();
   expect(form.getByText(new RegExp(selected.workDate))).toBeTruthy();
   const reason = form.getByRole('textbox', {name:'보완 사유'}) as HTMLTextAreaElement;
@@ -59,9 +61,9 @@ it('담당자는 해당 사원과 근무일을 확인한 뒤 CSRF를 포함해 �
 
 it('통신 중단 후 같은 내용과 명령으로 결과를 다시 확인한다', async () => {
   const send = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce(accepted());
-  vi.stubGlobal('fetch', send);
+  stubOpenMonth(send);
   const {reload} = manager();
-  const form = openComposer();
+  const form = await openComposer();
   const input = form.getByRole('textbox', {name:'보완 사유'}) as HTMLTextAreaElement;
   fireEvent.change(input,{target:{value:'시각 확인'}});
   fireEvent.click(form.getByRole('button',{name:'요청 보내기'}));
@@ -73,12 +75,12 @@ it('통신 중단 후 같은 내용과 명령으로 결과를 다시 확인한�
 });
 
 it('상태가 바뀌면 최신 목록을 다시 확인하고, 기존 요청과 권한이 없는 행에서는 보낼 수 없다', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({message:'이미 정정 신청이 있습니다.'}),{status:409})));
+  stubOpenMonth(vi.fn().mockResolvedValue(new Response(JSON.stringify({message:'이미 정정 신청이 있습니다.'}),{status:409})));
   const {view, reload} = manager([selected, {...selected, employeeId:'employee-b',workDate:'2026-11-05', checkoutFollowUpEligible:false,
     checkoutFollowUp:{...summary,status:'AWAITING_CALCULATION',approvalRequestId:'approved-request'}}]);
   expect(screen.getByText('재집계 대기')).toBeTruthy();
   expect(screen.getByRole('link',{name:'정정 상세'}).getAttribute('href')).toContain('/requests/approved-request?');
-  const form = openComposer();
+  const form = await openComposer();
   fireEvent.change(form.getByRole('textbox'),{target:{value:'시각 확인'}});
   fireEvent.click(form.getByRole('button',{name:'요청 보내기'}));
   await screen.findByText('이미 정정 신청이 있습니다.');
@@ -131,9 +133,10 @@ it('반려·철회 후 이전 정정 상세로 사유를 확인하고 같은 날
   expect(screen.getByRole('link',{name:'정정 신청'}).getAttribute('href')).toBe('/me/requests/correction?date=2026-11-06');
 });
 
-it('이미 해소한 날짜에 누락이 다시 발생하면 담당자가 새 보완 요청을 만들 수 있다', () => {
+it('이미 해소한 날짜에 누락이 다시 발생하면 담당자가 새 보완 요청을 만들 수 있다', async () => {
+  stubOpenMonth();
   manager([{...selected, checkoutFollowUp:{...summary,status:'RESOLVED',approvalRequestId:'older',resultId:'old-result'}}]);
-  expect(openComposer().getByRole('textbox',{name:'보완 사유'})).toBeTruthy();
+  expect((await openComposer()).getByRole('textbox',{name:'보완 사유'})).toBeTruthy();
 });
 
 it('일반 앱에서 보낸 뒤 검색어·조직·월·사유·페이지를 담은 주소로 다시 조회해 서버에 저장된 상태를 표시한다', async () => {
@@ -149,9 +152,9 @@ it('일반 앱에서 보낸 뒤 검색어·조직·월·사유·페이지를 담
     const fetched = new Response(JSON.stringify(updated), {headers:{'Content-Type':'application/vnd.worklog.page+json'}});
     Object.defineProperty(fetched,'url',{value:location.href});
     const send=vi.fn<typeof fetch>().mockResolvedValueOnce(accepted()).mockResolvedValueOnce(fetched);
-    vi.stubGlobal('fetch',send);
+    stubOpenMonth(send);
     render(<App initial={{page:'company/attendance',csrf,data}} />);
-    const form=openComposer();
+    const form=await openComposer();
     fireEvent.change(form.getByRole('textbox'),{target:{value:'동일 조건 재조회'}});
     fireEvent.click(form.getByRole('button',{name:'요청 보내기'}));
     await screen.findByText('직원 확인 대기');

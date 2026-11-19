@@ -11,7 +11,7 @@
 <section class="panel"><h2>결과와 최신성</h2>
 <p th:text="${detail.day.employeeNo+' · '+detail.day.employeeName+' / '+@seoulTime.date(detail.day.workDate)}"></p><p>사번·이름은 현재 사원 정보이며 아래 업무 근거는 계산 당시 값입니다.</p>
 <dl><dt>결과 ID</dt><dd th:text="${detail.day.id}"></dd><dt>결과 개정·규칙</dt><dd th:text="${'v'+detail.day.resultRevision+' · '+detail.day.ruleVersion}"></dd><dt>상태</dt><dd th:text="${detail.day.result.status}"></dd><dt>사실·검토 개정</dt><dd th:text="${detail.day.result.inputRevision+' / '+detail.day.result.reviewRevision}"></dd><dt>계산 시각</dt><dd th:text="${@seoulTime.instant(detail.day.calculatedAt)}"></dd></dl>
-<p th:text="${detail.day.current?'현재 입력 근거와 일치':'현재 입력 근거가 변경됨 · 재집계 필요'}"></p>
+<p th:text="${detail.day.current?'유효한 계산 결과':'현재 입력 근거가 변경됨 · 재집계 필요'}"></p>
 <p th:text="${detail.latestVersion?'이 날짜의 최신 계산 버전':'과거 계산 버전 · 이후 계산 결과 있음'}"></p><p th:unless="${detail.latestVersion}"><a th:href="@{/worktime/results/{id}(id=${detail.latestResultId})}">최신 계산 결과</a></p>
 <p th:unless="${detail.completeEvidence}" class="notice error" role="status">저장된 근거가 없거나 일부를 확인할 수 없습니다. 현재 원천으로 대신 채우지 않았습니다. 담당자 확인이 필요합니다.</p>
 <ul><li th:each="reason:${detail.day.result.reasons}" th:text="${reason}"></li></ul>

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, expect, it, vi } from 'vitest';
 import { PAGE_ACCEPT } from '../transport';
 import { IdentityPages } from './IdentityPages';
+import { stubOpenMonth } from './monthEndTestSupport';
 
 const csrf = { token: 'csrf-test', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
 const base = '/admin/calculations/month-end';
@@ -43,7 +44,8 @@ function expectFilters(href: string) {
   expect(list.pathname).toBe('/company/attendance');
   expect(Object.fromEntries(list.searchParams)).toEqual({ ...filters, page: '1', view: 'month-end' });
 }
-function start() {
+async function start() {
+  await screen.findByText('마감 전');
   fireEvent.click(all());
   fireEvent.click(button('선택 재집계'));
 }
@@ -58,8 +60,9 @@ it('사원·날짜를 선택해 인접 월이 포함된 주와 현재 사유를 
   let finish!: (value: Response) => void;
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview))
     .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce(refreshed());
-  vi.stubGlobal('fetch', send);
+  stubOpenMonth(send);
   render(page());
+  await screen.findByText('마감 전');
   expect(button('선택 재집계').disabled).toBe(true);
   fireEvent.click(checkbox('101 한사원 2026-10-01 선택'));
   expect(all().indeterminate).toBe(true);
@@ -67,7 +70,7 @@ it('사원·날짜를 선택해 인접 월이 포함된 주와 현재 사유를 
   expect(all().checked).toBe(true);
   fireEvent.click(all());
   expect(button('선택 재집계').disabled).toBe(true);
-  start();
+  await start();
   const review = within(await screen.findByRole('region', { name: '재집계 미리보기' }));
   expect(send).toHaveBeenCalledTimes(1);
   expect(send.mock.calls[0][0]).toBe(base + '/preview');
@@ -125,8 +128,10 @@ it('사원·날짜를 선택해 인접 월이 포함된 주와 현재 사유를 
   expect(screen.queryByRole('heading', { name: '재집계 결과' })).toBeNull();
 });
 
-it('단건 보완과 일괄 작업의 선택이 겹치지 않고 필터·페이지·권한이 바뀌면 선택을 초기화한다', () => {
+it('단건 보완과 일괄 작업의 선택이 겹치지 않고 필터·페이지·권한이 바뀌면 선택을 초기화한다', async () => {
+  stubOpenMonth();
   const view = render(page());
+  await screen.findByText('마감 전');
   fireEvent.click(screen.getAllByRole('button', { name: '보완 요청' })[0]);
   expect(all().disabled).toBe(true);
   fireEvent.click(button('취소'));
@@ -136,13 +141,25 @@ it('단건 보완과 일괄 작업의 선택이 겹치지 않고 필터·페이�
   expect(all().checked).toBe(false);
   expect(button('선택 재집계').disabled).toBe(true);
   view.rerender(page({ ...month, page: 2 }));
+  await screen.findByText('마감 전');
   expect(all().checked).toBe(false);
   fireEvent.click(all());
   view.rerender(page({ ...month, q: '변경' }));
+  await screen.findByText('마감 전');
   expect(all().checked).toBe(false);
   view.rerender(page(month, ['EXECUTIVE', 'EMPLOYEE']));
   expect(screen.queryByRole('checkbox')).toBeNull();
   expect(screen.queryByRole('button', { name: '선택 재집계' })).toBeNull();
+});
+
+it('인접 월이 마감된 주는 열린 날짜만 계산한다고 안내하고 서버가 돌려준 범위를 그대로 표시한다', async () => {
+  const day = { ...first, workDate: '2024-03-01' };
+  stubOpenMonth(vi.fn<typeof fetch>().mockResolvedValueOnce(json({ previewToken: 'clipped', weekCount: 1,
+    rows: [{ ...day, weekStart: '2024-03-01', weekEnd: '2024-03-03' }] })));
+  render(page({ ...month, month: '2024-03', rows: [day] })); await start();
+  const review = within(await screen.findByRole('region', { name: '재집계 미리보기' }));
+  expect(review.getByText(/인접 월이 마감.*열린 날짜만/)).toBeTruthy();
+  expect(review.getByText('2024-03-01 ~ 2024-03-03')).toBeTruthy();
 });
 
 it.each(['연결 중단', '서버 오류', '불완전한 결과'])('%s 뒤에는 같은 사유·명령·대상으로만 재시도한다', async failure => {
@@ -151,8 +168,8 @@ it.each(['연결 중단', '서버 오류', '불완전한 결과'])('%s 뒤에는
       if (failure === '연결 중단') throw new TypeError('offline');
       return failure === '서버 오류' ? json({}, 503) : json({ ...receipt, rows: receipt.rows.slice(1) });
     }).mockResolvedValueOnce(json(receipt)).mockResolvedValueOnce(refreshed());
-  vi.stubGlobal('fetch', send);
-  render(page()); start(); await execute();
+  stubOpenMonth(send);
+  render(page()); await start(); await execute();
   const retry = await screen.findByRole('button', { name: '같은 요청 다시 보내기' });
   expect(all().disabled).toBe(true);
   const reason = screen.getByRole<HTMLInputElement>('textbox', { name: '재집계 사유' });
@@ -167,8 +184,8 @@ it('근거 충돌 시 기존 실행을 닫고 새 미리보기와 명령으로 �
     .mockResolvedValueOnce(json({ message: '근거가 변경되었습니다.' }, 409))
     .mockResolvedValueOnce(json({ ...preview, previewToken: 'fresh-inputs' }))
     .mockResolvedValueOnce(json(receipt)).mockResolvedValueOnce(refreshed());
-  vi.stubGlobal('fetch', send);
-  render(page()); start(); await execute();
+  stubOpenMonth(send);
+  render(page()); await start(); await execute();
   const next = await screen.findByRole('button', { name: '다시 미리보기' });
   expect(screen.queryByRole('button', { name: '재집계 실행' })).toBeNull();
   fireEvent.click(next);
@@ -185,8 +202,8 @@ it('목록 갱신 중과 실패 후에는 이전 목록·페이지와 빈 목록
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json(receipt))
     .mockImplementationOnce(() => new Promise<Response>((_, reject) => { failRefresh = reject; }))
     .mockResolvedValueOnce(refreshed());
-  vi.stubGlobal('fetch', send);
-  render(page()); start(); await execute();
+  stubOpenMonth(send);
+  render(page()); await start(); await execute();
   const result = within(await screen.findByRole('region', { name: '재집계 결과' }));
   const onlyResults = () => {
     expect(result.getAllByRole('link', { name: '일 결과 상세' })).toHaveLength(3);
@@ -211,8 +228,8 @@ it('재집계 사유가 422로 거절되면 미리보기와 원래 입력을 보
   const message = '재집계 사유은(는) 공백이 아닌 500자 이내로 입력해 주세요.';
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json({ message }, 422))
     .mockResolvedValueOnce(json(receipt)).mockResolvedValueOnce(refreshed());
-  vi.stubGlobal('fetch', send);
-  render(page()); start(); await execute();
+  stubOpenMonth(send);
+  render(page()); await start(); await execute();
   expect((await screen.findByRole('alert')).textContent).toBe(message);
   const review = within(screen.getByRole('region', { name: '재집계 미리보기' }));
   const input = review.getByRole<HTMLInputElement>('textbox', { name: '재집계 사유' });
@@ -231,8 +248,8 @@ it.each(['미리보기', '실행'])('%s 중 재인증을 요청하는 503이 오
   const send = vi.fn<typeof fetch>();
   if (stage === '실행') send.mockResolvedValueOnce(json(preview));
   send.mockResolvedValueOnce(expired);
-  vi.stubGlobal('fetch', send);
-  render(page()); start();
+  stubOpenMonth(send);
+  render(page()); await start();
   if (stage === '실행') await execute();
   expect((await screen.findByRole('alert')).textContent).toMatch(/다시 로그인/);
   expect(screen.getByRole('link', { name: '다시 로그인' }).getAttribute('href')).toBe('/login');
@@ -244,8 +261,8 @@ it.each(['미리보기', '실행'])('%s 중 재인증을 요청하는 503이 오
 it('결과 목록을 재조회할 때 권한이 회수되면 담당자 결과와 이전 목록을 숨긴다', async () => {
   const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json(receipt))
     .mockResolvedValueOnce(json({ page: 'org/problem', csrf, data: { message: '권한 회수' } }, 403, PAGE_ACCEPT));
-  vi.stubGlobal('fetch', send);
-  render(page()); start(); await execute();
+  stubOpenMonth(send);
+  render(page()); await start(); await execute();
   expect((await screen.findByRole('alert')).textContent).toMatch(/권한/);
   expect(screen.queryByRole('list', { name: '월말 확인 사원과 근무일' })).toBeNull();
   expect(screen.queryByRole('heading', { name: '재집계 결과' })).toBeNull();

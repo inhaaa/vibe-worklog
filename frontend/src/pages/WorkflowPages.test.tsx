@@ -621,6 +621,7 @@ describe('WorkflowPages', () => {
       clock: { ...day, effectiveEvents: [effective] }, run: null, policy: null, assessment: null, employment: null,
       leaveEffects: [], pendingCorrections: [],
     } });
+    expect(view.getByText('유효한 계산 결과')).toBeTruthy();
     const source = view.getByRole('region', { name: '당시 원천 출퇴근' });
     const changed = view.getByRole('region', { name: '당시 유효 출퇴근' });
     expect(within(source).getByRole('grid', { name: '당시 원천 출퇴근' })).toBeTruthy();

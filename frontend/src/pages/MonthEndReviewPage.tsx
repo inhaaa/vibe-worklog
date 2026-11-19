@@ -7,6 +7,8 @@ import { ErrorNotice, Field, Form, SelectField } from '../ui';
 import { PageHeader } from '../components/PageHeader';
 import { CompanyAttendanceViews, monthEndReasons } from './CompanyAttendanceNavigation';
 import { dayKey, MonthEndBatch, type BatchSelection } from './MonthEndBatch';
+import { MonthClosePanel, type MonthCloseMode } from './MonthClosePanel';
+import { monthEndAccessDenied } from './monthEndApi';
 import './MonthEndReviewPage.css';
 
 type Reason = keyof typeof monthEndReasons;
@@ -110,6 +112,8 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
   const [selection, setSelection] = useState(new Set<string>());
   const [target, setTarget] = useState<BatchSelection>();
   const [queryChanged, setQueryChanged] = useState(false);
+  const [monthClose, setMonthClose] = useState<MonthCloseMode>('unknown');
+  const [closureList, setClosureList] = useState<'current' | 'loading' | 'failed'>('current');
   const selectAll = useRef<HTMLInputElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -118,7 +122,8 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
   const returnTo = listHref(m);
   const chosen = m.rows.filter(row => selection.has(dayKey(row)));
   const all = m.rows.length > 0 && chosen.length === m.rows.length;
-  const selectionLocked = active !== null || Boolean(target) || queryChanged;
+  const filterLocked = Boolean(target) || monthClose === 'working';
+  const selectionLocked = active !== null || Boolean(target) || queryChanged || monthClose !== 'open';
 
   useEffect(() => {
     if (selectAll.current) selectAll.current.indeterminate = chosen.length > 0 && !all;
@@ -129,7 +134,7 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
     if (signal.aborted) return;
     if (envelope.page === 'login') throw new PageRequestError(401, '다시 로그인해 주세요.');
     if (envelope.page === 'company/attendance' && !canManageMonthEnd(envelope.data)) {
-      throw new PageRequestError(403, '월말 재집계 권한을 확인해 주세요.');
+      throw new PageRequestError(403, '월말 업무 권한을 확인해 주세요.');
     }
     const next = envelope.data.monthEndReview as MonthEndReview | undefined;
     if (status >= 400 || envelope.page !== 'company/attendance' || !next || next.error
@@ -138,6 +143,19 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
     setListCurrent(true);
     setSelection(new Set());
   }, [returnTo]);
+
+  useEffect(() => {
+    if (closureList !== 'loading') return;
+    const controller = new AbortController();
+    refresh(controller.signal).then(() => {
+      if (!controller.signal.aborted) setClosureList('current');
+    }).catch(failure => {
+      if (controller.signal.aborted) return;
+      if (monthEndAccessDenied(failure)) deny(failure);
+      else setClosureList('failed');
+    });
+    return () => controller.abort();
+  }, [closureList, refresh]);
 
   function toggle(row: ReviewRow) {
     if (selectionLocked) return;
@@ -156,7 +174,7 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
   if (accessLost) {
     const signIn = accessLost.reauthenticate || accessLost.status === 401;
     return <><PageHeader title="회사 근무현황" />
-      <ErrorNotice message={signIn ? '로그인 상태를 확인할 수 없습니다. 다시 로그인해 주세요.' : '월말 재집계 권한을 확인해 주세요.'} />
+      <ErrorNotice message={signIn ? '로그인 상태를 확인할 수 없습니다. 다시 로그인해 주세요.' : '월말 업무 권한을 확인해 주세요.'} />
       {signIn ? <a className="t-btn" href="/login">다시 로그인</a>
         : <button className="t-btn" type="button" onClick={reload}>목록 다시 조회</button>}
     </>;
@@ -171,27 +189,34 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
       setSelection(new Set());
     }}>
       <input type="hidden" name="view" value="month-end" />
-      <Field label="조회 월" name="month" type="month" value={m.month} max={m.latestMonth} disabled={Boolean(target)} required />
-      <SelectField label="근무일 당시 소속" name="organizationId" value={m.organizationId} disabled={Boolean(target)}>
+      <Field label="조회 월" name="month" type="month" value={m.month} max={m.latestMonth} disabled={filterLocked} required />
+      <SelectField label="근무일 당시 소속" name="organizationId" value={m.organizationId} disabled={filterLocked}>
         <option value="">전체 조직</option>
         {m.options.map(org => <option key={org.id} value={org.id}>{org.code} · {org.name}</option>)}
       </SelectField>
-      <Field label="사번 또는 이름" name="q" value={m.q} maxLength={100} disabled={Boolean(target)} />
-      <SelectField label="확인 사유" name="reason" value={m.reason} disabled={Boolean(target)}>
+      <Field label="사번 또는 이름" name="q" value={m.q} maxLength={100} disabled={filterLocked} />
+      <SelectField label="확인 사유" name="reason" value={m.reason} disabled={filterLocked}>
         <option value="ALL">전체 사유</option>
         {Object.entries(monthEndReasons).map(([key,label]) => <option key={key} value={key}>{label}</option>)}
       </SelectField>
-      <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit" disabled={Boolean(target)}>조회</button></div>
+      <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit" disabled={filterLocked}>조회</button></div>
     </Form>
+    {queryChanged && <p className="t-subtle" role="status">변경한 조건으로 조회해 주세요. 현재 목록은 {m.month} 기준입니다.</p>}
     <ErrorNotice message={m.error} />
+    {!m.error && canRequest && <MonthClosePanel month={m.month} csrf={token} onMode={setMonthClose} deny={deny}
+      onStatusChanged={() => { setListCurrent(false); setClosureList('loading'); }}
+      otherWork={active !== null || Boolean(target) || queryChanged || chosen.length > 0 || !listCurrent} />}
     {!m.error && <section className="wl-section month-review">
       <h2 ref={heading} tabIndex={-1}>월말 확인 대상</h2>
+      {closureList === 'loading' && <p role="status">같은 조건으로 최신 월말 목록을 조회하고 있습니다.</p>}
+      {closureList === 'failed' && <><ErrorNotice message="최신 월말 확인 대상 목록을 불러오지 못했습니다. 다시 조회해 주세요." />
+        <button className="t-btn" type="button" onClick={() => setClosureList('loading')}>월말 목록 다시 조회</button></>}
       {m.month === m.latestMonth && <p className="t-subtle">이번 달은 어제 근무일까지 조회합니다.</p>}
       {listCurrent && canRequest && m.rows.length > 0 && <div className="month-review-selection">
         <label className="month-review-select"><input ref={selectAll} type="checkbox" checked={all} disabled={selectionLocked}
           onChange={() => setSelection(all ? new Set() : new Set(m.rows.map(dayKey)))} />현재 페이지 전체 선택</label>
         {!target && <>
-          <span role="status">{queryChanged ? '변경한 조건으로 조회해 주세요.' : '선택 ' + chosen.length + '건'}</span>
+          <span role="status">선택 {chosen.length}건</span>
           <button ref={trigger} className="t-btn primary" type="button" disabled={selectionLocked || !chosen.length}
             onClick={() => setTarget({ month: m.month, organizationId: m.organizationId, q: m.q, reason: m.reason, page: m.page,
               rows: chosen.map(({ employeeId, workDate }) => ({ employeeId, workDate })) })}>선택 재집계</button>
@@ -205,13 +230,13 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
           {m.rows.map(row => <EmployeeDay key={dayKey(row)} row={row} returnTo={returnTo}
             canRequest={canRequest} csrf={token} reload={reload} active={active} setActive={setActive}
             selected={selection.has(dayKey(row))} onSelect={() => toggle(row)} selectionLocked={selectionLocked}
-            followUpLocked={Boolean(target) || chosen.length > 0} />)}
+            followUpLocked={selectionLocked || chosen.length > 0} />)}
         </ul>
       </>)}
       {listCurrent && (m.hasPrevious || m.hasNext) && <nav className="actions pagination" aria-label="확인 대상 페이지">
-        {m.hasPrevious && (target ? <span aria-disabled="true">이전</span> : <a href={listHref(m,m.page - 1)}>이전</a>)}
+        {m.hasPrevious && (filterLocked ? <span aria-disabled="true">이전</span> : <a href={listHref(m,m.page - 1)}>이전</a>)}
         <span>{m.page + 1}페이지</span>
-        {m.hasNext && (target ? <span aria-disabled="true">다음</span> : <a href={listHref(m,m.page + 1)}>다음</a>)}
+        {m.hasNext && (filterLocked ? <span aria-disabled="true">다음</span> : <a href={listHref(m,m.page + 1)}>다음</a>)}
       </nav>}
     </section>}
   </>;

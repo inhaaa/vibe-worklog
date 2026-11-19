@@ -918,7 +918,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <dt>계산 시각</dt>
           <dd>{fmtDateTime(day.calculatedAt)}</dd>
         </dl>
-        <p>{day.current ? '현재 입력 근거와 일치' : '현재 입력 근거가 변경됨 · 재집계 필요'}</p>
+        <p>{day.current ? '유효한 계산 결과' : '현재 입력 근거가 변경됨 · 재집계 필요'}</p>
         <p>
           {d.latestVersion ? '이 날짜의 최신 계산 버전' : '과거 계산 버전 · 이후 계산 결과 있음'}
         </p>
