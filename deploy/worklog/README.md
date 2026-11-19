@@ -2,6 +2,8 @@
 
 아래 자료 준비 명령은 **최초 배포용**이다. 이미 자료가 있는 공개 데모의 메뉴 갱신은 [후속 배포 절차](../../docs/development/worklog-public-updates.md)를 따른다. bootstrap·sample-data를 재실행하지 않는다. 실제 첫 배포 결과는 [검증 보고서](../../docs/quality/hostinger-public-demo.md)에 기록한다.
 
+2025년 2월의 [월 마감 예시 원천](examples/2025-02-month-close.sql)은 공개 데모 전용이다. 사번 25002가 2월 28일 하루 가상 개발팀에서 09시부터 18시까지 근무하고 한 시간 휴게한 합성 기록이다. V31 배포 검증 후 선택적으로 한 번 적용하며, 같은 자료에 다시 실행하면 기존 기록을 확인하고 종료한다. 담당자가 월말 확인 대상에서 이 하루를 재집계하고 회사 전체를 점검해 마감하면 회사·부서 결과 파일이 생성된다.
+
 `worklog.inhaaa.com` 전용 Compose 프로젝트는 `worklog-demo`, DB는 `worklog_demo`다. 기존 로컬 Compose와 다른 서비스의 DB·볼륨·포트를 재사용하지 않는다. 앱만 `127.0.0.1:18081`로 게시하고 DB는 게시하지 않는다. 원래 저장소 루트의 Dockerfile과 no-XML PostgreSQL 빌드를 사용한다. 모든 방문자는 같은 가상 자료를 공유하며 실제 개인정보·고객 자료를 넣지 않는다.
 
 이 문서는 배포 절차이며 배포·HTTPS·실제 격리 검증의 완료 기록이 아니다. 서버의 기존 서비스 자원과 포트, Caddy bind 주소를 먼저 확인한다. Compose는 CPU·메모리·PID·로그를 제한하며 DB 데이터는 `worklog-demo-postgres-data`에 보존한다. 제한 합계와 이미지 빌드에 필요한 여유 자원은 서버에서 별도 확인한다.
