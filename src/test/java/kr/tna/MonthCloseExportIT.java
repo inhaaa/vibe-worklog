@@ -121,6 +121,53 @@ class MonthCloseExportIT {
         assertTrue(reclosed.contains(List.of("001", "변경된 사원", "A01", "변경된 부서", "2", "0", "0.0", "0.0")));
     }
 
+    @Test
+    void auditsEachSuccessfulDownloadWithItsScopeAndCloseVersion() throws Exception {
+        db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        var admin = company();
+        var team = department(admin, "AUDIT", "감사 확인 부서");
+        UUID worker = employee(admin.tenantId(), "E01", "부서 사원", FIRST, FIRST);
+        UUID unassigned = employee(admin.tenantId(), "E02", "미배정 사원", FIRST, FIRST);
+        assign(admin, worker, team, FIRST, null);
+        restDays(admin, worker, unassigned);
+        close(admin, "CLOSE", 0);
+        UUID closure = db.queryForObject("""
+                SELECT id FROM tna.attendance_month_closure WHERE tenant_id=? AND month_start=? AND version=1
+                """, UUID.class, admin.tenantId(), FIRST);
+        var originalOptions = optionBody(admin, 1);
+        mvc.perform(export(account(admin.tenantId(), Set.of("EMPLOYEE")), 1, "COMPANY", null)).andExpect(status().isForbidden());
+        mvc.perform(export(admin, 1, "DEPARTMENT", UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(export(admin, 2, "COMPANY", null)).andExpect(status().isConflict());
+        mvc.perform(export(admin, 1, "DEPARTMENT", null)).andExpect(status().isUnprocessableContent());
+        assertTrue(downloadScopes(admin, closure).isEmpty());
+
+        var originalBook = download(admin, 1, "COMPANY", null);
+        assertEquals(List.of("COMPANY"), downloadScopes(admin, closure));
+        assertArrayEquals(originalBook, download(admin, 1, "COMPANY", null));
+        download(admin, 1, "DEPARTMENT", team);
+        download(admin, 1, "UNASSIGNED", null);
+        assertEquals(originalOptions, optionBody(admin, 1));
+        assertEquals(List.of("COMPANY", "COMPANY", "DEPARTMENT/" + team, "UNASSIGNED"), downloadScopes(admin, closure));
+    }
+
+    private List<String> downloadScopes(TnaPrincipal actor, UUID closure) {
+        return db.query("""
+                SELECT actor_account_id,target_kind,target_id,after_state::text FROM tna.org_audit_event
+                WHERE tenant_id=? AND action='MONTH_CLOSE_EXPORT_DOWNLOAD' ORDER BY after_state->>'scope',id
+                """, (row, index) -> {
+            assertEquals(actor.accountId(), row.getObject("actor_account_id", UUID.class));
+            assertEquals("ATTENDANCE_MONTH", row.getString("target_kind"));
+            assertEquals(closure, row.getObject("target_id", UUID.class));
+            var after = JSON.readTree(row.getString("after_state"));
+            assertEquals(MONTH, after.required("month").asString());
+            assertEquals(1, after.required("version").asLong());
+            String scope = after.required("scope").asString();
+            if ("DEPARTMENT".equals(scope)) return scope + "/" + after.required("organizationId").asString();
+            assertFalse(after.has("organizationId"));
+            return scope;
+        }, actor.tenantId());
+    }
+
     private TnaPrincipal company() {
         UUID tenant = UUID.randomUUID();
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 마감 회사')", tenant, "EX-" + tenant);
