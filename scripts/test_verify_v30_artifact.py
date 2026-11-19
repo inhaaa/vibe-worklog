@@ -52,6 +52,16 @@ class ArtifactComparisonTest(unittest.TestCase):
         for message in ("migrate", "diff", "gone", "new"):
             self.assertIn(message, str(failed.exception))
 
+    def test_linux_text_files_match_the_exact_certified_windows_bytes(self):
+        name = "BOOT-INF/classes/static/app.css"
+        certified = artifact.jar_entries(jar([(name, b"a\r\nb\r\n"), ("code.class", b"code\n")]))
+        actual = jar([(name, b"a\nb\n"), ("code.class", b"code\n")])
+        artifact.verify("linux", actual, artifact.entry_digest(certified), certified, linux_lf=True)
+        for data in ([(name, b"a\nchanged\n"), ("code.class", b"code\n")],
+                     [(name, b"a\nb\n"), ("code.class", b"code\r\n")]):
+            with self.assertRaises(ValueError):
+                artifact.verify("linux", jar(data), artifact.entry_digest(certified), certified, linux_lf=True)
+
     def test_digest_alone_rejects_a_changed_image_without_a_manifest_file(self):
         with self.assertRaisesRegex(ValueError, "runtime"):
             artifact.verify("runtime", jar([("A", b"wrong")]), "a" * 64)
