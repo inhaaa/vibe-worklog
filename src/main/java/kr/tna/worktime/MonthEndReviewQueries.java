@@ -44,6 +44,9 @@ public final class MonthEndReviewQueries {
     }
 
     private record Review(List<String> reasons, boolean checkoutFollowUpEligible, String basis) { }
+    record Counts(long days, long uncalculated, long stale, long unconfirmed, long pendingCorrection) {
+        static final Counts NONE = new Counts(0, 0, 0, 0, 0);
+    }
 
     private static final int PAGE_SIZE = 50;
     private static final Set<String> REASONS = Set.of("ALL", "UNCALCULATED", "STALE", "UNCONFIRMED", "PENDING_CORRECTION");
@@ -114,7 +117,7 @@ public final class MonthEndReviewQueries {
         var rows = new ArrayList<Row>(PAGE_SIZE);
         int skip = page * PAGE_SIZE;
         boolean next = false;
-        if (!through.isBefore(from)) {
+        if (!through.isBefore(from) && mapper.closedMonths(tenantId, from, through).isEmpty()) {
             try (var candidates = mapper.candidates(tenantId, from, through, organizationId, q, reason)) {
                 for (var candidate : candidates) {
                     var review = assess(candidate, bases != null && skip == 0 && rows.size() < PAGE_SIZE);
@@ -139,6 +142,23 @@ public final class MonthEndReviewQueries {
         var active = followUps.openForDays(tenantId, rows.stream().map(Row::dayKey).toList());
         var pageRows = rows.stream().map(row -> row.withFollowUp(active.get(row.dayKey()))).toList();
         return new Page(month, latest, organizationId, options, q, reason, page, page > 0, next, pageRows, null);
+    }
+
+    /** The caller holds the tenant lock and has checked that this month is open. */
+    Counts countAll(UUID tenantId, LocalDate from, LocalDate through) {
+        if (through.isBefore(from)) return Counts.NONE;
+        long days = 0;
+        var counts = new HashMap<String, Long>();
+        try (var candidates = mapper.candidates(tenantId, from, through, null, "", "ALL")) {
+            for (var candidate : candidates) {
+                var reasons = assess(candidate, false).reasons();
+                if (reasons.isEmpty()) continue;
+                days++;
+                for (String reason : reasons) counts.merge(reason, 1L, Long::sum);
+            }
+        }
+        return new Counts(days, counts.getOrDefault("UNCALCULATED", 0L), counts.getOrDefault("STALE", 0L),
+                counts.getOrDefault("UNCONFIRMED", 0L), counts.getOrDefault("PENDING_CORRECTION", 0L));
     }
 
     private Review assess(MonthEndReviewMapper.Candidate candidate, boolean includeBasis) {

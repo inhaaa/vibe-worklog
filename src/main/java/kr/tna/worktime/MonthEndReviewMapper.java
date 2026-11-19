@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.cursor.Cursor;
 
 @Mapper
-public interface MonthEndReviewMapper {
+public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
     interface DayEvidence {
         UUID employeeId();
         LocalDate workDate();

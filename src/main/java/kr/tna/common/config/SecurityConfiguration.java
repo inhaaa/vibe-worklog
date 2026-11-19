@@ -62,7 +62,9 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.POST, "/admin/access/roles/*/members/bulk", "/admin/attendance/follow-ups",
-                                "/admin/calculations/month-end", "/admin/calculations/month-end/preview").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/calculations/month-end", "/admin/calculations/month-end/preview",
+                                "/admin/attendance/month-close", "/admin/attendance/month-close/check").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups").hasRole("EMPLOYEE")
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**", "/admin/access",

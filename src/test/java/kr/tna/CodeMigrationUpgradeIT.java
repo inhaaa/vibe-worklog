@@ -133,6 +133,20 @@ class CodeMigrationUpgradeIT {
             assertEquals(v28Rows, rows(db, v28Columns));
             assertEquals(v28Access, access(db).stream().filter(row -> !"checkout_follow_up".equals(row.get("relname"))).toList());
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up", Integer.class));
+            assertEquals(2, db.update("""
+                    INSERT INTO tna.checkout_follow_up(tenant_id,id,employee_id,work_date,reason,requested_by)
+                    SELECT tenant_id,gen_random_uuid(),target_employee_id,from_date,'V29 미해소 보완',author_account_id
+                    FROM tna.approval_request WHERE kind='ATTENDANCE_CORRECTION' AND status='PENDING'
+                    """));
+            var v29Columns = columns(db);
+            var v29Rows = rows(db, v29Columns);
+            var v29Access = access(db);
+            var toV30 = Flyway.configure().dataSource(migrationSource).target("30").load();
+            assertEquals(1, toV30.migrate().migrationsExecuted);
+            assertEquals(0, toV30.migrate().migrationsExecuted);
+            assertEquals(v29Rows, rows(db, v29Columns));
+            assertEquals(v29Access, access(db).stream().filter(row -> !"attendance_month_closure".equals(row.get("relname"))).toList());
+            assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.attendance_month_closure", Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
     private static void verifyCompactAttendanceCodeUpgrade(JdbcTemplate db, DriverManagerDataSource migrations, UUID customer) {
