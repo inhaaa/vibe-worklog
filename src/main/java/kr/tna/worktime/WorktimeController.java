@@ -1,6 +1,5 @@
 package kr.tna.worktime;
 
-import java.net.URI;
 import java.time.*;
 import java.util.*;
 import java.util.function.Supplier;
@@ -46,7 +45,7 @@ public class WorktimeController {
             @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam UUID commandId, @RequestParam String reason, @RequestParam(required=false) String returnTo) {
         var month = YearMonth.from(from);
-        String checkout = from.equals(to) ? reviewReturn(from, returnTo) : null;
+        String checkout = from.equals(to) ? MonthCloseReviewReturn.day(returnTo, from) : null;
         String monthUrl = "/admin/attendance?employeeId=" + employeeId + "&month=" + month;
         String destination = checkout == null ? monthUrl : UriComponentsBuilder.fromUriString(monthUrl)
                 .queryParam("workDate", from).queryParam("returnTo", "{returnTo}")
@@ -67,35 +66,11 @@ public class WorktimeController {
     }
     private ModelAndView monthPage(TnaPrincipal a,UUID employeeId,YearMonth month,boolean admin){var view=worktime.month(a,employeeId,month);return new ModelAndView("worktime/month").addObject("overview",view).addObject("employeeId",employeeId).addObject("admin",admin).addObject("employees",admin?worktime.employees(a):List.of()).addObject("from",month.atDay(1)).addObject("to",month.atEndOfMonth()).addObject("calculateCommand",UUID.randomUUID()).addObject("exportCommand",UUID.randomUUID());}
     private static ModelAndView reviewContext(ModelAndView page, LocalDate date, YearMonth month, String returnTo) {
-        String checkout = reviewReturn(date, returnTo);
+        String checkout = MonthCloseReviewReturn.day(returnTo, date);
         if (checkout != null && YearMonth.from(date).equals(month)) {
             page.addObject("checkoutWorkDate", date).addObject("checkoutReturnTo", checkout);
         }
         return page;
-    }
-    private static String reviewReturn(LocalDate date, String returnTo) {
-        if (date == null || returnTo == null || returnTo.length() > 2048 || !returnTo.startsWith("/company/attendance?")) return null;
-        try {
-            URI uri = URI.create(returnTo);
-            var query = UriComponentsBuilder.fromUri(uri).build().getQueryParams();
-            if (uri.getFragment() != null || query.values().stream().anyMatch(values -> values.size() != 1)) return null;
-            if ("month-end".equals(query.getFirst("view"))) {
-                var allowed = Set.of("view", "month", "organizationId", "q", "reason", "page");
-                if (!allowed.containsAll(query.keySet()) || !YearMonth.from(date).toString().equals(query.getFirst("month"))) return null;
-                String reason = query.getFirst("reason");
-                String page = query.getFirst("page");
-                String organization = query.getFirst("organizationId");
-                String search = query.getFirst("q");
-                if (reason != null && !Set.of("ALL","UNCALCULATED","STALE","UNCONFIRMED","PENDING_CORRECTION").contains(reason)
-                        || page != null && (!page.matches("[0-9]{1,6}") || Integer.parseInt(page) > 100_000)
-                        || organization != null && !organization.isEmpty() && !UUID.fromString(organization).toString().equalsIgnoreCase(organization)
-                        || search != null && java.net.URLDecoder.decode(search,java.nio.charset.StandardCharsets.UTF_8).length() > 100) return null;
-            } else if (!"checkout".equals(query.getFirst("view")) || !date.toString().equals(query.getFirst("date"))
-                    || !Set.of("view","date","organizationId","q","status","page").containsAll(query.keySet())) return null;
-            return returnTo;
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
     }
     private ModelAndView policyPage(TnaPrincipal a,UUID employeeId,PolicyForm p,AssessmentForm f){var today=commands.today();return new ModelAndView("worktime/policies").addObject("employees",worktime.employees(a)).addObject("policies",worktime.policies(a)).addObject("assessments",worktime.assessments(a,employeeId)).addObject("employeeId",employeeId).addObject("policyForm",p!=null?p:new PolicyForm(today,today.plusYears(1),false,"","",UUID.randomUUID())).addObject("assessmentForm",f!=null?f:new AssessmentForm(employeeId,today,today.plusYears(1),false,"","",UUID.randomUUID()));}
     private ModelAndView submit(Supplier<UUID> action,Supplier<ModelAndView> page,String target,boolean appendId){try{UUID id=action.get();var r=new RedirectView(appendId?target+id+"/download":target,true);r.setStatusCode(HttpStatus.SEE_OTHER);return new ModelAndView(r);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var view=page.get().addObject("error",e.getMessage());view.setStatus(HttpStatusCode.valueOf(e.status()));return view;}}

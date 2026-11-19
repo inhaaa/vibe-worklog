@@ -5,7 +5,7 @@ import { CheckoutFollowUpForm } from './CheckoutFollowUpForm';
 import { followUpStatusNames, type CheckoutFollowUp } from './CheckoutFollowUps';
 import { ErrorNotice, Field, Form, SelectField } from '../ui';
 import { PageHeader } from '../components/PageHeader';
-import { CompanyAttendanceViews, monthEndReasons } from './CompanyAttendanceNavigation';
+import { CompanyAttendanceViews, monthCloseSource, monthEndReasons } from './CompanyAttendanceNavigation';
 import { dayKey, MonthEndBatch, type BatchSelection } from './MonthEndBatch';
 import { MonthClosePanel, type MonthCloseMode } from './MonthClosePanel';
 import { monthEndAccessDenied } from './monthEndApi';
@@ -41,9 +41,10 @@ export interface MonthEndReview {
 }
 
 const path = '/company/attendance';
-function listHref(model: MonthEndReview, page = model.page) {
+function listHref(model: MonthEndReview, page = model.page, source: string | null = null) {
   const search = new URLSearchParams({ view: 'month-end', month: model.month, q: model.q, reason: model.reason, page: String(page) });
   if (model.organizationId) search.set('organizationId', model.organizationId);
+  if (source) search.set('source', source);
   return path + '?' + search;
 }
 
@@ -119,7 +120,8 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
   const trigger = useRef<HTMLButtonElement>(null);
   const m = updated?.model ?? model;
   const token = updated?.csrf ?? csrf;
-  const returnTo = listHref(m);
+  const source = monthCloseSource(m.month);
+  const returnTo = listHref(m, m.page, source);
   const chosen = m.rows.filter(row => selection.has(dayKey(row)));
   const all = m.rows.length > 0 && chosen.length === m.rows.length;
   const filterLocked = Boolean(target) || monthClose === 'working';
@@ -138,11 +140,11 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
     }
     const next = envelope.data.monthEndReview as MonthEndReview | undefined;
     if (status >= 400 || envelope.page !== 'company/attendance' || !next || next.error
-      || !Array.isArray(next.rows) || listHref(next) !== returnTo) throw new Error('월말 목록을 갱신하지 못했습니다.');
+      || !Array.isArray(next.rows) || listHref(next, next.page, source) !== returnTo) throw new Error('월말 목록을 갱신하지 못했습니다.');
     setUpdated({ model: next, csrf: envelope.csrf });
     setListCurrent(true);
     setSelection(new Set());
-  }, [returnTo]);
+  }, [returnTo, source]);
 
   useEffect(() => {
     if (closureList !== 'loading') return;
@@ -203,11 +205,12 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
     </Form>
     {queryChanged && <p className="t-subtle" role="status">변경한 조건으로 조회해 주세요. 현재 목록은 {m.month} 기준입니다.</p>}
     <ErrorNotice message={m.error} />
-    {!m.error && canRequest && <MonthClosePanel month={m.month} csrf={token} onMode={setMonthClose} deny={deny}
+    {!m.error && canRequest && <MonthClosePanel month={m.month} source={source ?? returnTo} csrf={token} onMode={setMonthClose} deny={deny}
       onStatusChanged={() => { setListCurrent(false); setClosureList('loading'); }}
       otherWork={active !== null || Boolean(target) || queryChanged || chosen.length > 0 || !listCurrent} />}
     {!m.error && <section className="wl-section month-review">
-      <h2 ref={heading} tabIndex={-1}>월말 확인 대상</h2>
+      <h2 ref={heading} id="month-end-results" tabIndex={-1}>월말 확인 대상</h2>
+      {source && <a className="t-btn" href={source + '#month-close-title'}>월 마감 점검으로 돌아가기</a>}
       {closureList === 'loading' && <p role="status">같은 조건으로 최신 월말 목록을 조회하고 있습니다.</p>}
       {closureList === 'failed' && <><ErrorNotice message="최신 월말 확인 대상 목록을 불러오지 못했습니다. 다시 조회해 주세요." />
         <button className="t-btn" type="button" onClick={() => setClosureList('loading')}>월말 목록 다시 조회</button></>}
@@ -234,9 +237,9 @@ export function MonthEndReviewPage({ model, canRequest, csrf, reload }: {
         </ul>
       </>)}
       {listCurrent && (m.hasPrevious || m.hasNext) && <nav className="actions pagination" aria-label="확인 대상 페이지">
-        {m.hasPrevious && (filterLocked ? <span aria-disabled="true">이전</span> : <a href={listHref(m,m.page - 1)}>이전</a>)}
+        {m.hasPrevious && (filterLocked ? <span aria-disabled="true">이전</span> : <a href={listHref(m,m.page - 1,source)}>이전</a>)}
         <span>{m.page + 1}페이지</span>
-        {m.hasNext && (filterLocked ? <span aria-disabled="true">다음</span> : <a href={listHref(m,m.page + 1)}>다음</a>)}
+        {m.hasNext && (filterLocked ? <span aria-disabled="true">다음</span> : <a href={listHref(m,m.page + 1,source)}>다음</a>)}
       </nav>}
     </section>}
   </>;

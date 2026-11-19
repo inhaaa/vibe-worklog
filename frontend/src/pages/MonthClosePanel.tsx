@@ -3,6 +3,7 @@ import { PageRequestError } from '../transport';
 import type { CsrfToken } from '../types';
 import { ErrorNotice, fmtDateTime } from '../ui';
 import { monthEndAccessDenied, monthEndReason, monthEndRequest } from './monthEndApi';
+import { monthCloseListHref } from './CompanyAttendanceNavigation';
 
 const path = '/admin/attendance/month-close';
 type Status = 'OPEN' | 'CLOSED';
@@ -16,6 +17,9 @@ const countLabels = { employeeCount: '점검 사원', reviewDays: '확인할 근
 type Inspection = MonthState & Record<keyof typeof countLabels, number> & {
   canClose: boolean; outOfEmploymentFollowUp?: { employeeNo: string; workDate: string } | null;
 };
+const countCategories = { reviewDays: 'ALL', uncalculatedDays: 'UNCALCULATED', staleDays: 'STALE',
+  unconfirmedDays: 'UNCONFIRMED', pendingCorrectionDays: 'PENDING_CORRECTION',
+  pendingRequests: 'PENDING_REQUEST', openFollowUps: 'OPEN_FOLLOW_UP' } as const;
 type Command = { month: string; action: Action; expectedVersion: number; reason: string; commandId: string };
 type Phase = 'loading' | 'failed' | 'ready' | 'checking' | 'editing' | 'saving' | 'uncertain';
 export type MonthCloseMode = 'unknown' | 'open' | 'closed' | 'working';
@@ -32,26 +36,31 @@ function nextMonthStart(month: string) {
   return String(number === 12 ? year + 1 : year) + '-' + String(number % 12 + 1).padStart(2, '0') + '-01';
 }
 
-function CheckResults({ check }: { check: Inspection }) {
+function CheckResults({ check, source }: { check: Inspection; source: string }) {
   const followUp = check.outOfEmploymentFollowUp;
   return <section className="month-close-check" aria-label="회사 전체 점검 결과">
     <h3>회사 전체 점검 결과</h3>
-    <dl className="month-close-counts">{(Object.keys(countLabels) as (keyof typeof countLabels)[]).map(key =>
-      <div key={key}><dt>{countLabels[key]}</dt><dd>{check[key]}{key === 'employeeCount' ? '명' : '건'}</dd></div>)}</dl>
+    <dl className="month-close-counts">{(Object.keys(countLabels) as (keyof typeof countLabels)[]).map(key => {
+      const value = check[key] + (key === 'employeeCount' ? '명' : '건');
+      const href = key !== 'employeeCount' && check[key] > 0
+        ? monthCloseListHref(check.month, countCategories[key], 0, source) : null;
+      return <div key={key}><dt>{countLabels[key]}</dt><dd>{href ? <a
+        href={key === 'pendingRequests' || key === 'openFollowUps' ? href : href + '#month-end-results'}
+        aria-label={countLabels[key] + ' ' + value + ' 목록 보기'}>{value}</a> : value}</dd></div>;
+    })}</dl>
     {followUp && <p>{followUp.workDate} 보완 요청일이 재직기간 밖에 있습니다. 인사정보와 출퇴근 원천 기록을 확인해 주세요.{' '}
       <a href={'/admin/employees/bulk-edit?q=' + encodeURIComponent(followUp.employeeNo)}>사번 {followUp.employeeNo} 재직기간 확인</a></p>}
     {check.canClose ? <p>미해결 항목이 없어 이 달을 마감할 수 있습니다.</p> : <p>{!check.employeeCount ? '이 달에 재직한 사원이 없습니다.'
       : check.reviewDays || check.pendingRequests || check.openFollowUps ? '남은 근무일·신청·보완 요청을 처리한 뒤 다시 점검해 주세요.'
-      : '이 달은 아직 마감할 수 없습니다.'}
-      {check.reviewDays > 0 && <> <a href={'/company/attendance?view=month-end&month=' + check.month}>전체 확인 대상 보기</a></>}</p>}
+      : '이 달은 아직 마감할 수 없습니다.'}</p>}
   </section>;
 }
 
 interface Props {
-  month: string; csrf: CsrfToken; otherWork: boolean;
+  month: string; source: string; csrf: CsrfToken; otherWork: boolean;
   onMode: (mode: MonthCloseMode) => void; onStatusChanged: () => void; deny: (error: PageRequestError) => void;
 }
-export function MonthClosePanel({ month, csrf, otherWork, onMode, onStatusChanged, deny }: Props) {
+export function MonthClosePanel({ month, source, csrf, otherWork, onMode, onStatusChanged, deny }: Props) {
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [check, setCheck] = useState<Inspection>();
   const [phase, setPhase] = useState<Phase>('loading');
@@ -170,7 +179,7 @@ export function MonthClosePanel({ month, csrf, otherWork, onMode, onStatusChange
 
   return <section className="wl-section month-close" aria-labelledby="month-close-title" data-modal-busy={phase === 'saving'}
     data-unsaved-changes={phase === 'uncertain' || (phase === 'editing' && Boolean(trimmed))}>
-    <div className="wl-section-title month-close-header"><h2 id="month-close-title">월 마감 관리</h2>
+    <div className="wl-section-title month-close-header"><h2 id="month-close-title" tabIndex={-1}>월 마감 관리</h2>
       <span>{month} {snapshot && <strong className={closed ? 'month-close-status closed' : 'month-close-status'}>{closed ? '마감 완료' : '마감 전'}</strong>}</span></div>
     {notice && <p role="status">{notice}</p>}
     <ErrorNotice message={error} />
@@ -183,7 +192,7 @@ export function MonthClosePanel({ month, csrf, otherWork, onMode, onStatusChange
       {!snapshot.pastMonth && <p>{nextMonthStart(month)}부터 마감할 수 있습니다.</p>}
       {!editing && <button ref={trigger} className="t-btn" type="button" disabled={otherWork || phase !== 'ready'}
         onClick={closed ? startEditing : inspect}>{closed ? '월 마감 재개' : phase === 'checking' ? '회사 전체 점검 중' : '회사 전체 마감 점검'}</button>}
-      {check && <CheckResults check={check} />}
+      {check && <CheckResults check={check} source={source} />}
       {editing && <form action={path} method="post" className="month-review-batch-form" onSubmit={save}>
         <label htmlFor="month-close-reason">{closed ? '월 재개 사유' : '월 마감 사유'}</label>
         <input id="month-close-reason" name="reason" type="text" className="t-input" required ref={reasonInput}

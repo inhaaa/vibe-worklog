@@ -98,6 +98,7 @@ export interface RequestDetailModel {
   request: RequestView;
   detail: RequestDetail;
   leaveReturnTo?: string | null;
+  monthCloseReturnTo?: string | null;
   leaveDecidedByName?: string | null;
   ownRequest?: boolean;
   workspacePrincipal?: { roles: string[] };

@@ -49,7 +49,7 @@ public final class MonthEndReviewQueries {
     }
 
     private static final int PAGE_SIZE = 50;
-    private static final Set<String> REASONS = Set.of("ALL", "UNCALCULATED", "STALE", "UNCONFIRMED", "PENDING_CORRECTION");
+    static final Set<String> REASONS = Set.of("ALL", "UNCALCULATED", "STALE", "UNCONFIRMED", "PENDING_CORRECTION");
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private final CompanyReadAccess company;
     private final OrgCommands administration;

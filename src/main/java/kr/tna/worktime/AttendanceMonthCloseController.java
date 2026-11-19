@@ -26,6 +26,13 @@ public final class AttendanceMonthCloseController {
         return months.status(actor, month);
     }
 
+    @GetMapping("/blockers")
+    AttendanceMonthCloseService.Blockers blockers(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(required = false) String month, @RequestParam(required = false) String kind,
+            @RequestParam(defaultValue = "0") int page) {
+        return months.blockers(actor, month, kind, page);
+    }
+
     @PostMapping(path = "/check", consumes = MediaType.APPLICATION_JSON_VALUE)
     AttendanceMonthCloseService.Check check(@AuthenticationPrincipal TnaPrincipal actor, @RequestBody AttendanceMonthCloseService.CheckForm form) {
         return months.check(actor, form);

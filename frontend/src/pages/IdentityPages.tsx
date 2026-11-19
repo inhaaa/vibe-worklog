@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState } from 'react';
 import type { PageProps } from '../types';
-import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
+import { duration, ErrorNotice, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
@@ -12,6 +12,7 @@ import { requestKindName, type LeavePart } from './leavePart';
 import { CheckoutOperationsPage, type CheckoutOperations } from './CheckoutOperationsPage';
 import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
 import { canManageMonthEnd, MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
+import { MonthCloseBlockersPage, type MonthCloseBlockers } from './MonthCloseBlockers';
 import { MyCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 
 interface Profile {
@@ -304,6 +305,9 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
     case 'attendance/follow-ups':
       return <MyCheckoutFollowUps model={data.checkoutFollowUps as CheckoutFollowUpList | undefined} />;
     case 'company/attendance': {
+      const blockers = data.monthCloseBlockers as MonthCloseBlockers | undefined;
+      if (blockers) return canManageMonthEnd(data) ? <MonthCloseBlockersPage model={blockers} />
+        : <ErrorNotice message="월 마감 점검 권한을 확인해 주세요." />;
       const monthEnd = data.monthEndReview as MonthEndReview | undefined;
       if (monthEnd) {
         const canRequest = canManageMonthEnd(data);

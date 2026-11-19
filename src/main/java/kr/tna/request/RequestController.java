@@ -7,6 +7,7 @@ import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.clock.*;
 import kr.tna.org.*;
 import kr.tna.request.RequestData.*;
+import kr.tna.worktime.MonthCloseReviewReturn;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,6 +44,10 @@ public class RequestController {
             var policy = ((RequestDetail) detail.getModel().get("detail")).attendancePolicy();
             String safeReturn = LeaveOperationsQueries.validReturnTo(returnTo, policy);
             if (safeReturn != null) detail.addObject("leaveReturnTo", safeReturn);
+        }
+        if (actor.roles().contains("ATTENDANCE_ADMIN")) {
+            String back = MonthCloseReviewReturn.request(returnTo, request.fromDate(), request.toDate());
+            if (back != null) detail.addObject("monthCloseReturnTo", back);
         }
         return detail;
     }

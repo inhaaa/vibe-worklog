@@ -37,6 +37,20 @@ const request = {
   approverName: '승인자',
   originalRequestId: null,
 };
+it('신청 상세는 서버가 해당 신청의 담당자에게 검증한 월 마감 대기 목록 복귀 주소를 사용한다', async () => {
+  const back = '/company/attendance?view=close-blockers&month=2026-11&kind=PENDING_REQUEST&page=2';
+  const model = { request, detail: { days: [], history: [] }, admin: true, pageCommand: 'cmd', candidates: [] };
+  const view = await render('request/detail', { ...model, monthCloseReturnTo: back });
+  expect(view.getByRole('link', { name: '월 마감 미처리 목록으로' }).getAttribute('href')).toBe(back);
+  view.unmount();
+  window.history.replaceState(null, '', '/requests/request-1?' + new URLSearchParams({ returnTo: back }));
+  try {
+    const unmatched = await render('request/detail', model);
+    expect(unmatched.queryByRole('link', { name: '월 마감 미처리 목록으로' })).toBeNull();
+  } finally {
+    window.history.replaceState(null, '', '/');
+  }
+});
 it('연장 취소 결재 중에는 원승인이 유효하고 신청 구간과 분이 표시된다',async()=>{
   const view=await render('request/detail',{request:{...request,kind:'CANCEL_OVERTIME',originalRequestId:'origin'},
     detail:{days:[],history:[],overtime:{workDate:'2026-12-02',startTime:'18:30:00',endTime:'21:00:00',requestedMinutes:135}},

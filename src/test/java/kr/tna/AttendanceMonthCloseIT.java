@@ -1,9 +1,12 @@
 package kr.tna;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +98,17 @@ class AttendanceMonthCloseIT {
         assertEquals(62, check.get("reviewDays").asInt());
         assertEquals(62, check.get("unconfirmedDays").asInt());
         assertEquals(62, check.get("uncalculatedDays").asInt());
+        for (var reason : Map.of("ALL", "reviewDays", "UNCALCULATED", "uncalculatedDays",
+                "UNCONFIRMED", "unconfirmedDays", "STALE", "staleDays", "PENDING_CORRECTION", "pendingCorrectionDays").entrySet()) {
+            var dates = new HashSet<String>();
+            int page = 0;
+            MonthEndReviewQueries.Page result;
+            do {
+                result = reviews.read(admin, MONTH, null, "", reason.getKey(), page++);
+                for (var row : result.rows()) assertTrue(dates.add(row.employeeId() + "/" + row.workDate()));
+            } while (result.hasNext());
+            assertEquals(check.get(reason.getValue()).asInt(), dates.size(), reason.getKey());
+        }
         assertEquals(0, check.get("staleDays").asInt());
         assertFalse(check.get("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "대상 전체 확인"), 409);
@@ -118,6 +132,15 @@ class AttendanceMonthCloseIT {
                 tenant, UUID.randomUUID(), leaver, LAST.minusDays(1), admin.accountId());
         var first = check(MONTH);
         assertEquals(3, first.get("openFollowUps").asInt());
+        var followUps = body(blockers(admin, MONTH, "OPEN_FOLLOW_UP", 0), 200);
+        assertEquals(first.get("openFollowUps").asLong(), followUps.path("total").asLong());
+        assertEquals(3, followUps.get("rows").size());
+        assertEquals("CHECKOUT_FOLLOW_UP", followUps.at("/rows/0/kind").asString());
+        assertFalse(followUps.at("/rows/0/outOfEmployment").asBoolean());
+        assertTrue(followUps.at("/rows/1/outOfEmployment").asBoolean());
+        assertTrue(followUps.at("/rows/2/outOfEmployment").asBoolean());
+        assertEquals("FOLLOW-A", followUps.at("/rows/1/employeeNo").asString());
+        assertEquals("FOLLOW-B", followUps.at("/rows/2/employeeNo").asString());
         assertFalse(first.get("canClose").asBoolean());
         var hint = first.path("outOfEmploymentFollowUp");
         assertEquals("FOLLOW-A", hint.path("employeeNo").asString(""));
@@ -155,11 +178,34 @@ class AttendanceMonthCloseIT {
                 LAST.plusDays(1), UUID.randomUUID(), tenant);
         var pending = check(MONTH);
         assertEquals(1, pending.get("pendingRequests").asInt());
+        for (String month : List.of(MONTH, "2024-04")) {
+            var list = body(blockers(admin, month, "PENDING_REQUEST", 0), 200);
+            assertEquals(1, list.path("total").asInt());
+            assertEquals(1, list.get("rows").size());
+            assertEquals(request.toString(), list.at("/rows/0/id").asString());
+            assertEquals(worker.toString(), list.at("/rows/0/employeeId").asString());
+            assertEquals("LEAVE_DAY", list.at("/rows/0/kind").asString());
+            assertEquals("2024-03-31", list.at("/rows/0/fromDate").asString());
+            assertEquals("2024-04-01", list.at("/rows/0/toDate").asString());
+        }
+        assertTrue(body(blockers(admin, "2024-02", "PENDING_REQUEST", 0), 200).get("rows").isEmpty());
+        String source = "/company/attendance?view=month-end&month=2024-04&q=abc&page=2";
+        String back = "/company/attendance?view=close-blockers&month=2024-04&kind=PENDING_REQUEST&page=1&source="
+                + URLEncoder.encode(source, StandardCharsets.UTF_8);
+        assertEquals(back, body(get("/requests/" + request).with(as(admin)).accept("application/vnd.worklog.page+json")
+                .param("returnTo", back), 200).at("/data/monthCloseReturnTo").asString());
+        for (String invalid : List.of(back.replace("2024-04", "2024-05"),
+                back.replace("view%3Dmonth-end", "view%3Dcheckout"), back.replace("PENDING_REQUEST", "OPEN_FOLLOW_UP"),
+                back + "&page=2", "https://example.test" + back)) {
+            assertTrue(body(get("/requests/" + request).with(as(admin)).accept("application/vnd.worklog.page+json")
+                    .param("returnTo", invalid), 200).at("/data/monthCloseReturnTo").isMissingNode());
+        }
         assertEquals(0, pending.get("reviewDays").asInt());
         assertFalse(pending.get("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "이전 점검 뒤 연차 대기"), 409);
         db.update("UPDATE tna.approval_request SET status='WITHDRAWN' WHERE tenant_id=? AND id=?", tenant, request);
         assertTrue(check(MONTH).get("canClose").asBoolean());
+        assertTrue(body(blockers(admin, MONTH, "PENDING_REQUEST", 0), 200).get("rows").isEmpty());
         worktime.recalculate(admin, worker, LAST, LAST, UUID.randomUUID(), "확정 휴무 산정");
         db.update("INSERT INTO tna.checkout_follow_up(tenant_id,id,employee_id,work_date,reason,requested_by) VALUES (?,?,?,?,'합성 보완',?)",
                 tenant, UUID.randomUUID(), worker, LAST, admin.accountId());
@@ -294,6 +340,54 @@ class AttendanceMonthCloseIT {
                 assertEquals(403, code(statusRequest(actor, MONTH)));
             }
         }
+    }
+
+    @Test
+    void blockersPaginateByCaseAndIsolateOtherCompaniesAndRoles() throws Exception {
+        for (int i = 0; i < 2; i++) {
+            UUID id = employee("합성 보완 " + i, LAST.withDayOfMonth(1), null);
+            db.update("""
+                    INSERT INTO tna.checkout_follow_up(tenant_id,id,employee_id,work_date,reason,requested_by)
+                    SELECT ?,gen_random_uuid(),?,DATE '2024-03-01'+n,'보완 요청',? FROM generate_series(0,25) n
+                    """, tenant, id, admin.accountId());
+        }
+        var owner = admin;
+        companyCreatedAfterTheTestMonth();
+        for (String kind : List.of("PENDING_REQUEST", "OPEN_FOLLOW_UP")) {
+            var isolated = body(blockers(admin, MONTH, kind, 0).param("tenantId", owner.tenantId().toString()), 200);
+            assertEquals(0, isolated.get("total").asInt());
+            assertTrue(isolated.get("rows").isEmpty());
+            for (var actor : List.of(account("일반", Set.of("EMPLOYEE")), account("대표", Set.of("EMPLOYEE", "COMPANY_REPRESENTATIVE")))) {
+                assertEquals(403, code(blockers(actor, MONTH, kind, 0)));
+                assertEquals(403, code(get("/company/attendance").with(as(actor)).param("view", "close-blockers")
+                        .param("month", MONTH).param("kind", kind).accept("application/vnd.worklog.page+json")));
+            }
+        }
+        assertEquals(422, code(blockers(owner, MONTH, "UNKNOWN", 0)));
+        assertEquals(422, code(blockers(owner, MONTH, "OPEN_FOLLOW_UP", -1)));
+        assertEquals(422, code(blockers(owner, "2024-3", "PENDING_REQUEST", 0)));
+        var first = body(blockers(owner, MONTH, "OPEN_FOLLOW_UP", 0), 200);
+        var second = body(blockers(owner, MONTH, "OPEN_FOLLOW_UP", 1), 200);
+        var beyond = body(blockers(owner, MONTH, "OPEN_FOLLOW_UP", 2), 200);
+        assertEquals(52, first.get("total").asInt());
+        assertEquals(52, beyond.get("total").asInt());
+        assertEquals(50, first.get("rows").size());
+        assertEquals(2, second.get("rows").size());
+        assertTrue(first.get("hasNext").asBoolean());
+        assertFalse(second.get("hasNext").asBoolean());
+        assertTrue(beyond.get("rows").isEmpty());
+        var ids = new HashSet<String>();
+        for (var page : List.of(first, second)) for (var row : page.get("rows")) assertTrue(ids.add(row.get("id").asString()));
+        var envelope = body(get("/company/attendance").with(as(owner)).param("view", "close-blockers")
+                .param("month", MONTH).param("kind", "OPEN_FOLLOW_UP").param("page", "1")
+                .accept("application/vnd.worklog.page+json"), 200);
+        assertEquals(second, envelope.at("/data/monthCloseBlockers"));
+        assertTrue(envelope.at("/data/canViewCheckout").asBoolean());
+    }
+
+    private static MockHttpServletRequestBuilder blockers(TnaPrincipal actor, String month, String kind, int page) {
+        return get(PATH + "/blockers").with(as(actor)).param("month", month).param("kind", kind)
+                .param("page", String.valueOf(page)).header("Accept", ACCEPT);
     }
 
     private UUID knownRestDay() {

@@ -226,7 +226,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
-          {m.admin && <AttendanceListBackLink />}
+          {m.admin && <AttendanceListBackLink href={m.monthCloseReturnTo ?? undefined} />}
           <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}

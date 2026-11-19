@@ -99,8 +99,33 @@ it('회사 전체 점검 건수로 차단 사유를 확인하며 빈 페이지�
     expect(result.getByText(name).parentElement?.textContent).toContain(String(value));
   }
   expect(screen.queryByRole('button', { name: '월 마감 확정' })).toBeNull();
-  const link = result.getByRole('link', { name: '전체 확인 대상 보기' });
-  expect(link.getAttribute('href')).toBe('/company/attendance?view=month-end&month=2026-10');
+  const metrics = [
+    ['확인할 근무일', 5, 'reason', 'ALL'], ['미산정', 3, 'reason', 'UNCALCULATED'],
+    ['재집계 필요', 1, 'reason', 'STALE'], ['근무 확인 필요', 2, 'reason', 'UNCONFIRMED'],
+    ['정정 결재 대기', 1, 'reason', 'PENDING_CORRECTION'], ['결재 대기 신청', 4, 'kind', 'PENDING_REQUEST'],
+    ['진행 중 보완 요청', 2, 'kind', 'OPEN_FOLLOW_UP'],
+  ] as const;
+  expect(result.getAllByRole('link')).toHaveLength(metrics.length);
+  for (const [name, count, field, value] of metrics) {
+    const href = result.getByRole('link', { name: `${name} ${count}건 목록 보기` }).getAttribute('href')!;
+    const url = new URL(href, 'https://example.test');
+    expect(url.pathname).toBe('/company/attendance');
+    const origin = new URL(url.searchParams.get('source')!, url.origin);
+    expect(Object.fromEntries(origin.searchParams)).toEqual({ view: 'month-end', month: review.month,
+      q: review.q, reason: review.reason, organizationId: organization.id, page: '2' });
+    url.searchParams.delete('source');
+    expect(Object.fromEntries(url.searchParams)).toEqual({ view: field === 'reason' ? 'month-end' : 'close-blockers',
+      month: review.month, [field]: value, page: '0' });
+  }
+});
+
+it('0건과 점검 사원 수는 링크를 제공하지 않는다', async () => {
+  install(vi.fn<typeof fetch>().mockResolvedValueOnce(asJson(open)).mockResolvedValueOnce(asJson(check)));
+  render(page()); await startCheck();
+  const result = within(await screen.findByRole('region', { name: '회사 전체 점검 결과' }));
+  expect(result.queryAllByRole('link')).toHaveLength(0);
+  expect(result.getByText('3명')).toBeTruthy();
+  expect(result.getAllByText('0건')).toHaveLength(7);
 });
 
 it('재직기간 밖에 남은 보완 요청의 근무일과 사번으로 인사정보를 찾아간다', async () => {

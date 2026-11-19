@@ -4,6 +4,7 @@ import java.time.YearMonth;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.request.RequestScope;
+import kr.tna.worktime.AttendanceMonthCloseService;
 import kr.tna.worktime.MonthEndReviewQueries;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -18,13 +19,15 @@ public final class ProfileCompanyController {
     private final ProfileCompanyQueries queries;
     private final CheckoutOperationsQueries checkout;
     private final MonthEndReviewQueries monthEnd;
+    private final AttendanceMonthCloseService monthClose;
     private final kr.tna.org.EmployeePersonalDetailsService details;
 
     public ProfileCompanyController(ProfileCompanyQueries queries, CheckoutOperationsQueries checkout,
-            kr.tna.org.EmployeePersonalDetailsService details, MonthEndReviewQueries monthEnd) {
+            kr.tna.org.EmployeePersonalDetailsService details, MonthEndReviewQueries monthEnd, AttendanceMonthCloseService monthClose) {
         this.queries = queries;
         this.checkout = checkout;
         this.monthEnd = monthEnd;
+        this.monthClose = monthClose;
         this.details = details;
     }
 
@@ -34,7 +37,7 @@ public final class ProfileCompanyController {
                 .addObject("personalDetails", details.self(actor));
     }
 
-    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end"})
+    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end", "view!=close-blockers"})
     ModelAndView attendance(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required = false) @DateTimeFormat(pattern = "uuuu-MM") YearMonth month,
             @RequestParam(required = false) UUID organizationId, @RequestParam(required = false) UUID employeeId,
@@ -67,6 +70,13 @@ public final class ProfileCompanyController {
                 .addObject("canViewCheckout", true).addObject("monthEndReview", result);
         if (result.error() != null) view.setStatus(HttpStatus.UNPROCESSABLE_CONTENT);
         return view;
+    }
+
+    @GetMapping(value = "/company/attendance", params = "view=close-blockers")
+    ModelAndView blockers(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required = false) String month,
+            @RequestParam(required = false) String kind, @RequestParam(defaultValue = "0") int page) {
+        return new ModelAndView("company/attendance").addObject("canViewCheckout", true)
+                .addObject("monthCloseBlockers", monthClose.blockers(actor, month, kind, page));
     }
 
     @GetMapping("/company/requests")

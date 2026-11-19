@@ -21,6 +21,8 @@ public final class AttendanceMonthCloseService {
     public record Command(String month, String action, Long expectedVersion, String reason, UUID commandId) { }
     public record Status(String month, String status, long version, boolean pastMonth,
             List<AttendanceMonthCloseMapper.Event> history, boolean hasMoreHistory) { }
+    public record Blockers(String month, String kind, int page, long total, boolean hasNext,
+            List<AttendanceMonthCloseMapper.BlockerRow> rows) { }
     public record Receipt(String month, String status, long version, Instant changedAt, String actorName, String reason) { }
     public record Check(String month, String status, long version, boolean pastMonth, long employeeCount,
             long reviewDays, long uncalculatedDays, long staleDays, long unconfirmedDays, long pendingCorrectionDays,
@@ -40,6 +42,7 @@ public final class AttendanceMonthCloseService {
         }
     }
 
+    private static final int BLOCKER_PAGE_SIZE = 50;
     private static final int HISTORY_LIMIT = 20;
     private final BusinessCommands commands;
     private final OrgCommands administration;
@@ -60,6 +63,28 @@ public final class AttendanceMonthCloseService {
             var history = mapper.history(actor.tenantId(), month.atDay(1), HISTORY_LIMIT + 1);
             return new Status(month.toString(), status(history), version(history), month.isBefore(YearMonth.from(administration.today())),
                     List.copyOf(history.subList(0, Math.min(HISTORY_LIMIT, history.size()))), history.size() > HISTORY_LIMIT);
+        });
+    }
+
+    public Blockers blockers(TnaPrincipal actor, String rawMonth, String kind, int page) {
+        return read(actor, () -> {
+            var month = month(rawMonth);
+            if (!"PENDING_REQUEST".equals(kind) && !"OPEN_FOLLOW_UP".equals(kind)) {
+                throw OrgException.invalid("조회할 마감 점검 항목을 선택해 주세요.");
+            }
+            if (page < 0 || page > 100_000) throw OrgException.invalid("조회 페이지를 확인해 주세요.");
+            UUID tenant = actor.tenantId();
+            LocalDate from = month.atDay(1), through = month.atEndOfMonth();
+            int offset = page * BLOCKER_PAGE_SIZE;
+            boolean pending = "PENDING_REQUEST".equals(kind);
+            var totals = mapper.totals(tenant, from, through);
+            long total = pending ? totals.pendingRequests() : totals.openFollowUps();
+            List<AttendanceMonthCloseMapper.BlockerRow> rows = List.of();
+            if (offset < total) {
+                rows = pending ? mapper.pendingRequests(tenant, from, through, BLOCKER_PAGE_SIZE, offset)
+                        : mapper.openFollowUps(tenant, from, through, BLOCKER_PAGE_SIZE, offset);
+            }
+            return new Blockers(month.toString(), kind, page, total, offset + BLOCKER_PAGE_SIZE < total, rows);
         });
     }
 
@@ -133,7 +158,7 @@ public final class AttendanceMonthCloseService {
         return history.isEmpty() ? 0 : history.getFirst().version();
     }
 
-    private static YearMonth month(String value) {
+    static YearMonth month(String value) {
         if (value == null || !value.matches("[0-9]{4}-(0[1-9]|1[0-2])") || value.startsWith("0000")) {
             throw OrgException.invalid("조회 월을 YYYY-MM 형식으로 입력해 주세요.");
         }
