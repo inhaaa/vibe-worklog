@@ -34,6 +34,8 @@ WorkLog는 고정 근무를 운영하는 국내 중소기업을 대상으로 만
 
 ## 주요 기능
 
+개발본에서 담당자는 경조휴가·개인휴가 등 회사 휴가를 등록하고 사용 단위, 유급 여부와 연차 차감 여부를 정할 수 있습니다. 직원이 사용일에 맞는 휴가를 선택하면 최종 승인·취소 결과가 휴가 이력, 근무현황과 월 마감 Excel에 반영됩니다. [회사별 휴가 운영 기준](docs/superpowers/plans/2026-11-20-company-leave-operations.md) · [PC·모바일 검증](docs/quality/company-leave-operations-20261120.md)
+
 개발본에서 담당자는 근무조별 선택 가능 시간대·코어타임·하루 표준시간을 정하고 적용일부터 사원을 배정할 수 있습니다. 직원과 담당자는 같은 주별 또는 월별 정산에서 확인 실근로와 승인 휴가를 대조할 수 있습니다. [선택근무제 업무 명세](docs/superpowers/specs/2026-11-20-selective-work.md) · [PC·모바일 검증 결과](docs/quality/selective-work-20261120.md)
 
 선택근무 정산에서 **미확정 일수**를 펼치면 날짜별 사유가 보입니다. 날짜를 선택해 근무 확인·정정 신청·대상일 재집계로 이동하고, 처리 후 같은 사원과 정산기간에서 남은 날짜를 확인할 수 있습니다. 앞으로 올 근무일은 **예정 근무일**로 표시합니다. [미확정 날짜 처리 명세](docs/superpowers/specs/2026-11-20-selective-unconfirmed-days.md) · [직원·담당자 PC·모바일 검증](docs/quality/selective-unconfirmed-days-20261120.md)
