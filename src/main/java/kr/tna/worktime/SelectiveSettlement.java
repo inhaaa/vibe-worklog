@@ -20,9 +20,11 @@ public final class SelectiveSettlement {
     private SelectiveSettlement() { }
 
     public record Overview(YearMonth month, UUID employeeId, String employeeNo, String employeeName, List<Period> periods) { }
+    public enum Action { CONFIRM, CORRECT, REQUEST, CALENDAR, RECALCULATE, REVIEW, NONE }
+    public record UnconfirmedDate(LocalDate workDate, List<String> reasons, Action employeeAction, Action adminAction, UUID requestId) { }
     public record Period(String settlementPeriod, LocalDate fromDate, LocalDate toDate, int appliedDays,
             Integer targetMinutes, long confirmedWorkMillis, Long paidLeaveMillis, Long differenceMillis,
-            int unconfirmedDays, List<String> warnings) {
+            int unconfirmedDays, List<String> warnings, List<UnconfirmedDate> unconfirmedDates, int upcomingDays) {
         @JsonProperty("remainingMillis")
         public Long remainingMillis() {
             if (targetMinutes == null || paidLeaveMillis == null) return null;
@@ -30,7 +32,24 @@ public final class SelectiveSettlement {
         }
     }
     record Day(LocalDate date, String settlementPeriod, Integer targetMinutes, double approvedLeaveDays,
-            Long actualWorkMillis, boolean pendingCorrection, Set<String> reasons) { }
+            Long actualWorkMillis, UUID pendingRequestId, Set<String> reasons, Action employeeClockAction, boolean closed) {
+        UnconfirmedDate detail(Set<String> warnings) {
+            var causes = new TreeSet<>(warnings);
+            causes.remove("SELECTIVE_CORE_REVIEW");
+            causes.remove("SELECTIVE_WINDOW_REVIEW");
+            if (reasons.contains("DAY_IN_PROGRESS")) causes.add("DAY_IN_PROGRESS");
+            if (causes.isEmpty()) causes.add("WORK_UNCONFIRMED");
+            if (closed) {
+                causes.add("MONTH_CLOSED");
+                return new UnconfirmedDate(date, List.copyOf(causes), Action.NONE, Action.NONE, null);
+            }
+            var codes = List.copyOf(causes);
+            if (pendingRequestId != null) return new UnconfirmedDate(date, codes, Action.REQUEST, Action.REQUEST, pendingRequestId);
+            if (targetMinutes == null) return new UnconfirmedDate(date, codes, Action.NONE, Action.CALENDAR, null);
+            boolean justCalculation = causes.size() == 1 && (causes.contains("NOT_CALCULATED") || causes.contains("STALE_RESULT"));
+            return new UnconfirmedDate(date, codes, employeeClockAction, justCalculation ? Action.RECALCULATE : Action.REVIEW, null);
+        }
+    }
 
     static List<Period> periods(YearMonth month, LocalDate today, List<Day> days) {
         var grouped = new HashMap<Range, List<Day>>();
@@ -59,31 +78,40 @@ public final class SelectiveSettlement {
     }
 
     private static Period summarize(Range range, LocalDate today, List<Day> days) {
-        int target = 0, unconfirmed = 0;
+        int target = 0, upcoming = 0;
         long work = 0, paid = 0;
         boolean knownCalendar = true;
         var warnings = new TreeSet<String>();
+        var dates = new ArrayList<UnconfirmedDate>();
         for (var day : days) {
+            var dayWarnings = new TreeSet<String>();
             if (day.targetMinutes() == null) {
                 knownCalendar = false;
-                warnings.add("CALENDAR_UNCONFIRMED");
+                dayWarnings.add("CALENDAR_UNCONFIRMED");
             }
             else {
                 target += day.targetMinutes();
                 paid += Math.round(day.targetMinutes() * 60_000L * day.approvedLeaveDays());
             }
-            if (day.actualWorkMillis() != null && !day.pendingCorrection()) work += day.actualWorkMillis();
-            if (day.pendingCorrection()) warnings.add("PENDING_CORRECTION");
-            if (day.actualWorkMillis() == null || day.pendingCorrection() || day.targetMinutes() == null
-                    || day.reasons().contains("LEAVE_WORK_CONFLICT")) unconfirmed++;
+            boolean pending = day.pendingRequestId() != null;
+            if (day.actualWorkMillis() != null && !pending) work += day.actualWorkMillis();
+            if (pending) dayWarnings.add("PENDING_CORRECTION");
             for (String reason : day.reasons()) {
                 boolean missingPastClock = !day.date().isAfter(today)
                         && ("MISSING_CLOCK_IN".equals(reason) || "MISSING_CLOCK_OUT".equals(reason));
-                if (missingPastClock || PERIOD_WARNINGS.contains(reason)) warnings.add(reason);
+                if (missingPastClock || PERIOD_WARNINGS.contains(reason)) dayWarnings.add(reason);
+            }
+            warnings.addAll(dayWarnings);
+            if (day.actualWorkMillis() == null || pending || day.targetMinutes() == null || day.reasons().contains("LEAVE_WORK_CONFLICT")) {
+                if (day.date().isAfter(today)) upcoming++;
+                else dates.add(day.detail(dayWarnings));
             }
         }
+        dates.sort(Comparator.comparing(UnconfirmedDate::workDate));
+        int unconfirmed = dates.size() + upcoming;
         Long difference = unconfirmed == 0 && today.isAfter(range.to()) ? work + paid - target * 60_000L : null;
         return new Period(range.period(), range.from(), range.to(), days.size(),
-                knownCalendar ? target : null, work, knownCalendar ? paid : null, difference, unconfirmed, List.copyOf(warnings));
+                knownCalendar ? target : null, work, knownCalendar ? paid : null, difference, unconfirmed,
+                List.copyOf(warnings), List.copyOf(dates), upcoming);
     }
 }

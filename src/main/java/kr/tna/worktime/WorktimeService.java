@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import kr.tna.org.OrgData.Employee;
 import kr.tna.org.OrgException;
 import kr.tna.worktime.WorktimeData.*;
 import kr.tna.worktime.WorktimeCalculator.*;
+import kr.tna.worktime.SelectiveSettlement.Action;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -83,13 +85,14 @@ public final class WorktimeService {
         if(actor==null)throw OrgException.forbidden();
         return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());
             if (!mapper.closedMonths(actor.tenantId(),date,date).isEmpty()) return false;
-            return correctionEligible(input(actor.tenantId(),employee,date),employed(employee,date),LocalDate.now(clock.withZone(SEOUL)));});
+            var in = input(actor.tenantId(),employee,date);
+            return correctionEligible(in.clock(), in.day(), employed(employee,date), LocalDate.now(clock.withZone(SEOUL)));});
     }
 
-    private boolean correctionEligible(Input in, boolean employed, LocalDate today) {
-        return employed && in.clock().schedule() != null && in.clock().calendarVersionId() != null
-                && in.day().approvedLeaveDays() < 1 && !in.day().pendingCorrection()
-                && calculator.pending(in.day(), today, false, null);
+    private boolean correctionEligible(ClockData.DaySnapshot snapshot, DayInput day, boolean employed, LocalDate today) {
+        return employed && snapshot.schedule() != null && snapshot.calendarVersionId() != null
+                && day.approvedLeaveDays() < 1 && !day.pendingCorrection()
+                && calculator.pending(day, today, false, null);
     }
 
     public List<AttendanceHistory.Row> attendanceHistory(TnaPrincipal actor, AttendanceHistory.Range range) {
@@ -107,7 +110,7 @@ public final class WorktimeService {
                 boolean closed = closedMonths.contains(date.withDayOfMonth(1));
                 var view = dayView(employee, in, saved, range.today(), closed);
                 boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
-                boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(in, view.employed(), range.today())
+                boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(day, in.day(), view.employed(), range.today())
                         && !clocks.canConfirm(day);
                 rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
                         in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
@@ -148,16 +151,17 @@ public final class WorktimeService {
         var employee = employee(tenant, employeeId);
         var from = WorktimeCalculator.weekStart(month.atDay(1));
         var through = WorktimeCalculator.weekStart(month.atEndOfMonth()).plusDays(6);
+        var today = LocalDate.now(clock.withZone(SEOUL));
         var days = new ArrayList<SelectiveSettlement.Day>();
         for (var row : mapper.settlementDays(tenant, employeeId, from, through)) {
-            var day = row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row);
+            var day = row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row, today);
             if (day != null) days.add(day);
         }
         return new SelectiveSettlement.Overview(month, employeeId, employee.employeeNo(), employee.displayName(),
-                SelectiveSettlement.periods(month, LocalDate.now(clock.withZone(SEOUL)), days));
+                SelectiveSettlement.periods(month, today, days));
     }
 
-    private SelectiveSettlement.Day openSettlementDay(Employee employee, WorktimeMapper.SettlementRow row) {
+    private SelectiveSettlement.Day openSettlementDay(Employee employee, WorktimeMapper.SettlementRow row, LocalDate today) {
         if (!"SELECTIVE".equals(row.workMode()) || !employed(employee, row.workDate())) return null;
         var snapshot = MonthEndReviewQueries.snapshot(clocks, row);
         var leave = MonthEndReviewQueries.list(row.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
@@ -165,10 +169,27 @@ public final class WorktimeService {
         String source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
                 leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
         boolean matches = row.storedSource() != null && current(snapshot, source, row.storedInput(), row.storedReview(), row.storedSource());
-        Set<String> reasons = matches ? Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class))
-                : Set.of(row.storedSource() == null ? "NOT_CALCULATED" : "STALE_RESULT");
-        return settlementDay(snapshot, WorktimeMapper.LeaveEffect.totalDays(leave), !pending.isEmpty(),
-                matches ? row.actualWorkMillis() : null, reasons);
+        double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
+        var facts = dayInput(snapshot, false, !pending.isEmpty(), leaveDays);
+        var reasons = new HashSet<String>();
+        if (matches) reasons.addAll(MonthEndReviewQueries.list(row.reasonCodes(), String[].class));
+        else {
+            reasons.add(row.storedSource() == null ? "NOT_CALCULATED" : "STALE_RESULT");
+            if (!row.workDate().isAfter(today)) reasons.addAll(calculator.day(facts).reasons());
+        }
+        boolean awaitingClockOut = row.workDate().equals(today) && pending.isEmpty() && leaveDays < 1
+                && snapshot.schedule().workday() && "WORKDAY".equals(snapshot.dayKind())
+                && snapshot.effectiveEvents().size() <= 1 && snapshot.effectiveEvents().stream().noneMatch(e -> "OUT".equals(e.kind()));
+        Action employeeAction = Action.NONE;
+        if (awaitingClockOut) {
+            reasons.remove("MISSING_CLOCK_IN");
+            reasons.remove("MISSING_CLOCK_OUT");
+            reasons.add("DAY_IN_PROGRESS");
+        } else if (pending.isEmpty() && leaveDays < 1 && snapshot.confirmation() == null && !row.workDate().isAfter(today)) {
+            if (clocks.canConfirm(snapshot)) employeeAction = Action.CONFIRM;
+            else if (correctionEligible(snapshot, facts, true, today)) employeeAction = Action.CORRECT;
+        }
+        return settlementDay(snapshot, leaveDays, pending, matches ? row.actualWorkMillis() : null, reasons, employeeAction, false);
     }
 
     private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row, YearMonth month) {
@@ -184,19 +205,21 @@ public final class WorktimeService {
         var employment = frozen.employment();
         if (row.workDate().isBefore(employment.joinedOn()) ||
                 employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;
-        return settlementDay(frozen.clock(), row.storedLeaveDays(), !frozen.pending().isEmpty(), row.actualWorkMillis(),
-                Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class)));
+        return settlementDay(frozen.clock(), row.storedLeaveDays(), frozen.pending(), row.actualWorkMillis(),
+                Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class)), Action.NONE, true);
     }
 
-    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, boolean pending,
-            Long actual, Set<String> reasons) {
+    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, List<String> pending,
+            Long actual, Set<String> reasons, Action employeeAction, boolean closed) {
         var schedule = snapshot.schedule();
         Integer target = null;
         if (snapshot.calendarVersionId() != null && !"UNCONFIRMED".equals(snapshot.dayKind())) {
             target = schedule.workday() && "WORKDAY".equals(snapshot.dayKind()) ? schedule.standardMinutes() : Integer.valueOf(0);
         }
-        if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && !pending && leave == 0) return null;
-        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual, pending, reasons);
+        if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && pending.isEmpty() && leave == 0) return null;
+        UUID requestId = pending.isEmpty() ? null : UUID.fromString(pending.getFirst());
+        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual,
+                requestId, reasons, employeeAction, closed);
     }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(month==null)throw OrgException.invalid("조회 월을 입력해 주세요.");UUID target=target(actor,employeeId);

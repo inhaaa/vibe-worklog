@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
@@ -20,6 +21,7 @@ import kr.tna.org.ApproverService;
 import kr.tna.org.OrgException;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.CorrectionForm;
+import kr.tna.request.RequestData.DecisionForm;
 import kr.tna.worktime.WorktimeService;
 import kr.tna.worktime.WorktimeData.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
 class WorktimeServiceIT {
@@ -293,6 +297,122 @@ class WorktimeServiceIT {
     }
     private UUID recalculate(){return reports.recalculate(manager,employee.employeeId(),date,date,UUID.randomUUID(),"합성 수동 재집계");}
 
+    @Test void employeeConfirmationResolvesTheSameSettlementDateForEmployeeAndAdmin() {
+        LocalDate last = date.getDayOfMonth() > 2 ? date.minusDays(1) : date.withDayOfMonth(1).minusDays(1);
+        LocalDate first = last.minusDays(1);
+        useSelectiveCalendarMonth(first, last);
+        UUID network = db.queryForObject("SELECT id FROM tna.allowed_network WHERE tenant_id=?", UUID.class, tenant);
+        recordInterval(first, 9, 18, network);
+
+        var initial = sameSettlement(first);
+        assertEquals(2, initial.path("unconfirmedDays").asInt());
+        var initialRows = initial.path("unconfirmedDates");
+        assertEquals(2, initialRows.size());
+        assertSettlementRow(initialRows.get(0), first, "CONFIRM", "REVIEW", "BREAK_UNCONFIRMED", "NOT_CALCULATED");
+        assertSettlementRow(initialRows.get(1), last, "CORRECT", "REVIEW", "MISSING_CLOCK_IN", "MISSING_CLOCK_OUT", "NOT_CALCULATED");
+        assertTrue(initialRows.get(0).get("requestId").isNull());
+
+        reports.recalculate(manager, employee.employeeId(), first, last, UUID.randomUUID(), "정산 대상일 집계");
+        db.update("UPDATE tna.day_input_revision SET input_revision=input_revision+1 WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                tenant, employee.employeeId(), first);
+        var before = sameSettlement(first);
+        assertSettlementRow(before.path("unconfirmedDates").get(0), first, "CONFIRM", "REVIEW", "BREAK_UNCONFIRMED", "STALE_RESULT");
+        var remaining = before.path("unconfirmedDates").get(1);
+        assertSettlementRow(remaining, last, "CORRECT", "REVIEW", "MISSING_CLOCK_IN", "MISSING_CLOCK_OUT");
+
+        var fresh = clocks.day(employee, first);
+        UUID command = UUID.randomUUID();
+        clocks.confirm(employee, new ConfirmationForm(first, fresh.inputRevision(), fresh.reviewRevision(), true, true,
+                fresh.sourceFingerprint(), command));
+        assertSettlementRow(sameSettlement(first).path("unconfirmedDates").get(0), first, "NONE", "RECALCULATE", "STALE_RESULT");
+        reports.calculateConfirmedDay(employee, first, command);
+        var after = sameSettlement(first);
+        assertEquals(1, after.path("unconfirmedDays").asInt());
+        assertEquals(0, after.path("upcomingDays").asInt());
+        assertEquals(1, after.path("unconfirmedDates").size());
+        assertEquals(remaining, after.path("unconfirmedDates").get(0));
+        assertEquals(8 * 3_600_000L, after.path("confirmedWorkMillis").asLong());
+        assertStatus(403, () -> reports.adminSettlements(employee, employee.employeeId(), YearMonth.from(first).toString()));
+        assertStatus(404, () -> reports.adminSettlements(manager, DatabaseFixture.EMPLOYEE_B, YearMonth.from(first).toString()));
+    }
+
+    @Test void settlementFollowsThePendingCorrectionUntilWithdrawalAndIdentifiesAnUnregisteredCalendar() {
+        useSelectiveCalendarMonth(date, date);
+        var snapshot = clocks.day(employee, date);
+        var request = workflow.submitCorrection(employee, new CorrectionForm(null, date, snapshot.inputRevision(),
+                snapshot.sourceFingerprint(), "KEEP", "", "SET", date+"T18:00", true, true, date+"T12:00/"+date+"T13:00",
+                null, null, false, "정산일 기록 정정", UUID.randomUUID()));
+        var pending = sameSettlement(date).path("unconfirmedDates");
+        assertEquals(1, pending.size());
+        var row = pending.get(0);
+        assertEquals("REQUEST", row.path("employeeAction").asString());
+        assertEquals("REQUEST", row.path("adminAction").asString());
+        assertEquals(request.toString(), row.path("requestId").asString());
+        assertTrue(row.path("reasons").toString().contains("PENDING_CORRECTION"));
+        workflow.withdraw(employee, request, new DecisionForm("WITHDRAW", 0L, "재확인 후 철회", UUID.randomUUID()));
+        var withdrawn = sameSettlement(date).path("unconfirmedDates").get(0);
+        assertSettlementRow(withdrawn, date, "CONFIRM", "REVIEW", "BREAK_UNCONFIRMED", "NOT_CALCULATED");
+        assertTrue(withdrawn.get("requestId").isNull());
+
+        db.update("UPDATE tna.calendar_version SET valid_from=? WHERE tenant_id=?", date.plusDays(1), tenant);
+        var calendar = sameSettlement(date).path("unconfirmedDates").get(0);
+        assertEquals("NONE", calendar.path("employeeAction").asString());
+        assertEquals("CALENDAR", calendar.path("adminAction").asString());
+        assertTrue(calendar.path("reasons").toString().contains("CALENDAR_UNCONFIRMED"));
+    }
+
+    @Test void todaysOngoingShiftIsListedWithoutSuggestingACorrection() {
+        LocalDate today = date.plusDays(1);
+        useSelectiveCalendarMonth(today, today);
+        UUID network = db.queryForObject("SELECT id FROM tna.allowed_network WHERE tenant_id=?", UUID.class, tenant);
+        var at = java.sql.Timestamp.from(today.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant());
+        db.update("""
+                INSERT INTO tna.attendance_event(tenant_id,id,employee_id,event_kind,occurred_at,received_at,client_command_id,
+                    source,validated_ip,network_id,assigned_work_date) VALUES (?,?,?,'IN',?,?,?,'IP','127.0.0.1',?,?)
+                """, tenant, UUID.randomUUID(), employee.employeeId(), at, at, UUID.randomUUID(), network, today);
+        var period = sameSettlement(today);
+        assertEquals(1, period.path("unconfirmedDates").size());
+        var current = period.path("unconfirmedDates").get(0);
+        assertEquals("NONE", current.path("employeeAction").asString());
+        assertEquals("REVIEW", current.path("adminAction").asString());
+        assertTrue(current.path("reasons").toString().contains("DAY_IN_PROGRESS"));
+        assertFalse(current.path("reasons").toString().contains("MISSING_CLOCK_OUT"));
+    }
+
+    private JsonNode sameSettlement(LocalDate day) {
+        String month = YearMonth.from(day).toString();
+        var own = reports.ownSettlements(employee, month);
+        assertEquals(employee.employeeId(), own.employeeId());
+        assertEquals(own, reports.adminSettlements(manager, employee.employeeId(), month));
+        assertEquals(1, own.periods().size());
+        return JsonMapper.builder().build().valueToTree(own.periods().getFirst());
+    }
+
+    private static void assertSettlementRow(JsonNode row, LocalDate date, String employeeAction, String adminAction, String... reasons) {
+        assertEquals(date.toString(), row.path("workDate").asString());
+        assertEquals(employeeAction, row.path("employeeAction").asString());
+        assertEquals(adminAction, row.path("adminAction").asString());
+        assertEquals(List.of(reasons), row.path("reasons").valueStream().map(JsonNode::asString).toList());
+    }
+
+    private void useSelectiveCalendarMonth(LocalDate from, LocalDate through) {
+        UUID code = UUID.randomUUID(), codeVersion = UUID.randomUUID();
+        var schedule = db.queryForObject("SELECT schedule_version_id FROM tna.schedule_assignment WHERE tenant_id=? AND employee_id=?",
+                UUID.class, tenant, employee.employeeId());
+        db.update("INSERT INTO tna.work_time_code(tenant_id,id,code) VALUES (?,?,'SEL')", tenant, code);
+        db.update("""
+                INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,start_time,end_time,
+                    work_mode,standard_minutes,settlement_period,reason,created_by)
+                VALUES (?,?,?,1,?,true,'선택근무','09:00','18:00','SELECTIVE',480,'CALENDAR_MONTH','합성',?)
+                """, tenant, codeVersion, code, from, manager.accountId());
+        db.update("INSERT INTO tna.work_group_day(tenant_id,schedule_version_id,weekday,code_version_id) SELECT ?,?,n,? FROM generate_series(1,7) n",
+                tenant, schedule, codeVersion);
+        db.update("UPDATE tna.schedule_assignment SET valid_from=?,valid_to=? WHERE tenant_id=? AND employee_id=?",
+                from, through.plusDays(1), tenant, employee.employeeId());
+        db.update("UPDATE tna.calendar_day SET kind='WORKDAY' WHERE tenant_id=? AND work_date BETWEEN ? AND ?",
+                tenant, from, through);
+    }
+
     @Test void isoSettlementCarriesConfirmedHolidayAndRestDayWorkAcrossMonthsWithHalfDayLeaveAndEmploymentBoundaries() {
         LocalDate thursday = LocalDate.of(2024, 2, 29), friday = thursday.plusDays(1), saturday = thursday.plusDays(2);
         UUID group = UUID.randomUUID(), version = UUID.randomUUID(), code = UUID.randomUUID(), codeVersion = UUID.randomUUID();
@@ -374,6 +494,12 @@ class WorktimeServiceIT {
     }
 
     private void confirmedInterval(LocalDate workDate, int from, int through, UUID network) {
+        recordInterval(workDate, from, through, network);
+        var snapshot=clocks.day(employee,workDate);
+        clocks.confirm(employee,new ConfirmationForm(workDate,2L,0L,true,true,snapshot.sourceFingerprint(),UUID.randomUUID()));
+    }
+
+    private void recordInterval(LocalDate workDate, int from, int through, UUID network) {
         for (String kind:List.of("IN","OUT")) {
             var at=java.sql.Timestamp.from(workDate.atTime(kind.equals("IN")?from:through,0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
             db.update("""
@@ -383,8 +509,6 @@ class WorktimeServiceIT {
         }
         db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision) VALUES (?,?,?,2,0)",
                 tenant,employee.employeeId(),workDate);
-        var snapshot=clocks.day(employee,workDate);
-        clocks.confirm(employee,new ConfirmationForm(workDate,2L,0L,true,true,snapshot.sourceFingerprint(),UUID.randomUUID()));
     }
     private TnaPrincipal member(String name,Set<String> roles) {
         UUID employeeId=UUID.randomUUID(),account=UUID.randomUUID();

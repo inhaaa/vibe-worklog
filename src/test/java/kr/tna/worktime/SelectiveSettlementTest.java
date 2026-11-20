@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 class SelectiveSettlementTest {
     private static final long HOUR = 3_600_000L;
@@ -39,9 +41,9 @@ class SelectiveSettlementTest {
 
     @Test void incompleteFactsAndPendingCorrectionsNeverConfirmAZeroOrUseAnOldTotal() {
         var days = List.of(day("2026-10-01", "CALENDAR_MONTH", 420, .5, null),
-                new SelectiveSettlement.Day(LocalDate.parse("2026-10-02"), "CALENDAR_MONTH", 420, 0,
+                day(LocalDate.parse("2026-10-02"), "CALENDAR_MONTH", 420, 0,
                         9 * HOUR, true, Set.of()),
-                new SelectiveSettlement.Day(LocalDate.parse("2026-10-03"), "CALENDAR_MONTH", null, 0,
+                day(LocalDate.parse("2026-10-03"), "CALENDAR_MONTH", null, 0,
                         2 * HOUR, false, Set.of("SELECTIVE_WINDOW_REVIEW")),
                 day("2026-10-04", "CALENDAR_MONTH", 420, 0, 8 * HOUR));
         var result = SelectiveSettlement.periods(MONTH, AFTER, days).getFirst();
@@ -56,8 +58,8 @@ class SelectiveSettlementTest {
 
     @Test void showsActionableReasonsForUnconfirmedWorkWithoutRepeatingThem() {
         Set<String> reasons = Set.of("BREAK_UNCONFIRMED", "SELECTIVE_SETTLEMENT_APPLIES", "LEGAL_OVERTIME_UNDETERMINED");
-        var days = List.of(new SelectiveSettlement.Day(MONTH.atDay(1), "CALENDAR_MONTH", 420, 0, null, false, reasons),
-                new SelectiveSettlement.Day(MONTH.atDay(2), "CALENDAR_MONTH", 420, 0, null, false, reasons));
+        var days = List.of(day(MONTH.atDay(1), "CALENDAR_MONTH", 420, 0, null, false, reasons),
+                day(MONTH.atDay(2), "CALENDAR_MONTH", 420, 0, null, false, reasons));
         var period = SelectiveSettlement.periods(MONTH, AFTER, days).getFirst();
         assertEquals(List.of("BREAK_UNCONFIRMED"), period.warnings());
         assertEquals(2, period.unconfirmedDays());
@@ -86,7 +88,43 @@ class SelectiveSettlementTest {
         assertEquals(0L, SelectiveSettlement.periods(MONTH, MONTH.atDay(1), excess).getFirst().remainingMillis());
     }
 
+    @Test void aWeekListsOnlyElapsedUnconfirmedDatesOnceAndSeparatesUpcomingDatesAcrossMonths() {
+        var friday = LocalDate.of(2026, 10, 30);
+        var days = List.of(day(friday.plusDays(2), "ISO_WEEK", 420, 0, null, false, Set.of("NOT_CALCULATED")),
+                day(friday, "ISO_WEEK", null, 0, null, false, Set.of("CALENDAR_UNCONFIRMED", "NOT_CALCULATED")),
+                day(friday.minusDays(1), "ISO_WEEK", 420, 0, 4 * HOUR, false, Set.of("SELECTIVE_CORE_REVIEW")),
+                day(friday.minusDays(2), "ISO_WEEK", 420, 0, null, false, Set.of("BREAK_UNCONFIRMED")));
+        var period = SelectiveSettlement.periods(MONTH, friday, days).getFirst();
+        assertEquals(period, SelectiveSettlement.periods(MONTH.plusMonths(1), friday, days).getFirst());
+        var json = JsonMapper.builder().build().valueToTree(period);
+        var rows = json.path("unconfirmedDates");
+        assertEquals(2, rows.size());
+        assertEquals("2026-10-28", rows.get(0).path("workDate").asString());
+        assertEquals("2026-10-30", rows.get(1).path("workDate").asString());
+        assertEquals("[\"CALENDAR_UNCONFIRMED\",\"NOT_CALCULATED\"]", rows.get(1).path("reasons").toString());
+        assertEquals(1, json.path("upcomingDays").asInt());
+        assertEquals(rows.size() + json.path("upcomingDays").asInt(), period.unconfirmedDays());
+    }
+
+    @Test void aClosedDateKeepsItsFrozenReasonsWithoutDirectingEitherRoleToAnOpenWorkflow() {
+        var day = new SelectiveSettlement.Day(MONTH.atDay(1), "CALENDAR_MONTH", null, 0, HOUR, UUID.randomUUID(),
+                Set.of("BREAK_UNCONFIRMED"), SelectiveSettlement.Action.CONFIRM, true);
+        var period = SelectiveSettlement.periods(MONTH, AFTER, List.of(day)).getFirst();
+        assertEquals(1, period.unconfirmedDays());
+        var row = period.unconfirmedDates().getFirst();
+        assertEquals(List.of("BREAK_UNCONFIRMED", "CALENDAR_UNCONFIRMED", "MONTH_CLOSED", "PENDING_CORRECTION"), row.reasons());
+        assertEquals(SelectiveSettlement.Action.NONE, row.employeeAction());
+        assertEquals(SelectiveSettlement.Action.NONE, row.adminAction());
+        assertNull(row.requestId());
+    }
+
     private static SelectiveSettlement.Day day(String date, String period, Integer target, double leave, Long actual) {
-        return new SelectiveSettlement.Day(LocalDate.parse(date), period, target, leave, actual, false, Set.of());
+        return day(LocalDate.parse(date), period, target, leave, actual, false, Set.of());
+    }
+
+    private static SelectiveSettlement.Day day(LocalDate date, String period, Integer target, double leave, Long actual,
+            boolean pending, Set<String> reasons) {
+        return new SelectiveSettlement.Day(date, period, target, leave, actual, pending ? UUID.randomUUID() : null,
+                reasons, SelectiveSettlement.Action.NONE, false);
     }
 }
