@@ -33,6 +33,8 @@ export const selectiveReasonLabels: Record<string, string> = {
   SELECTIVE_CORE_REVIEW: '코어시간의 근무 기록을 확인해 주세요.',
   SELECTIVE_WINDOW_REVIEW: '선택 가능 시간 밖의 근무 기록을 확인해 주세요.',
   SELECTIVE_SETTLEMENT_APPLIES: '선택근무 정산기간 적용',
+  DAY_IN_PROGRESS: '오늘 근무가 아직 끝나지 않았습니다.',
+  MONTH_CLOSED: '마감 당시의 근무 기록입니다.',
 };
 
 export function hoursAndMinutes(minutes: number) {
