@@ -40,20 +40,23 @@ class V30ReleaseDataTest(unittest.TestCase):
             after["tables"][name] = [count, signature, signature]
         return before, after
 
+    def migrations_through_v30(self, first_version):
+        directory = ROOT / "src/main/resources/db/migration"
+        for version in range(first_version, 31):
+            files = list(directory.glob(f"V{version}__*.sql"))
+            self.assertEqual(1, len(files), f"V{version} 마이그레이션은 하나여야 합니다")
+            yield version, files[0]
+
     def test_table_contract_matches_all_versioned_flyway_create_statements(self):
-        migrations = ROOT / "src/main/resources/db/migration"
         expected = {18: set(), 30: set()}
-        for sql in migrations.glob("V*__*.sql"):
-            version = int(sql.name[1:].split("__")[0])
+        for version, sql in self.migrations_through_v30(1):
             names = re.findall(r"CREATE TABLE ((?:tna|platform)\.\w+)", sql.read_text("utf-8"), re.I)
             expected[18 if version <= 18 else 30].update(names)
         self.assertEqual(expected, {18: self.tool.LEGACY, 30: self.tool.NEW})
 
     def test_new_and_changed_app_grants_match_flyway(self):
         parsed = set()
-        for sql in (ROOT / "src/main/resources/db/migration").glob("V*__*.sql"):
-            if int(sql.name[1:].split("__")[0]) < 19:
-                continue
+        for _, sql in self.migrations_through_v30(19):
             text = sql.read_text("utf-8")
             for permissions, names in re.findall(r"GRANT (.*?)\s+ON (tna\.[\w.,\s]+?) TO tna_app;", text, re.S):
                 for table in names.replace(" ", "").split(","):
@@ -67,6 +70,11 @@ class V30ReleaseDataTest(unittest.TestCase):
     def test_only_intended_upgrade_passes(self):
         before, after = self.snapshots()
         self.tool.compare("compare-upgrade", before, after)
+        next_release = copy.deepcopy(after)
+        next_release["version"] = 31
+        next_release["history"].append(dict(after["history"][-1], installed_rank=31, version="31", script="V31__next.sql"))
+        with self.assertRaisesRegex(ValueError, "V18 또는 V30"):
+            self.tool.compare("compare-upgrade", before, next_release)
         mutations = [
             lambda a: a["tables"]["tna.leave_ledger"].__setitem__(2, "4" * 64),
             lambda a: a["tables"]["tna.checkout_follow_up"].__setitem__(0, 1),
