@@ -411,16 +411,22 @@ class WorktimeServiceIT {
                 INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
                 VALUES (?,?,?,1,'CLOSED','합성 마감',?,'담당자')
                 """, tenant, closure, date.withDayOfMonth(1), manager.accountId());
-        assertFalse(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        UUID frozenResult = db.queryForObject("""
+                SELECT result_ids[1] FROM tna.attendance_month_selective_member
+                WHERE tenant_id=? AND closure_id=? AND employee_id=?
+                """, UUID.class, tenant, closure, target);
+        assertNotNull(frozenResult);
+        assertTrue(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, target, date.minusDays(1), "CALENDAR_MONTH"));
         db.update("""
-                INSERT INTO tna.attendance_month_selective_member(tenant_id,closure_id,employee_id,result_ids) VALUES (?,?,?,NULL)
+                UPDATE tna.attendance_month_selective_member SET result_ids=NULL
+                WHERE tenant_id=? AND closure_id=? AND employee_id=?
                 """, tenant, closure, target);
         assertFalse(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
         db.update("""
-                UPDATE tna.attendance_month_selective_member m SET result_ids=ARRAY[
-                    (SELECT id FROM tna.day_result r WHERE r.tenant_id=m.tenant_id AND r.employee_id=m.employee_id AND work_date=?)]
+                UPDATE tna.attendance_month_selective_member SET result_ids=ARRAY[?::uuid]
                 WHERE tenant_id=? AND closure_id=? AND employee_id=?
-                """, date, tenant, closure, target);
+                """, frozenResult, tenant, closure, target);
         db.update("UPDATE tna.work_time_code_version SET settlement_period='ISO_WEEK' WHERE tenant_id=? AND work_mode='SELECTIVE'", tenant);
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date.plusDays(1), tenant, target);
         assertTrue(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
