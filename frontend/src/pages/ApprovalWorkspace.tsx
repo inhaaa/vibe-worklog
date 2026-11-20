@@ -43,7 +43,7 @@ export function ApprovalWorkspace({ model: m }: { model: ListModel }) {
         <p>{m.completed ? '승인·반려한 신청은 이곳에서 다시 확인할 수 있어요.' : '새로 지정된 신청이 들어오면 이곳에서 확인할 수 있어요.'}</p>
       </section> : <ul className="t-approval-list" aria-label="결재 신청 목록">
         {m.requests.map((r) => <li key={r.id} className="t-approval-card">
-          <div className="t-approval-card-top"><span className="t-approval-kind">{requestKindName(r.kind,r.leavePart)}</span><span className="t-approval-status" data-status={r.status}>{statusName(r.status)}</span></div>
+          <div className="t-approval-card-top"><span className="t-approval-kind">{requestKindName(r.kind,r.leavePart,r.companyLeaveName)}</span><span className="t-approval-status" data-status={r.status}>{statusName(r.status)}</span></div>
           <div className="t-approval-person"><span className="t-approval-avatar" aria-hidden="true">{r.targetEmployeeName.slice(0,1)}</span><div><h2>{r.targetEmployeeName}</h2><p>신청 대상</p></div></div>
           <dl className="t-approval-facts">
             {r.formCode && <div><dt>신청서</dt><dd>{r.formName} ({r.formCode})</dd></div>}

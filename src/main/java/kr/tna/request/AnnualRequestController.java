@@ -25,11 +25,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 public final class AnnualRequestController {
     private static final Set<String> QUERY=Set.of("year","typeId","status","page","authoredPage","createdId");
     private static final Set<String> CONTEXT=Set.of("year","typeId","status","page","authoredPage","mode","kind","_csrf");
-    private static final Set<String> LEAVE=Set.of("routeToken","bucketId","from","to","leavePart","predecessorRequestId","reason","commandId");
+    private static final Set<String> LEAVE=Set.of("routeToken","bucketId","from","to","leavePart","predecessorRequestId","reason","commandId","attendanceTypeId","expectedAttendanceTypeVersionId");
     private static final Set<String> CORRECTION=Set.of("routeToken","workDate","baseInputRevision","sourceFingerprint","inAction","requestedInAt","outAction","requestedOutAt","presenceAsWork","breaksConfirmed","_presenceAsWork","_breaksConfirmed","actualBreaks","replacesRequestId","predecessorRequestId","reason","commandId");
     private final AnnualRequestService service;
     private final LeaveWorkflowService flow;
     public AnnualRequestController(AnnualRequestService service,LeaveWorkflowService flow){this.service=service;this.flow=flow;}
+
+    @GetMapping(path="/me/requests/leave-types",produces="application/json")
+    @ResponseBody LeaveTypeOptions leaveTypes(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,HttpServletRequest request) {
+        parameters(request,Set.of("date"));
+        return new LeaveTypeOptions(flow.leaveTypes(actor,date));
+    }
 
     @GetMapping("/me/requests")
     ModelAndView annual(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam(required=false) Integer year,

@@ -2,6 +2,8 @@ package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
@@ -134,6 +136,107 @@ class AttendanceTypeWorkflowIT {
         UUID policy=db.queryForObject("SELECT v.id FROM tna.attendance_type_version v JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id WHERE t.tenant_id=? AND t.system_kind='ANNUAL_LEAVE'",UUID.class,foreign);
         var error=assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->db.update("UPDATE tna.approval_request SET attendance_type_version_id=? WHERE tenant_id=? AND id=?",policy,tenant,request));
         assertNotNull(error);assertEquals(baseline("ANNUAL_LEAVE"),pinned(request));
+    }
+
+    @Test void companyPaidLeaveUsesNoAnnualBalanceAndItsCancellationRevisesTheDayOnce() throws Exception {
+        UUID type=companyType(), version=companyVersion(type,1,date,true,"경조휴가","DAY_HALF","PAID","NONE");
+        var form=new LeaveForm(null,date,date,null,"가상 경조",UUID.randomUUID(),"AM",type,version);
+        var preview=flow.previewLeave(worker,form);
+        assertEquals(0.5,preview.quantityDays());assertNull(preview.selectedBucketAvailableDays());
+        assertEquals(version,preview.policy().id());
+        var auth=new UsernamePasswordAuthenticationToken(worker,null,worker.roles().stream().map(r->new SimpleGrantedAuthority("ROLE_"+r)).toList());
+        var client=SecurityMockMvcRequestPostProcessors.authentication(auth);
+        mvc.perform(get("/me/requests/leave-types").with(client).param("date",date.toString()).accept("application/json"))
+                .andExpect(status().isOk()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.types[1].versionId").value(version.toString()));
+        assertTrue(flow.leaveTypes(worker,date.minusDays(1)).stream().noneMatch(t->t.id().equals(type)));
+        UUID request=flow.submitLeave(worker,form);
+        assertEquals("경조휴가",flow.get(worker,request).request().companyLeaveName());
+        assertStatus(409,()->leave(date,date));
+        companyVersion(type,2,date,false,"종료된 경조휴가","DAY_HALF","PAID","NONE");
+        assertEquals(request,flow.submitLeave(worker,form));
+        approve(request);
+        assertEquals(1,count("request_effect"));assertEquals(1,count("leave_ledger"));
+        assertEquals(20,balance());
+        long afterApproval=inputRevision();
+        assertTrue(afterApproval>0);
+        UUID cancel=flow.requestCancellation(worker,request,new CancelForm(false,1L,"행사 취소",UUID.randomUUID()));
+        assertEquals(version,pinned(cancel));
+        assertEquals("EFFECTIVE",flow.get(worker,request).request().effectStatus());
+        var decision=new DecisionForm("APPROVE",0L,"취소 승인",UUID.randomUUID());
+        flow.decide(approver,cancel,decision);flow.decide(approver,cancel,decision);
+        assertEquals("CANCELED",flow.get(worker,request).request().effectStatus());
+        assertEquals(afterApproval+1,inputRevision());assertEquals(1,count("leave_ledger"));assertEquals(20,balance());
+    }
+
+    @Test void companyDeductionRequiresOwnBucketAndDebitsOnceRegardlessOfPayKind() {
+        UUID type=companyType(), version=companyVersion(type,1,date,true,"무급 휴가","DAY","UNPAID","LEAVE_DAY");
+        assertStatus(422,()->flow.submitLeave(worker,new LeaveForm(null,date,date,null,"잔여 누락",UUID.randomUUID(),"FULL",type,version)));
+        assertStatus(422,()->flow.submitLeave(worker,new LeaveForm(bucket,date,date,null,"시간단위 불일치",UUID.randomUUID(),"PM",type,version)));
+        assertStatus(409,()->flow.submitLeave(worker,new LeaveForm(bucket,date,date,null,"예고 누락",UUID.randomUUID(),"FULL",type,null)));
+        var form=new LeaveForm(bucket,date,date,null,"휴가 사용",UUID.randomUUID(),"FULL",type,version);
+        UUID request=flow.submitLeave(worker,form);
+        assertEquals(20,balance());approve(request);assertEquals(19,balance());
+        UUID cancel=flow.requestCancellation(worker,request,new CancelForm(false,1L,"합성 취소",UUID.randomUUID()));
+        approve(cancel);assertEquals(20,balance());assertEquals(3,count("leave_ledger"));
+    }
+
+    @Test void employeeWebPreviewSubmitsABucketlessPolicyAndResubmissionKeepsItsType() throws Exception {
+        UUID type=companyType(), version=companyVersion(type,1,date,true,"개인휴가","DAY","UNPAID","NONE");
+        var auth=new UsernamePasswordAuthenticationToken(worker,null,worker.roles().stream().map(r->new SimpleGrantedAuthority("ROLE_"+r)).toList());
+        var client=SecurityMockMvcRequestPostProcessors.authentication(auth);
+        var year=String.valueOf(date.getYear());
+        String json="application/vnd.worklog.page+json", command=UUID.randomUUID().toString();
+        mvc.perform(get("/me/requests/new").with(client).accept(json).param("date",date.toString()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/compose/leaveTypes/1/id",type.toString()));
+        for (var path:java.util.List.of("/me/requests/preview","/me/requests/leave")) {
+            var response=mvc.perform(post(path).with(client).with(csrf()).accept(json).param("year",year)
+                    .param("from",date.toString()).param("to",date.toString()).param("attendanceTypeId",type.toString())
+                    .param("expectedAttendanceTypeVersionId",version.toString()).param("reason","합성 개인휴가").param("commandId",command));
+            if (path.endsWith("preview")) {
+                response.andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/compose/preview/policy/id",version.toString()));
+            } else response.andExpect(status().isSeeOther());
+        }
+        var request=flow.mine(worker).getFirst();
+        assertNull(request.leaveBucketId());assertEquals("개인휴가",request.companyLeaveName());
+        flow.decide(approver,request.id(),new DecisionForm("REJECT",0L,"재신청 필요",UUID.randomUUID()));
+        mvc.perform(get("/me/requests/new").with(client).accept(json).param("kind","LEAVE_DAY").param("predecessorRequestId",request.id().toString()))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/compose/leaveForm/attendanceTypeId",type.toString()));
+    }
+
+    @Test void dayPolicyChangesAndForeignTypeIdsCannotBeSubmittedAsThePreviewedCompanyPolicy() {
+        UUID type=companyType(), version=companyVersion(type,1,date,true,"경조휴가","DAY","PAID","NONE");
+        var reviewed=new LeaveForm(null,date,date,null,"합성 신청",UUID.randomUUID(),"FULL",type,version);
+        assertTrue(flow.previewLeave(worker,reviewed).eligible());
+        UUID revised=companyVersion(type,2,date,true,"경조휴가 개정","DAY","UNPAID","NONE");
+        assertStatus(409,()->flow.submitLeave(worker,reviewed));
+        companyVersion(type,3,date.plusDays(1),false,"경조휴가 종료","DAY","UNPAID","NONE");
+        assertStatus(422,()->flow.submitLeave(worker,new LeaveForm(null,date,date.plusDays(1),null,"경계",UUID.randomUUID(),"FULL",type,revised)));
+        assertStatus(422,()->flow.submitLeave(worker,new LeaveForm(bucket,date,date,null,"미차감 묶음",UUID.randomUUID(),"FULL",type,revised)));
+        UUID foreign=UUID.randomUUID();
+        db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'다른 가상 회사')",foreign,"FOREIGN-"+foreign);
+        UUID foreignType=db.queryForObject("SELECT id FROM tna.attendance_type WHERE tenant_id=? AND system_kind='ANNUAL_LEAVE'",UUID.class,foreign);
+        assertStatus(404,()->flow.submitLeave(worker,new LeaveForm(null,date,date,null,"타사 코드",UUID.randomUUID(),"FULL",foreignType,revised)));
+        assertEquals(0,count("approval_request"));
+    }
+
+    private UUID companyType() {
+        UUID id=UUID.randomUUID();
+        db.update("INSERT INTO tna.attendance_type(tenant_id,id,code,created_by,updated_by) VALUES (?,?,'L10',?,?)",
+                tenant,id,admin.accountId(),admin.accountId());
+        return id;
+    }
+    private UUID companyVersion(UUID type,int revision,LocalDate from,boolean enabled,String name,String unit,String pay,String deduction) {
+        UUID id=UUID.randomUUID();
+        db.update("""
+            INSERT INTO tna.attendance_type_version(tenant_id,id,type_id,revision,effective_from,enabled,name,unit,
+                pay_kind,deduction_rule,recognition_rule,basis,reason,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,'COMPANY_LEAVE','가상 취업규칙','가상 회사 정책',?)
+            """,tenant,id,type,revision,from,enabled,name,unit,pay,deduction,admin.accountId());
+        return id;
+    }
+    private long inputRevision() {
+        return db.queryForObject("SELECT input_revision FROM tna.day_input_revision WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                Long.class,tenant,worker.employeeId(),date);
     }
 
     private UUID baseline(String kind) {return db.queryForObject("SELECT v.id FROM tna.attendance_type_version v JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id WHERE t.tenant_id=? AND t.system_kind=? AND v.revision=1",UUID.class,tenant,kind);}

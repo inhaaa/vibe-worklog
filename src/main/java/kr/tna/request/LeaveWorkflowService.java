@@ -172,11 +172,13 @@ public final class LeaveWorkflowService {
     public UUID submitLeave(TnaPrincipal actor,LeaveForm form,String routeToken) {
         String reason=leaveReason(form),action="REQUEST_LEAVE_SUBMIT";
         String wholeDayFingerprint=reviewedFingerprint(routeToken,action,form.bucketId(),form.from(),form.to(),form.predecessorRequestId(),reason);
-        String commandFingerprint="FULL".equals(form.leavePart())?wholeDayFingerprint:fingerprint(wholeDayFingerprint,form.leavePart());
+        String partFingerprint="FULL".equals(form.leavePart())?wholeDayFingerprint:fingerprint(wholeDayFingerprint,form.leavePart());
+        String commandFingerprint=form.attendanceTypeId()==null&&form.expectedAttendanceTypeVersionId()==null
+                ?partFingerprint:fingerprint(partFingerprint,form.attendanceTypeId(),form.expectedAttendanceTypeVersionId());
         return commands.execute(actor,form.commandId(),action,"REQUEST",commandFingerprint,reason,"EMPLOYEE",()->{
-            var days=validateLeaveInput(actor,form);
-            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,form.bucketId(),false,form.commandId(),routeToken);
-            for(var d:days)changed(mapper.insertDay(actor.tenantId(),UUID.randomUUID(),r.id(),d));
+            var input=validateLeaveInput(actor,form,true);
+            var r=createRequest(actor,actor.employeeId(),"LEAVE_DAY",form.from(),form.to(),reason,form.predecessorRequestId(),null,form.bucketId(),false,form.commandId(),routeToken,input.policy());
+            for(var d:input.days())changed(mapper.insertDay(actor.tenantId(),UUID.randomUUID(),r.id(),d));
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
             return new Change(r.id(),null,request(actor.tenantId(),r.id()));
         });
@@ -184,11 +186,19 @@ public final class LeaveWorkflowService {
     public AnnualRequestData.Preview previewLeave(TnaPrincipal actor,LeaveForm form) {
         leaveReason(form);
         return commands.read(actor,()->{mapper.readLock(actor.tenantId());
-            var days=validateLeaveInput(actor,form);var policy=attendanceTypes.forSubmission(actor.tenantId(),"LEAVE_DAY",form.from(),form.to());
-            var approval=formRoutes.form(actor.tenantId(),actor.employeeId(),actor.employeeId(),"LEAVE_DAY",today()).preview();var bucket=bucket(actor.tenantId(),form.bucketId());
-            double quantity=days.stream().mapToDouble(RequestDay::quantityDays).sum();
-            return new AnnualRequestData.Preview(quantity,available(actor),bucket.availableDays(),policy,approval,approval.eligible(),
-                    !approval.eligible()?approval.message():quantity>bucket.availableDays()?"현재 사용 가능량을 초과합니다. 승인 시 잔여를 다시 확인합니다.":"일정·잔여·결재자는 제출과 승인 때 다시 검증합니다.");
+            var input=validateLeaveInput(actor,form,false);
+            var approval=formRoutes.form(actor.tenantId(),actor.employeeId(),actor.employeeId(),"LEAVE_DAY",today()).preview();
+            double quantity=input.days().stream().mapToDouble(RequestDay::quantityDays).sum();
+            Double remaining=input.bucket()==null?null:input.bucket().availableDays();
+            return new AnnualRequestData.Preview(quantity,available(actor),remaining,input.policy(),approval,approval.eligible(),
+                    !approval.eligible()?approval.message():remaining!=null&&quantity>remaining?"현재 사용 가능량을 초과합니다. 승인 시 잔여를 다시 확인합니다.":"일정·휴가 기준·결재자는 제출과 승인 때 다시 검증합니다.");
+        });
+    }
+    public List<AnnualRequestData.LeaveTypeOption> leaveTypes(TnaPrincipal actor, LocalDate date) {
+        if (date == null || date.getYear()<1900 || date.getYear()>9998) throw OrgException.invalid("휴가 사용일을 확인해 주세요.");
+        return commands.read(actor,()->{
+            mapper.readLock(actor.tenantId());
+            return attendanceTypes.leaveOptions(actor.tenantId(),date);
         });
     }
     public AnnualRequestData.Preview previewCorrection(TnaPrincipal actor,CorrectionForm form) {
@@ -216,28 +226,39 @@ public final class LeaveWorkflowService {
     }
     private double available(TnaPrincipal actor){return mapper.listBuckets(actor.tenantId(),actor.employeeId(),today()).stream().mapToDouble(Bucket::availableDays).sum();}
     private String leaveReason(LeaveForm form){
-        if(form==null||form.bucketId()==null||form.from()==null||form.to()==null||form.from().isAfter(form.to())
+        if(form==null||form.from()==null||form.to()==null||form.from().isAfter(form.to())
                 ||ChronoUnit.DAYS.between(form.from(),form.to())>=366)
-            throw OrgException.invalid("오늘 이후 같은 묶음 안의 366일 이내 기간을 입력해 주세요.");
+            throw OrgException.invalid("오늘 이후 366일 이내의 휴가 사용 기간을 입력해 주세요.");
         if(!Set.of("FULL","AM","PM").contains(form.leavePart()))throw OrgException.invalid("종일, 오전 반차 또는 오후 반차를 선택해 주세요.");
         if(!"FULL".equals(form.leavePart())&&!form.from().equals(form.to()))throw OrgException.invalid("반차는 하루 단위로 신청해 주세요.");
         return requiredText(form.reason(),500,"신청 사유");
     }
-    private List<RequestDay> validateLeaveInput(TnaPrincipal actor,LeaveForm form){
-        currentEmployee(actor.tenantId(),actor.employeeId(),false);var bucket=bucket(actor.tenantId(),form.bucketId());
-        if(!bucket.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
+    private record LeaveInput(AttendancePolicy policy, Bucket bucket, List<RequestDay> days) { }
+
+    private LeaveInput validateLeaveInput(TnaPrincipal actor,LeaveForm form,boolean submitting){
+        currentEmployee(actor.tenantId(),actor.employeeId(),false);
         mapper.requireOpen(actor.tenantId(),form.from(),form.to());
-        if(form.from().isBefore(today()))throw OrgException.invalid("오늘 이후의 연차 사용 기간을 입력해 주세요.");
-        bucketPeriod(bucket,form.from(),form.to());predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
+        if(form.from().isBefore(today()))throw OrgException.invalid("오늘 이후의 휴가 사용 기간을 입력해 주세요.");
+        var policy=attendanceTypes.forLeave(actor.tenantId(),form,submitting);
+        if (policy.systemKind()==null && "DAY".equals(policy.unit()) && !"FULL".equals(form.leavePart()))
+            throw OrgException.invalid("이 휴가는 종일 단위로 신청해 주세요.");
+        Bucket bucket=null;
+        if ("LEAVE_DAY".equals(policy.deductionRule())) {
+            if (form.bucketId()==null) throw OrgException.invalid("차감할 연차 묶음을 선택해 주세요.");
+            bucket=bucket(actor.tenantId(),form.bucketId());
+            if(!bucket.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
+            bucketPeriod(bucket,form.from(),form.to());
+        } else if (form.bucketId()!=null) throw OrgException.invalid("연차 미차감 휴가에는 잔여 묶음을 지정할 수 없습니다.");
+        predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
         var days=days(actor.tenantId(),actor.employeeId(),form.from(),form.to(),form.leavePart());
         if(days.stream().noneMatch(day->day.quantityDays()>0))throw OrgException.invalid("소정근로일이 없는 기간입니다.");
         requireFreeLeaveDays(actor.tenantId(),actor.employeeId(),days,null);
-        return days;
+        return new LeaveInput(policy,bucket,days);
     }
     private void requireFreeLeaveDays(UUID tenant,UUID employeeId,List<RequestDay> days,UUID exceptId) {
         for(var day:days) {
             if(day.quantityDays()>0&&mapper.overlappingLeave(tenant,employeeId,day.leaveDate(),day.leavePart(),exceptId))
-                throw OrgException.conflict("같은 날짜에 겹치는 대기 또는 유효 연차가 있습니다.");
+                throw OrgException.conflict("같은 날짜에 겹치는 대기 또는 유효 휴가가 있습니다.");
         }
     }
     /** 그 날짜의 현재 승인 정정 신청 ID. 정정 화면이 ID를 입력받지 않고 hidden으로 보내도록 서버가 채운다. */
@@ -308,7 +329,7 @@ public final class LeaveWorkflowService {
             if(overtimeRequest) {
                 var detail=mapper.overtime(actor.tenantId(),original.id());
                 overtime.requireAdvance(detail.workDate(),detail.startTime());
-            } else if(!form.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 연차는 담당자 예외 경로로 요청해 주세요.");
+            } else if(!form.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 휴가는 담당자 예외 경로로 요청해 주세요.");
             if(mapper.pendingCancellation(actor.tenantId(),originalId))throw OrgException.conflict("이미 대기 중인 취소가 있습니다.");
             var r=createRequest(actor,original.targetEmployeeId(),overtimeRequest?"CANCEL_OVERTIME":"CANCEL_LEAVE",original.fromDate(),original.toDate(),reason,null,original.id(),original.leaveBucketId(),form.exceptional(),form.commandId(),routeToken);
             history(actor,r,"SUBMITTED",null,"PENDING",reason,null,r.currentApproverId());
@@ -336,12 +357,12 @@ public final class LeaveWorkflowService {
                 return new Change(requestId,before,after);
             }
             if(status.equals("APPROVED")) {
-                if(!isOvertime(before.kind())) attendanceTypes.stored(actor.tenantId(),before);
+                var policy=isOvertime(before.kind())?null:attendanceTypes.stored(actor.tenantId(),before);
                 switch(before.kind()) {
                     case "OVERTIME" -> approveOvertime(actor,before);
                     case "CANCEL_OVERTIME" -> approveOvertimeCancellation(actor,before);
-                    case "LEAVE_DAY" -> approveLeave(actor,before,reason);
-                    case "CANCEL_LEAVE" -> approveCancellation(actor,before,reason);
+                    case "LEAVE_DAY" -> approveLeave(actor,before,policy,reason);
+                    case "CANCEL_LEAVE" -> approveCancellation(actor,before,policy,reason);
                     case "ATTENDANCE_CORRECTION" -> approveCorrection(actor,before);
                     default -> throw OrgException.invalid("지원하지 않는 신청 종류입니다.");
                 }
@@ -419,33 +440,46 @@ public final class LeaveWorkflowService {
                 "CANCEL_OVERTIME",json.writeValueAsString(List.of(effect.id())),effect.id(),null,actor.accountId()));
     }
 
-    private void approveLeave(TnaPrincipal actor,RequestView request,String reason) {
-        var b=bucket(actor.tenantId(),request.leaveBucketId());bucketPeriod(b,request.fromDate(),request.toDate());
+    private void approveLeave(TnaPrincipal actor,RequestView request,AttendancePolicy policy,String reason) {
+        boolean deduct="LEAVE_DAY".equals(policy.deductionRule());
+        if (deduct!=(request.leaveBucketId()!=null)) throw OrgException.conflict("휴가 기준과 차감 묶음이 일치하지 않습니다.");
+        var b=deduct?bucket(actor.tenantId(),request.leaveBucketId()):null;
+        if (b!=null) bucketPeriod(b,request.fromDate(),request.toDate());
         var submitted=mapper.requestDays(actor.tenantId(),request.id());var current=days(actor.tenantId(),request.targetEmployeeId(),request.fromDate(),request.toDate(),request.leavePart());
         if(!submitted.equals(current))throw OrgException.invalid("일정·휴일 또는 차감량이 변경되었습니다. 철회 후 다시 신청해 주세요.");
         double quantity=current.stream().mapToDouble(RequestDay::quantityDays).sum();
-        if(quantity<=0||b.balanceDays()<quantity)throw OrgException.invalid("승인할 수 있는 연차 잔여가 부족합니다.");
+        if(quantity<=0)throw OrgException.invalid("승인할 휴가 사용일이 없습니다.");
+        if(b!=null&&b.balanceDays()<quantity)throw OrgException.invalid("승인할 수 있는 연차 잔여가 부족합니다.");
         requireFreeLeaveDays(actor.tenantId(),request.targetEmployeeId(),current,request.id());
         UUID effect=UUID.randomUUID();changed(mapper.insertEffect(actor.tenantId(),effect,request.id(),request.targetEmployeeId(),null,"LEAVE",json.writeValueAsString(current),null,null,actor.accountId()));
         for(var d:current)if(d.quantityDays()>0) {
-            ledger(actor,b.id(),b.employeeId(),"USE",BigDecimal.valueOf(-d.quantityDays()),today(),effect,d.leaveDate(),null,null,reason);
+            if (b!=null) ledger(actor,b.id(),b.employeeId(),"USE",BigDecimal.valueOf(-d.quantityDays()),today(),effect,d.leaveDate(),null,null,reason);
             changed(mapper.reviseDay(actor.tenantId(),request.targetEmployeeId(),d.leaveDate(),1));
         }
-        changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
+        if (b!=null) changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
     }
-    private void approveCancellation(TnaPrincipal actor,RequestView request,String reason) {
+    private void approveCancellation(TnaPrincipal actor,RequestView request,AttendancePolicy policy,String reason) {
         var original=request(actor.tenantId(),request.originalRequestId());var effect=mapper.requestEffect(actor.tenantId(),original.id());
-        if(!original.kind().equals("LEAVE_DAY")||!original.status().equals("APPROVED")||effect==null||!effect.effectStatus().equals("EFFECTIVE"))throw OrgException.conflict("원연차의 현재 효력이 변경되었습니다.");
-        if(!request.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 연차는 담당자 예외 경로로 취소해야 합니다.");
-        var used=mapper.uses(actor.tenantId(),effect.id());if(used.isEmpty())throw OrgException.conflict("복원할 원사용 원장이 없습니다.");
+        if(!original.kind().equals("LEAVE_DAY")||!original.status().equals("APPROVED")||effect==null||!effect.effectStatus().equals("EFFECTIVE")
+                ||!policy.id().equals(original.attendanceTypeVersionId()))throw OrgException.conflict("원신청의 현재 효력이 변경되었습니다.");
+        if(!request.exceptional()&&started(actor.tenantId(),original))throw OrgException.invalid("이미 시작한 휴가는 담당자 예외 경로로 취소해야 합니다.");
+        boolean deduct="LEAVE_DAY".equals(policy.deductionRule());
+        var used=mapper.uses(actor.tenantId(),effect.id());
+        var days=deduct?List.<RequestDay>of():mapper.requestDays(actor.tenantId(),original.id()).stream().filter(d->d.quantityDays()>0).toList();
+        // Older annual requests may have only the original usage ledger as reliable restoration evidence.
+        var affectedDates=deduct?used.stream().map(LedgerEntry::leaveDate).toList():days.stream().map(RequestDay::leaveDate).toList();
+        if (affectedDates.isEmpty() || (!deduct && !used.isEmpty()) || deduct!=(original.leaveBucketId()!=null))
+            throw OrgException.conflict("원신청의 사용일과 차감 원장이 일치하지 않습니다.");
         UUID restoration=UUID.randomUUID();changed(mapper.endEffect(actor.tenantId(),effect.id(),"CANCELED"));
-        changed(mapper.insertEffect(actor.tenantId(),restoration,request.id(),request.targetEmployeeId(),null,"CANCEL",json.writeValueAsString(used),effect.id(),null,actor.accountId()));
-        var b=bucket(actor.tenantId(),original.leaveBucketId());
+        changed(mapper.insertEffect(actor.tenantId(),restoration,request.id(),request.targetEmployeeId(),null,"CANCEL",json.writeValueAsString(deduct?used:days),effect.id(),null,actor.accountId()));
         for(var row:used) {
             ledger(actor,row.bucketId(),row.employeeId(),"RESTORE",BigDecimal.valueOf(-row.signedQuantityDays()),today(),restoration,row.leaveDate(),row.id(),null,reason);
-            changed(mapper.reviseDay(actor.tenantId(),row.employeeId(),row.leaveDate(),1));
         }
-        changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
+        for (var date:affectedDates) changed(mapper.reviseDay(actor.tenantId(),original.targetEmployeeId(),date,1));
+        if (deduct) {
+            var b=bucket(actor.tenantId(),original.leaveBucketId());
+            changed(mapper.advanceBucket(actor.tenantId(),b.id(),b.version()));
+        }
     }
     private void approveCorrection(TnaPrincipal actor,RequestView request) {
         var d=mapper.correction(actor.tenantId(),request.id());var before=clocks.snapshot(actor.tenantId(),request.targetEmployeeId(),d.workDate());
@@ -466,6 +500,9 @@ public final class LeaveWorkflowService {
         // Cancellation carries the original contract even after its type was disabled for new requests.
         var policy=isOvertime(kind)?null:original==null?attendanceTypes.forSubmission(actor.tenantId(),kind,from,to)
                 :attendanceTypes.stored(actor.tenantId(),request(actor.tenantId(),original));
+        return createRequest(actor,target,kind,from,to,reason,predecessor,original,bucket,exceptional,commandId,routeToken,policy);
+    }
+    private RequestView createRequest(TnaPrincipal actor,UUID target,String kind,LocalDate from,LocalDate to,String reason,UUID predecessor,UUID original,UUID bucket,boolean exceptional,UUID commandId,String routeToken,AttendancePolicy policy) {
         Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
         var result=formRoutes.form(actor.tenantId(),actor.employeeId(),target,kind,at.atZone(SEOUL).toLocalDate());
         var preview=result.preview();
@@ -477,7 +514,8 @@ public final class LeaveWorkflowService {
         UUID snapshotId=legacy==null?UUID.randomUUID():null;
         var request=new RequestView(UUID.randomUUID(),target,employee(actor.tenantId(),target).displayName(),actor.accountId(),kind,"PENDING",first.approverId(),
                 first.approverName(),legacy==null?null:legacy.assignmentId(),legacy==null?null:legacy.assignmentVersion(),at,
-                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy==null?null:policy.id(),preview.formCode(),preview.formName(),1,preview.steps().size(),false,null);
+                reason,predecessor,original,bucket,from,to,exceptional,0,"NONE",0,snapshotId,policy==null?null:policy.id(),preview.formCode(),preview.formName(),1,preview.steps().size(),false,null,
+                policy!=null&&policy.systemKind()==null?policy.name():null);
         changed(mapper.insertRequest(actor.tenantId(),request,commandId,result.formVersionId(),preview.steps().size()));
         formRoutes.persist(actor.tenantId(),request.id(),snapshotId,at,result);
         return request;

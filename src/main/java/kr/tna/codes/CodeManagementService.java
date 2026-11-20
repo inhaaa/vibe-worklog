@@ -108,8 +108,11 @@ public final class CodeManagementService {
                 unique(row,codes,null,code);
                 if(row.effectiveFrom()==null||row.effectiveFrom().isBefore(commands.today())||row.effectiveFrom().getYear()>9999)throw issue(row,"effectiveFrom",422,"적용일은 서울 기준 오늘 이후의 날짜로 지정해 주세요.");
                 policy(row);
+                boolean companyLeave = CompanyLeavePolicy.RULE.equals(row.recognitionRule());
+                String capability = row.systemKind() != null ? old.capabilityMessage()
+                        : companyLeave ? "회사 휴가 · 대상일 정책 적용" : "초안 · 신청 전";
                 before.put(row.clientRowId(),old);after.put(row.clientRowId(),new Type(old==null?UUID.randomUUID():old.id(),code,row.systemKind(),row.enabled(),old==null?0:old.version()+1,UUID.randomUUID(),old==null?1:old.revision()+1,
-                        row.effectiveFrom(),row.enabled(),row.name(),row.unit(),row.payKind(),row.deductionRule(),row.recognitionRule(),row.basis(),row.systemKind()!=null,old==null?"계산·차감 계약 미지원: 초안만 등록 가능":old.capabilityMessage()));
+                        row.effectiveFrom(),row.enabled(),row.name(),row.unit(),row.payKind(),row.deductionRule(),row.recognitionRule(),row.basis(),row.systemKind()!=null || companyLeave,capability));
             }
             var changes=new ArrayList<BulkData.Change>();for(var row:rows){var old=before.get(row.clientRowId());var current=after.get(row.clientRowId());
                 changed(old==null?mapper.insertType(actor.tenantId(),current,actor.accountId()):mapper.updateType(actor.tenantId(),current,old.version(),actor.accountId()));
@@ -118,6 +121,14 @@ public final class CodeManagementService {
         });
     }
     private static void policy(TypeRow row){
+        if (row.systemKind() == null && CompanyLeavePolicy.RULE.equals(row.recognitionRule())) {
+            if (CompanyLeavePolicy.supports(row.unit(), row.payKind(), row.deductionRule(), row.recognitionRule())) return;
+            if (!"DAY".equals(row.unit()) && !"DAY_HALF".equals(row.unit()))
+                throw issue(row,"unit",422,"회사 휴가는 종일 또는 종일·반일 단위를 선택해 주세요.");
+            if (!"PAID".equals(row.payKind()) && !"UNPAID".equals(row.payKind()))
+                throw issue(row,"payKind",422,"회사 휴가의 유급 또는 무급 여부를 선택해 주세요.");
+            throw issue(row,"deductionRule",422,"연차 잔여 차감 여부를 선택해 주세요.");
+        }
         if(row.unit()==null||!Set.of("DAY","HOUR","NONE").contains(row.unit()))throw issue(row,"unit",422,"지원하는 단위를 선택해 주세요.");
         if(row.payKind()==null||!Set.of("UNSPECIFIED","PAID","UNPAID").contains(row.payKind()))throw issue(row,"payKind",422,"유급 구분을 선택해 주세요.");
         if(!"NOT_SUPPORTED".equals(row.recognitionRule()))throw issue(row,"recognitionRule",422,"근무 인정시간 산정은 현재 지원하지 않습니다.");

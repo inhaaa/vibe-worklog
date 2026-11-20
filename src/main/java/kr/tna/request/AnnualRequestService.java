@@ -82,7 +82,8 @@ public final class AnnualRequestService {
         var previous=draft.predecessorRequestId()==null?null:flow.get(actor,draft.predecessorRequestId());
         if(previous!=null)requireResubmission(actor,previous.request().id(),kind);
         LocalDate selected=draft.date()!=null?draft.date():previous!=null?previous.request().fromDate():"ATTENDANCE_CORRECTION".equals(kind)?(year<today.getYear()?LocalDate.of(year,12,31):today):today.plusDays(1);
-        var leave=draft.leaveForm()!=null?draft.leaveForm():previous!=null?new LeaveForm(previous.request().leaveBucketId(),previous.request().fromDate(),previous.request().toDate(),previous.request().id(),previous.request().reason(),UUID.randomUUID(),previous.request().leavePart()):new LeaveForm(null,selected,selected,null,"",UUID.randomUUID());
+        var leave=draft.leaveForm()!=null?draft.leaveForm():previous!=null?new LeaveForm(previous.request().leaveBucketId(),previous.request().fromDate(),previous.request().toDate(),previous.request().id(),previous.request().reason(),UUID.randomUUID(),previous.request().leavePart(),
+                previous.attendancePolicy()==null?null:previous.attendancePolicy().typeId(),null):new LeaveForm(null,selected,selected,null,"",UUID.randomUUID());
         LocalDate factDate=draft.correctionForm()!=null&&draft.correctionForm().workDate()!=null?draft.correctionForm().workDate():selected;
         var day="ATTENDANCE_CORRECTION".equals(kind)?clocks.snapshot(actor.tenantId(),actor.employeeId(),factDate):null;
         var effective=day==null?null:workflowMapper.currentCorrection(actor.tenantId(),actor.employeeId(),day.workDate());
@@ -97,7 +98,9 @@ public final class AnnualRequestService {
         }
         var approval=flow.formPreview(actor,actor.employeeId(),kind);
         var preview=draft.preview()?(kind.equals("LEAVE_DAY")?flow.previewLeave(actor,leave):flow.previewCorrection(actor,correction)):null;
-        return new Compose(mode,kind,leave,correction,day,current,preview,approval,draft.conflict());
+        LocalDate typeDate=leave.from()==null?selected:leave.from();
+        var options="LEAVE_DAY".equals(kind)&&typeDate.getYear()>=1900&&typeDate.getYear()<=9998?flow.leaveTypes(actor,typeDate):List.<LeaveTypeOption>of();
+        return new Compose(mode,kind,leave,correction,day,current,preview,approval,draft.conflict(),options);
     }
     private static String breakInput(String raw){
         if(raw==null||raw.isBlank())return "";

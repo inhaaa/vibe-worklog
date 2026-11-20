@@ -15,11 +15,14 @@ import org.apache.ibatis.annotations.Select;
 public interface LeaveOperationsMapper {
     @Select("""
             SELECT t.code,v.name,t.system_kind FROM tna.attendance_type t JOIN LATERAL (
-              SELECT name FROM tna.attendance_type_version
-              WHERE tenant_id=t.tenant_id AND type_id=t.id AND effective_from<=#{today}
-              ORDER BY effective_from DESC,revision DESC LIMIT 1
+              SELECT p.name FROM tna.attendance_type_version p
+              WHERE p.tenant_id=t.tenant_id AND p.type_id=t.id
+                AND (t.system_kind='ANNUAL_LEAVE' OR p.recognition_rule='COMPANY_LEAVE')
+                AND (p.effective_from<=#{today} OR EXISTS (
+                  SELECT 1 FROM tna.approval_request r WHERE r.tenant_id=p.tenant_id AND r.attendance_type_version_id=p.id))
+              ORDER BY (p.effective_from<=#{today}) DESC,p.effective_from DESC,p.revision DESC LIMIT 1
             ) v ON true
-            WHERE t.tenant_id=#{tenantId} AND t.system_kind='ANNUAL_LEAVE' ORDER BY t.code
+            WHERE t.tenant_id=#{tenantId} ORDER BY t.code
             """)
     List<LeaveType> leaveTypes(@Param("tenantId") UUID tenantId, @Param("today") LocalDate today);
 
@@ -37,7 +40,8 @@ public interface LeaveOperationsMapper {
             """;
 
     String FILTER = """
-            WHERE r.tenant_id=#{tenantId} AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') AND t.system_kind='ANNUAL_LEAVE'
+            WHERE r.tenant_id=#{tenantId} AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE')
+              AND (t.system_kind='ANNUAL_LEAVE' OR v.recognition_rule='COMPANY_LEAVE')
               AND (#{search.leaveTypeCode}='' OR t.code=#{search.leaveTypeCode})
               AND (#{search.requestKind}='' OR r.kind=#{search.requestKind})
               AND (#{search.from}::date IS NULL OR COALESCE(original.to_date,r.to_date)>=#{search.from})

@@ -4,7 +4,7 @@ import type { PageProps } from '../types';
 import { Form, FormRow, FormTable, fmtDate, fmtDateTime, secondsInput } from '../ui';
 import { encodeForm, fetchPage, PageRequestError } from '../transport';
 import type { Bucket, RequestView } from './WorkflowTypes';
-import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView } from './AnnualRequestTypes';
+import type { AnnualModel, AnnualView, ApprovalPreview, AttributionView, ComposeView, TypeSummary } from './AnnualRequestTypes';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
 import { PageHeader } from '../components/PageHeader';
@@ -13,6 +13,7 @@ import './RequestWorkspace.css';
 import { RequestApprovalPreview } from './RequestApprovalPreview';
 import { Notice } from '../components/Notice';
 import { leavePartNames, requestKindName } from './leavePart';
+import { useLeaveTypes } from './useLeaveTypes';
 
 const statusName = (status: string) => ({ PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' }[status] ?? status);
 const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? '확인 필요');
@@ -30,11 +31,11 @@ function url(path: string, values: Record<string, string | number | null | undef
 function RequestTable({ rows, year, canResubmit=[] }: { rows: RequestView[]; year?: number; canResubmit?: string[] }) {
   return <div className="table-scroll t-request-board"><table className="t-annual-table"><thead><tr><th>신청 유형·대상</th><th>원신청 기간·일수</th><th>결재 진행</th><th>현재 상태</th><th>상세</th></tr></thead><tbody>
     {rows.map(row => <tr key={row.id}>
-      <td data-label="신청 유형·대상"><a className="t-request-title" href={`/requests/${row.id}`}>{requestKindName(row.kind, row.leavePart)}</a><small>{row.targetEmployeeName}</small>{row.reason&&<p className="t-request-reason">{row.reason}</p>}</td>
+      <td data-label="신청 유형·대상"><a className="t-request-title" href={`/requests/${row.id}`}>{requestKindName(row.kind, row.leavePart, row.companyLeaveName)}</a><small>{row.targetEmployeeName}</small>{row.reason&&<p className="t-request-reason">{row.reason}</p>}</td>
       <td data-label="기간·일수"><span>{fmtDate(row.fromDate)}</span><small>{row.fromDate !== row.toDate && `~ ${fmtDate(row.toDate)} · `}{(row.kind === 'LEAVE_DAY' || row.kind === 'CANCEL_LEAVE') && `${row.quantityDays}일`}</small></td>
       <td data-label="결재 진행"><span>{row.approverName || '담당 미지정'}</span><small>{row.status==='PENDING' ? (row.totalSteps ? `${row.currentStep}/${row.totalSteps}단계 결재 중` : '담당자 검토 대기') : '처리된 신청'}</small></td>
       <td data-label="현재 상태"><span className={`t-request-status t-request-status-${row.status.toLowerCase()}`}>{statusName(row.status)}</span><small>{row.effectStatus === 'EFFECTIVE' ? '현재 효력 유효' : row.effectStatus === 'CANCELED' ? '취소 완료' : row.effectStatus === 'SUPERSEDED' ? '후속 정정으로 대체' : '효력 없음'}</small></td>
-      <td data-label="상세"><a className="t-request-detail" href={`/requests/${row.id}`} aria-label={`${requestKindName(row.kind, row.leavePart)} 상세`}>상세 보기 </a>{year&&canResubmit.includes(row.id)&&['REJECTED','WITHDRAWN'].includes(row.status)&&['LEAVE_DAY','ATTENDANCE_CORRECTION'].includes(row.kind)&&<a className="t-request-resubmit" href={url('/me/requests/new',{year,kind:row.kind,date:row.fromDate,predecessorRequestId:row.id})}>재신청</a>}</td>
+      <td data-label="상세"><a className="t-request-detail" href={`/requests/${row.id}`} aria-label={`${requestKindName(row.kind, row.leavePart, row.companyLeaveName)} 상세`}>상세 보기 </a>{year&&canResubmit.includes(row.id)&&['REJECTED','WITHDRAWN'].includes(row.status)&&['LEAVE_DAY','ATTENDANCE_CORRECTION'].includes(row.kind)&&<a className="t-request-resubmit" href={url('/me/requests/new',{year,kind:row.kind,date:row.fromDate,predecessorRequestId:row.id})}>재신청</a>}</td>
     </tr>)}
   </tbody></table>{!rows.length && <div className="t-request-empty"><span aria-hidden="true">▤</span><p>조회 조건에 맞는 신청이 없습니다.</p><small>연도·유형·상태 또는 현재 페이지 검색을 확인해 주세요.</small></div>}</div>;
 }
@@ -120,7 +121,17 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   const isLeave = compose.kind === 'LEAVE_DAY', current = isLeave ? leave : correction;
   const leavePart = leave.leavePart ?? 'FULL';
   const halfDay = isLeave && leavePart !== 'FULL';
-  const noLeaveBuckets = isLeave && !model.buckets.length;
+  const typeLookup = useLeaveTypes(isLeave ? compose.leaveTypes : null, compose.leaveForm.from, leave.from);
+  const hasPolicyChoices = isLeave && Array.isArray(compose.leaveTypes);
+  const selectedType = leave.attendanceTypeId
+    ? typeLookup.options?.find(option => option.id === leave.attendanceTypeId)
+    : typeLookup.options?.find(option => option.systemKind === 'ANNUAL_LEAVE');
+  const companyLeave = selectedType?.systemKind === null;
+  const deductsAnnual = selectedType ? selectedType.deductionRule === 'LEAVE_DAY' : !hasPolicyChoices;
+  const supportsHalf = !hasPolicyChoices || selectedType?.systemKind === 'ANNUAL_LEAVE' || selectedType?.unit === 'DAY_HALF';
+  const blockedLeave = isLeave && (deductsAnnual && !model.buckets.length || hasPolicyChoices && (!selectedType || halfDay && !supportsHalf));
+  const leaveName = companyLeave ? selectedType.name : null;
+  const formKindName = hasPolicyChoices && !selectedType ? '휴가 신청' : requestKindName(compose.kind, leavePart, leaveName);
   const period = { from: leave.from, to: leave.to, today: model.annual.today };
   const invalidPeriod = isLeave && requestPeriodIssue(period);
   const loadedDate = (isLeave ? compose.leaveForm.from : compose.correctionForm.workDate) ?? model.annual.today;
@@ -156,6 +167,15 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     else setCorrection(current => ({ ...current, [field]: value, commandId: crypto.randomUUID() }));
     setReady(false); setDirty(true); setError(''); setStep('CONTENT');
   }
+  function selectType(id: string) {
+    const option = typeLookup.options?.find(item => item.id === id);
+    if (!option) return;
+    setLeave(current => ({ ...current, attendanceTypeId: id, expectedAttendanceTypeVersionId: option.versionId,
+      leavePart: option.systemKind === null && option.unit === 'DAY' ? 'FULL' : current.leavePart,
+      bucketId: option.deductionRule === 'NONE' ? null : current.bucketId,
+      commandId: crypto.randomUUID() }));
+    setReady(false); setDirty(true); setError(''); setStep('CONTENT');
+  }
   function close() {
     if (locked) return;
     if (embedded) { onClose(); return; }
@@ -166,7 +186,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     form.current?.querySelector<HTMLElement>('[data-period-invalid="true"]')?.focus();
   }
   async function preview() {
-    if (activeRequest.current || submitting || noLeaveBuckets) return;
+    if (activeRequest.current || submitting || blockedLeave || compose.conflict) return;
     if (invalidPeriod) { focusInvalidPeriod(); return; }
     if (!form.current?.reportValidity()) return;
     const body = encodeForm(new FormData(form.current));
@@ -194,17 +214,17 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
   function submit(event: FormEvent<HTMLFormElement>) {
     if (step === 'TYPE' || kind !== compose.kind) { event.preventDefault(); event.stopPropagation(); return; }
     if (invalidPeriod) { event.preventDefault(); event.stopPropagation(); focusInvalidPeriod(); return; }
-    if (!ready || locked || compose.conflict || noLeaveBuckets) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
+    if (!ready || locked || compose.conflict || blockedLeave) { event.preventDefault(); event.stopPropagation(); if (!locked && !compose.conflict) void preview(); }
   }
   const summary = <aside className="wl-compose-summary" aria-label="신청 요약">
     <h3>신청 요약</h3>
     <dl className="wl-info-grid">
-      <div><dt>신청 유형</dt><dd>{requestKindName(kind, leavePart)}</dd></div>
+      <div><dt>신청 유형</dt><dd>{kind === compose.kind ? formKindName : requestKindName(kind)}</dd></div>
       <div><dt>{step==='TYPE'||needsContext?'기준 날짜':'대상 기간'}</dt><dd>{step==='TYPE'||needsContext?fmtDate(date):dateRange}</dd></div>
-      <div><dt>오늘 사용 가능</dt><dd>{step==='REVIEW'&&compose.preview?compose.preview.availableDays:model.annual.currentAvailableDays}일</dd></div>
+      {deductsAnnual && <div><dt>오늘 사용 가능</dt><dd>{step==='REVIEW'&&compose.preview?compose.preview.availableDays:model.annual.currentAvailableDays}일</dd></div>}
       {!embedded&&<div><dt>예정 결재 담당</dt><dd>{needsContext?'유형·일자 조회 후 확인':approval?.approverName??'미지정'}</dd></div>}
     </dl>
-    <Notice>현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</Notice>
+    {deductsAnnual && <Notice>현재 잔여는 조회 시점 기준입니다. 신청 대기 중에는 예약·차감하지 않으며 제출·승인 시 다시 확인합니다.</Notice>}
   </aside>;
   const content = <>
     {!embedded && <header className="wl-compose-head"><div><h2 id="annual-compose-title">근태 신청</h2><p className="wl-compose-year">{model.annual.year}년 신청</p></div><p id="annual-compose-description" className="t-sr-only">필요한 내용을 차례로 작성하고, 제출 전에 한 번 더 확인하세요.</p><button type="button" className="t-btn t-request-close" aria-label="신청 창 닫기" onClick={close} disabled={locked}><RequestIcon kind="CLOSE"/></button></header>}
@@ -214,13 +234,13 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
     {error && <p ref={notice} className="notice error" role="alert" tabIndex={-1} data-error-focus="true">{error}</p>}
     {step==='CONTENT' && <header className="wl-compose-doc-head">
       <h3 id="annual-application-title" ref={contentHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&!error?'true':undefined}>신청서</h3>
-      <div className="wl-compose-kind"><span>{requestKindName(compose.kind, leavePart)}</span><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></div>
+      <div className="wl-compose-kind"><span>{formKindName}</span><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>유형 변경</button></div>
     </header>}
     <Form action="/me/requests/new" method="get" className="t-annual-context" hidden={step==='REVIEW'||(step==='CONTENT'&&kind==='LEAVE_DAY')}>
       {hidden('year', model.annual.year)}{hidden('mode', modal ? 'MODAL' : 'PAGE')}
       {kind === compose.kind && current.predecessorRequestId && hidden('predecessorRequestId', current.predecessorRequestId)}
       <fieldset ref={typePicker} className="t-request-type-picker" hidden={step!=='TYPE'} disabled={locked}><legend>어떤 신청을 하시겠어요?</legend><div className="t-request-type-cards">
-        {(['LEAVE_DAY','ATTENDANCE_CORRECTION'] as const).map(value=><label className="t-request-type-card" key={value} data-selected={String(kind===value)}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setDate(lookupDates.current[value]);}} data-error-focus={!preserveOpeningFocus&&step==='TYPE'&&kind===value&&!error?'true':undefined}/><span className="t-request-type-icon"><RequestIcon kind={value}/></span><strong>{value==='LEAVE_DAY'?'연차 신청':requestKindName(value)}</strong><small>{value==='LEAVE_DAY'?'종일 연차 또는 오전·오후 반차를 선택해요.':'출퇴근 시각과 실제 휴게를 바로잡아요.'}</small></label>)}
+        {(['LEAVE_DAY','ATTENDANCE_CORRECTION'] as const).map(value=><label className="t-request-type-card" key={value} data-selected={String(kind===value)}><input type="radio" name="kind" value={value} checked={kind===value} onChange={()=>{setKind(value);setDate(lookupDates.current[value]);}} data-error-focus={!preserveOpeningFocus&&step==='TYPE'&&kind===value&&!error?'true':undefined}/><span className="t-request-type-icon"><RequestIcon kind={value}/></span><strong>{value==='LEAVE_DAY'?'휴가 신청':requestKindName(value)}</strong><small>{value==='LEAVE_DAY'?'휴가 종류와 사용 날짜를 선택해요.':'출퇴근 시각과 실제 휴게를 바로잡아요.'}</small></label>)}
       </div></fieldset>
       <div className="wl-form-table wl-compose-date"><div className="wl-form-row">
         <label className="wl-form-label wl-required" htmlFor="annual-date">{kind === 'LEAVE_DAY' ? '신청 날짜' : '정정할 날짜'}</label>
@@ -239,9 +259,23 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         <div className="wl-form-table wl-compose-fields" hidden={step!=='CONTENT'}>
         {isLeave ? <>
           {hidden('from', leave.from)}{hidden('to', leave.to)}
+          {hasPolicyChoices && <FormRow label="휴가 종류" htmlFor="request-leave-type" required>
+            <select id="request-leave-type" className="t-select" value={selectedType?.id ?? ''} disabled={locked || typeLookup.loading} required onChange={event=>selectType(event.target.value)}>
+              <option value="" disabled>휴가 종류 선택</option>
+              {typeLookup.options?.map(option=><option key={option.id} value={option.id}>{option.name} · {option.code}</option>)}
+            </select>
+            {selectedType && <>{hidden('attendanceTypeId', selectedType.id)}{hidden('expectedAttendanceTypeVersionId', step === 'REVIEW' ? compose.preview?.policy?.id ?? selectedType.versionId : selectedType.versionId)}</>}
+            {typeLookup.loading && <p role="status">휴가 종류를 조회하고 있습니다.</p>}
+            {typeLookup.error && <p role="alert">{typeLookup.error} <button type="button" className="t-btn" onClick={typeLookup.retry}>다시 조회</button></p>}
+            {typeLookup.options?.length === 0 && <p role="status">이 날짜에 신청할 수 있는 휴가 종류가 없습니다.</p>}
+            {leave.attendanceTypeId && typeLookup.options && typeLookup.options.length > 0 && !selectedType &&
+              <p role="status">이전에 선택한 휴가는 이 날짜에 사용할 수 없습니다. 휴가 종류를 다시 선택해 주세요.</p>}
+            {selectedType && <small>{selectedType.payKind === 'UNPAID' ? '무급' : selectedType.payKind === 'PAID' ? '유급' : '연차'} · {deductsAnnual ? '최종 승인 시 연차 차감' : '연차 차감 없음'}</small>}
+          </FormRow>}
           <FormRow label="휴가 단위" htmlFor="annual-leave-part" required>
-            <select id="annual-leave-part" name="leavePart" className="t-select" value={leavePart} onChange={event => change('leavePart', event.target.value)}>
-              {Object.entries(leavePartNames).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
+            <select id="annual-leave-part" name="leavePart" className="t-select" value={halfDay && !supportsHalf ? '' : leavePart} required onChange={event => change('leavePart', event.target.value)}>
+              {halfDay && !supportsHalf && <option value="" disabled>사용 단위 선택</option>}
+              {Object.entries(leavePartNames).filter(([value])=>value === 'FULL' || supportsHalf).map(([value, name]) => <option key={value} value={value}>{value === 'FULL' && hasPolicyChoices && selectedType?.systemKind !== 'ANNUAL_LEAVE' ? '종일' : name}</option>)}
             </select>
           </FormRow>
           {step==='CONTENT' && (halfDay ? <FormRow label="반차 사용일" htmlFor="annual-half-date" required>
@@ -250,7 +284,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
               onChange={event => change('from', event.target.value)}/>
             {invalidPeriod && <p className="t-request-period-error" role="status">{invalidPeriod.message}</p>}
           </FormRow> : <RequestField label="신청 기간" required><RequestPeriodSheet {...period} onSelect={change} /></RequestField>)}
-          <RequestField label="사용할 연차" required><LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} /></RequestField>
+          {deductsAnnual && <RequestField label="사용할 연차" required><LeaveBucketSheet buckets={model.buckets} selected={leave.bucketId} onSelect={id => change('bucketId', id)} /></RequestField>}
         </> : <>
           {hidden('workDate', correction.workDate)}{hidden('baseInputRevision', correction.baseInputRevision)}{hidden('sourceFingerprint', correction.sourceFingerprint)}{hidden('replacesRequestId', correction.replacesRequestId)}
           <RequestField label="기존 기록"><section className="t-request-correction-source" aria-label="현재 정정 근거">
@@ -295,7 +329,7 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
         </div>
         {compose.preview && <section className="t-request-preview" aria-label="신청 미리보기" hidden={step!=='REVIEW'}>
           <h3 ref={previewHeading} tabIndex={-1} data-error-focus={!preserveOpeningFocus&&step==='REVIEW'&&!error?'true':undefined}>신청 미리보기</h3>
-          <p className="t-request-review-kind">{requestKindName(compose.kind, leavePart)}</p>
+          <p className="t-request-review-kind">{formKindName}</p>
           <dl className="wl-info-grid">
             <div><dt>{halfDay?'반차 사용일':'대상 기간'}</dt><dd>{dateRange}</dd></div>
             {!isLeave&&<>
@@ -305,13 +339,16 @@ function RequestComposer({ initial, model, onClose, submitting, embedded = false
             </>}
             <div><dt>신청 사유</dt><dd>{current.reason}</dd></div>
           </dl>
-          <div className="t-request-review-totals">{compose.preview.quantityDays != null && <p className="t-request-review-quantity">예상 차감 {compose.preview.quantityDays}일 <small>선택 묶음 사용 가능 {compose.preview.selectedBucketAvailableDays}일</small></p>}
-          <p>조회 시점 오늘 사용 가능 {compose.preview.availableDays}일</p></div>
+          <div className="t-request-review-totals">{compose.preview.quantityDays != null && (companyLeave
+            ? <><p className="t-request-review-quantity">휴가 사용 {compose.preview.quantityDays}일</p><p>예상 연차 차감 {deductsAnnual ? compose.preview.quantityDays : 0}일</p>
+                <p>{selectedType.payKind === 'PAID' ? '유급' : '무급'}</p></>
+            : <p className="t-request-review-quantity">예상 차감 {compose.preview.quantityDays}일 <small>선택 묶음 사용 가능 {compose.preview.selectedBucketAvailableDays}일</small></p>)}
+          {deductsAnnual && <p>조회 시점 오늘 사용 가능 {compose.preview.availableDays}일</p>}</div>
           {compose.preview.policy && <p>근태코드 {compose.preview.policy.code} · {compose.preview.policy.name}</p>}
           <p>{compose.preview.message}</p><p className="t-muted">{ready ? '제출·승인 시 다시 검증합니다.' : '입력 또는 근거가 바뀌었습니다. 미리보기를 다시 확인하세요.'}</p>
         </section>}
         {summary}
-        {step!=='TYPE' && <div className="wl-compose-actions"><span className="wl-modal-note"><span className="wl-required" aria-hidden="true" />필수 입력</span>{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict || noLeaveBuckets}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict || noLeaveBuckets}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>}
+        {step!=='TYPE' && <div className="wl-compose-actions"><span className="wl-modal-note"><span className="wl-required" aria-hidden="true" />필수 입력</span>{step==='CONTENT'?<><button type="button" className="t-btn" disabled={locked} onClick={()=>setStep('TYPE')}>이전</button><button type="button" className="t-btn primary" onClick={() => void preview()} disabled={locked || compose.conflict || blockedLeave}>{busy?'확인 중…':'미리보기'}</button></>:<><button type="button" className="t-btn" disabled={locked} onClick={()=>{setReady(false);setStep('CONTENT');}}>내용 수정</button><button className="t-btn primary" disabled={!ready || locked || compose.conflict || blockedLeave}>{submitting?'제출 중…':'신청 제출'}</button></>}</div>}
       </fieldset>
     </Form>
     {!embedded&&<a className="t-request-page-link" href={url('/me/requests/new', { year: model.annual.year, kind: compose.kind, date: isLeave ? leave.from : correction.workDate, mode: 'PAGE', predecessorRequestId: current.predecessorRequestId })}>일반 작성 페이지</a>}
@@ -324,8 +361,14 @@ function Annual({ model: m, submitting, admin }: { model: AnnualModel; submittin
   const a=m.annual, [open,setOpen]=useState(Boolean(m.compose)), trigger=useRef<HTMLAnchorElement>(null);
   const [search,setSearch]=useState('');
   const query=search.trim().toLocaleLowerCase('ko-KR');
-  const requests=query?a.requests.filter(row=>[requestKindName(row.kind,row.leavePart),row.targetEmployeeName,row.reason,row.fromDate,row.toDate,statusName(row.status),row.approverName].some(value=>value?.toLocaleLowerCase('ko-KR').includes(query))):a.requests;
+  const requests=query?a.requests.filter(row=>[requestKindName(row.kind,row.leavePart,row.companyLeaveName),row.targetEmployeeName,row.reason,row.fromDate,row.toDate,statusName(row.status),row.approverName].some(value=>value?.toLocaleLowerCase('ko-KR').includes(query))):a.requests;
   const missing=a.coverage==='NO_REGISTERED_DATA';
+  const annualTypeId = a.types.find(type => type.systemKind === 'ANNUAL_LEAVE')?.id;
+  const summaryKindName = ({ typeId, kind }: TypeSummary) => {
+    if (kind === 'LEAVE_DAY') return '휴가 신청';
+    if (kind === 'CANCEL_LEAVE' && typeId !== annualTypeId) return '휴가 취소';
+    return requestKindName(kind);
+  };
   useEffect(()=>{if(!open&&m.compose)trigger.current?.focus();},[open,m.compose]);
   const partial = a.attributionPartial ? ' (일부)' : '';
   const days = (value: number | null | undefined) => (value == null ? (a.unknownBucketCount ? '귀속 미확인' : '-') : `${value}일${partial}`);
@@ -333,13 +376,13 @@ function Annual({ model: m, submitting, admin }: { model: AnnualModel; submittin
     ['사용', missing ? '-' : `${a.usedDays}일`],
     ['사용 예정', missing ? '-' : `${a.plannedDays}일`],
     ['결재 대기', missing ? '-' : `${a.pendingDays}일`],
-    ['현재 사용 가능', `${a.currentAvailableDays}일`],
+    ['현재 사용 가능 연차', `${a.currentAvailableDays}일`],
     ['확인된 등록 기초·조정', days(a.registeredDays)],
     ['귀속연도 원장 잔액', days(a.attributedBalanceDays)],
   ];
-  return <section className="t-annual-page"><PageHeader title="내 근태현황·신청" help={`대상 휴가일·근무일 기준 ${a.year}년 현황 · 모든 상태는 조회 시점 현재입니다.`} actions={<a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a>} />
+  return <section className="t-annual-page"><PageHeader title="내 근태현황·신청" help={`${a.year}년 사용·예정·대기는 모든 휴가의 일수입니다. 현재 사용 가능 연차는 연차 원장 잔여입니다.`} actions={<a ref={trigger} role="button" className="t-btn primary t-request-start" href={url('/me/requests/new',{year:a.year})} onKeyDown={event=>{if(event.key===' '){event.preventDefault();event.currentTarget.click();}}}><span aria-hidden="true">＋</span> 신청</a>} />
     {a.createdId&&<section className="t-request-success" role="status" aria-label="신청 접수 결과"><span className="t-request-success-icon" aria-hidden="true">✓</span><div><h2>신청을 접수했습니다.</h2><p>승인 결과는 신청 상세에서 확인할 수 있어요.</p>{a.outsideYear&&<p>신청 기간이 조회 연도 밖입니다. <a href={url('/me/requests',{year:a.outsideYear})}>{a.outsideYear}년 현황 보기</a></p>}</div><a className="t-btn" href={`/requests/${a.createdId}`}>생성한 신청 상세 </a></section>}
-    <div className="t-annual-metrics">{[metrics[3],...metrics.slice(0,3)].map(([label,value])=><section className={`t-card${label==='현재 사용 가능'?' t-request-available':''}`} key={label}><h2>{label}</h2><strong>{value}</strong></section>)}</div>
+    <div className="t-annual-metrics">{[metrics[3],...metrics.slice(0,3)].map(([label,value])=><section className={`t-card${label==='현재 사용 가능 연차'?' t-request-available':''}`} key={label}><h2>{label}</h2><strong>{value}</strong></section>)}</div>
     <dl className="t-request-balance-basis">{metrics.slice(4).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     {a.unknownBucketCount>0&&<p className="notice">귀속 미확인 묶음 {a.unknownBucketCount}개. 기준일의 연도를 귀속연도로 추정하지 않습니다. 담당자의 근거 확인이 필요합니다.</p>}
     <Form action="/me/requests" method="get" className="wl-querybar t-annual-filters" role="search" aria-label="연도별 근태 조회"><div className="t-request-filter-field"><label htmlFor="annual-year">조회 연도</label><input id="annual-year" className="t-input" name="year" type="number" min="1900" max="9998" defaultValue={a.year} required /></div><div className="t-request-filter-field"><label htmlFor="annual-type-filter">근태유형</label><select id="annual-type-filter" name="typeId" className="t-select" defaultValue={a.typeId??''}><option value="">전체 유형</option>{a.types.map(type=><option key={type.id} value={type.id}>{type.name}{!type.supported?' (신청 미지원)':''}</option>)}</select></div><div className="t-request-filter-field"><label htmlFor="annual-status">상태</label><select id="annual-status" name="status" className="t-select" defaultValue={a.status}><option value="">전체 상태</option>{['PENDING','APPROVED','REJECTED','WITHDRAWN'].map(status=><option key={status} value={status}>{statusName(status)}</option>)}</select></div><div className="wl-querybar-actions"><button className="t-btn wl-query-submit">조회</button></div></Form>
@@ -361,7 +404,7 @@ function Annual({ model: m, submitting, admin }: { model: AnnualModel; submittin
       <div className="table-scroll t-annual-summary-scroll"><table className="t-annual-summary-table" role="table" aria-labelledby="annual-type-summary">
         <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">근태유형</th><th scope="col" role="columnheader">전체</th><th scope="col" role="columnheader">대기</th><th scope="col" role="columnheader">승인</th><th scope="col" role="columnheader">반려</th><th scope="col" role="columnheader">철회</th><th scope="col" role="columnheader">휴가(일)</th></tr></thead>
         <tbody role="rowgroup">{a.summaries.map(summary=><tr key={`${summary.typeId}-${summary.kind}`} role="row">
-          <td role="cell" data-label="근태유형"><div className="t-annual-summary-value">{summary.name}<small>{summary.kind==='LEAVE_DAY'?'연차 신청':requestKindName(summary.kind)}</small></div></td>
+          <td role="cell" data-label="근태유형"><div className="t-annual-summary-value">{summary.name}<small>{summaryKindName(summary)}</small></div></td>
           <td role="cell" data-label="전체"><div className="t-annual-summary-value">{summary.requestCount}건</div></td>
           <td role="cell" data-label="대기"><div className="t-annual-summary-value">{summary.pendingCount}건</div></td>
           <td role="cell" data-label="승인"><div className="t-annual-summary-value">{summary.approvedCount}건</div></td>

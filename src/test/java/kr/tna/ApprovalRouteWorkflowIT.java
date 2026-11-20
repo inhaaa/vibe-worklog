@@ -13,11 +13,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.*;
+import kr.tna.codes.CodeData.TypeRow;
+import kr.tna.codes.CodeManagementService;
 import kr.tna.clock.ClockService;
 import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgException;
+import kr.tna.org.BulkData;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.*;
 import kr.tna.schedule.ScheduleService;
@@ -40,6 +43,7 @@ class ApprovalRouteWorkflowIT {
     @Autowired MockMvc mvc;
     @Autowired ScheduleService schedules;
     @Autowired AttendanceSettingsService settings;
+    @Autowired CodeManagementService codes;
     JdbcTemplate db;
     UUID tenant, organization, membership;
     LocalDate today, yesterday;
@@ -197,33 +201,48 @@ class ApprovalRouteWorkflowIT {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({"FULL,1","AM,0.5","PM,0.5"})
-    void leaveAndItsCancellationOnlyApplyAtTheirOwnLastStage(String part,double charge) {
+    @org.junit.jupiter.params.provider.CsvSource({"FULL,1,ANNUAL","AM,0.5,ANNUAL","PM,0.5,ANNUAL","FULL,0,COMPANY","AM,0.5,COMPANY"})
+    void leaveAndItsCancellationOnlyApplyAtTheirOwnLastStage(String part,double charge,String source) {
         configureChain("L01","L02");
         var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
         UUID template=schedules.create(admin,new TemplateForm("S-"+UUID.randomUUID(),"검증 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedules.versions(admin,template).getFirst().id(),today,0L,"배정",UUID.randomUUID()));
         settings.calendar(admin,new CalendarForm(today,today.plusDays(20),true,"달력 근거","","합성 달력",UUID.randomUUID()));
-        UUID bucket=flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(20),3,"기초 근거","잔여 검증",UUID.randomUUID()));
+        double opening=charge==0?0:3;
+        UUID bucket=charge==0?null:flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(20),3,"기초 근거","잔여 검증",UUID.randomUUID()));
         var date=today.plusDays(2);
-        var leaveForm=new LeaveForm(bucket,date,date,null,"연차 신청",UUID.randomUUID(),part);
+        LeaveForm leaveForm;
+        if ("COMPANY".equals(source)) {
+            var row=new TypeRow(UUID.randomUUID().toString(),null,null,BulkData.Operation.CREATE,"C10",null,today,true,"경조휴가",
+                    "DAY_HALF","PAID",charge==0?"NONE":"LEAVE_DAY","COMPANY_LEAVE","회사 휴가 운영 기준");
+            var type=codes.saveTypes(admin,new BulkData.Form<>(UUID.randomUUID(),"회사 기준 적용",List.of(row))).rows().getFirst().id();
+            var option=flow.leaveTypes(worker,date).stream().filter(t->t.id().equals(type)).findFirst().orElseThrow();
+            leaveForm=new LeaveForm(bucket,date,date,null,"경조휴가 신청",UUID.randomUUID(),part,type,option.versionId());
+        } else {
+            leaveForm=new LeaveForm(bucket,date,date,null,"연차 신청",UUID.randomUUID(),part);
+        }
         var preview=flow.formPreview(worker,null,"LEAVE_DAY");
         assertEquals(409,assertThrows(OrgException.class,()->flow.submitLeave(worker,leaveForm,"old-route")).status());
         UUID leave=flow.submitLeave(worker,leaveForm,preview.routeToken());
-        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(opening,workerAnnualBalance());
         decideStage(head,leave,0);
         assertEquals("PENDING",flow.get(worker,leave).request().status());
-        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals("NONE",flow.get(worker,leave).request().effectStatus());
+        assertEquals(opening,workerAnnualBalance());
         decideStage(direct,leave,1);
-        assertEquals(3-charge,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(opening-charge,workerAnnualBalance());
         UUID cancel=flow.requestCancellation(worker,leave,new CancelForm(false,2L,"휴가 취소",UUID.randomUUID()),
                 flow.formPreview(worker,null,"CANCEL_LEAVE").routeToken());
         decideStage(head,cancel,0);
         assertEquals("EFFECTIVE",flow.get(worker,leave).request().effectStatus());
-        assertEquals(3-charge,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(opening-charge,workerAnnualBalance());
         decideStage(direct,cancel,1);
         assertEquals("CANCELED",flow.get(worker,leave).request().effectStatus());
-        assertEquals(3,flow.buckets(worker,worker.employeeId()).getFirst().balanceDays());
+        assertEquals(opening,workerAnnualBalance());
+    }
+
+    private double workerAnnualBalance() {
+        return flow.buckets(worker,worker.employeeId()).stream().mapToDouble(Bucket::balanceDays).sum();
     }
 
     private void decideStage(TnaPrincipal actor,UUID request,long version) {

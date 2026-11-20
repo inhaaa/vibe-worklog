@@ -60,10 +60,10 @@ const typeFields: Field[] = [
   { key: 'code', label: '코드', max: 8, required: true },
   { key: 'name', label: '이름', max: 120, required: true },
   { key: 'effectiveFrom', label: '적용일', kind: 'date', required: true },
-  { key: 'unit', label: '단위', kind: 'select', choices: [['DAY', '일(DAY)'], ['HOUR', '시간(HOUR)'], ['NONE', '해당 없음']] },
+  { key: 'unit', label: '단위', kind: 'select', choices: [['DAY', '종일'], ['DAY_HALF', '종일·오전/오후 반차'], ['HOUR', '시간(HOUR)'], ['NONE', '해당 없음']] },
   { key: 'payKind', label: '유급 구분', kind: 'select', choices: [['UNSPECIFIED', '미확인'], ['PAID', '유급'], ['UNPAID', '무급']] },
   { key: 'deductionRule', label: '차감 규칙', kind: 'select', choices: [['NONE', '차감 없음'], ['LEAVE_DAY', '승인 시 연차 일수 차감']] },
-  { key: 'recognitionRule', label: '근무 인정', kind: 'select', choices: [['NOT_SUPPORTED', '산정 미지원']] },
+  { key: 'recognitionRule', label: '처리 방식', kind: 'select', choices: [['NOT_SUPPORTED', '기본 정책·초안'], ['COMPANY_LEAVE', '회사 휴가']] },
   { key: 'enabled', label: '신규 신청 허용', kind: 'check' },
   { key: 'basis', label: '정책 근거', max: 500, required: true },
 ];
@@ -72,8 +72,8 @@ function href(values: Record<string, string | number | null>, path = '/admin/com
   Object.entries(values).forEach(([key, value]) => { if (value != null) query.set(key, String(value)); });
   return `${path}?${query}`;
 }
-function systemText(kind: Value) {
-  return kind === 'ANNUAL_LEAVE' ? '시스템 연차' : kind === 'ATTENDANCE_CORRECTION' ? '시스템 기록 정정' : '사용자 초안';
+function systemText(kind: Value, recognition: Value) {
+  return kind === 'ANNUAL_LEAVE' ? '시스템 연차' : kind === 'ATTENDANCE_CORRECTION' ? '시스템 기록 정정' : recognition === 'COMPANY_LEAVE' ? '회사 휴가' : '사용자 초안';
 }
 function useUnloadGuard(dirty: boolean) {
   useEffect(() => {
@@ -115,6 +115,8 @@ function CodeSheet({ title, heading, action, model, fields, context, today, grou
   function update(rowId: string, key: string, value: Value) {
     setRows(current => current.map(row => row.clientRowId === rowId ? {
       ...row, [key]: value,
+      ...(key === 'recognitionRule' && value === 'NOT_SUPPORTED' ? { enabled: false, deductionRule: 'NONE', unit: row.unit === 'DAY_HALF' ? 'DAY' : row.unit } : {}),
+      ...(key === 'recognitionRule' && value === 'COMPANY_LEAVE' && row.unit !== 'DAY_HALF' ? { unit: 'DAY' } : {}),
       ...(attendance && key !== 'effectiveFrom' && String(row.effectiveFrom ?? '') < today! ? { effectiveFrom: today } : {}),
     } : row));
     setErrors(current => current.filter(item => item.clientRowId !== rowId || item.field !== key));
@@ -182,13 +184,17 @@ function CodeSheet({ title, heading, action, model, fields, context, today, grou
     const rowError = errors.find(item => item.clientRowId === row.clientRowId && item.field === field.key);
     const label = !attendance || field.key === 'code' || field.key === 'name' ? `${title} ${field.label} ${index + 1}` : `${field.label} ${index + 1}`;
     const systemFixed = attendance && Boolean(row.systemKind) && ['unit', 'deductionRule', 'recognitionRule'].includes(field.key);
-    const customFixed = attendance && !row.systemKind && ['enabled', 'deductionRule', 'recognitionRule'].includes(field.key);
+    const companyLeave = row.recognitionRule === 'COMPANY_LEAVE';
+    const customFixed = attendance && !row.systemKind && !companyLeave && ['enabled', 'deductionRule'].includes(field.key);
+    const options = field.key === 'unit' && !row.systemKind
+      ? field.choices?.filter(([key]) => companyLeave ? key === 'DAY' || key === 'DAY_HALF' : key !== 'DAY_HALF')
+      : field.choices;
     const disabled = lockedGroup || original?.systemOwned === true || systemFixed || customFixed || (row.operation === 'DEACTIVATE' && field.key !== 'effectiveFrom');
     return {
       label, value: String(row[field.key] ?? ''), disabled,
       readOnly: field.key === 'code' && Boolean(row.id),
       type: field.kind === 'number' ? 'number' : field.kind === 'date' ? 'date' : 'text',
-      options: field.choices, maxLength: field.max, required: field.required,
+      options, maxLength: field.max, required: field.required,
       min: field.kind === 'date' ? today : field.kind === 'number' ? 0 : undefined,
       step: field.kind === 'number' ? 1 : undefined,
       changed: !original || row[field.key] !== original[field.key], error: rowError?.message,
@@ -207,7 +213,8 @@ function CodeSheet({ title, heading, action, model, fields, context, today, grou
   }
   function protection(row: Row) {
     const original = row.id ? latest.get(row.id) : undefined;
-    return attendance ? <><strong>{systemText(row.systemKind)}</strong><small className="t-code-help">{original?.supported && row.enabled ? '지원 정책 · 이 버전 신청 허용' : !row.systemKind ? '계산·차감 계약 미지원 · 신청 불가' : '이 버전 신규 신청 미사용'}</small><small className="t-code-help">{original?.capabilityMessage}</small><small className="t-code-help">{original ? `최신 등록 v${original.revision}` : '초안'}</small></>
+    const supported = row.systemKind || row.recognitionRule === 'COMPANY_LEAVE';
+    return attendance ? <><strong>{systemText(row.systemKind, row.recognitionRule)}</strong><small className="t-code-help">{supported ? row.enabled ? '이 버전 신청 허용' : '이 버전 신규 신청 미사용' : '계산·차감 계약 미지원 · 신청 불가'}</small>{original && original.recognitionRule === row.recognitionRule && <small className="t-code-help">{original.capabilityMessage}</small>}<small className="t-code-help">{original ? `최신 등록 v${original.revision}` : '신규'}</small></>
       : <>{original?.systemOwned ? <span className="t-tag gray">시스템 보호</span> : '사용자 관리'}{!detail && row.id && <a href={href({ ...context, groupId: row.id, codePage: 0 })}>상세코드 보기</a>}</>;
   }
   const columns = [
@@ -228,7 +235,7 @@ function CodeSheet({ title, heading, action, model, fields, context, today, grou
         : sheetEditorColumn<Row>(column, (row, index) => editorField(row, index, field));
     }),
     sheetColumn<Row>({ colId: 'protection', headerName: attendance ? '유형·신청 가능' : '보호·상세', minWidth: attendance ? 280 : 180,
-      valueGetter: ({ data }) => data ? attendance ? `${systemText(data.systemKind)} ${data.id ? latest.get(data.id)?.capabilityMessage ?? '' : ''}` : data.id && latest.get(data.id)?.systemOwned ? '시스템 보호' : '사용자 관리' : '',
+      valueGetter: ({ data }) => data ? attendance ? `${systemText(data.systemKind, data.recognitionRule)} ${data.id ? latest.get(data.id)?.capabilityMessage ?? '' : ''}` : data.id && latest.get(data.id)?.systemOwned ? '시스템 보호' : '사용자 관리' : '',
     }, row => protection(row)),
   ];
   const fieldErrors = errors.some(item => fields.some(field => field.key === item.field));
@@ -324,8 +331,7 @@ function AttendanceTypeHistory({ types, history, query }: { types: Entry[]; hist
       version => <>{fmtDate(version.effectiveFrom)}부터<small className="t-code-help">{period(version)}</small></>),
     { colId: 'enabled', headerName: '신청', minWidth: 100, valueGetter: ({ data }: { data: TypeVersion | undefined }) => data?.enabled ? '사용' : '미사용' },
     { colId: 'unit', headerName: '단위·유급', minWidth: 180, valueGetter: ({ data }: { data: TypeVersion | undefined }) => data ? `${typeFields[3].choices?.find(([value]) => value === data.unit)?.[1]} · ${typeFields[4].choices?.find(([value]) => value === data.payKind)?.[1]}` : '' },
-    sheetColumn<TypeVersion>({ colId: 'deductionRule', headerName: '차감·인정', minWidth: 190, valueGetter: ({ data }) => data ? `${data.deductionRule === 'LEAVE_DAY' ? '승인 시 일수 차감' : '차감 없음'} 근무 인정 산정 미지원` : '' },
-      version => <>{version.deductionRule === 'LEAVE_DAY' ? '승인 시 일수 차감' : '차감 없음'}<small className="t-code-help">근무 인정 산정 미지원</small></>),
+    { colId: 'deductionRule', headerName: '차감·처리 방식', minWidth: 190, valueGetter: ({ data }) => data ? `${data.deductionRule === 'LEAVE_DAY' ? '승인 시 연차 차감' : '차감 없음'} · ${data.recognitionRule === 'COMPANY_LEAVE' ? '회사 휴가' : '기본 정책·초안'}` : '' },
     { field: 'basis', headerName: '정책 근거', minWidth: 220 },
     sheetColumn<TypeVersion>({ colId: 'createdAt', headerName: '변경 사유·등록자·시각 (서울)', minWidth: 250, valueGetter: ({ data }) => data ? `${data.reason} ${data.createdByName ?? '시스템 기초'} ${fmtDateTime(data.createdAt)}` : '' },
       version => <>{version.reason}<small className="t-code-help">{version.createdByName ?? '시스템 기초'}</small><small className="t-code-help">{fmtDateTime(version.createdAt)}</small></>),
@@ -349,12 +355,12 @@ function AttendanceTypes({ model: m, error, busy }: { model: TypeModel; error?: 
     <PageHeader title="근태코드 관리" help={<>
       <p>신청 정책을 적용일별 버전으로 관리하세요. 기존 대기·완료 신청은 제출 당시 정책을 유지합니다.</p>
       <p>한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하는 비활성 처리입니다. 적용일 이후의 신규 신청에만 반영됩니다.</p>
-      <p>유급 구분은 정책 메타데이터입니다. 급여·법정 계산이나 근무 인정시간을 산정하지 않습니다. 같은 적용일의 수정도 새 버전이며 미래 적용일을 예약할 수 있습니다.</p>
+      <p>회사 휴가는 유급 인정과 연차 차감을 각각 설정합니다. 같은 적용일에 수정해도 새 버전으로 저장되고, 미래 적용일도 예약할 수 있습니다.</p>
       <p>편집 시트는 최신 등록 정책(예약 포함)입니다. 대상일의 적용 정책은 이력의 적용일·버전으로 결정됩니다. 비활성 버전을 추가해도 이후 예약 정책은 보존되어 다시 사용될 수 있습니다.</p>
     </>} actions={<a className="t-btn" href="/admin/common-codes">공통코드 관리</a>} />
     <section className="wl-section">
       <form action="/admin/attendance-types" method="get" className="wl-querybar" role="search" aria-label="근태코드 검색"><label htmlFor="attendance-type-q">근태코드 검색</label><input id="attendance-type-q" className="t-input" type="search" name="q" maxLength={120} defaultValue={m.q} placeholder="코드 또는 이름" /><div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div></form>
-      <p className="notice">연차 코드는 종일·오전 반차·오후 반차에 함께 사용합니다. 신규 근태코드는 영문 대문자와 숫자 1~8자로 입력하며 초안으로 저장됩니다.</p>
+      <p className="notice">영문 대문자와 숫자 1~8자로 코드를 입력하세요. 직원에게 제공할 휴가는 처리 방식에서 회사 휴가를 선택하고, 사용 단위·유급 구분·차감 규칙을 정한 뒤 신규 신청을 허용하세요.</p>
       <CodeSheet title="근태코드" action="/admin/attendance-types/bulk" model={m.sheet} fields={typeFields} context={{ q: m.q, page: m.page }} today={m.today} error={error} busy={busy}
         pagination={<Pagination title="근태코드" page={m.page} hasNext={m.hasNext} values={{ q: m.q }} path="/admin/attendance-types" />} />
     </section>

@@ -24,6 +24,65 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it('고객사 휴가를 선택해 연차 묶음 없이 미리보고 같은 정책 버전으로 신청한다',async()=>{
+  const company={id:'company-type',versionId:'company-v2',code:'L11',name:'경조휴가',systemKind:null,unit:'DAY',payKind:'PAID',deductionRule:'NONE'};
+  const annualType={...company,id:'annual',versionId:'annual-v1',code:'A01',name:'연차',systemKind:'ANNUAL_LEAVE',deductionRule:'LEAVE_DAY'};
+  const selected={...leave,from:leave.from,to:leave.from,reason:'가족 행사',bucketId:null,attendanceTypeId:company.id,expectedAttendanceTypeVersionId:company.versionId,leavePart:'FULL'};
+  const checked=preview({leaveTypes:[annualType,company],leaveForm:selected,preview:{quantityDays:1,availableDays:0,selectedBucketAvailableDays:null,policy:{...company,id:company.versionId,typeId:company.id,revision:2},approval,eligible:true,message:'신청 가능'}});
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(checked));
+  vi.stubGlobal('fetch',fetcher);
+  const initial=envelope({},{...compose,leaveTypes:[annualType,company],leaveForm:{...leave,bucketId:null,to:leave.from}});
+  initial.data.buckets=[];
+  const view=render(<AnnualRequestPage {...initial} reload={()=>{}} onClose={()=>{}}/>);
+  fireEvent.change(view.getByRole('combobox',{name:'휴가 종류'}),{target:{value:company.id}});
+  expect(within(view.getByLabelText('휴가 단위')).queryByRole('option',{name:'오전 반차'})).toBeNull();
+  expect(view.queryByRole('group',{name:'사용할 연차'})).toBeNull();
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:selected.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  const review=within(await view.findByRole('region',{name:'신청 미리보기'}));
+  expect(review.getByText('경조휴가')).toBeTruthy();
+  expect(review.getByText('휴가 사용 1일')).toBeTruthy();
+  expect(review.getByText('예상 연차 차감 0일')).toBeTruthy();
+  for (const data of [new URLSearchParams(fetcher.mock.calls[0][1]?.body as URLSearchParams),new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!)]) {
+    expect(data.get('attendanceTypeId')).toBe(company.id);
+    expect(data.get('expectedAttendanceTypeVersionId')).toBe(company.versionId);
+    expect(data.get('bucketId')).toBeNull();
+  }
+ });
+ it('회사 휴가명으로 원신청과 취소를 구분해 조회한다',()=>{
+  const vacation={...request,companyLeaveName:'경조휴가',leavePart:'PM',quantityDays:0.5};
+  const cancel={...vacation,id:'cancel',kind:'CANCEL_LEAVE',originalRequestId:vacation.id};
+  const view=render(<App initial={envelope({requests:[vacation,cancel]})}/>);
+  expect(view.getByRole('link',{name:'경조휴가 · 오후 반차 상세'})).toBeTruthy();
+  expect(view.getByRole('link',{name:'경조휴가 · 오후 반차 취소 상세'})).toBeTruthy();
+ });
+ it('유형별 연간 신청에서 회사 휴가 취소와 기존 연차 취소를 구분한다',()=>{
+  const company={id:'company-type',code:'L11',name:'경조휴가 개정',systemKind:null,supported:true};
+  const original={...annual.summaries[0],kind:'CANCEL_LEAVE'};
+  const custom={...original,typeId:company.id,code:company.code,name:'경조휴가'};
+  const view=render(<App initial={envelope({types:[type,company],summaries:[custom,original]})}/>);
+  const summary=within(view.getByRole('table',{name:'유형별 연간 신청'}));
+  expect(within(summary.getByRole('row',{name:/경조휴가/})).getByText('휴가 취소')).toBeTruthy();
+  expect(within(summary.getByRole('row',{name:/연차 취소/})).getByText('연차')).toBeTruthy();
+ });
+ it('휴가 시작일을 바꾸면 실패한 조회를 재시도하고 새 날짜에 사라진 유형은 제출할 수 없다',async()=>{
+  const company={id:'paid',versionId:'v1',code:'L31',name:'특별휴가',systemKind:null,unit:'DAY_HALF',payKind:'PAID',deductionRule:'NONE'};
+  const fetcher=vi.fn<typeof fetch>()
+    .mockRejectedValueOnce(new TypeError('network'))
+    .mockResolvedValueOnce(new Response(JSON.stringify({types:[]}),{headers:{'Content-Type':'application/json'}}));
+  vi.stubGlobal('fetch',fetcher);
+  const first={...leave,from:'2026-11-01',to:'2026-11-01',leavePart:'AM',attendanceTypeId:company.id,bucketId:null};
+  const view=render(<AnnualRequestPage {...envelope({},{...compose,leaveTypes:[company],leaveForm:first})} reload={()=>{}} onClose={()=>{}}/>);
+  fireEvent.change(view.getByLabelText('반차 사용일'),{target:{value:'2026-11-06'}});
+  const retry=await view.findByRole('button',{name:'다시 조회'});
+  expect(String(fetcher.mock.calls[0][0])).toBe('/me/requests/leave-types?date=2026-11-06');
+  expect((view.getByRole('button',{name:'미리보기'}) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(retry);
+  await view.findByText('이 날짜에 신청할 수 있는 휴가 종류가 없습니다.');
+  expect(view.container.querySelector('.wl-compose-kind span')?.textContent).toBe('휴가 신청');
+  expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('attendanceTypeId')).toBeNull();
+  expect((view.getByRole('button',{name:'미리보기'}) as HTMLButtonElement).disabled).toBe(true);
+ });
  it.each([['AM','오전 반차'],['PM','오후 반차']])('%s 반차는 하루만 보내고 미리보기와 최종 제출에서 같은 단위를 유지한다',async(part,label)=>{
   const selected={...leave,leavePart:part,from:'2026-11-03',to:'2026-11-03',reason:'개인 일정'};
   const checked=preview({leaveForm:selected,preview:{...(preview().data.compose as ComposeView).preview,quantityDays:0.5,selectedBucketAvailableDays:1.5}});
@@ -293,7 +352,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   const view=render(<App initial={envelope({},compose)}/>);
   const steps=view.getByRole('navigation',{name:'신청 작성 단계'});
   expect(within(steps).getByText('신청 유형').getAttribute('aria-current')).toBe('step');
-  expect(view.getByRole('radio',{name:/종일 연차/})).toBeTruthy();
+  expect(view.getByRole('radio',{name:/휴가 신청/})).toBeTruthy();
   expect(view.getByRole('radio',{name:/출퇴근·휴게 정정/})).toBeTruthy();
   expect(view.queryByRole('radio',{name:/병가/})).toBeNull();
   expect(view.queryByRole('textbox',{name:'신청 사유'})).toBeNull();
@@ -338,7 +397,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
   fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'유지할 사유'}});
   fireEvent.click(view.getByRole('button',{name:'이전'}));
-  expect(document.activeElement).toBe(view.getByRole('radio',{name:/종일 연차/}));
+  expect(document.activeElement).toBe(view.getByRole('radio',{name:/휴가 신청/}));
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
   expect((view.getByRole('textbox',{name:'신청 사유'}) as HTMLTextAreaElement).value).toBe('유지할 사유');
  });
@@ -357,7 +416,7 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:'유형 전환 보존'}});
   fireEvent.click(view.getByRole('button',{name:'유형 변경'}));
   fireEvent.click(view.getByRole('radio',{name:/출퇴근·휴게 정정/}));
-  fireEvent.click(view.getByRole('radio',{name:/종일 연차/}));
+  fireEvent.click(view.getByRole('radio',{name:/휴가 신청/}));
   fireEvent.click(view.getByRole('button',{name:'내용 작성으로'}));
   expect(fetcher).not.toHaveBeenCalled();
   expect((view.getByRole('textbox',{name:'신청 사유'}) as HTMLTextAreaElement).value).toBe('유형 전환 보존');

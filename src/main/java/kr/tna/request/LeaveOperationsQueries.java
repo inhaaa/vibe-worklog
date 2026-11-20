@@ -70,7 +70,7 @@ final class LeaveOperationsQueries {
         Search search;
         try {
             String selected = code.isEmpty() ? "" : leaveTypes.stream()
-                    .filter(type -> type.code().equalsIgnoreCase(code) || type.systemKind().equalsIgnoreCase(code))
+                    .filter(type -> code.equalsIgnoreCase(type.code()) || code.equalsIgnoreCase(type.systemKind()))
                     .map(LeaveOperationsData.LeaveType::code).findFirst()
                     .orElseThrow(() -> OrgException.invalid("휴가 종류를 확인해 주세요."));
             search = search(status, selected, kind, from, to, organizationId, q, page);

@@ -12,9 +12,9 @@ public interface AnnualRequestMapper {
     @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
     String TYPE_SELECT="""
-        SELECT t.id,t.code,v.name,t.system_kind,t.system_kind IS NOT NULL AS supported
+        SELECT t.id,t.code,v.name,t.system_kind,(t.system_kind IS NOT NULL OR v.recognition_rule='COMPANY_LEAVE') AS supported
         FROM tna.attendance_type t JOIN LATERAL (
-          SELECT name FROM tna.attendance_type_version WHERE tenant_id=t.tenant_id AND type_id=t.id ORDER BY revision DESC LIMIT 1
+          SELECT name,recognition_rule FROM tna.attendance_type_version WHERE tenant_id=t.tenant_id AND type_id=t.id ORDER BY revision DESC LIMIT 1
         )v ON true WHERE t.tenant_id=#{tenantId}
         """;
     @Select(TYPE_SELECT+" ORDER BY t.code,t.id") List<TypeChoice> types(@Param("tenantId") UUID tenantId);
@@ -35,7 +35,9 @@ public interface AnnualRequestMapper {
     List<RequestView> authored(@Param("tenantId") UUID tenantId,@Param("accountId") UUID accountId,@Param("employeeId") UUID employeeId,
             @Param("from") LocalDate from,@Param("to") LocalDate to,@Param("offset") int offset);
     @Select("""
-        SELECT t.id AS type_id,t.code,display.name,r.kind,count(*) AS request_count,
+        SELECT t.id AS type_id,t.code,
+          CASE WHEN t.system_kind IS NULL THEN (array_agg(v.name ORDER BY v.revision DESC))[1] ELSE display.name END AS name,
+          r.kind,count(*) AS request_count,
           count(*) FILTER(WHERE r.status='PENDING') AS pending_count,
           count(*) FILTER(WHERE r.status='APPROVED') AS approved_count,
           count(*) FILTER(WHERE r.status='REJECTED') AS rejected_count,
@@ -54,7 +56,7 @@ public interface AnnualRequestMapper {
           FROM tna.leave_request_day d WHERE d.tenant_id=r.tenant_id AND d.request_id=r.id AND d.leave_date>=#{from} AND d.leave_date<#{to}
         )d ON true
         WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.from_date<#{to} AND r.to_date>=#{from}
-        GROUP BY t.id,t.code,display.name,r.kind ORDER BY t.code,r.kind
+        GROUP BY t.id,t.code,t.system_kind,display.name,r.kind ORDER BY t.code,r.kind
         """)
     List<TypeSummary> summaries(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,
             @Param("from") LocalDate from,@Param("to") LocalDate to,@Param("today") LocalDate today);

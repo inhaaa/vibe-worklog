@@ -28,8 +28,12 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
           COALESCE(fm.code,CASE r.kind WHEN 'LEAVE_DAY' THEN 'L01' WHEN 'CANCEL_LEAVE' THEN 'L02' ELSE 'A01' END) AS form_code,
           COALESCE(fv.name,CASE r.kind WHEN 'LEAVE_DAY' THEN '휴가 신청서' WHEN 'CANCEL_LEAVE' THEN '휴가 취소 신청서' ELSE '출퇴근 정정 신청서' END) AS form_name,
           r.current_step,r.total_steps,(r.form_version_id IS NULL) AS legacy_form,
-          CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(leave_info.leave_part,'FULL') END AS leave_part
+          CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(leave_info.leave_part,'FULL') END AS leave_part,
+          company_leave.name AS company_leave_name
         FROM tna.approval_request r
+        LEFT JOIN tna.attendance_type_version company_leave ON company_leave.tenant_id=r.tenant_id
+          AND company_leave.id=r.attendance_type_version_id AND company_leave.recognition_rule='COMPANY_LEAVE'
+          AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE')
         LEFT JOIN tna.request_form_version fv ON fv.tenant_id=r.tenant_id AND fv.id=r.form_version_id
         LEFT JOIN tna.request_form fm ON fm.tenant_id=fv.tenant_id AND fm.id=fv.form_id
         JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
@@ -264,6 +268,23 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
         ORDER BY v.effective_from DESC,v.revision DESC LIMIT 1
         """)
     AttendancePolicy effectiveAttendancePolicy(@Param("tenantId") UUID tenantId,@Param("systemKind") String systemKind,@Param("date") LocalDate date);
+    @Select(ATTENDANCE_POLICY_SELECT+"""
+        WHERE v.tenant_id=#{tenantId} AND t.id=#{typeId} AND v.effective_from<=#{date}
+        ORDER BY v.effective_from DESC,v.revision DESC LIMIT 1
+        """)
+    AttendancePolicy effectivePolicyByType(@Param("tenantId") UUID tenantId,@Param("typeId") UUID typeId,@Param("date") LocalDate date);
+    @Select("""
+        SELECT options.* FROM (
+          SELECT DISTINCT ON (t.id) v.id,v.type_id,t.code,t.system_kind,v.revision,v.effective_from,v.enabled,
+                 v.name,v.unit,v.pay_kind,v.deduction_rule,v.recognition_rule,v.basis
+          FROM tna.attendance_type t
+          JOIN tna.attendance_type_version v ON v.tenant_id=t.tenant_id AND v.type_id=t.id
+          WHERE t.tenant_id=#{tenantId} AND (t.system_kind='ANNUAL_LEAVE' OR t.system_kind IS NULL)
+            AND v.effective_from<=#{date}
+          ORDER BY t.id,v.effective_from DESC,v.revision DESC
+        ) options WHERE options.enabled ORDER BY (options.system_kind IS NULL),options.code,options.type_id
+        """)
+    List<AttendancePolicy> effectiveLeavePolicies(@Param("tenantId") UUID tenantId,@Param("date") LocalDate date);
     @Select("""
         SELECT EXISTS(SELECT 1 FROM tna.attendance_type_version
           WHERE tenant_id=#{tenantId} AND type_id=#{typeId} AND effective_from>#{from} AND effective_from<=#{to})

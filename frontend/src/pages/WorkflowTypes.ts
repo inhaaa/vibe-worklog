@@ -15,6 +15,8 @@ export interface Bucket {
   pendingDays: number;
 }
 export interface LeaveForm {
+  attendanceTypeId?: string | null;
+  expectedAttendanceTypeVersionId?: string | null;
   leavePart?: LeavePart | null;
   bucketId: string | null;
   from: string;
@@ -24,6 +26,7 @@ export interface LeaveForm {
   predecessorRequestId?: string | null;
 }
 export interface RequestView {
+  companyLeaveName?: string | null;
   leavePart?: LeavePart | null;
   formCode?: string | null;
   formName?: string | null;
@@ -78,7 +81,7 @@ export interface RequestDetail {
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
-  attendancePolicy?: { name: string } | null;
+  attendancePolicy?: { name: string; recognitionRule?: string; payKind?: string; deductionRule?: string } | null;
   correctionComparison?: {
     source: CorrectionTimes;
     current: CorrectionTimes;
@@ -250,6 +253,7 @@ export interface LedgerModel {
   adjustment: AdjustmentForm;
 }
 export interface DayResult {
+  paidLeaveMillis?: number | null;
   status: string;
   actualWorkMillis: number | null;
   confirmedBreakMillis: number | null;
@@ -271,10 +275,12 @@ export interface DayView {
   current: boolean;
   pending: boolean;
   approvedLeaveDays: number;
+  approvedPaidLeaveMillis?: number | null;
   employed: boolean;
   result: DayResult;
 }
 export interface PeriodResult {
+  paidLeaveMillis?: number | null;
   confirmedWorkMillis: number;
   unconfirmedDays: number;
   over40hMillis: number | null;

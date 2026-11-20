@@ -7,6 +7,10 @@ export interface ApprovalPreview {
   steps?: { stepNumber: number; role: string; approverName: string; organizationName: string | null }[];
 }
 export interface TypeChoice { id: string; code: string; name: string; systemKind: string | null; supported: boolean }
+export interface LeaveTypeOption {
+  id: string; versionId: string; code: string; name: string; systemKind: string | null;
+  unit: 'DAY' | 'DAY_HALF'; payKind: 'PAID' | 'UNPAID' | 'UNSPECIFIED'; deductionRule: 'LEAVE_DAY' | 'NONE';
+}
 export interface TypeSummary { typeId: string; code: string; name: string; kind: string; requestCount: number; pendingCount: number; approvedCount: number; rejectedCount: number; withdrawnCount: number; usedDays: number; plannedDays: number; pendingDays: number }
 export interface BucketYear { bucketId: string; entitlementYear: number | null; classificationStatus: string; basis: string | null; usableFrom: string; usableTo: string | null; balanceDays: number; availableDays: number; openingAdjustmentDays: number; availability: string }
 export interface AnnualView {
@@ -16,11 +20,12 @@ export interface AnnualView {
   attributionPartial: boolean; types: TypeChoice[]; summaries: TypeSummary[]; requests: RequestView[]; authoredRequests: RequestView[];
   attributionBuckets: BucketYear[]; canResubmitRequestIds: string[]; createdId: string | null; outsideYear: number | null;
 }
-export interface RequestPreview { quantityDays: number | null; availableDays: number; selectedBucketAvailableDays: number | null; policy: { code: string; name: string; revision: number } | null; approval: ApprovalPreview; eligible: boolean; message: string }
+export interface RequestPreview { quantityDays: number | null; availableDays: number; selectedBucketAvailableDays: number | null; policy: { id?: string; typeId?: string; code: string; name: string; revision: number; payKind?: string; deductionRule?: string } | null; approval: ApprovalPreview; eligible: boolean; message: string }
 export interface ComposeView {
   mode: 'MODAL' | 'PAGE'; kind: 'LEAVE_DAY' | 'ATTENDANCE_CORRECTION'; leaveForm: LeaveForm; correctionForm: CorrectionForm;
   day: (DaySnapshot & { sourceFingerprint: string }) | null; preview: RequestPreview | null; approval: ApprovalPreview;
   currentCorrectionRequestId?: string | null; conflict: boolean;
+  leaveTypes?: LeaveTypeOption[] | null;
 }
 export interface AnnualModel {
   annual: AnnualView; compose: ComposeView | null; buckets: Bucket[]; error?: string | null;

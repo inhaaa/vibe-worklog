@@ -57,6 +57,16 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('공통코드·근태코드 React 관리', () => {
+  it('회사 휴가 정책을 선택해 유급 여부·차감·사용 단위와 신청 허용을 저장한다', async () => {
+    const view = await show(attendance());
+    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
+    await editCell(view, '처리 방식 2', 'COMPANY_LEAVE');
+    await editCell(view, '단위 2', 'DAY_HALF');
+    await editCell(view, '유급 구분 2', 'PAID');
+    await editCell(view, '차감 규칙 2', 'LEAVE_DAY');
+    fireEvent.click(view.getByLabelText('신규 신청 허용 2'));
+    expect(payload(view)[0]).toMatchObject({systemKind:null,recognitionRule:'COMPANY_LEAVE',unit:'DAY_HALF',payKind:'PAID',deductionRule:'LEAVE_DAY',enabled:true});
+  });
   it('평소 입력 박스 없이 값을 표시하고 클릭한 셀만 편집한다', async () => {
     const view = await show(common());
     const grid = view.getByRole('grid', { name: '코드그룹 편집 시트' });

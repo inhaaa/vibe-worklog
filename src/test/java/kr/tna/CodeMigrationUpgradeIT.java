@@ -150,6 +150,14 @@ class CodeMigrationUpgradeIT {
             verifyMonthCloseExportUpgrade(db, migrationSource);
             verifySelectiveWorkUpgrade(db, migrationSource);
             verifySelectiveCloseUpgrade(db, migrationSource, url);
+            var oldColumns = columns(db);
+            var oldRows = rows(db, oldColumns);
+            var oldPermissions = access(db);
+            var companyLeave = Flyway.configure().dataSource(migrationSource).target("35").load();
+            assertEquals(2, companyLeave.migrate().migrationsExecuted);
+            assertEquals(0, companyLeave.migrate().migrationsExecuted);
+            assertEquals(oldRows, rows(db, oldColumns));
+            assertEquals(oldPermissions, access(db));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 

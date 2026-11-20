@@ -15,6 +15,13 @@ public final class AnnualRequestData {
             Long baseInputRevision,String sourceFingerprint,String inAction,String requestedInAt,String outAction,String requestedOutAt,
             Boolean presenceAsWork,Boolean breaksConfirmed,String actualBreaks,UUID replacesRequestId,UUID predecessorRequestId,String reason,UUID commandId) { }
     public record TypeChoice(UUID id,String code,String name,String systemKind,boolean supported) { }
+    public record LeaveTypeOption(UUID id,UUID versionId,String code,String name,String systemKind,String unit,String payKind,String deductionRule) {
+        static LeaveTypeOption from(AttendancePolicy policy) {
+            return new LeaveTypeOption(policy.typeId(),policy.id(),policy.code(),policy.name(),policy.systemKind(),
+                    policy.unit(),policy.payKind(),policy.deductionRule());
+        }
+    }
+    public record LeaveTypeOptions(List<LeaveTypeOption> types) { }
     public record TypeSummary(UUID typeId,String code,String name,String kind,long requestCount,long pendingCount,
             long approvedCount,long rejectedCount,long withdrawnCount,double usedDays,double plannedDays,double pendingDays) { }
     public record BucketYear(UUID bucketId,Integer entitlementYear,String classificationStatus,String basis,
@@ -27,5 +34,6 @@ public final class AnnualRequestData {
     public record Preview(Double quantityDays,double availableDays,Double selectedBucketAvailableDays,
             AttendancePolicy policy,ApprovalPreview approval,boolean eligible,String message) { }
     public record Compose(String mode,String kind,LeaveForm leaveForm,CorrectionForm correctionForm,
-            ClockData.DaySnapshot day,UUID currentCorrectionRequestId,Preview preview,ApprovalPreview approval,boolean conflict) { }
+            ClockData.DaySnapshot day,UUID currentCorrectionRequestId,Preview preview,ApprovalPreview approval,boolean conflict,
+            List<LeaveTypeOption> leaveTypes) { }
 }

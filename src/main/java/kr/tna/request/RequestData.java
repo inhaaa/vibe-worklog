@@ -30,12 +30,16 @@ public final class RequestData {
             LocalDate effectiveOn,UUID requestEffectId,LocalDate leaveDate,UUID reversesEntryId,
             String sourceReference,String reason,Instant createdAt) { }
     public record LeaveForm(UUID bucketId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate from,
-            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,UUID predecessorRequestId,String reason,UUID commandId,String leavePart) {
+            @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate to,UUID predecessorRequestId,String reason,UUID commandId,String leavePart,
+            UUID attendanceTypeId,UUID expectedAttendanceTypeVersionId) {
         public LeaveForm {
             if (leavePart == null) leavePart = "FULL";
         }
         public LeaveForm(UUID bucketId,LocalDate from,LocalDate to,UUID predecessorRequestId,String reason,UUID commandId) {
             this(bucketId,from,to,predecessorRequestId,reason,commandId,"FULL");
+        }
+        public LeaveForm(UUID bucketId,LocalDate from,LocalDate to,UUID predecessorRequestId,String reason,UUID commandId,String leavePart) {
+            this(bucketId,from,to,predecessorRequestId,reason,commandId,leavePart,null,null);
         }
     }
     public record CorrectionForm(UUID targetEmployeeId,@DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate workDate,
@@ -54,7 +58,7 @@ public final class RequestData {
             Long approverAssignmentVersion,Instant submittedAt,String reason,UUID predecessorRequestId,
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
             long version,String effectStatus,double quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId,
-            String formCode,String formName,int currentStep,int totalSteps,boolean legacyForm,String leavePart) {
+            String formCode,String formName,int currentStep,int totalSteps,boolean legacyForm,String leavePart,String companyLeaveName) {
         @org.apache.ibatis.annotations.AutomapConstructor public RequestView { }
         public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
             String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,
@@ -62,7 +66,7 @@ public final class RequestData {
             UUID originalRequestId,UUID leaveBucketId,LocalDate fromDate,LocalDate toDate,boolean exceptional,
             long version,String effectStatus,int quantityDays,UUID routeSnapshotId,UUID attendanceTypeVersionId) {
             this(id,targetEmployeeId,targetEmployeeName,authorAccountId,kind,status,currentApproverId,approverName,
-                 approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,routeSnapshotId,attendanceTypeVersionId,null,null,1,1,true,"FULL");
+                 approverAssignmentId,approverAssignmentVersion,submittedAt,reason,predecessorRequestId,originalRequestId,leaveBucketId,fromDate,toDate,exceptional,version,effectStatus,quantityDays,routeSnapshotId,attendanceTypeVersionId,null,null,1,1,true,"FULL",null);
         }
         public RequestView(UUID id,UUID targetEmployeeId,String targetEmployeeName,UUID authorAccountId,
                 String kind,String status,UUID currentApproverId,String approverName,UUID approverAssignmentId,

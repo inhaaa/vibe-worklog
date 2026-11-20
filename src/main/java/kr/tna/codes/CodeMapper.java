@@ -30,9 +30,12 @@ public interface CodeMapper {
 
     String TYPE_SELECT="""
         SELECT t.id,t.code,t.system_kind,t.active,t.version,v.id AS type_version_id,v.revision,v.effective_from,v.enabled,v.name,
-         v.unit,v.pay_kind,v.deduction_rule,v.recognition_rule,v.basis,t.system_kind IS NOT NULL AS supported,
-         CASE t.system_kind WHEN 'ANNUAL_LEAVE' THEN '종일 1일·반차 0.5일, 최종 승인 시 차감'
-          WHEN 'ATTENDANCE_CORRECTION' THEN '기존 출퇴근·휴게 정정 절차' ELSE '계산·차감 계약 미지원: 초안만 등록 가능' END AS capability_message
+         v.unit,v.pay_kind,v.deduction_rule,v.recognition_rule,v.basis,
+         (t.system_kind IS NOT NULL OR v.recognition_rule='COMPANY_LEAVE') AS supported,
+         CASE WHEN t.system_kind='ANNUAL_LEAVE' THEN '종일 1일·반차 0.5일, 최종 승인 시 차감'
+          WHEN t.system_kind='ATTENDANCE_CORRECTION' THEN '기존 출퇴근·휴게 정정 절차'
+          WHEN v.recognition_rule='COMPANY_LEAVE' THEN '회사 휴가 · 대상일 정책 적용'
+          ELSE '초안 · 신청 전' END AS capability_message
         FROM tna.attendance_type t JOIN LATERAL (
          SELECT * FROM tna.attendance_type_version WHERE tenant_id=t.tenant_id AND type_id=t.id ORDER BY revision DESC LIMIT 1
         )v ON true WHERE t.tenant_id=#{tenantId}

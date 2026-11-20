@@ -170,7 +170,36 @@ class CodeManagementWebIT {
         mvc.perform(bulk("common-code-groups",UUID.randomUUID(),List.of(row),null).param("tenantId",tenant.toString())).andExpect(status().isBadRequest());
         assertEquals(1,count("common_code_group"));
     }
-    @Test void newTypesAreDraftOnlyAndCannotClaimSystemHandler() throws Exception {
+    @Test void companyCanOpenLeaveWithIndependentPayAndDeductionAndKeepEarlierVersions() throws Exception {
+        var row=type(null,"L90",null,null);
+        row.put("enabled",true);
+        row.put("name","경조휴가");
+        row.put("recognitionRule","COMPANY_LEAVE");
+        row.put("unit","DAY_HALF");
+        row.put("payKind","PAID");
+        mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(row),null)).andExpect(status().isSeeOther());
+        mvc.perform(as(get("/admin/attendance-types"),admin).accept(PAGE).param("q","L90"))
+                .andExpect(ReactPageAssertions.data("/attendanceTypes/types/0/supported",true))
+                .andExpect(ReactPageAssertions.data("/attendanceTypes/types/0/deductionRule","NONE"));
+        UUID id=db.queryForObject("SELECT id FROM tna.attendance_type WHERE tenant_id=? AND code='L90'",UUID.class,tenant);
+        var revised=type(id,"L90",null,0L);
+        revised.put("effectiveFrom",today.plusDays(5).toString());
+        revised.put("enabled",true);
+        revised.put("recognitionRule","COMPANY_LEAVE");
+        revised.put("payKind","UNPAID");
+        revised.put("deductionRule","LEAVE_DAY");
+        mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(revised),null)).andExpect(status().isSeeOther());
+        assertEquals(List.of("DAY_HALF/PAID/NONE","DAY/UNPAID/LEAVE_DAY"),db.queryForList(
+                "SELECT unit||'/'||pay_kind||'/'||deduction_rule FROM tna.attendance_type_version WHERE tenant_id=? AND type_id=? ORDER BY revision",
+                String.class,tenant,id));
+        for (String field:List.of("unit","payKind","deductionRule")) {
+            var invalid=new LinkedHashMap<>(revised);
+            invalid.put("expectedVersion",1);
+            invalid.put(field,switch(field) { case "unit" -> "HOUR"; case "payKind" -> "UNSPECIFIED"; default -> "OTHER"; });
+            mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(invalid),null)).andExpect(status().isUnprocessableEntity());
+        }
+    }
+    @Test void newDraftsCannotBeEnabledOrClaimSystemHandler() throws Exception {
         var row=type(null,"SICK",null,null);mvc.perform(bulk("attendance-types",UUID.randomUUID(),List.of(row),null)).andExpect(status().isSeeOther());
         UUID id=db.queryForObject("SELECT id FROM tna.attendance_type WHERE tenant_id=? AND code='SICK'",UUID.class,tenant);
         assertNull(db.queryForObject("SELECT system_kind FROM tna.attendance_type WHERE tenant_id=? AND id=?",String.class,tenant,id));

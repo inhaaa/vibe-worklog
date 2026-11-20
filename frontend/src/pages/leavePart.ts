@@ -12,7 +12,11 @@ const otherRequests: Record<string, string> = {
   CANCEL_OVERTIME: '연장근무 취소',
 };
 
-export function requestKindName(kind: string, part?: LeavePart | null) {
+export function requestKindName(kind: string, part?: LeavePart | null, companyLeaveName?: string | null) {
+  if (companyLeaveName && (kind === 'LEAVE_DAY' || kind === 'CANCEL_LEAVE')) {
+    const unit = part === 'AM' || part === 'PM' ? ` · ${leavePartNames[part]}` : '';
+    return `${companyLeaveName}${unit}${kind === 'CANCEL_LEAVE' ? ' 취소' : ''}`;
+  }
   if (kind === 'LEAVE_DAY') return leavePartNames[part ?? 'FULL'];
   if (kind === 'CANCEL_LEAVE') return part === 'AM' || part === 'PM' ? `${leavePartNames[part]} 취소` : '연차 취소';
   return Object.hasOwn(otherRequests, kind) ? otherRequests[kind] : kind;

@@ -124,6 +124,37 @@ class LeaveOperationsWebIT {
     }
 
     @Test
+    void companyLeaveKeepsItsPinnedNameAndCanBeFilteredAfterRetirement() throws Exception {
+        UUID type = UUID.randomUUID();
+        originalVersion = UUID.randomUUID();
+        db.update("INSERT INTO tna.attendance_type(tenant_id,id,code,created_by,updated_by) VALUES (?,?,'C09',?,?)",
+                tenant,type,admin.accountId(),admin.accountId());
+        db.update("""
+                INSERT INTO tna.attendance_type_version(tenant_id,id,type_id,revision,effective_from,enabled,name,unit,pay_kind,
+                    deduction_rule,recognition_rule,basis,reason,created_by)
+                VALUES (?,?,?,1,?,true,'경조휴가','DAY','PAID','NONE','COMPANY_LEAVE','합성 정책','개설',?),
+                       (?,gen_random_uuid(),?,2,?,false,'종료된 경조휴가','DAY','PAID','NONE','COMPANY_LEAVE','합성 정책','종료',?)
+                """,tenant,originalVersion,type,firstDay,admin.accountId(),tenant,type,today,admin.accountId());
+        bucket = null;
+        UUID approved = request("LEAVE_DAY","APPROVED",firstDay,firstDay,1,null);
+        quantity(approved,firstDay);
+        effect(approved,"LEAVE",null);
+        mvc.perform(view(admin).param("leaveTypeCode","C09").param("status","APPROVED")).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/leaveOperations/counts/APPROVED",1))
+                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/id",approved))
+                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/leaveTypeName","경조휴가"))
+                .andExpect(ReactPageAssertions.data("/leaveOperations/rows/0/quantityDays",1.0));
+        mvc.perform(view(admin).param("leaveTypeCode","absent")).andExpect(status().isUnprocessableContent());
+        mvc.perform(get("/me/requests").with(as(worker)).param("year", Integer.toString(firstDay.getYear())).accept(PAGE_JSON))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/annual/summaries/0/name", "경조휴가"))
+                .andExpect(ReactPageAssertions.data("/annual/usedDays", 1.0));
+        mvc.perform(get("/company/requests").with(as(admin)).param("year", Integer.toString(firstDay.getYear())).accept(PAGE_JSON))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/companyLeaveName", "경조휴가"));
+    }
+
+    @Test
     void filtersAndCountsBeforePagingAndShowsPinnedNameWholeQuantityAndActualDecisionActor() throws Exception {
         UUID approved = request("LEAVE_DAY", "APPROVED", firstDay, firstDay.plusDays(1), 0, null);
         quantity(approved, firstDay);
