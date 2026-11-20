@@ -1,7 +1,5 @@
 # 사번 로그인·권한 선택·내정보 확장 검증
 
-> 후속 실제 공개 반영: 2026-11-03 `aab37e6`·V17의 백업/독립 복원·사번 전환·자료/권한 보존·공개 HTTP·PC/모바일 검증을 완료했다. [최종 배포 결과](public-identity-personnel-deploy-20261103.md)를 따른다. 아래는 개발/통합 당시의 검증 이력이다.
-
 2026-11-03 Asia/Seoul. [승인 설계](../superpowers/specs/2026-11-03-identity-personnel-design.md)와 [구현 계획](../superpowers/plans/2026-11-03-identity-personnel.md)의 개발 결과다. 공개 소스 보안 통합과 실제 배포 결과는 별도로 기록한다.
 
 ## 구현

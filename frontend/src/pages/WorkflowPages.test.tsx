@@ -37,6 +37,59 @@ const request = {
   approverName: '승인자',
   originalRequestId: null,
 };
+it('신청 상세는 서버가 해당 신청의 담당자에게 검증한 월 마감 대기 목록 복귀 주소를 사용한다', async () => {
+  const back = '/company/attendance?view=close-blockers&month=2026-11&kind=PENDING_REQUEST&page=2';
+  const model = { request, detail: { days: [], history: [] }, admin: true, pageCommand: 'cmd', candidates: [] };
+  const view = await render('request/detail', { ...model, monthCloseReturnTo: back });
+  expect(view.getByRole('link', { name: '월 마감 미처리 목록으로' }).getAttribute('href')).toBe(back);
+  view.unmount();
+  window.history.replaceState(null, '', '/requests/request-1?' + new URLSearchParams({ returnTo: back }));
+  try {
+    const unmatched = await render('request/detail', model);
+    expect(unmatched.queryByRole('link', { name: '월 마감 미처리 목록으로' })).toBeNull();
+  } finally {
+    window.history.replaceState(null, '', '/');
+  }
+});
+it('연장 취소 결재 중에는 원승인이 유효하고 신청 구간과 분이 표시된다',async()=>{
+  const view=await render('request/detail',{request:{...request,kind:'CANCEL_OVERTIME',originalRequestId:'origin'},
+    detail:{days:[],history:[],overtime:{workDate:'2026-12-02',startTime:'18:30:00',endTime:'21:00:00',requestedMinutes:135}},
+    ownRequest:true,pageCommand:'c',candidates:[]});
+  expect(view.getByText('18:30~21:00 · 135분')).toBeTruthy();
+  expect(view.getByText('취소 결재 중에는 원래 승인한 연장근무가 유효합니다.')).toBeTruthy();
+  expect(view.getByRole('link',{name:'내 연장근무 신청'}).getAttribute('href')).toBe('/me/overtime');
+});
+it('취소 신청 결재선이 달라지면 기존 사유와 새 확인값으로 다시 제출할 수 있다',async()=>{
+  const view=await render('request/detail',{request:{...request,status:'APPROVED',effectStatus:'EFFECTIVE'},
+    detail:{days:[],history:[]},canCancel:true,cancelReason:'이미 입력한 휴가 취소 사유',
+    cancelApproval:{formName:'휴가 취소 신청서',formCode:'L02',basisDate:'2026-11-18',eligible:true,steps:[],routeToken:'updated'},
+    pageCommand:'cmd',candidates:[]});
+  const fields=body(view,'/requests/request-1/cancellations');
+  expect(fields.get('reason')).toBe('이미 입력한 휴가 취소 사유');
+  expect(fields.get('routeToken')).toBe('updated');
+});
+it('결재자는 대기함과 신청 상세에서 반차의 구분과 0.5일을 확인한다',async()=>{
+  const half={...request,leavePart:'PM',toDate:request.fromDate,quantityDays:0.5};
+  const inbox=await render('request/list',{title:'내 결재',requests:[half],completed:false,page:0,hasNext:false});
+  expect(inbox.getByText('오후 반차')).toBeTruthy();
+  expect(inbox.getByText('0.5일')).toBeTruthy();
+  inbox.unmount();
+  const view=await render('request/detail',{request:{...half,kind:'CANCEL_LEAVE',originalRequestId:'original'},detail:{days:[],history:[]},canDecide:true,pageCommand:'cmd',candidates:[]});
+  expect(view.getByText(/오후 반차 취소/)).toBeTruthy();
+  expect(view.getByText('0.5일')).toBeTruthy();
+  expect(view.getByText('취소 심사 중에는 원승인·차감이 유지됩니다.')).toBeTruthy();
+});
+it('팀장 단계에서 승인해도 다음 결재자에게 전달되며 최종 효력 안내가 나오지 않는다',async()=>{
+  const view=await render('request/detail',{request:{...request,formCode:'L01',formName:'휴가 신청서',currentStep:1,totalSteps:2},
+    detail:{days:[],history:[],correction:null,steps:[
+      {stepNumber:1,role:'팀장',originalApproverName:'김팀장',approverName:'김팀장',status:'ACTIVE'},
+      {stepNumber:2,role:'실장',originalApproverName:'이실장',approverName:'이실장',status:'WAITING'}]},
+    canDecide:true,pageCommand:'cmd',candidates:[]});
+  const approval=within(view.getByRole('form',{name:'승인 검토'}));
+  expect(approval.getByText(/다음 결재자/)).toBeTruthy();
+  expect(approval.queryByText(/실제 연차 차감이 함께/)).toBeNull();
+  expect(view.getByRole('list',{name:'결재란'}).textContent).toMatch(/김팀장.*이실장/);
+});
 const day = {
   employeeId: 'employee-1',
   workDate: '2026-10-26',
@@ -73,7 +126,7 @@ describe('WorkflowPages', () => {
     const view = domRender(<WorkflowPages page="request/list" data={{ title: '고객사 신청 현황', requests: [request] }} csrf={csrf} reload={() => {}} />);
     expect(await view.findByRole('grid', { name: '근태 신청 목록' })).toBeTruthy();
     expect(view.container.querySelector('[row-id="request-1"]')).toBeTruthy();
-    expect(view.getByRole('link', { name: 'LEAVE_DAY' }).getAttribute('href')).toBe('/requests/request-1');
+    expect(view.getByRole('link', { name: '종일 연차' }).getAttribute('href')).toBe('/requests/request-1');
     expect(view.container.textContent).toContain(request.targetEmployeeName);
     expect(view.container.querySelector('script')).toBeNull();
   });
@@ -263,6 +316,14 @@ describe('WorkflowPages', () => {
     expect(within(target).getByText('합성 대상 사원')).toBeTruthy();
     expect(within(approval).queryByText('기안', { exact: true })).toBeNull();
   });
+  it('승인 휴가의 원래 일정과 변경된 일정을 나란히 표시한다', async () => {
+    const view = await render('request/detail', { request: { ...request, status: 'APPROVED', effectStatus: 'EFFECTIVE' },
+      detail: { days: [{ leaveDate: '2026-12-01', quantityDays: 1 }], history: [], correction: null,
+        scheduleChanges: [{ leaveDate: '2026-12-01', original: '09:00~18:00', current: '10:00~19:00' }] } });
+    expect(view.getByRole('heading', {name: '승인 후 근무 일정 변경'})).toBeTruthy();
+    expect(view.getByText('09:00~18:00')).toBeTruthy();
+    expect(view.getByText('10:00~19:00')).toBeTruthy();
+  });
   it('신청 상세는 내 신청으로 돌아가는 링크와 한글 상태·정보 카드를 표시한다', async () => {
     const view = await render('request/detail', {
       request,
@@ -426,17 +487,21 @@ describe('WorkflowPages', () => {
     expect(view.container.textContent).toContain('확인 필요');
     expect(view.container.textContent).not.toContain('private-invalid-json');
   });
-  it('기초·조정 원장은 정수 일수와 버전 제출을 유지한다', async () => {
+  it('기초와 조정은 0.5일 단위를 허용하고 조정 묶음의 버전을 제출한다', async () => {
     const base = await render('request/balances', {
       employee,
       employees: [employee],
       buckets: [bucket],
-      form: { employeeId: employee.id, commandId: 'opening-command', quantityDays: 5 },
+      form: { employeeId: employee.id, commandId: 'opening-command', quantityDays: 7.5 },
     });
     expect(base.container.querySelector('form[action="/admin/leave-balances/entries"]')).toBeTruthy();
-    const quantity = base.container.querySelector('input[name="quantityDays"]')!;
-    expect(quantity.getAttribute('step')).toBe('1');
+    const quantity = base.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!;
+    expect(quantity.getAttribute('step')).toBe('0.5');
     expect(quantity.getAttribute('min')).toBe('0');
+    expect(quantity.value).toBe('7.5');
+    expect(quantity.validity.valid).toBe(true);
+    quantity.value = '0.25';
+    expect(quantity.validity.stepMismatch).toBe(true);
     expect(base.getByRole('link', { name: '예외 정정 신청' }).getAttribute('href')).toBe('/admin/requests/exceptions/new?employeeId=employee-1');
     const ledger = await render('request/ledger', {
       bucketId: bucket.id,
@@ -454,7 +519,7 @@ describe('WorkflowPages', () => {
         expectedVersion: 6,
         commandId: 'adjust-command',
         effectiveOn: '2026-10-26',
-        quantityDays: -1,
+        quantityDays: -0.5,
         sourceReference: '근거',
         reason: '조정',
       },
@@ -464,7 +529,8 @@ describe('WorkflowPages', () => {
     expect(ledger.container.querySelector('[row-id="entry-1"]')).toBeTruthy();
     const adjusted = body(ledger, '/admin/leave-balances/buckets/bucket-1/adjustments');
     expect(adjusted.get('expectedVersion')).toBe('6');
-    expect(adjusted.get('quantityDays')).toBe('-1');
+    expect(adjusted.get('quantityDays')).toBe('-0.5');
+    expect(ledger.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!.validity.valid).toBe(true);
   });
   it('근로시간은 실근로·확인 전·휴가 지표와 다섯 열만 보이고 담당자 명령을 제한한다', async () => {
     const data = {
@@ -473,7 +539,8 @@ describe('WorkflowPages', () => {
       overview: {
         month: '2026-10',
         days: [
-          { id: 'result-1', workDate: '2026-10-26', current: true, pending: false, approvedLeaveDays: 0,
+          { id: 'result-1', workDate: '2026-10-26', employeeName: employee.displayName, employeeNo: employee.employeeNo,
+            current: true, pending: false, approvedLeaveDays: 0,
             result: { ...result, actualWorkMillis: 29_110_000, confirmedBreakMillis: 3_600_000, over8hMillis: 310_000 } },
           { id: null, workDate: '2026-10-27', current: false, pending: true, approvedLeaveDays: 0, result },
           { id: 'result-3', workDate: '2026-10-28', current: false, pending: true, approvedLeaveDays: 1,
@@ -516,6 +583,25 @@ describe('WorkflowPages', () => {
     expect(weeks.querySelector('[col-id="over40hMillis"]:not(.ag-header-cell)')?.textContent).toBe('-');
     expect(view.container.querySelector('form[action="/admin/calculations"]')).toBeTruthy();
     expect(view.container.querySelector('form[action="/admin/reports/exports"]')).toBeTruthy();
+    view.unmount();
+    const returnTo = '/company/attendance?view=checkout&date=2026-10-26&q=E001&status=ALL&page=2';
+    const scoped = await render('worktime/month', { ...data, checkoutWorkDate: '2026-10-26', checkoutReturnTo: returnTo });
+    expect(scoped.getByRole('link', { name: '퇴근 누락 목록으로' }).getAttribute('href')).toBe(returnTo);
+    expect(scoped.getByRole('button', { name: '대상일과 해당 주 재집계' })).toBeTruthy();
+    expect(scoped.getByRole('heading', { name: '2026-10-26 근무일' })).toBeTruthy();
+    const calculate = body(scoped, '/admin/calculations');
+    expect(calculate.get('from')).toBe('2026-10-26');
+    expect(calculate.get('to')).toBe('2026-10-26');
+    expect(calculate.get('returnTo')).toBe(returnTo);
+    expect(body(scoped, '/admin/reports/exports').get('from')).toBe('2026-10-01');
+    scoped.unmount();
+    const origin = '/admin/attendance?employeeId=' + employee.id + '&month=2026-11&settlementPeriod=ISO_WEEK&settlementFrom=2026-10-26';
+    const focused = await render('worktime/month', { ...data, settlementWorkDate: '2026-10-26', settlementReturn: origin });
+    const target = focused.container.querySelector('#selective-day-calculation');
+    expect(target?.textContent).toContain('2026-10-26');
+    expect(target?.textContent).toContain(employee.displayName);
+    expect(body(focused, '/admin/calculations').get('settlementReturn')).toBe(origin);
+    focused.unmount();
     expect((await render('worktime/month', { ...data, admin: false })).container.querySelector('form[action="/admin/calculations"]')).toBeNull();
   });
   it('계산 상세는 저장 근거가 없으면 현재값으로 대체하지 않고 미확인으로 표시한다', async () => {
@@ -552,11 +638,15 @@ describe('WorkflowPages', () => {
   it('저장 당시 원천·유효 사건을 서로 다른 그리드와 사건 ID로 표시한다', async () => {
     const effective = { id: 'effective-1', kind: 'IN', occurredAt: '2026-10-26T00:01:00.456Z' };
     const view = await render('worktime/result', { month: '2026-10', admin: false, times: {}, detail: {
-      day: { ...day, id: 'result-1', result, resultRevision: 1, ruleVersion: 'CALC-1', current: true },
+      day: { ...day, id: 'result-1', result: { ...result, reasons: ['SELECTIVE_SETTLEMENT_APPLIES', 'SELECTIVE_CORE_REVIEW'] },
+        resultRevision: 1, ruleVersion: 'CALC-1', current: true },
       completeEvidence: true, latestVersion: true, latestResultId: 'result-1',
       clock: { ...day, effectiveEvents: [effective] }, run: null, policy: null, assessment: null, employment: null,
       leaveEffects: [], pendingCorrections: [],
     } });
+    expect(view.getByText('유효한 계산 결과')).toBeTruthy();
+    expect(view.getByText('선택근무 정산기간 적용')).toBeTruthy();
+    expect(view.getByText(/코어시간.*확인/)).toBeTruthy();
     const source = view.getByRole('region', { name: '당시 원천 출퇴근' });
     const changed = view.getByRole('region', { name: '당시 유효 출퇴근' });
     expect(within(source).getByRole('grid', { name: '당시 원천 출퇴근' })).toBeTruthy();
@@ -674,6 +764,12 @@ describe('WorkflowPages', () => {
     expect(within(grid).getByRole('columnheader', { name: /시각/ })).toBeTruthy();
     expect(grid.querySelector('[row-id="in-1"]')?.textContent).toContain('2026-10-26 09:00:00');
   });
+  it('선택근무에서 연 날짜의 확인 양식과 복귀 링크는 조회한 정산기간을 유지한다', async () => {
+    const origin = '/me/worktime?month=2026-11&settlementPeriod=ISO_WEEK&settlementFrom=2026-10-26';
+    const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm, settlementReturn: origin });
+    expect(view.getByRole('link', { name: '선택근무 정산으로' }).getAttribute('href')).toBe(origin);
+    expect(body(view, '/me/work-confirmations').get('settlementReturn')).toBe(origin);
+  });
   it('근무 확인은 출근·퇴근이 하나씩 있고 미확인일 때만 보이며 개정·지문·명령을 제출한다', async () => {
     const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm });
     const posted = body(view, '/me/work-confirmations');
@@ -695,6 +791,27 @@ describe('WorkflowPages', () => {
     expect(view2.container.querySelector('form[action="/me/work-confirmations"]')).toBeTruthy();
     expect(view2.container.textContent).toContain('정정 반영 기록');
     expect(view2.container.textContent).toMatch(/출근 · .*퇴근 · /);
+  });
+  it('선택근무의 근무 확인에는 실제 체류 안에 남은 휴게만 보여주고 차이가 있으면 해당 날짜로 정정을 연다', async () => {
+    const schedule = { ...confirmable.schedule, workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
+      coreStart: null, coreEnd: null, standardMinutes: 480, settlementPeriod: 'CALENDAR_MONTH' };
+    const out = { id: 'out', kind: 'OUT', occurredAt: '2026-10-26T11:00:00Z' };
+    const clock = (start: string) => {
+      const events = [{ id: 'in', kind: 'IN', occurredAt: '2026-10-26T' + start + 'Z' }, out];
+      return { ...confirmable, events, effectiveEvents: events, schedule };
+    };
+    const partial = await render('clock/history', { day: clock('03:30:00'), confirmationForm, confirmationBreaks: [
+      { startAt: '2026-10-26T03:30:00Z', endAt: '2026-10-26T04:00:00Z' },
+    ] });
+    const form = partial.container.querySelector('form[action="/me/work-confirmations"]')!;
+    expect(form.textContent).toContain('확인할 휴게 12:30 ~ 13:00');
+    expect(form.textContent).not.toContain('12:00');
+    expect(form.textContent).toContain('실제 휴게가 다르면 정정 신청');
+    expect(partial.getByRole('link', { name: '정정 신청' }).getAttribute('href')).toContain('date=2026-10-26');
+    partial.unmount();
+    const none = await render('clock/history', { day: clock('04:00:00'), confirmationForm, confirmationBreaks: [] });
+    expect(none.container.querySelector('form[action="/me/work-confirmations"]')?.textContent).toContain('확인할 휴게 없음');
+    expect(none.getByRole('button', { name: '근무 확인' })).toBeTruthy();
   });
   it('정정 신청 링크는 서버의 정정 안내 값을 따르고 확인할 수 있는 날에는 보이지 않는다', async () => {
     const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };

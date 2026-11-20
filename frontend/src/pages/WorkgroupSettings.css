@@ -1,0 +1,45 @@
+@layer legacy {
+  #tna-app .wg-settings { min-width: 0; }
+  #tna-app .wg-settings fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  #tna-app .wg-settings label { display: grid; gap: 5px; }
+  #tna-app .wg-settings input:not([type=checkbox]), #tna-app .wg-settings select, #tna-app .wg-settings textarea { max-width: 100%; min-width: 0; }
+  #tna-app .wg-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--t-line); margin: 12px 0 18px; }
+  #tna-app .wg-tabs button { padding: 8px 14px; }
+  #tna-app .wg-fields, #tna-app .wg-filter, #tna-app .wg-impact { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+  #tna-app .wg-fields { margin: 12px 0; }
+  #tna-app .wg-fields > label, #tna-app .wg-filter > label { min-width: min(100%, 170px); max-width: 100%; }
+  #tna-app .wg-panel { margin-block: 20px; }
+  #tna-app .wg-panel > h2, #tna-app .wg-review > h3 { margin: 0 0 12px; }
+  #tna-app .wg-days { border-top: 1px solid var(--t-line); margin-block: 16px; }
+  #tna-app .wg-days label { display: grid; grid-template-columns: 9rem minmax(10rem, 19rem) 1fr; align-items: center; gap: 12px; border-bottom: 1px solid var(--t-line); padding: 8px 0; }
+  #tna-app .wg-settings small { color: var(--t-muted); }
+  #tna-app .wg-days small { display: block; }
+  #tna-app .wg-review, #tna-app .wg-legacy { border-top: 1px solid var(--t-line); padding-top: 16px; margin-top: 20px; }
+  #tna-app .wg-legacy summary { cursor: pointer; font-weight: 600; }
+  #tna-app .wg-review table { width: 100%; border-collapse: collapse; text-align: left; }
+  #tna-app .wg-review th, #tna-app .wg-review td { border-bottom: 1px solid var(--t-line); padding: 8px; }
+  #tna-app .wg-impact { align-items: start; gap: 12px 32px; }
+  #tna-app .wg-impact h4 { margin-bottom: 4px; }
+  #tna-app .wg-people, #tna-app .wg-assignment-preview, #tna-app .wg-chosen { list-style: none; padding: 0; }
+  #tna-app .wg-people li { border-bottom: 1px solid var(--t-line); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 2px; }
+  #tna-app .wg-people small { display: block; }
+  #tna-app .wg-settings .wg-check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  #tna-app .wg-settings textarea { display: block; width: min(100%, 680px); }
+  #tna-app .wg-panel textarea, #tna-app .wg-check { margin: 4px 0 8px; }
+  #tna-app .wg-chosen { display: flex; flex-wrap: wrap; gap: 8px; }
+  #tna-app .wg-chosen li { border: 1px solid var(--t-line); padding: 4px 8px; }
+  #tna-app .wg-chosen button { border: 0; background: none; font-size: 1rem; cursor: pointer; }
+  #tna-app .wg-assignment-preview li { padding: 12px 0; border-bottom: 1px solid var(--t-line); }
+  #tna-app .wg-assignment-preview dl { display: flex; flex-wrap: wrap; gap: 12px 30px; margin: 6px 0; }
+  #tna-app .wg-assignment-preview dd { margin: 2px 0 0; }
+  #tna-app .wg-errors { color: var(--t-danger, #ad252d); }
+  @media (max-width: 660px) {
+    #tna-app .wg-days label { grid-template-columns: 6rem minmax(0, 1fr); }
+    #tna-app .wg-days label > small { grid-column: 2; }
+    #tna-app .wg-settings .wg-fields > label { flex: 1 1 140px; min-width: 0; }
+    #tna-app .wg-impact { display: block; }
+    #tna-app .wg-review table { font-size: .875rem; }
+    #tna-app .wg-review td, #tna-app .wg-review th { overflow-wrap: anywhere; }
+    #tna-app .wg-tabs button { padding: 10px; }
+  }
+}

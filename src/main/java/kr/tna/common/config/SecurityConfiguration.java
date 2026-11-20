@@ -20,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
@@ -42,6 +43,16 @@ public class SecurityConfiguration {
         // A parent-less manager prevents a rejected attempt invoking the same provider twice.
         http.authenticationManager(new ProviderManager(provider))
                 .authorizeHttpRequests(authorize -> {
+                    if (localDemo.publicDemo()) {
+                        authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
+                                "/admin/employees/onboarding/**", "/admin/employees/exports",
+                                "/admin/employees/*/personnel/tabs/*/export").denyAll();
+                        for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
+                            String identity = "/admin/employees/" + employeeId;
+                            authorize.requestMatchers(new RegexRequestMatcher(identity
+                                    + "/(changes|roles|invitations|personnel|personal-details|personal-entries)(?:\\?.*)?", "POST", true)).denyAll();
+                        }
+                    }
                     if (localDemo.enabled()) {
                         authorize.requestMatchers(HttpMethod.GET, "/", "/demo").permitAll();
                     }
@@ -50,17 +61,29 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/invite/*", "/password-reset").permitAll()
                         .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
+                        .requestMatchers(HttpMethod.POST, "/admin/access/roles/*/members/bulk", "/admin/attendance/follow-ups",
+                                "/admin/calculations/month-end", "/admin/calculations/month-end/preview",
+                                "/admin/attendance/month-close", "/admin/attendance/month-close/check").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close", "/admin/attendance/month-close/blockers",
+                                "/admin/attendance/month-close/selective-settlements").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/worktime/selective-settlements").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close/export-options",
+                                "/admin/attendance/month-close/export").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups").hasRole("EMPLOYEE")
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**", "/admin/access",
                                 "/admin/organization-heads", "/admin/organization-heads/**",
                                 "/admin/approval-routes", "/admin/approval-routes/**",
+                                "/admin/request-forms", "/admin/request-forms/**",
                                 "/admin/approval-route-assignments", "/admin/approval-route-assignments/**",
                                 "/admin/common-code-groups/**", "/admin/common-codes", "/admin/common-codes/**",
                                 "/admin/attendance-types", "/admin/attendance-types/**",
-                                "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/overtime", "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/admin/access/roles/*/candidates").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/company/attendance", "/company/requests", "/company/organizations")
                             .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")
                         .requestMatchers("/approvals", "/approvals/completed").hasRole("APPROVER")
+                        .requestMatchers("/me/overtime", "/me/overtime/**").hasRole("EMPLOYEE")
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
                         .requestMatchers(HttpMethod.GET, "/me/home", "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()

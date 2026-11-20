@@ -1,7 +1,10 @@
 import type React from 'react';
+import { approvalUnits } from './AdminTypes';
 import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { WorkgroupSettings } from './WorkgroupSettings';
+import { SettlementBackLink } from './SettlementBackLink';
 import {
   Check,
   ErrorNotice,
@@ -146,7 +149,7 @@ function EmployeeFields({ form, editing = false }: { form: EmployeeForm; editing
 
 function EmployeesPage({ model: m }: { model: EmployeesModel }) {
   const listHref = (page: number, employeeId?: string) =>
-    queryHref('/admin/employees', {
+    queryHref('/admin/employees/bulk-edit', {
       q: m.q,
       page,
       organizationId: m.organizationId,
@@ -183,7 +186,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
             </p>
           </header>
           <form
-            action="/admin/employees"
+            action="/admin/employees/bulk-edit"
             method="get"
             className="t-toolbar"
             role="search"
@@ -228,7 +231,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
             <button type="submit" className="t-btn primary">
               검색
             </button>
-            <a href="/admin/employees" className="t-btn secondary">
+            <a href="/admin/employees/bulk-edit" className="t-btn secondary">
               전체 보기
             </a>
           </form>
@@ -355,7 +358,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title={m.employee.displayName} actions={<>
-        <a className="t-btn" href="/admin/employees">사원 목록으로</a>
+        <a className="t-btn" href="/admin/employees/bulk-edit">사원 목록으로</a>
         <a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a>
         <a className="t-btn" href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
         <a className="t-btn" href={`${employeePath}/schedule`}>고정 근무 템플릿 배정</a>
@@ -465,16 +468,11 @@ function OrganizationFields({
         id="organization-code"
         label="조직 코드"
         name="code"
-        value={form.code}
+        value={organizationId ? form.code : ''}
         maxLength={40}
-        readOnly={Boolean(organizationId)}
-        required={!organizationId}
+        readOnly
+        placeholder={organizationId ? undefined : '저장 시 자동 발급'}
       />
-      <p className="hint">
-        {organizationId
-          ? '등록한 코드는 변경할 수 없습니다.'
-          : '등록 후 코드는 변경할 수 없습니다.'}
-      </p>
       <Field
         id="organization-name"
         label="조직 이름"
@@ -510,6 +508,10 @@ function OrganizationFields({
           없습니다.
         </p>
       )}
+      <SelectField id="organization-approval-unit" label="결재 단위" name="approvalUnit" value={form.approvalUnit ?? 'UNASSIGNED'}>
+        <option value="UNASSIGNED">미지정</option>
+        {approvalUnits.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      </SelectField>
       <FormRow label="상태"><Check label="활성 조직" name="active" checked={form.active} /></FormRow>
       {organizationId && (
         <p className="hint">
@@ -524,6 +526,16 @@ function OrganizationFields({
       </FormTable>
     </>
   );
+}
+
+export function OrganizationCreateForm({ form, options, disabled }: Pick<OrganizationsModel, 'form' | 'options'> & { disabled?: boolean }) {
+  return <Form action="/admin/organizations" method="post" className="wl-form"
+    onSubmit={event => { if (disabled) event.preventDefault(); }}>
+    <OrganizationFields form={form} options={options} />
+    <div className="wl-form-actions">
+      <button className="t-btn primary" type="submit" disabled={disabled}>조직 등록</button>
+    </div>
+  </Form>;
 }
 
 function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
@@ -587,12 +599,7 @@ function OrganizationsPage({ model: m }: { model: OrganizationsModel }) {
       <section className="panel" aria-labelledby="organization-create-title">
         <h2 id="organization-create-title">조직 등록</h2>
         <ErrorNotice message={m.error} />
-        <Form action="/admin/organizations" method="post" className="admin-form">
-          <OrganizationFields form={m.form} options={m.options} />
-          <div className="actions">
-            <button type="submit">조직 등록</button>
-          </div>
-        </Form>
+        <OrganizationCreateForm form={m.form} options={m.options} />
       </section>
     </div>
   );
@@ -941,11 +948,14 @@ function ScheduleFields({
   );
 }
 
-function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
+function ScheduleListPage({ model: m, csrf }: { model: ScheduleListModel; csrf: PageProps['csrf'] }) {
   return (
     <div className="t-legacy-page admin-shell">
-      <PageHeader title="고정 근무 템플릿" help="여러 템플릿을 만들고 사원별 적용일로 배정합니다. 과거 배정은 당시 불변 버전을 사용합니다." />
+      <PageHeader title="근무 설정" help="근무시간코드로 요일별 근무조를 편성하고, 적용일을 지정해 사원을 배정합니다." />
       <ErrorNotice message={m.error} />
+      <WorkgroupSettings today={m.today} csrf={csrf} />
+      <details className="wg-legacy" open={!!m.error || window.location.hash === '#fixed-templates'}>
+        <summary id="fixed-templates">기존 고정 템플릿</summary>
       <section className="wl-section">
         <h2>등록된 템플릿</h2>
         {m.templates.length === 0 && <p>등록된 템플릿이 없습니다.</p>}
@@ -965,6 +975,7 @@ function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
           <ScheduleFields form={m.form} today={m.today} />
         </Form>
       </section>
+      </details>
     </div>
   );
 }
@@ -972,7 +983,7 @@ function ScheduleListPage({ model: m }: { model: ScheduleListModel }) {
 function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
   return (
     <div className="t-legacy-page admin-shell">
-      <PageHeader title={m.template.name} help="근무 시간 기준: Asia/Seoul (서울)" actions={<a className="t-btn" href="/admin/schedules">템플릿 목록</a>} />
+      <PageHeader title={m.template.name} help="근무 시간 기준: Asia/Seoul (서울)" actions={<a className="t-btn" href="/admin/schedules#fixed-templates">템플릿 목록</a>} />
       <ErrorNotice message={m.error} />
       <section className="wl-section">
         <h2>불변 버전 이력</h2>
@@ -1016,7 +1027,9 @@ function ScheduleDetailPage({ model: m }: { model: ScheduleDetailModel }) {
 function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }) {
   return (
     <div className="t-legacy-page admin-shell">
-      <PageHeader title={`${m.employee.displayName} · 근무 배정`} actions={<a className="t-btn" href={`/admin/employees/${m.employee.id}`}>사원 상세</a>} />
+      <PageHeader title={`${m.employee.displayName} · 근무 배정`} actions={<>
+        <a className="t-btn" href={'/admin/schedules?' + new URLSearchParams({ tab: 'assignments', q: m.employee.employeeNo, date: m.today })}>근무조 배정</a>
+        <a className="t-btn" href={`/admin/employees/${m.employee.id}`}>사원 상세</a></>} />
       <ErrorNotice message={m.error} />
       <section className="wl-section">
         <h2>배정 이력</h2>
@@ -1026,7 +1039,7 @@ function ScheduleAssignmentPage({ model: m }: { model: ScheduleAssignmentModel }
           <WorklogSheet
             label="근무 배정 이력"
             rows={m.assignments}
-            getRowId={(assignment) => assignment.id}
+            getRowId={(assignment) => assignment.id + ':' + assignment.validFrom}
             scope="all"
             columns={[
               { field: 'templateName', headerName: '템플릿', minWidth: 170, pinned: 'left' },
@@ -1141,7 +1154,7 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title="휴일 캘린더" help="담당자가 근거를 확인한 날짜만 명시합니다. 미등록 날짜는 미확인입니다. 요일만으로 법정 휴일을 추정하지 않습니다."
-        actions={<a className="t-btn" href="/admin/networks">허용 네트워크</a>} />
+        actions={<><SettlementBackLink href={m.settlementReturn} /><a className="t-btn" href="/admin/networks">허용 네트워크</a></>} />
       <ErrorNotice message={m.error} />
       <section className="wl-section">
         <h2>불변 버전</h2>
@@ -1161,6 +1174,10 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
           아래 기간 전체를 일반일로 등록하고 예외 날짜를 지정합니다. 기존 기간과 중첩할 수 없습니다.
         </p>
         <Form action="/admin/calendar/versions" method="post" className="wl-form">
+          {m.settlementReturn && <>
+            <Hidden name="settlementReturn" value={m.settlementReturn} />
+            <Hidden name="date" value={m.settlementWorkDate} />
+          </>}
           <Hidden name="commandId" value={m.form.commandId} />
           <FormTable>
             <Field id="calendar-from" label="시작일 (포함)" name="from" type="date" value={m.form.from} required />
@@ -1186,7 +1203,7 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
   );
 }
 
-export function AdminPages({ page, data }: PageProps): React.ReactNode | null {
+export function AdminPages({ page, data, csrf }: PageProps): React.ReactNode | null {
   if ((page === 'org/employees' && data.employeeSheet) ||
       (page === 'org/organizations' && data.organizationSheet)) return null;
   switch (page) {
@@ -1201,7 +1218,7 @@ export function AdminPages({ page, data }: PageProps): React.ReactNode | null {
     case 'org/access':
       return <AccessPage model={data as unknown as AccessModel} />;
     case 'schedule/list':
-      return <ScheduleListPage model={data as unknown as ScheduleListModel} />;
+      return <ScheduleListPage model={data as unknown as ScheduleListModel} csrf={csrf} />;
     case 'schedule/detail':
       return <ScheduleDetailPage model={data as unknown as ScheduleDetailModel} />;
     case 'schedule/assignment':

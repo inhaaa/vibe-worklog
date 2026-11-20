@@ -16,7 +16,7 @@ import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.org.OrgCommands;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
-/** Explicit synthetic local setup; never called by automatic application startup. */
+/** Explicit synthetic setup; never called by automatic application startup. */
 public final class LocalDemoBootstrap {
     private static final String ACTION = "LOCAL_DEMO_BOOTSTRAP";
     private static final Pattern LOCAL_URL = Pattern.compile(
@@ -30,17 +30,42 @@ public final class LocalDemoBootstrap {
         if (!profiles.contains("local") || !profiles.contains("local-demo")) {
             throw new IllegalArgumentException("local과 local-demo 프로필을 모두 명시해 주세요.");
         }
+        return dataSource(environment, false);
+    }
+
+    public static DataSource publicConfiguration(Map<String, String> environment) {
+        var profiles = Arrays.stream(required(environment, "SPRING_PROFILES_ACTIVE").split(",", -1))
+                .map(String::strip).toList();
+        if (!profiles.equals(java.util.List.of("public-demo"))) {
+            throw new IllegalArgumentException("public-demo 프로필만 명시해 주세요.");
+        }
+        if (!"worklog-demo".equals(required(environment, "TNA_PUBLIC_DEMO_CONFIRM"))) {
+            throw new IllegalArgumentException("공개 합성 데모 준비 확인값이 일치하지 않습니다.");
+        }
+        return dataSource(environment, true);
+    }
+
+    private static DataSource dataSource(Map<String, String> environment, boolean publicDemo) {
         String url = required(environment, "TNA_JDBC_URL");
         String password = required(environment, "TNA_MIGRATION_DB_PASSWORD");
         var address = LOCAL_URL.matcher(url);
         if (!address.matches() || Integer.parseInt(address.group(1)) < 1
-                || Integer.parseInt(address.group(1)) > 65535) {
+                || Integer.parseInt(address.group(1)) > 65535
+                || publicDemo && !url.endsWith("/worklog_demo")) {
             throw new IllegalArgumentException("명시적인 loopback PostgreSQL 주소·포트·DB명만 지원합니다.");
         }
         return new DriverManagerDataSource(url, "tna_migration", password);
     }
 
     public static UUID bootstrap(DataSource source) throws SQLException {
+        return bootstrap(source, false);
+    }
+
+    public static UUID bootstrapPublic(DataSource source) throws SQLException {
+        return bootstrap(source, true);
+    }
+
+    private static UUID bootstrap(DataSource source, boolean publicDemo) throws SQLException {
         try (Connection connection = source.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -53,6 +78,7 @@ public final class LocalDemoBootstrap {
                     statement.setString(1, LocalDemoLogin.TENANT_ID.toString());
                     statement.execute();
                 }
+                if (publicDemo) verifyPublicDatabase(connection);
                 try (var statement = connection.prepareStatement("SELECT set_config('app.tenant_id',?,true)")) {
                     statement.setString(1, LocalDemoLogin.TENANT_ID.toString());
                     statement.execute();
@@ -69,6 +95,14 @@ public final class LocalDemoBootstrap {
                 catch (SQLException rollback) { failure.addSuppressed(rollback); }
                 throw failure;
             }
+        }
+    }
+
+    private static void verifyPublicDatabase(Connection connection) throws SQLException {
+        // Deployment preflight checks all tenants as the DB owner; this role retains tenant RLS.
+        try (var statement = connection.createStatement();
+                var row = statement.executeQuery("SELECT current_database()='worklog_demo'")) {
+            if (!row.next() || !row.getBoolean(1)) throw conflict();
         }
     }
 
@@ -193,6 +227,14 @@ public final class LocalDemoBootstrap {
         }
         UUID tenant = bootstrap(configuration(System.getenv()));
         System.out.println("로컬 합성 데모 자료를 확인했습니다: " + tenant);
+    }
+
+    public static void publicMain(String[] args) throws SQLException {
+        if (args.length != 0) {
+            throw new IllegalArgumentException("public-demo-bootstrap 명령은 추가 인수를 허용하지 않습니다.");
+        }
+        UUID tenant = bootstrapPublic(publicConfiguration(System.getenv()));
+        System.out.println("공개 합성 데모 자료를 확인했습니다: " + tenant);
     }
 
     private static String required(Map<String, String> environment, String name) {

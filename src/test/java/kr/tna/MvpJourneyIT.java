@@ -94,11 +94,36 @@ class MvpJourneyIT {
     }
 
     @Test
+    void organizationCodesAndStoredCreationTimesFollowSeoulNewYear() {
+        clock.now.set(Instant.parse("2026-12-31T14:59:59.999900Z"));
+        var manager = bootstrap(UUID.randomUUID());
+        var request = new OrgData.OrganizationForm(null, "연말 조직", null, true, null, "합성 연말 등록", UUID.randomUUID());
+        UUID december = organizations.create(manager, request);
+
+        clock.at(LocalDate.of(2027, 1, 1), 0, 0);
+        UUID january = organizations.create(manager, new OrgData.OrganizationForm(
+                null, "연초 조직", null, true, null, "합성 연초 등록", UUID.randomUUID()));
+        var another = bootstrap(UUID.randomUUID());
+        UUID independent = organizations.create(another, new OrgData.OrganizationForm(
+                null, "다른 고객사 조직", null, true, null, "고객사 순번 검증", UUID.randomUUID()));
+
+        assertEquals(december, organizations.create(manager, request));
+        assertEquals("20260001", organizations.get(manager, december).code());
+        assertEquals("20270001", organizations.get(manager, january).code());
+        assertEquals("20270001", organizations.get(another, independent).code());
+        assertEquals(List.of("2026-12-31", "2027-01-01"), new JdbcTemplate(DatabaseFixture.start().adminDataSource())
+                .queryForList("""
+                        SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date::text
+                        FROM tna.organization WHERE tenant_id=? ORDER BY created_at
+                        """, String.class, manager.tenantId()));
+    }
+
+    @Test
     void acceptedEmployeesReachIndependentApprovalAndFrozenReviewEvidence() throws Exception {
         clock.at(MONDAY, 8, 0);
         TnaPrincipal manager = bootstrap(UUID.randomUUID());
         UUID organization = organizations.create(manager, new OrgData.OrganizationForm(
-                "JOURNEY", "합성 흐름 조직", null, true, null, "통합 흐름 준비", UUID.randomUUID()));
+                null, "합성 흐름 조직", null, true, null, "통합 흐름 준비", UUID.randomUUID()));
         UUID employeeId = createEmployee(manager, "J001", "합성 흐름 사원");
         UUID approverId = createEmployee(manager, "J002", "합성 독립 승인자");
         employees.assign(manager, employeeId, new OrgData.AssignmentForm(organization, MONDAY,

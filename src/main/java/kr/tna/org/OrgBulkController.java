@@ -28,7 +28,7 @@ public final class OrgBulkController {
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build();
     private static final Set<String> PARAMETERS = Set.of("commandId", "reason", "rows", "q", "page", "organizationId", "status", "_csrf");
-    private static final Set<String> ORGANIZATION_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "code", "name", "parentId", "active");
+    private static final Set<String> ORGANIZATION_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "code", "name", "parentId", "active", "approvalUnit");
     private static final Set<String> EMPLOYEE_FIELDS = Set.of("clientRowId", "id", "expectedVersion", "operation", "employeeNo", "displayName", "joinedOn", "leftOn", "active");
     private final OrgBulkService service;
     private final OrgAdminController pages;
@@ -43,7 +43,7 @@ public final class OrgBulkController {
         var rows = new ArrayList<OrganizationRow>();
         for (JsonNode row : rows(request, ORGANIZATION_FIELDS)) {
             rows.add(new OrganizationRow(clientId(row), uuid(row, "id"), version(row), operation(row),
-                    text(row, "code"), text(row, "name"), uuid(row, "parentId"), active(row)));
+                    text(row, "code"), text(row, "name"), uuid(row, "parentId"), active(row), row.has("approvalUnit") ? text(row, "approvalUnit") : null));
         }
         var form = new Form<>(context.commandId(), context.reason(), List.copyOf(rows));
         // Validate the navigation scope before committing a mutation that redirects into it.
@@ -168,11 +168,15 @@ public final class OrgBulkController {
         return page;
     }
     private static ModelAndView redirect(String kind, Context context) {
-        var uri = UriComponentsBuilder.fromPath("/admin/" + kind).queryParam("q", context.q())
+        boolean employees = kind.equals("employees");
+        String path = employees ? OrgAdminController.EMPLOYEE_BULK_EDIT_PATH : "/admin/organizations";
+        var uri = UriComponentsBuilder.fromPath(path).queryParam("q", context.q())
                 .queryParam("page", context.page()).queryParam("saved", "");
-        if (kind.equals("employees")) {
+        if (employees) {
             uri.queryParam("status", context.status());
             if (context.organizationId() != null) uri.queryParam("organizationId", context.organizationId());
+        } else {
+            uri.queryParam("createdCommand", context.commandId());
         }
         var redirect = new RedirectView(uri.build().encode().toUriString(), true);
         redirect.setStatusCode(HttpStatus.SEE_OTHER);

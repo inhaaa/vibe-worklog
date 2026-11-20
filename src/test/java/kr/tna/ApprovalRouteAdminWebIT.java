@@ -87,6 +87,25 @@ class ApprovalRouteAdminWebIT {
                 .andExpect(ReactPageAssertions.data("/approvalRouteAssignments/form/validFrom", today.toString()));
     }
 
+    @Test void sequentialVersionRetainsTerminalUnitAndIsOnlyAssignableToForms() throws Exception {
+        var definition = row(null, "CHAIN", "순차결재", "ORGANIZATION_CHAIN", null, "CREATE", null);
+        mvc.perform(bulk(UUID.randomUUID(), List.of(definition))).andExpect(status().isUnprocessableEntity());
+        definition.put("terminalUnit", "OFFICE");
+        mvc.perform(bulk(UUID.randomUUID(), List.of(definition))).andExpect(status().isSeeOther());
+        UUID route = db.queryForObject("SELECT id FROM tna.approval_route WHERE tenant_id=? AND code='CHAIN'", UUID.class, tenant);
+        var v1 = version(route, 1);
+        var updated = row(route, "CHAIN", "순차결재", "ORGANIZATION_CHAIN", null, "UPDATE", 0L);
+        updated.put("terminalUnit", "TEAM");
+        mvc.perform(bulk(UUID.randomUUID(), List.of(updated))).andExpect(status().isSeeOther());
+        mvc.perform(as(get("/admin/approval-routes"), manager).accept(PAGE))
+                .andExpect(ReactPageAssertions.data("/approvalRoutes/sheet/rows/0/terminalUnit", "TEAM"))
+                .andExpect(ReactPageAssertions.data("/approvalRoutes/versions/1/terminalUnit", "OFFICE"));
+        mvc.perform(as(get("/admin/approval-route-assignments"), manager).accept(PAGE))
+                .andExpect(ReactPageAssertions.data("/approvalRouteAssignments/versions", List.of()));
+        mvc.perform(assign(employee.employeeId(), null, v1, today, 0, UUID.randomUUID(), false))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     @Test void fiftyDefinitionsCommitOneBatchAndReplayExactlyOnce() throws Exception {
         var rows = new ArrayList<Map<String, Object>>();
         for (int i = 0; i < 50; i++) rows.add(row(null, "R" + i, "정의 " + i, "ORGANIZATION_HEAD", null, "CREATE", null));

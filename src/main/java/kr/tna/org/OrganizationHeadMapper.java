@@ -53,6 +53,19 @@ public interface OrganizationHeadMapper {
     List<HeadAssignment> history(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId,
             @Param("today") LocalDate today);
 
+    @Select("""
+            SELECT id,reason,occurred_at,before_state ->> 'validFrom' AS valid_from,
+              before_state ->> 'validTo' AS before_valid_to,
+              CASE WHEN action='ORGANIZATION_HEAD_END' THEN after_state ->> 'validTo'
+                ELSE COALESCE(after_state #>> '{assignment,validTo}', after_state ->> 'previousEndBoundary')
+              END AS after_valid_to
+            FROM tna.org_audit_event
+            WHERE tenant_id=#{tenantId} AND target_kind='ORGANIZATION' AND target_id=#{organizationId}
+              AND action IN ('ORGANIZATION_HEAD_CHANGE_END_PERIOD','ORGANIZATION_HEAD_END')
+            ORDER BY occurred_at DESC,id DESC LIMIT 30
+            """)
+    List<HeadEndChange> endChanges(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId);
+
     @Select(HISTORY_SELECT + " AND h.superseded_at IS NULL AND h.valid_from<=#{date} AND (h.valid_to IS NULL OR h.valid_to>#{date})")
     HeadAssignment covering(@Param("tenantId") UUID tenantId, @Param("organizationId") UUID organizationId,
             @Param("date") LocalDate date, @Param("today") LocalDate today);
@@ -72,6 +85,14 @@ public interface OrganizationHeadMapper {
               AND valid_from<=#{date} AND (valid_to IS NULL OR valid_to>#{date})
             """)
     int close(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("date") LocalDate date,
+            @Param("version") long version, @Param("actorId") UUID actorId);
+
+    @Update("""
+            UPDATE tna.organization_head_assignment
+            SET valid_to=#{to},version=version+1,updated_at=CURRENT_TIMESTAMP,updated_by=#{actorId}
+            WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{version} AND superseded_at IS NULL
+            """)
+    int changeEnd(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("to") LocalDate to,
             @Param("version") long version, @Param("actorId") UUID actorId);
 
     @Insert("""
@@ -133,7 +154,7 @@ public interface OrganizationHeadMapper {
             LEFT JOIN tna.organization_head_assignment h ON h.tenant_id=o.tenant_id AND h.organization_id=o.id
               AND h.superseded_at IS NULL AND h.valid_from &lt;= #{today} AND (h.valid_to IS NULL OR h.valid_to>#{today})
             LEFT JOIN tna.employee e ON e.tenant_id=h.tenant_id AND e.id=h.employee_id
-            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=m.tenant_id AND sa.employee_id=m.id
+            LEFT JOIN tna.effective_schedule_assignment sa ON sa.tenant_id=m.tenant_id AND sa.employee_id=m.id
               AND sa.valid_from &lt;= #{today} AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version v ON v.tenant_id=sa.tenant_id AND v.id=sa.schedule_version_id
             LEFT JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id

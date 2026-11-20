@@ -1,16 +1,18 @@
 import type { PageProps } from '../types';
 import type { ReactNode } from 'react';
 import { dayClass, formatMinutes, pendingRequests, tally, weekOf } from './scheduleSummary';
+import { coreHours, hoursAndMinutes, periodNames } from './selectiveSchedule';
 import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
 import type { DaySnapshot } from './WorkflowTypes';
+import type { LeavePart } from './leavePart';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import './ScheduleCalendar.css';
 
 interface RequestItem {
-  request: { id: string; fromDate: string; toDate: string };
+  request: { id: string; fromDate: string; toDate: string; leavePart?: LeavePart | null };
   kindLabel: string;
   statusLabel: string;
   tone: string;
@@ -44,6 +46,11 @@ interface Calendar {
   previousMonth: string | null;
   nextMonth: string | null;
   selectedDay: WorkspaceDay;
+  assignment?: {
+    group: boolean; code: string; name: string; workCode?: string; workName?: string;
+    beforeStart?: string; beforeEnd?: string; afterStart?: string; afterEnd?: string;
+    overtimeBreaks: {start: string; end: string}[]; overtimeMinutes: number;
+  };
 }
 const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 export function StatusPanel() {
@@ -301,7 +308,7 @@ function seoulCalendarToday() {
 }
 
 const calendarRequestKinds = [
-  { kind: 'LEAVE_DAY', title: '종일 연차', icon: 'M4 12h16m-8-8v16' },
+  { kind: 'LEAVE_DAY', title: '연차·반차 신청', icon: 'M4 12h16m-8-8v16' },
   { kind: 'ATTENDANCE_CORRECTION', title: '출퇴근·휴게 정정', icon: 'M12 6v6l4 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z' },
 ] as const;
 
@@ -346,6 +353,7 @@ function Schedule({ data }: PageProps) {
   const pending = pendingRequests(calendar.days);
   const week = weekOf(calendar.days, calendar.selectedDate);
   const weekTally = tally(week.days);
+  const hasSelectiveDays = (days: WorkspaceDay[]) => days.some(day => day.snapshot.schedule?.workMode === 'SELECTIVE');
   const todo = [
     ...pending.map(({ item, date }) => ({ key: `request-${item.request.id}`, date, label: item.kindLabel, state: item.statusLabel, tone: 'amber', href: `/requests/${item.request.id}` })),
     ...calendar.days.filter(entry => dayClass(entry) === 'unknown').map(entry => ({
@@ -426,7 +434,7 @@ function Schedule({ data }: PageProps) {
         <a className="t-btn primary" href={`/me/requests/new?${new URLSearchParams({ year })}`}>근태 신청</a>
       </>} />
       <dl className="wl-summary" aria-label={`${year}년 ${Number(month)}월 요약`}>
-        <div><dt>예정 근무</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
+        <div><dt>{hasSelectiveDays(calendar.days) ? '근무 기준시간' : '예정 근무'}</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
         <div><dt>승인 연차</dt><dd>{summary.leaveDays}일</dd></div>
         <div data-tone={pending.length ? 'warn' : undefined}><dt>검토 중</dt><dd>{pending.length}건</dd></div>
         <div data-tone={summary.unknownDays ? 'danger' : undefined}><dt>확인 필요</dt><dd>{summary.unknownDays}일</dd></div>
@@ -523,7 +531,7 @@ function Schedule({ data }: PageProps) {
               <section className="wl-side-block" aria-labelledby={`${sideId}-week`}>
                 <h3 id={`${sideId}-week`}>주간 근무</h3>
                 <p className="wl-side-period">{shortDate(week.from)} – {shortDate(week.to)}{week.partial && ' · 이번 달 날짜만'}</p>
-                <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>예정</small></p>
+                <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>{hasSelectiveDays(week.days) ? '표준시간 포함' : '예정'}</small></p>
                 <dl className="wl-side-facts">
                   <div data-kind="work"><dt>예정 근무</dt><dd>{weekTally.workDays}일</dd></div>
                   <div data-kind="leave"><dt>승인 연차</dt><dd>{weekTally.leaveDays}일</dd></div>
@@ -564,6 +572,33 @@ function Schedule({ data }: PageProps) {
               <dt>근무 일정</dt>
               <dd>{selected.scheduleText}</dd>
             </div>
+            {calendar.assignment && <div>
+              <dt>{calendar.assignment.group ? '근무조' : '기존 고정배정'}</dt>
+              <dd>{calendar.assignment.code} · {calendar.assignment.name}</dd>
+            </div>}
+            {selected.snapshot.schedule?.workMode === 'SELECTIVE' && <>
+              <div><dt>코어시간</dt><dd>{coreHours(selected.snapshot.schedule)}</dd></div>
+              <div><dt>표준 1일 근로시간</dt><dd>{selected.snapshot.schedule.standardMinutes == null
+                ? '미확인' : hoursAndMinutes(selected.snapshot.schedule.standardMinutes)}</dd></div>
+              <div><dt>정산 기간</dt><dd>{selected.snapshot.schedule.settlementPeriod
+                ? periodNames[selected.snapshot.schedule.settlementPeriod] : '미확인'}</dd></div>
+            </>}
+            {calendar.assignment?.workCode && <div>
+              <dt>근무시간코드</dt><dd>{calendar.assignment.workCode} · {calendar.assignment.workName}</dd>
+            </div>}
+            {calendar.assignment?.workCode && selected.snapshot.schedule?.workMode !== 'SELECTIVE' && <div>
+              <dt>요일별 연장 기준</dt>
+              <dd>{calendar.assignment.beforeStart && <span>출근 전 {calendar.assignment.beforeStart.slice(0,5)}~{calendar.assignment.beforeEnd?.slice(0,5)} </span>}
+                {calendar.assignment.afterStart && <span>퇴근 후 {calendar.assignment.afterStart.slice(0,5)}~{calendar.assignment.afterEnd?.slice(0,5)} </span>}
+                {calendar.assignment.beforeStart || calendar.assignment.afterStart
+                  ? <span>최대 {calendar.assignment.overtimeMinutes}분</span> : '신청 미허용'}
+                {selected.snapshot.dayKind === 'HOLIDAY' && <div>휴일에는 이 연장 신청 기준을 적용하지 않습니다.</div>}
+                {selected.snapshot.dayKind === 'NON_WORKDAY' && <div>비근로일에는 이 연장 신청 기준을 적용하지 않습니다.</div>}
+                {!['WORKDAY', 'HOLIDAY', 'NON_WORKDAY'].includes(selected.snapshot.dayKind) && <div>해당일 적용 여부는 휴일 캘린더 확인이 필요합니다.</div>}
+                {calendar.assignment.overtimeBreaks.map(b => <div key={b.start}>연장 중 예정 휴게 {b.start.slice(0,5)}~{b.end.slice(0,5)}</div>)}
+              </dd>
+            </div>}
+
             <div>
               <dt>휴일 확인</dt>
               <dd>{selected.calendarText}</dd>
@@ -593,6 +628,8 @@ function Schedule({ data }: PageProps) {
             </div>
           </div>
           <div className="t-attendance-detail-actions">
+            {selected.snapshot.schedule?.workMode === 'SELECTIVE' && <a className="t-btn secondary"
+              href={'/me/worktime?month=' + calendar.month + '#selective-settlements'}>이 달 선택근무 정산</a>}
             <a className="t-btn secondary" href={`/me/attendance?date=${calendar.selectedDate}`}>출퇴근 기록</a>
             <a className="t-btn secondary" href="/me/requests">휴가·정정 신청</a>
           </div>

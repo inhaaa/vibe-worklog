@@ -31,16 +31,21 @@ public interface CodeMapper {
     String TYPE_SELECT="""
         SELECT t.id,t.code,t.system_kind,t.active,t.version,v.id AS type_version_id,v.revision,v.effective_from,v.enabled,v.name,
          v.unit,v.pay_kind,v.deduction_rule,v.recognition_rule,v.basis,t.system_kind IS NOT NULL AS supported,
-         CASE t.system_kind WHEN 'ANNUAL_LEAVE' THEN '종일 DAY·승인 시 원장 차감'
+         CASE t.system_kind WHEN 'ANNUAL_LEAVE' THEN '종일 1일·반차 0.5일, 최종 승인 시 차감'
           WHEN 'ATTENDANCE_CORRECTION' THEN '기존 출퇴근·휴게 정정 절차' ELSE '계산·차감 계약 미지원: 초안만 등록 가능' END AS capability_message
         FROM tna.attendance_type t JOIN LATERAL (
          SELECT * FROM tna.attendance_type_version WHERE tenant_id=t.tenant_id AND type_id=t.id ORDER BY revision DESC LIMIT 1
         )v ON true WHERE t.tenant_id=#{tenantId}
         """;
-    @Select(TYPE_SELECT+" AND (#{q}='' OR strpos(lower(t.code),lower(#{q}))>0 OR strpos(lower(v.name),lower(#{q}))>0) ORDER BY t.code,t.id LIMIT 51 OFFSET #{offset}")
+    @Select(TYPE_SELECT+"""
+        AND (#{q}='' OR strpos(lower(t.code),lower(#{q}))>0 OR strpos(lower(v.name),lower(#{q}))>0
+             OR strpos(lower(t.system_kind),lower(#{q}))>0)
+        ORDER BY t.code,t.id LIMIT 51 OFFSET #{offset}
+        """)
     List<Type> types(@Param("tenantId")UUID tenantId,@Param("q")String q,@Param("offset")int offset);
     @Select(TYPE_SELECT+" AND t.id=#{id}") Type type(@Param("tenantId")UUID tenantId,@Param("id")UUID id);
-    @Select(TYPE_SELECT+" AND t.code=#{code}") Type typeCode(@Param("tenantId")UUID tenantId,@Param("code")String code);
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.attendance_type WHERE tenant_id=#{tenantId} AND upper(code)=#{code})")
+    boolean typeCodeExists(@Param("tenantId")UUID tenantId,@Param("code")String code);
     @Select("""
         SELECT v.id,v.type_id,t.code,v.revision,v.effective_from,v.enabled,v.name,v.unit,v.pay_kind,v.deduction_rule,
          v.recognition_rule,v.basis,v.reason,v.created_at,v.created_by,e.display_name AS created_by_name

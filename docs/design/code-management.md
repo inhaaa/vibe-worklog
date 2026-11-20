@@ -1,5 +1,7 @@
 # 공통코드·근태코드 관리 — 4단계 계약
 
+2026-11-18부터 기본 연차·정정은 고객사별 짧은 표시코드를 사용한다. 이전 긴 코드 검색, 고객사 코드 충돌과 기존 정책 버전 보존은 [근태코드 전환 명세](../superpowers/specs/2026-11-18-attendance-codes-half-day.md)를 따른다.
+
 > 2026-10-29 화면 공통화: 그룹·상세·근태코드 편집과 정책 이력은 [WorklogSheet](../superpowers/specs/2026-10-29-common-sheet-design.md)를 사용한다. 정렬·필터는 불러온 현재 페이지에만 적용하며 필터로 숨은 선택·변경 행도 일괄 저장·취소 범위에 포함한다. 시스템 보호·불변 코드·적용일·버전·명령·409/422/503 계약은 아래와 같다. [기술 결정](../adr/0005-common-worklog-sheet.md)에 따라 Community만 사용한다.
 
 기준일: 2026-10-28, Asia/Seoul. 승인된 [업무 확장 설계](../superpowers/specs/2026-10-26-worklog-service-design.md#7-공통코드와-근태코드)의 React 구현 계약이다. 기존 신청·결재·원장·CALC-1은 유지한다.

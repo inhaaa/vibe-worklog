@@ -18,6 +18,24 @@ class WorktimeWebIT {
     @DynamicPropertySource static void database(DynamicPropertyRegistry r){var d=DatabaseFixture.start();r.add("spring.datasource.url",d::jdbcUrl);r.add("spring.datasource.username",()->DatabaseFixture.APP_USER);r.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);r.add("tna.auth.url",d::jdbcUrl);r.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);r.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);}
     @BeforeEach void seed(){var d=DatabaseFixture.start();d.seedIdentity(kr.tna.common.auth.PasswordPolicy.passwordEncoder().encode(PASSWORD));new JdbcTemplate(d.adminDataSource()).update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",DatabaseFixture.TENANT_A,DatabaseFixture.ACCOUNT_A);}
     @Test void managerCanOpenMonthlyReviewAndPolicyForms() throws Exception{var s=login(true);mvc.perform(get("/admin/attendance").session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.page());mvc.perform(get("/admin/work-policies").session(s)).andExpect(status().isOk());}
+    @Test void selectiveSettlementReadsStayWithinTheCurrentEmployeeCompanyAndRole() throws Exception {
+        var employee = login(false);
+        var admin = login(true);
+        String path = "/admin/attendance/month-close/selective-settlements";
+        mvc.perform(get("/worktime/selective-settlements").session(employee).param("month","2024-03")
+                .param("employeeId", DatabaseFixture.EMPLOYEE_A.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.employeeId").value(DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(jsonPath("$.periods").isEmpty());
+        mvc.perform(get(path).session(employee).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(path).session(admin).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_B.toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(path).session(admin).param("month","2024-03").param("employeeId",DatabaseFixture.EMPLOYEE_A.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.employeeId").value(DatabaseFixture.EMPLOYEE_A.toString()));
+        mvc.perform(get(path).session(admin).param("month","2024-03")).andExpect(status().isBadRequest());
+        mvc.perform(get("/worktime/selective-settlements").session(employee).param("month","2024-13"))
+                .andExpect(status().isUnprocessableEntity());
+    }
     @Test void employeeCanReadOwnMonthButCannotCalculateExportOrReadAudit() throws Exception{var s=login(false);mvc.perform(get("/me/worktime").session(s)).andExpect(status().isOk());for(String p:java.util.List.of("/admin/attendance","/admin/audit","/admin/work-policies"))mvc.perform(get(p).session(s)).andExpect(status().isForbidden());mvc.perform(post("/admin/calculations").session(s).with(csrf())).andExpect(status().isForbidden());}
     @Test void stateChangesRequireCsrfAndMalformedIdentifiersAreSafe() throws Exception{var s=login(true);mvc.perform(post("/admin/calculations").session(s)).andExpect(status().isForbidden());mvc.perform(get("/admin/reports/exports/not-an-id/download").session(s)).andExpect(status().isBadRequest());}
     @Test void calculationAndReviewExportReturnAuthorizedXlsx() throws Exception {
@@ -33,6 +51,43 @@ class WorktimeWebIT {
                 .andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/from", "2026-09-28"))
                 .andExpect(ReactPageAssertions.data("/overview/weeks/0/to", "2026-10-05"));
+    }
+    @Test void checkoutRecalculationReturnsToTheSameDateAndSafeListConditions() throws Exception {
+        var session = login(true);
+        var date = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1);
+        var employee = DatabaseFixture.EMPLOYEE_A.toString();
+        var back = "/company/attendance?view=checkout&date=" + date + "&q=A%26B&status=ALL&page=2";
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId", employee)
+                .param("month", date.toString().substring(0, 7)).param("workDate", date.toString()).param("returnTo", back))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/checkoutWorkDate", date.toString()))
+                .andExpect(ReactPageAssertions.data("/checkoutReturnTo", back));
+        var attempt = post("/admin/calculations").session(session).with(csrf())
+                .param("employeeId", employee).param("from", date.toString()).param("to", date.toString())
+                .param("reason", "합성 누락일 재집계").param("commandId", UUID.randomUUID().toString());
+        mvc.perform(attempt.param("returnTo", back)).andExpect(status().isSeeOther())
+                .andExpect(redirectedUrlPattern("/admin/attendance?employeeId=*&month=*&workDate=*&returnTo=*"));
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId", employee)
+                .param("month", date.toString().substring(0, 7)).param("workDate", date.toString()).param("returnTo", "//other.test"))
+                .andExpect(status().isOk()).andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        ReactPageAssertions.envelope(result).at("/data/checkoutReturnTo").isMissingNode()));
+    }
+    @Test void monthEndReviewReturnsToTheSelectedMonthAndPageAfterRecalculation() throws Exception {
+        var session = login(true);
+        var date = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(2);
+        String month = java.time.YearMonth.from(date).toString();
+        String back = "/company/attendance?view=month-end&month=" + month + "&q=E001&reason=STALE&page=1";
+        String employee = DatabaseFixture.EMPLOYEE_A.toString();
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId",employee)
+                .param("month",month).param("workDate",date.toString()).param("returnTo",back))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/checkoutReturnTo",back));
+        mvc.perform(post("/admin/calculations").session(session).with(csrf())
+                .param("employeeId",employee).param("from",date.toString()).param("to",date.toString())
+                .param("reason","월말 확인").param("commandId",UUID.randomUUID().toString()).param("returnTo",back))
+                .andExpect(status().isSeeOther()).andExpect(redirectedUrlPattern("/admin/attendance?employeeId=*&month=*&workDate=*&returnTo=*"));
+        mvc.perform(get("/admin/attendance").session(session).param("employeeId",employee).param("month",month)
+                .param("workDate",date.toString()).param("returnTo",back + "&month=2000-01"))
+                .andExpect(status().isOk()).andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        ReactPageAssertions.envelope(result).at("/data/checkoutReturnTo").isMissingNode()));
     }
     private MockHttpSession login(boolean admin) throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",admin?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
 }

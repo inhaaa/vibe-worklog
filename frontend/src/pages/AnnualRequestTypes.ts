@@ -1,7 +1,11 @@
 import type { Bucket, CorrectionForm, DaySnapshot, LeaveForm, RequestView } from './WorkflowTypes';
 import type { EmployeeHeaderData } from '../components/EmployeeHeader';
 
-export interface ApprovalPreview { source: string; routeName: string | null; approverName: string | null; eligible: boolean; message: string | null }
+export interface ApprovalPreview {
+  source: string; routeName: string | null; approverName: string | null; eligible: boolean; message: string | null;
+  formCode?: string | null; formName?: string | null; basisDate?: string | null; routeToken?: string | null;
+  steps?: { stepNumber: number; role: string; approverName: string; organizationName: string | null }[];
+}
 export interface TypeChoice { id: string; code: string; name: string; systemKind: string | null; supported: boolean }
 export interface TypeSummary { typeId: string; code: string; name: string; kind: string; requestCount: number; pendingCount: number; approvedCount: number; rejectedCount: number; withdrawnCount: number; usedDays: number; plannedDays: number; pendingDays: number }
 export interface BucketYear { bucketId: string; entitlementYear: number | null; classificationStatus: string; basis: string | null; usableFrom: string; usableTo: string | null; balanceDays: number; availableDays: number; openingAdjustmentDays: number; availability: string }

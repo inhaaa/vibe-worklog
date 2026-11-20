@@ -120,6 +120,18 @@ class WorktimeCalculatorTest {
         var result=calculator.month(YearMonth.from(DATE),List.of(a,b));
         assertEquals(60_100L,result.confirmedWorkMillis());
     }
+    @Test void halfDayRequiresEvidenceForTheRemainingWorkAndKeepsRecordedHours() {
+        var day = normal();
+        var missing = calculator.day(copy(day, List.of(), null, day.dayKind(), false, 0.5));
+        assertEquals(0.5, missing.leaveDays());
+        assertEquals(Status.REVIEW_REQUIRED, missing.status());
+        assertNull(missing.actualWorkMillis());
+        var afternoon = calculator.day(copy(day, events("14:00", "17:30"), confirmation(List.of()), day.dayKind(), false, 0.5));
+        assertEquals(3 * HOUR + HOUR / 2, afternoon.actualWorkMillis());
+        assertEquals(0.5, afternoon.leaveDays());
+        assertFalse(afternoon.reasons().contains("LEAVE_WORK_CONFLICT"));
+    }
+
     @Test void c26ApprovedLeaveAndAttendanceConflictPreservesLeaveAndRawPresence() {
         var input=normal(); input=copy(input,input.events(),input.confirmation(),input.dayKind(),false,1);
         var result=calculator.day(input);
@@ -219,7 +231,7 @@ class WorktimeCalculatorTest {
     private DayInput withEvents(DayInput input,List<ClockEvent> events) { return copy(input,events,input.confirmation(),input.dayKind(),input.pendingCorrection(),input.approvedLeaveDays()); }
     private DayInput withConfirmation(DayInput input,Confirmation confirmation) { return copy(input,input.events(),confirmation,input.dayKind(),input.pendingCorrection(),input.approvedLeaveDays()); }
     private DayInput withKind(DayInput input,DayKind kind) { return copy(input,input.events(),input.confirmation(),kind,input.pendingCorrection(),input.approvedLeaveDays()); }
-    private DayInput copy(DayInput i,List<ClockEvent> events,Confirmation confirmation,DayKind kind,boolean pending,int leave) {
+    private DayInput copy(DayInput i,List<ClockEvent> events,Confirmation confirmation,DayKind kind,boolean pending,double leave) {
         return new DayInput(i.workDate(),events,i.schedules(),kind,i.generalRuleReviewed(),i.inputRevision(),i.reviewRevision(),confirmation,pending,leave);
     }
     private Confirmation confirmation(List<Interval> breaks) { return new Confirmation(7,4,true,breaks); }

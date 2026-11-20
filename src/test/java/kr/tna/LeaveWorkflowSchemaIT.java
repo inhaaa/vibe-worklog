@@ -28,7 +28,13 @@ class LeaveWorkflowSchemaIT {
                 """,Boolean.class,table));
     }
     @Test void newDataIsIsolatedAndContextNeverLeaksAcrossTransactions() {
-        var a=scope();var b=scope();for(var s:List.of(a,b)) tx.execute(s.tenant(),()->{seed(s);return null;});
+        var a=scope();var b=scope();
+        tx.execute(a.tenant(),()->{seed(a,"AM");return null;});
+        tx.execute(b.tenant(),()->{seed(b,"PM");return null;});
+        for(var s:List.of(a,b)) {
+            assertEquals(List.of(s.equals(a)?"AM":"PM"),tx.execute(s.tenant(),()->app.queryForList(
+                    "SELECT leave_part FROM tna.leave_request_day WHERE quantity_days=0.5",String.class)));
+        }
         for(String table:TABLES) {
             assertEquals(0,app.queryForObject("SELECT count(*) FROM tna."+table,Integer.class));
             for(var s:List.of(a,b)) assertEquals(List.of(s.tenant()),tx.execute(s.tenant(),()->
@@ -116,7 +122,19 @@ class LeaveWorkflowSchemaIT {
                 VALUES (?,?,?,?,DATE '2026-01-01','합성 배정',?,?)
                 """,s.tenant(),s.assignment(),s.target(),s.approver(),s.actor(),s.actor());return s;
     }
-    private void seed(Scope s) {
+    @Test void balanceLedgerAcceptsExactHalfDayOpeningsAndAdjustmentsOnly() {
+        var s = scope();
+        tx.execute(s.tenant(), () -> {
+            bucket(s);
+            ledger(s, UUID.randomUUID(), "OPENING", 7.5, null, null, null);
+            ledger(s, UUID.randomUUID(), "ADJUSTMENT", -0.5, null, null, null);
+            return ledger(s, UUID.randomUUID(), "ADJUSTMENT", 0.5, null, null, null);
+        });
+        for (String invalid : List.of("0", "0.25", "0.50000000000000001"))
+            denied("23514",s,()->ledger(s,UUID.randomUUID(),"ADJUSTMENT",new java.math.BigDecimal(invalid),null,null,null));
+        assertEquals(7.5,admin.queryForObject("SELECT sum(signed_quantity_days) FROM tna.leave_ledger WHERE tenant_id=?",Double.class,s.tenant()));
+    }
+    private void seed(Scope s,String part) {
         bucket(s);UUID request=UUID.randomUUID(),correction=UUID.randomUUID(),effect=UUID.randomUUID();
         request(s,request,"LEAVE_DAY",s.target(),s.actor(),s.approver(),s.bucket(),null,"2026-11-01");
         request(s,correction,"ATTENDANCE_CORRECTION",s.target(),s.actor(),s.approver(),null,null,"2026-11-02");
@@ -124,7 +142,7 @@ class LeaveWorkflowSchemaIT {
         app.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'FIXED','합성 일정',?,?)",s.tenant(),template,s.actor(),s.actor());
         app.update("INSERT INTO tna.schedule_version(tenant_id,id,template_id,revision,valid_from,reason,created_by) VALUES (?,?,?,1,DATE '2026-01-01','합성 버전',?)",s.tenant(),schedule,template,s.actor());
         app.update("INSERT INTO tna.calendar_version(tenant_id,id,revision,valid_from,valid_to,reason,created_by) VALUES (?,?,1,DATE '2026-01-01',DATE '2027-01-01','합성 검토',?)",s.tenant(),calendar,s.actor());
-        app.update("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,zero_reason) VALUES (?,?,?,DATE '2026-11-01',1,?,?,NULL)",s.tenant(),UUID.randomUUID(),request,schedule,calendar);
+        app.update("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id,leave_part) VALUES (?,?,?,DATE '2026-11-01',0.5,?,?,?)",s.tenant(),UUID.randomUUID(),request,schedule,calendar,part);
         app.update("""
                 INSERT INTO tna.correction_detail(tenant_id,id,request_id,work_date,base_input_revision,source_fingerprint,
                     in_action,out_action,requested_in_at,requested_out_at,actual_breaks,presence_as_work,breaks_confirmed,before_snapshot)
@@ -153,7 +171,7 @@ class LeaveWorkflowSchemaIT {
                 validated_input_refs,reverses_effect_id,supersedes_effect_id,created_by)
             VALUES (?,?,?,?,?::date,?,'EFFECTIVE','[]'::jsonb,?,?,?)
             """,s.tenant(),id,request,s.target(),date,kind,reverses,supersedes,s.actor());}
-    private int ledger(Scope s,UUID id,String kind,int quantity,UUID effect,String date,UUID reverses) {return app.update("""
+    private int ledger(Scope s,UUID id,String kind,Number quantity,UUID effect,String date,UUID reverses) {return app.update("""
             INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,
                 request_effect_id,leave_date,reverses_entry_id,source_reference,reason,created_by)
             VALUES (?,?,?,?,?,?,DATE '2026-10-24',?,?::date,?,'합성 원장 근거','합성 원장',?)

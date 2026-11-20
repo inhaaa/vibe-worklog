@@ -52,6 +52,12 @@ function editWidgets() {
 }
 
 describe('업무 홈', () => {
+  it('오늘과 이번 주의 승인된 오후 반차를 구분하고 출근 기록을 허용한다', () => {
+    const partial = { ...day, inRecordedAt: null, requests: [{ effectiveLeave: true, leavePart: 'PM' }] };
+    render(<WorkspaceHome data={{ workspaceHome: { ...home, today: partial, week: [partial] }, clockInCommand: 'in-cmd' }} />);
+    expect(screen.getAllByText(/오후 반차/)).toHaveLength(2);
+    expect((screen.getByRole('button', { name: '출근' }) as HTMLButtonElement).disabled).toBe(false);
+  });
   it('서버가 제공한 오늘 일정, 출퇴근 및 내 신청 상태를 연결한다', () => {
     render(<WorkspaceHome data={{ workspaceHome: home }} />);
 
@@ -211,4 +217,16 @@ describe('업무 홈', () => {
     expect(screen.queryByText('0일')).toBeNull();
     expect(screen.getByText('이 화면에만 구성이 적용됩니다.')).toBeTruthy();
   });
+});
+
+it('홈에서 본인의 근태 보완 요청을 바로 열고 처리할 요청이 없으면 내 위젯만 표시한다', () => {
+  const task={id:'task-1',workDate:'2026-11-04',reason:'퇴근 시각 확인',status:'REQUESTED',approvalRequestId:null,resultId:null};
+  const view=render(<WorkspaceHome data={{workspaceHome:home,checkoutFollowUps:{rows:[task],page:0,hasNext:true}}} />);
+  const panel=within(screen.getByRole('region',{name:'내 근태 보완 요청'}));
+  expect(panel.getByText(task.reason)).toBeTruthy();
+  expect(panel.getByRole('link',{name:'정정 신청'}).getAttribute('href')).toBe('/me/requests/correction?date=2026-11-04');
+  expect(panel.getByRole('link',{name:'전체 보기'}).getAttribute('href')).toBe('/me/attendance/follow-ups');
+  view.rerender(<WorkspaceHome data={{workspaceHome:home,checkoutFollowUps:{rows:[],page:0,hasNext:false}}} />);
+  expect(screen.queryByRole('region',{name:'내 근태 보완 요청'})).toBeNull();
+  expect(screen.getByRole('button',{name:'위젯 설정'})).toBeTruthy();
 });

@@ -1,5 +1,6 @@
 package kr.tna.org;
 
+import java.util.List;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.EmployeePersonnelData.Form;
@@ -10,11 +11,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.MultiValueMap;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.view.RedirectView;
 
@@ -22,14 +26,69 @@ import org.springframework.web.servlet.view.RedirectView;
 public final class EmployeePersonnelController {
     private final EmployeePersonnelService personnel;
     private final EmployeePersonalDetailsService details;
+    private final EmployeeService employees;
+    private final OrgCommands commands;
+    private final PublicDemoIdentityGuard identityGuard;
+    private final AdminPersonnelTabService tabs;
+    private final OrganizationService organizations;
 
-    public EmployeePersonnelController(EmployeePersonnelService personnel, EmployeePersonalDetailsService details) {
+    public EmployeePersonnelController(EmployeePersonnelService personnel, EmployeePersonalDetailsService details,
+            EmployeeService employees, OrgCommands commands, PublicDemoIdentityGuard identityGuard,
+            AdminPersonnelTabService tabs, OrganizationService organizations) {
         this.personnel = personnel; this.details = details;
+        this.employees = employees; this.commands = commands; this.identityGuard = identityGuard;
+        this.tabs = tabs; this.organizations = organizations;
+    }
+
+    @GetMapping("/admin/employees/personnel/search")
+    @ResponseBody
+    ResponseEntity<EmployeeService.PersonnelSearch> search(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(employees.searchPersonnel(actor, q, page));
     }
 
     @GetMapping("/admin/employees/{id}/personnel")
-    ModelAndView get(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id) {
-        return page(actor, id, null);
+    ModelAndView get(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @RequestParam(defaultValue = "basic") String tab) {
+        return workspace(actor, id, PersonnelTab.parse(tab));
+    }
+
+    ModelAndView workspace(TnaPrincipal actor, UUID id, PersonnelTab tab) {
+        return commands.readShared(actor, () -> {
+            var employee = employees.get(actor, id);
+            boolean editable = !identityGuard.protects(actor, id);
+            List<OrganizationOption> options = editable
+                    ? organizations.options(actor).stream().filter(OrgData.Organization::active)
+                            .map(org -> new OrganizationOption(org.id(), org.code(), org.name())).toList()
+                    : List.of();
+            return page(actor, id, null).addObject("employeeHeader", personnel.header(actor, id))
+                    .addObject("adminPersonnel", new Workspace(tab.id(), employee, editable, !identityGuard.publicDemo(),
+                            employees.joinedOnLocked(actor, id), options));
+        });
+    }
+
+    record Workspace(String tab, OrgData.Employee employee, boolean editable, boolean exportAllowed,
+            boolean joinedOnLocked, List<OrganizationOption> organizations) { }
+
+    record OrganizationOption(UUID id, String code, String name) { }
+
+    @PostMapping("/admin/employees/{id}/personnel/tabs/{tabId}")
+    ModelAndView saveTab(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @PathVariable String tabId, @RequestParam MultiValueMap<String, String> parameters) {
+        PersonnelTab tab = PersonnelTab.parse(tabId);
+        var input = AdminPersonnelTabCommand.read(tab, parameters);
+        try {
+            tabs.save(actor, id, input);
+            var redirect = new RedirectView("/admin/employees/" + id + "/personnel?tab=" + tab.id() + "&saved", true);
+            redirect.setStatusCode(HttpStatus.SEE_OTHER);
+            return new ModelAndView(redirect);
+        } catch (OrgException exception) {
+            if (exception.status() != 409 && exception.status() != 422) throw exception;
+            var view = workspace(actor, id, tab).addObject("error", exception.getMessage())
+                    .addObject("tabDraft", input.draft()).addObject("tabConflict", exception.status() == 409);
+            view.setStatus(HttpStatusCode.valueOf(exception.status()));
+            return view;
+        }
     }
 
     @PostMapping("/admin/employees/{id}/personnel")

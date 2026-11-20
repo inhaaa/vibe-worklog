@@ -1,5 +1,7 @@
 package kr.tna.workspace;
 
+import kr.tna.request.RequestScope;
+
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -51,7 +53,7 @@ public final class ProfileCompanyQueries {
         });
     }
 
-    public CompanyAttendance attendance(TnaPrincipal actor, YearMonth requestedMonth, UUID organizationId,
+    CompanyAttendancePage attendance(TnaPrincipal actor, YearMonth requestedMonth, UUID organizationId,
             UUID employeeId, int page, String q) {
         int offset = offset(page);
         String query = q == null ? "" : q.strip();
@@ -72,13 +74,16 @@ public final class ProfileCompanyQueries {
                             day.current() ? day.result().actualWorkMillis() : null,
                             day.current() ? day.result().leaveDays() : null,
                             day.current() ? day.result().status().name() : "REVIEW_REQUIRED", day.current())).toList();
-            return new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
+            var attendance = new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
                     query, page, found.size() > 50, List.copyOf(mapper.organizations(actor.tenantId())), employees, selected, days);
+            boolean canViewCheckout = actor.roles().contains("ATTENDANCE_ADMIN")
+                    && mapper.roles(actor.tenantId(), actor.accountId()).contains("ATTENDANCE_ADMIN");
+            return new CompanyAttendancePage(attendance, canViewCheckout);
         });
     }
 
     public CompanyRequests requests(TnaPrincipal actor, Integer requestedYear, UUID organizationId,
-            String requestedStatus, int page) {
+            String requestedStatus, int page, RequestScope scope) {
         int offset = offset(page);
         String status = requestedStatus == null ? "" : requestedStatus.strip();
         if (!Set.of("", "PENDING", "APPROVED", "REJECTED", "WITHDRAWN").contains(status)) {
@@ -90,8 +95,8 @@ public final class ProfileCompanyQueries {
             year(selectedYear);
             requireOrganization(actor.tenantId(), organizationId);
             var found = mapper.requests(actor.tenantId(), today, organizationId, status,
-                    LocalDate.of(selectedYear, 1, 1), LocalDate.of(selectedYear, 12, 31), offset);
-            return new CompanyRequests(selectedYear, clock.instant(), organizationId, status, page, found.size() > 50,
+                    LocalDate.of(selectedYear, 1, 1), LocalDate.of(selectedYear, 12, 31), offset, scope == null ? "" : scope.name());
+            return new CompanyRequests(selectedYear, clock.instant(), organizationId, status, page, found.size() > 50, scope,
                     List.copyOf(mapper.organizations(actor.tenantId())), List.copyOf(found.subList(0, Math.min(50, found.size()))));
         });
     }

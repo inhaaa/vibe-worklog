@@ -8,7 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
-/** Explicit local-only synthetic identity shared with the separate bootstrap CLI. */
+/** Explicit synthetic identity shared with the separate bootstrap CLI. */
 @Component
 public final class LocalDemoLogin {
     public static final String COMPANY_CODE = "TNA-LOCAL-DEMO";
@@ -38,17 +38,30 @@ public final class LocalDemoLogin {
                     Set.of("EMPLOYEE", "ATTENDANCE_ADMIN", "APPROVER")));
     public static final Set<UUID> SHARED_EMPLOYEE_IDS = PERSONAS.stream().map(Persona::employeeId).collect(java.util.stream.Collectors.toUnmodifiableSet());
     private final boolean enabled;
+    private final boolean publicDemo;
 
     public LocalDemoLogin(Environment environment) {
+        publicDemo = environment.acceptsProfiles(Profiles.of("public-demo"));
+        if (publicDemo && (environment.getActiveProfiles().length != 1
+                || !"public-demo".equals(environment.getActiveProfiles()[0]))) {
+            throw new IllegalArgumentException("public-demo must be the only explicitly active profile");
+        }
+        if (publicDemo && environment.getProperty("tna.operator.enabled", Boolean.class, false)) {
+            throw new IllegalArgumentException("The operator console is unavailable in public-demo");
+        }
         if (environment.acceptsProfiles(Profiles.of("local-demo"))
                 && !environment.acceptsProfiles(Profiles.of("local"))) {
             throw new IllegalArgumentException("The local-demo profile requires the local profile");
         }
-        enabled = environment.acceptsProfiles(Profiles.of("local & local-demo"));
+        enabled = publicDemo || environment.acceptsProfiles(Profiles.of("local & local-demo"));
     }
 
     public boolean enabled() {
         return enabled;
+    }
+
+    public boolean publicDemo() {
+        return publicDemo;
     }
 
     public static Optional<Persona> persona(String login) {

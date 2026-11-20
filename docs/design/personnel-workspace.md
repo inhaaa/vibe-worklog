@@ -1,5 +1,7 @@
 # 업무별 메뉴·공통 사원 헤더·인사정보 등록
 
+> 2026-11-17 후속. 담당자의 사원 검색 헤더, 탭별 편집·파일, 기존 일괄관리 시트는 [담당자 인사기본 상세 명세](../superpowers/specs/2026-11-17-admin-personnel-workspace-design.md)와 [구현·검증 계획](../superpowers/plans/2026-11-17-admin-personnel-workspace.md)을 따른다.
+
 기준일: 2026-11-02, Asia/Seoul. 사용자가 [화면 개편 설계](../superpowers/specs/2026-11-01-workspace-navigation-employee-header-design.md)의 인사정보 등록까지 포함한 구현·테스트를 승인했다. [실행 계획](../superpowers/plans/2026-11-02-workspace-personnel-ui.md)과 실제 [검증 보고서](../quality/personnel-workspace.md)를 구분한다.
 
 ## 업무 메뉴와 진입
@@ -14,7 +16,7 @@
 
 EmployeeHeader는 이름·사진 또는 이니셜·회사·소속·사번·생년월일·직급·직책·직무·입사일·인사 상태를 표시한다. 미등록 값과 미확인 상태를 추정해 채우지 않는다. 본인 `/me/**`와 관리자 `/admin/employees/{id}/**`에는 각각 권한을 확인한 대상의 employeeHeader를 제공한다. 상단 로그인 사용자와 선택 사원을 구분한다.
 
-2026-11-02 후속 요청으로 헤더 아래 별도 탭을 없앴다. 사진·신원·상태·전체 인사 필드를 하나의 카드에서 항상 표시하고, 본인 업무는 왼쪽 업무 메뉴로 이동한다. 관리자 대상 사원의 인사·소속·근무·계정은 사원 시트의 기존 링크를 사용한다. 전체 회사 목록이나 결재자의 일반 조회에 생년월일·사진 헤더를 공통 노출하지 않는다.
+2026-11-02 후속 요청으로 헤더 아래 별도 탭을 없앴다. 사진·신원·상태·전체 인사 필드를 하나의 카드에서 항상 표시하고, 본인 업무는 왼쪽 업무 메뉴로 이동한다. 관리자 대상 사원의 인사·소속·근무·계정은 사원 시트의 기존 링크를 사용한다. 전체 회사 목록이나 결재자의 일반 조회에 생년월일·사진 헤더를 공통 노출하지 않는다. [후속 표시/합성 자료 계약](../superpowers/specs/2026-11-02-demo-personnel-header-design.md)을 따른다.
 
 EmployeeHeader의 입력은 employeeId/employeeNo/employeeName/companyName/organizationName/joinedOn/leftOn/birthDate/gradeName/positionName/jobName/employmentStatus/photoUrl/asOf다. asOf는 Instant이고 날짜 표시는 서울 기준이다. 표시 컴포넌트는 자체 조회·저장·권한 판단을 하지 않는다.
 

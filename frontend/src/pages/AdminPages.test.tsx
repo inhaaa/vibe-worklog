@@ -335,12 +335,16 @@ describe('관리 React 페이지', () => {
   it('근무 배정 이력은 안정된 ID의 조회 시트에 기간과 사유를 표시한다', async () => {
     const html = await render('schedule/assignment', {
       employee,
-      assignments: [{ id: 'schedule-a-1', templateName: '고정 근무', revision: 2, validFrom: '2026-10-26', validTo: null, reason: '신규 배정' }],
+      assignments: [
+        { id: 'schedule-a-1', templateName: '운영조', revision: 2, validFrom: '2026-10-26', validTo: '2026-11-01', reason: '신규 배정' },
+        { id: 'schedule-a-1', templateName: '운영조', revision: 3, validFrom: '2026-11-01', validTo: null, reason: '신규 배정' },
+      ],
       versions: [version], templateNames: { 's-1': '고정 근무' }, today: '2026-10-26',
       form: { ...command, scheduleVersionId: 'v-1', validFrom: '2026-10-27' },
     });
     expect(html).toContain('role="grid"');
-    expect(html).toContain('row-id="schedule-a-1"');
+    expect(html).toContain('row-id="schedule-a-1:2026-10-26"');
+    expect(html).toContain('row-id="schedule-a-1:2026-11-01"');
     expect(html).toContain('종료 없음');
     expect(html).toContain('신규 배정');
   });

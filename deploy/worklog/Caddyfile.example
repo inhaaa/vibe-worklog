@@ -1,0 +1,20 @@
+# 기존 Caddyfile을 백업한 뒤 이 새 호스트 블록만 후보 설정에 추가한다.
+# __CONFIRMED_BIND_ADDRESSES__는 기존 사이트에서 확인한 실제 bind 주소로 치환한다.
+# 기존 호스트·전역 옵션을 덮어쓰지 않고 후보 validate/diff 후 reload한다.
+http://worklog.inhaaa.com {
+    bind __CONFIRMED_BIND_ADDRESSES__
+    redir https://worklog.inhaaa.com{uri} permanent
+}
+
+https://worklog.inhaaa.com {
+    bind __CONFIRMED_BIND_ADDRESSES__
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:18081 {
+        header_up -Forwarded
+        header_up X-Forwarded-For {remote_host}
+        header_up Host {hostport}
+        header_up X-Forwarded-Host {hostport}
+        header_up X-Forwarded-Proto https
+    }
+}

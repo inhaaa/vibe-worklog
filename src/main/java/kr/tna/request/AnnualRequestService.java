@@ -53,9 +53,10 @@ public final class AnnualRequestService {
                 if(created.fromDate().getYear()!=year)outside=created.fromDate().getYear();else if(created.toDate().getYear()!=year)outside=created.toDate().getYear();}
             var annual=new Annual(year,today,at,filter.typeId(),status,filter.page(),found.size()>50,filter.authoredPage(),authored.size()>50,
                     summaries.isEmpty()&&confirmed.isEmpty()?"NO_REGISTERED_DATA":"REGISTERED_DATA_ONLY",
-                    summaries.stream().mapToLong(TypeSummary::usedDays).sum(),summaries.stream().mapToLong(TypeSummary::plannedDays).sum(),summaries.stream().mapToLong(TypeSummary::pendingDays).sum(),
-                    buckets.stream().mapToLong(BucketYear::availableDays).sum(),confirmed.isEmpty()?null:confirmed.stream().mapToLong(BucketYear::openingAdjustmentDays).sum(),
-                    confirmed.isEmpty()?null:confirmed.stream().mapToLong(BucketYear::balanceDays).sum(),unknown,unknown>0,
+                    summaries.stream().mapToDouble(TypeSummary::usedDays).sum(),summaries.stream().mapToDouble(TypeSummary::plannedDays).sum(),summaries.stream().mapToDouble(TypeSummary::pendingDays).sum(),
+                    buckets.stream().mapToDouble(BucketYear::availableDays).sum(),
+                    confirmed.stream().map(BucketYear::openingAdjustmentDays).reduce(java.math.BigDecimal::add).orElse(null),
+                    confirmed.isEmpty()?null:confirmed.stream().mapToDouble(BucketYear::balanceDays).sum(),unknown,unknown>0,
                     mapper.types(actor.tenantId()),summaries,page(found),page(authored),visible,createdId,outside,
                     page(found).stream().filter(r->r.targetEmployeeId().equals(actor.employeeId())&&r.authorAccountId().equals(actor.accountId())
                             &&Set.of("REJECTED","WITHDRAWN").contains(r.status())&&Set.of("LEAVE_DAY","ATTENDANCE_CORRECTION").contains(r.kind())).map(RequestView::id).toList());
@@ -81,7 +82,7 @@ public final class AnnualRequestService {
         var previous=draft.predecessorRequestId()==null?null:flow.get(actor,draft.predecessorRequestId());
         if(previous!=null)requireResubmission(actor,previous.request().id(),kind);
         LocalDate selected=draft.date()!=null?draft.date():previous!=null?previous.request().fromDate():"ATTENDANCE_CORRECTION".equals(kind)?(year<today.getYear()?LocalDate.of(year,12,31):today):today.plusDays(1);
-        var leave=draft.leaveForm()!=null?draft.leaveForm():previous!=null?new LeaveForm(previous.request().leaveBucketId(),previous.request().fromDate(),previous.request().toDate(),previous.request().id(),previous.request().reason(),UUID.randomUUID()):new LeaveForm(null,selected,selected,null,"",UUID.randomUUID());
+        var leave=draft.leaveForm()!=null?draft.leaveForm():previous!=null?new LeaveForm(previous.request().leaveBucketId(),previous.request().fromDate(),previous.request().toDate(),previous.request().id(),previous.request().reason(),UUID.randomUUID(),previous.request().leavePart()):new LeaveForm(null,selected,selected,null,"",UUID.randomUUID());
         LocalDate factDate=draft.correctionForm()!=null&&draft.correctionForm().workDate()!=null?draft.correctionForm().workDate():selected;
         var day="ATTENDANCE_CORRECTION".equals(kind)?clocks.snapshot(actor.tenantId(),actor.employeeId(),factDate):null;
         var effective=day==null?null:workflowMapper.currentCorrection(actor.tenantId(),actor.employeeId(),day.workDate());
@@ -94,7 +95,7 @@ public final class AnnualRequestService {
                     old==null?"KEEP":old.outAction(),old==null||old.requestedOutAt()==null?"":old.requestedOutAt().atZone(ZoneId.of("Asia/Seoul")).toLocalDateTime().toString(),
                     old!=null&&old.presenceAsWork(),old!=null&&old.breaksConfirmed(),old==null?"":breakInput(old.actualBreaks()),current,previous==null?null:previous.request().id(),false,previous==null?"":previous.request().reason(),UUID.randomUUID());
         }
-        var approval=flow.approvalPreview(actor);
+        var approval=flow.formPreview(actor,actor.employeeId(),kind);
         var preview=draft.preview()?(kind.equals("LEAVE_DAY")?flow.previewLeave(actor,leave):flow.previewCorrection(actor,correction)):null;
         return new Compose(mode,kind,leave,correction,day,current,preview,approval,draft.conflict());
     }

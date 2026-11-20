@@ -1,0 +1,57 @@
+{
+  "referenceDate": "2026-11-02",
+  "employees": [
+    {
+      "employeeId": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+      "employeeNo": "LOCAL-DEMO",
+      "birthDate": "1988-07-14",
+      "gradeName": "책임",
+      "positionName": "운영팀장",
+      "jobName": "인사 운영",
+      "employmentStatus": "WORKING",
+      "expectedVersion": 0,
+      "photoFile": "photos/local-demo.jpg",
+      "sourceSha256": "fe1080eb46fa49f067b75cd910e138abeeca3c8ce71bae1e0f3ae49be662edb3",
+      "normalizedSha256": "46f8e58c38208d722185c652235691cc44c8b1f38152a1e140d492954a4f17ae"
+    },
+    {
+      "employeeId": "dddddddd-dddd-4ddd-8ddd-dddddddd0201",
+      "employeeNo": "DEMO-001",
+      "birthDate": "1992-03-11",
+      "gradeName": "선임",
+      "positionName": "팀원",
+      "jobName": "서비스 기획",
+      "employmentStatus": "WORKING",
+      "expectedVersion": 0,
+      "photoFile": "photos/demo-001.jpg",
+      "sourceSha256": "ab9c4144ec1e860a6a7c8f0dc04df66fa7c50bec893d27fb33e33306bdce26c6",
+      "normalizedSha256": "b64fc2a2c36454412e2be9e46399d6714c2e91bc862266b90f763f006705936c"
+    },
+    {
+      "employeeId": "dddddddd-dddd-4ddd-8ddd-dddddddd0202",
+      "employeeNo": "DEMO-002",
+      "birthDate": "1986-09-22",
+      "gradeName": "수석",
+      "positionName": "개발팀장",
+      "jobName": "소프트웨어 개발",
+      "employmentStatus": "ON_LEAVE",
+      "expectedVersion": 0,
+      "photoFile": "photos/demo-002.jpg",
+      "sourceSha256": "c534041f9b51f3e817323abdd941b90b90f0ed995c64672b41d65ba04aa7650a",
+      "normalizedSha256": "bc6f9df0e9572f88f11ec2e1eae8110d54cd78ab61dad85db3958b3ff7fe2082"
+    },
+    {
+      "employeeId": "dddddddd-dddd-4ddd-8ddd-dddddddd0203",
+      "employeeNo": "DEMO-003",
+      "birthDate": "1996-12-05",
+      "gradeName": "사원",
+      "positionName": "팀원",
+      "jobName": "품질 관리",
+      "employmentStatus": "SUSPENDED",
+      "expectedVersion": 0,
+      "photoFile": "photos/demo-003.jpg",
+      "sourceSha256": "1ba7f663638149ac36defd37c6943b009e8b32024e9894abec73189bc7b033cb",
+      "normalizedSha256": "f1c60e5c390f627371277a793ecd5775029b327aaa727a5f6afa31132cb9206e"
+    }
+  ]
+}

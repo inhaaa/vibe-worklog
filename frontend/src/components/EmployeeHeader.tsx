@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
 import './EmployeeWorkspace.css';
 export interface EmployeeHeaderData {
   employeeId: string; employeeNo: string; employeeName: string; companyName: string; organizationName: string | null;
@@ -6,11 +7,13 @@ export interface EmployeeHeaderData {
   positionName?: string | null; jobName?: string | null; employmentStatus: string; photoUrl?: string | null; asOf: string;
 }
 type EmployeeSummary = Pick<EmployeeHeaderData, 'employeeName' | 'companyName'>;
-export const employmentStatusName = (status: string) => ({ WORKING: '재직', ON_LEAVE: '휴직', SUSPENDED: '정직', PRE_JOINING: '입사 예정', LEFT: '퇴사', UNKNOWN: '상태 미등록' }[status] ?? '상태 미등록');
+export const employmentStatusName = (status: string) => ({ WORKING: '재직', ON_LEAVE: '휴직', SUSPENDED: '정직', PRE_JOINING: '입사 예정', LEFT: '퇴사', INACTIVE: '비활성', UNKNOWN: '상태 미등록' }[status] ?? '상태 미등록');
 
 const stateTones: Record<string, string> = { WORKING: 'green', ON_LEAVE: 'amber', SUSPENDED: 'amber', PRE_JOINING: 'blue' };
 
-export function EmployeeHeader({ employee, variant = 'card' }: { employee: EmployeeHeaderData | EmployeeSummary; variant?: 'card' | 'line' }) {
+export function EmployeeHeader({ employee, variant = 'card', lookup }: {
+  employee: EmployeeHeaderData | EmployeeSummary; variant?: 'card' | 'line'; lookup?: ReactNode;
+}) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const summaryHeading = useId();
   const details = 'employeeId' in employee ? employee : null;
@@ -42,6 +45,7 @@ export function EmployeeHeader({ employee, variant = 'card' }: { employee: Emplo
   </section>;
 
   return <section className="t-employee-header" aria-label="사원 인사정보" data-compact={!details}>
+    {lookup}
     <div className="t-employee-identity-card">
       <div className="t-employee-portrait">
         {photo ? <img src={photo} alt={`${employee.employeeName} 사원사진`} onError={() => setFailedUrl(photo)} />

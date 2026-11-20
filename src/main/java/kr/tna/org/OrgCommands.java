@@ -4,8 +4,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -38,6 +40,8 @@ public final class OrgCommands {
 
     public LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))); }
 
+    Instant creationTime() { return clock.instant().truncatedTo(ChronoUnit.MILLIS); }
+
     public <T> T read(TnaPrincipal actor, Supplier<T> action) {
         if (actor == null) throw OrgException.forbidden();
         return transactions.execute(actor.tenantId(), () -> {
@@ -46,6 +50,15 @@ public final class OrgCommands {
             // Administrative snapshots must not escape after a revocation committed while waiting.
             requireAdmin(actor);
             return result;
+        });
+    }
+
+    public <T> T readShared(TnaPrincipal actor, Supplier<T> action) {
+        return read(actor, () -> {
+            jdbc.queryForObject("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text),0))",
+                    Object.class, actor.tenantId());
+            requireAdmin(actor);
+            return action.get();
         });
     }
 

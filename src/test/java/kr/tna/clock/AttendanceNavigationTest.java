@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.worktime.SelectiveSettlementReturn;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
 import kr.tna.schedule.ScheduleData;
@@ -23,7 +24,7 @@ class AttendanceNavigationTest {
     private final ClockService clocks = mock(ClockService.class);
     private final OrgCommands commands = mock(OrgCommands.class);
     private final kr.tna.worktime.WorktimeService worktime = mock(kr.tna.worktime.WorktimeService.class);
-    private final AttendanceController controller = new AttendanceController(null, clocks, commands, worktime);
+    private final AttendanceController controller = new AttendanceController(null, clocks, commands, worktime, new SelectiveSettlementReturn(worktime));
     private final TnaPrincipal actor = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1, Set.of("EMPLOYEE"), Instant.EPOCH);
     private final LocalDate today = LocalDate.of(2027, 1, 1);
 
@@ -96,13 +97,13 @@ class AttendanceNavigationTest {
         LocalDate day = today.minusDays(1);UUID command = UUID.randomUUID();
         var form = new ClockData.ConfirmationForm(day, 4L, 2L, true, true, "snapshot-fingerprint", command);
         var binding = new org.springframework.validation.BeanPropertyBindingResult(form, "confirmationForm");
-        var redirect = (RedirectView) controller.confirm(actor, form, binding).getView();
+        var redirect = (RedirectView) controller.confirm(actor, form, binding, null).getView();
         assertEquals("/me/attendance?date=" + day, redirect.getUrl());
         var order = inOrder(clocks, worktime);
         order.verify(clocks).confirm(actor, form);
         order.verify(worktime).calculateConfirmedDay(actor, day, command);
         doThrow(new IllegalStateException("합성 오류")).when(worktime).calculateConfirmedDay(actor, day, command);
-        assertEquals("/me/attendance?date=" + day, ((RedirectView) controller.confirm(actor, form, binding).getView()).getUrl(),
+        assertEquals("/me/attendance?date=" + day, ((RedirectView) controller.confirm(actor, form, binding, null).getView()).getUrl(),
                 "계산이 실패해도 저장한 확인은 유지하고 화면을 정상 이동해야 합니다.");
     }
     @Test void rejectedConfirmationNeverCalculates() {
@@ -112,8 +113,12 @@ class AttendanceNavigationTest {
         when(clocks.confirm(actor, form)).thenThrow(new kr.tna.org.OrgException(409, "합성 충돌"));
         when(commands.today()).thenReturn(today);
         when(clocks.day(actor, day)).thenReturn(day(day));
-        var view = controller.confirm(actor, form, binding);
+        when(worktime.matchesSettlementDay(actor, actor.employeeId(), day, "CALENDAR_MONTH")).thenReturn(true);
+        String origin = "/me/worktime?month=" + java.time.YearMonth.from(day)
+                + "&settlementPeriod=CALENDAR_MONTH&settlementFrom=" + day.withDayOfMonth(1);
+        var view = controller.confirm(actor, form, binding, origin);
         assertEquals(409, view.getStatus().value());
+        assertEquals(origin, view.getModel().get("settlementReturn"));
         verify(worktime, never()).calculateConfirmedDay(any(), any(), any());
     }
     @Test void dayPageCarriesOnlyTheCurrentActualWork() {
@@ -153,7 +158,7 @@ class AttendanceNavigationTest {
         ZoneId seoul = ZoneId.of("Asia/Seoul");
         LocalDate past = today.minusDays(1);
         var realValidation = spy(new ClockService(null, null, null, Clock.fixed(today.atStartOfDay(seoul).toInstant(), seoul)));
-        var attendance = new AttendanceController(null, realValidation, commands, worktime);
+        var attendance = new AttendanceController(null, realValidation, commands, worktime, new SelectiveSettlementReturn(worktime));
         when(commands.today()).thenReturn(today);
         when(worktime.correctionSuggested(actor, past)).thenReturn(true);
 

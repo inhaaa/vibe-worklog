@@ -1,0 +1,13 @@
+.wt-panel{min-width:0}.wt-panel h2,.wt-panel h3{margin:0}.wt-panel h4{margin:1rem 0 .5rem}
+.wt-layout{display:grid;grid-template-columns:minmax(11rem,1fr) minmax(0,3fr);gap:1rem;margin-top:1rem}
+.wt-row{width:100%;display:flex;justify-content:space-between;gap:.5rem;align-items:center;text-align:start;
+  padding:.7rem;background:var(--t-surface,#fff);border:1px solid var(--t-border,#d9dde3);color:inherit;cursor:pointer}
+.wt-row[aria-pressed=true]{background:var(--t-surface-subtle,#f2f5f8)}
+.wt-actions,.wt-fields,.wt-totals{display:flex;align-items:end;gap:.75rem;flex-wrap:wrap}
+.wt-actions{align-items:center;justify-content:space-between}.wt-editor .wt-actions{justify-content:start;margin-top:1rem}
+.wt-editor fieldset,.wt-revision{margin:0 0 .75rem;min-width:0;border:1px solid var(--t-border,#d9dde3);border-radius:.4rem;padding:1rem}
+.wt-editor legend{font-weight:700}.wt-fields label,.wt-editor>fieldset>label{display:grid;gap:.25rem}
+.wt-editor input,.wt-editor select{max-width:100%;box-sizing:border-box}.wt-pauses,.wt-window{margin:.65rem 0}
+.wt-pauses .wt-fields{margin:.5rem 0}.wt-editor .wt-confirm{display:block;margin-top:.75rem}.wt-revision h4{margin:0}
+.wt-revision p{margin:.4rem 0}.wt-window>label{display:inline-flex;align-items:center;gap:.3rem}
+@media(max-width:760px){.wt-layout{grid-template-columns:minmax(0,1fr)}.wt-editor fieldset{padding:.75rem}.wt-fields{align-items:start}.wt-fields label{min-width:0;max-width:100%}}

@@ -7,6 +7,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,20 +20,32 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class OrgAdminController {
+    static final String EMPLOYEE_BULK_EDIT_PATH = "/admin/employees/bulk-edit";
+
     private final OrganizationService organizations;
     private final EmployeeService employees;
     private final OrganizationHeadService heads;
+    private final OrgCommands commands;
+    private final EmployeeAdminMapper employeeMapper;
+    private final boolean publicDemo;
 
-    public OrgAdminController(OrganizationService organizations, EmployeeService employees, OrganizationHeadService heads) {
+    public OrgAdminController(OrganizationService organizations, EmployeeService employees, OrganizationHeadService heads,
+            OrgCommands commands, EmployeeAdminMapper employeeMapper, Environment environment) {
         this.organizations = organizations;
         this.employees = employees;
         this.heads = heads;
+        this.commands = commands;
+        this.employeeMapper = employeeMapper;
+        this.publicDemo = environment.acceptsProfiles(Profiles.of("public-demo"));
     }
 
     @GetMapping("/admin/organizations")
     ModelAndView organizations(@AuthenticationPrincipal TnaPrincipal actor,
-            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
-        return organizationList(actor, q, page, null);
+            @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) UUID createdCommand) {
+        var view = organizationList(actor, q, page, null);
+        if (createdCommand != null) view.addObject("createdOrganizations", organizations.creationResults(actor, createdCommand));
+        return view;
     }
 
     @PostMapping("/admin/organizations")
@@ -57,6 +71,23 @@ public class OrgAdminController {
 
     @GetMapping("/admin/employees")
     ModelAndView employees(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(required = false) String q, @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) UUID organizationId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) UUID employeeId) {
+        if (q != null || page != null || organizationId != null || status != null) {
+            return employeeList(actor, q == null ? "" : q, page == null ? 0 : page, null,
+                    organizationId, status == null ? "all" : status, employeeId);
+        }
+        if (employeeId != null) {
+            employees.get(actor, employeeId);
+            return new ModelAndView(new RedirectView("/admin/employees/" + employeeId + "/personnel", true));
+        }
+        return new ModelAndView("org/personnel-home");
+    }
+
+    @GetMapping(EMPLOYEE_BULK_EDIT_PATH)
+    ModelAndView employeeBulkEdit(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page,
             @RequestParam(required = false) UUID organizationId,
             @RequestParam(defaultValue = "all") String status,
@@ -101,6 +132,7 @@ public class OrgAdminController {
                 .addObject("organizationSheet", BulkData.organizations(UUID.randomUUID(), "",
                         list.stream().limit(50).toList(), List.of(), List.of()))
                 .addObject("organizationHeadsById", heads.organizationSheetHeads(actor))
+                .addObject("organizationCreateFailed", form != null)
                 .addObject("form", form != null ? form : new OrgData.OrganizationForm(
                         "", "", null, true, null, "", UUID.randomUUID()));
         return options(view, actor);
@@ -110,7 +142,7 @@ public class OrgAdminController {
         var org = organizations.get(actor, id);
         return options(new ModelAndView("org/organization").addObject("organization", org)
                 .addObject("form", form != null ? form : new OrgData.OrganizationForm(
-                        org.code(), org.name(), org.parentId(), org.active(), org.version(), "", UUID.randomUUID())), actor);
+                        org.code(), org.name(), org.parentId(), org.active(), org.version(), "", UUID.randomUUID(), org.approvalUnit())), actor);
     }
 
     private ModelAndView employeeList(TnaPrincipal actor, String q, int page, OrgData.EmployeeForm form) {
@@ -137,11 +169,16 @@ public class OrgAdminController {
 
     ModelAndView employeeContext(ModelAndView view, TnaPrincipal actor, List<OrgData.Employee> employees) {
         var contexts = new LinkedHashMap<UUID, OrganizationHeadData.EmployeeContext>();
+        var basics = new LinkedHashMap<UUID, EmployeeAdminMapper.PersonnelBasic>();
+        var asOf = commands.today();
         for (int offset = 0; offset < employees.size(); offset += 50) {
             var ids = employees.subList(offset, Math.min(offset + 50, employees.size())).stream().map(OrgData.Employee::id).toList();
             contexts.putAll(heads.employeeSheetContext(actor, ids));
+            commands.read(actor, () -> employeeMapper.personnelBasics(actor.tenantId(), ids, asOf))
+                    .forEach(detail -> basics.put(detail.employeeId(), detail));
         }
-        return view.addObject("employeeContext", contexts);
+        return view.addObject("employeeContext", contexts).addObject("personnelBasics", basics)
+                .addObject("personnelAsOf", asOf).addObject("publicDemo", publicDemo);
     }
 
     private ModelAndView employeeDetail(TnaPrincipal actor, UUID id,

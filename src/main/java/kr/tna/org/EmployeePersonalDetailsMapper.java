@@ -55,9 +55,12 @@ public interface EmployeePersonalDetailsMapper {
             @Param("data") EntryForm data, @Param("revision") long revision, @Param("actorId") UUID actorId);
 
     @Select("""
-            SELECT a.id,o.name AS organization_name,a.valid_from,a.valid_to
+            SELECT a.id,COALESCE(initial.organization_name,o.name) AS organization_name,a.valid_from,a.valid_to,
+                initial.id IS NOT NULL AS initial
             FROM tna.employee_assignment a
             JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
+            LEFT JOIN tna.employee_onboarding initial ON initial.tenant_id=a.tenant_id
+                AND initial.employee_id=a.employee_id AND initial.organization_assignment_id=a.id AND initial.state='CONFIRMED'
             WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId}
             ORDER BY a.valid_from DESC,a.id
             """)

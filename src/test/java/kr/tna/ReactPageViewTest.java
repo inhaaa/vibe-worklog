@@ -24,6 +24,18 @@ class ReactPageViewTest {
     private final ReactPageViewResolver resolver = new ReactPageViewResolver(json);
 
     @Test
+    void cancellationAndCorrectionPreviewsReachTheRenderedRequestForms() throws Exception {
+        var preview=Map.of("eligible",true,"routeToken","test-route","steps",java.util.List.of("팀장","실장"));
+        var cancellation=Map.of("cancelApproval",preview,"cancelReason","취소 사유","exceptionCancelReason","예외 사유");
+        var detail=json.readTree(render("request/detail",cancellation,request(true)).getContentAsString()).at("/data");
+        assertEquals("test-route",detail.at("/cancelApproval/routeToken").asString());
+        assertEquals("취소 사유",detail.at("/cancelReason").asString());
+        assertEquals("예외 사유",detail.at("/exceptionCancelReason").asString());
+        var correction=json.readTree(render("request/correction",Map.of("approval",preview),request(true)).getContentAsString());
+        assertEquals("실장",correction.at("/data/approval/steps/1").asString());
+    }
+
+    @Test
     void demoExposesOnlyTheTwoPublicSyntheticLoginPairs() throws Exception {
         var response = render("demo", Map.of("demoLogin", "admin", "demoPassword", "admin",
                 "demoApproverLogin", "approver", "demoApproverPassword", "approver",
@@ -148,7 +160,7 @@ class ReactPageViewTest {
 
     @Test
     void identityAndCompanyPagesExposeOnlyTheirExplicitSafeModels() throws Exception {
-        var pages = Map.of("workspace/profile", "profile", "org/access-list", "accessRows",
+        var pages = Map.of("workspace/profile", "profile", "org/access-list", "roleDirectory",
                 "company/attendance", "companyAttendance", "company/requests", "companyRequests");
         for (var page : pages.entrySet()) {
             var view = resolver.resolveViewName(page.getKey(), Locale.KOREA);

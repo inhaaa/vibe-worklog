@@ -1,27 +1,24 @@
 import type React from 'react';
 import { useState } from 'react';
 import type { PageProps } from '../types';
-import { duration, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
+import { duration, ErrorNotice, Field, Form, fmtDate, fmtDateTime, SelectField } from '../ui';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
+import { RoleManagementPage, type RoleDirectory } from './RoleManagementPage';
+import { RoleMembersSheet } from './RoleMembersSheet';
+import { requestKindName, type LeavePart } from './leavePart';
+import { CheckoutOperationsPage, type CheckoutOperations } from './CheckoutOperationsPage';
+import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
+import { canManageMonthEnd, MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
+import { MonthCloseBlockersPage, type MonthCloseBlockers } from './MonthCloseBlockers';
+import { MyCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 
 interface Profile {
   employeeName: string;
   joinedOn: string;
-}
-interface AccessList {
-  accessRows: {
-    employeeId: string;
-    employeeNo: string;
-    employeeName: string;
-    roles: string[];
-    active: boolean;
-  }[];
-  q: string;
-  page: number;
-  hasNext: boolean;
+  approvalPreview?: { eligible:boolean; approverName:string|null; message:string|null };
 }
 interface Organization {
   id: string;
@@ -55,6 +52,7 @@ interface CompanyAttendance {
   }[];
 }
 interface CompanyRequests {
+  scope?: "LEAVE" | "CORRECTION" | null;
   year: number;
   asOf: string;
   organizationId: string | null;
@@ -68,6 +66,7 @@ interface CompanyRequests {
     employeeName: string;
     organizationName: string | null;
     kind: string;
+    leavePart?: LeavePart | null;
     status: string;
     fromDate: string;
     toDate: string;
@@ -96,11 +95,6 @@ const statuses: Record<string, string> = {
   CALCULATED: '산정됨',
   REVIEW_REQUIRED: '검토 필요',
   NO_SCHEDULED_WORK: '예정 근무 없음',
-};
-const kinds: Record<string, string> = {
-  LEAVE_DAY: '종일 연차',
-  CANCEL_LEAVE: '연차 취소',
-  ATTENDANCE_CORRECTION: '기록 정정',
 };
 const effects: Record<string, string> = {
   EFFECTIVE: '유효',
@@ -144,53 +138,25 @@ function OrganizationFilter({ organizations, organizationId }: {
     </SelectField>
   );
 }
-function ProfilePage({ details, identity }: {
+function ProfilePage({ details, identity, approval }: {
   details?: PersonalDetailsModel;
   identity: { employeeName: string; joinedOn: string; birthDate?: string | null };
+  approval?: Profile['approvalPreview'];
 }) {
+  const [expanded,setExpanded]=useState(false);
   return (
     <>
       <PageHeader title="내 정보" />
       {details && <PersonalDetailsTabs model={details} identity={identity} />}
+      {approval && <section className="wl-section">
+        <button className="t-btn" aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>기존 배정 기준</button>
+        {expanded && <div><p>{approval.eligible ? '기본 결재자 · '+approval.approverName : approval.message || '기본 결재자를 확인해 주세요.'}</p>
+          <p>신청서를 작성할 때 해당 업무에 적용되는 결재 순서를 확인할 수 있습니다.</p></div>}
+      </section>}
     </>
   );
 }
-function AccessListPage({ model: m }: { model: AccessList }) {
-  return (
-    <>
-      <PageHeader title="권한 관리" help={<>
-        <p>계정별 역할을 확인하고 기존 관리 화면에서 변경하세요.</p>
-        <p>공통은 필수 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여하며 함께 보유할 수 있습니다.</p>
-      </>} />
-      <Form action="/admin/access" method="get" className="wl-querybar">
-        <Field label="사번·이름 검색" name="q" value={m.q} maxLength={120} />
-        <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
-      </Form>
-      <section className="wl-section">
-        <WorklogSheet
-          label="계정별 권한"
-          title="계정 목록"
-          rows={m.accessRows}
-          getRowId={(row) => row.employeeId}
-          scope="page"
-          emptyMessage="조회된 계정이 없습니다."
-          pagination={<Pagination path="/admin/access" values={{ q: m.q }} page={m.page} hasNext={m.hasNext} />}
-          columns={[
-            { field: 'employeeNo', headerName: '사번', pinned: 'left', minWidth: 120 },
-            { field: 'employeeName', headerName: '이름', minWidth: 130 },
-            { colId: 'roles', headerName: '역할·기능', valueGetter: ({ data }) => data && formatRoles(data.roles), minWidth: 250 },
-            { colId: 'active', headerName: '계정 상태', valueGetter: ({ data }) => data?.active ? '활성' : '비활성', minWidth: 120 },
-            sheetColumn<AccessList['accessRows'][number]>(
-              { colId: 'manage', headerName: '관리', sortable: false, filter: false, minWidth: 120 },
-              (row) => <a href={`/admin/employees/${row.employeeId}/access`} aria-label={`${row.employeeName} 권한 관리`}>권한 관리</a>,
-            ),
-          ]}
-        />
-      </section>
-    </>
-  );
-}
-function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
+function CompanyAttendancePage({ model: m, canViewCheckout }: { model: CompanyAttendance; canViewCheckout: boolean }) {
   const [employeeId, setEmployeeId] = useState(m.employeeId ?? '');
   const values = { month: m.month, organizationId: m.organizationId, employeeId: m.employeeId, q: m.q };
   return (
@@ -200,6 +166,7 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
         <p>조직은 서울 기준 오늘의 소속으로 조회합니다.</p>
         <p>선택 사원의 검토용 결과입니다. 미확정·오래된 결과는 0시간으로 처리하지 않습니다.</p>
       </>} />
+      {canViewCheckout && <CompanyAttendanceViews />}
       <Form
         action="/company/attendance"
         method="get"
@@ -277,11 +244,12 @@ function CompanyAttendancePage({ model: m }: { model: CompanyAttendance }) {
 function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
   return (
     <>
-      <PageHeader title="회사 신청 현황" help={<>
+      <PageHeader title={m.scope === "LEAVE" ? "회사 휴가 신청 현황" : m.scope === "CORRECTION" ? "회사 정정 현황" : "회사 신청 현황"} help={<>
         <p>조회연도의 회사 신청 유형과 처리 상태를 확인하세요.</p>
         <p>조직은 서울 기준 오늘의 소속입니다. 신청일량은 조회연도에 포함된 일량이며 취소 신청은 원신청을 기준으로 합니다.</p>
       </>} />
       <Form action="/company/requests" method="get" className="wl-querybar">
+        {m.scope && <input type="hidden" name="scope" value={m.scope} />}
         <Field label="조회연도 (서울)" name="year" type="number" value={m.year} min={1} max={9999} required />
         <OrganizationFilter organizations={m.organizations} organizationId={m.organizationId} />
         <SelectField label="신청 상태" name="status" value={m.status}>
@@ -303,14 +271,14 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
           emptyMessage="조회된 신청이 없습니다."
           pagination={<Pagination
             path="/company/requests"
-            values={{ year: m.year, organizationId: m.organizationId, status: m.status }}
+            values={{ year: m.year, organizationId: m.organizationId, status: m.status, scope: m.scope ?? null }}
             page={m.page}
             hasNext={m.hasNext}
           />}
           columns={[
             { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
             { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
-            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (kinds[data.kind] ?? data.kind), minWidth: 140 },
+            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (data.kind==='ATTENDANCE_CORRECTION'?'기록 정정':requestKindName(data.kind,data.leavePart)), minWidth: 140 },
             { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
             { field: 'quantityDays', headerName: '조회연도 신청일량 (일)', minWidth: 220, cellClass: 'w-sheet-number' },
             { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },
@@ -321,17 +289,36 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
     </>
   );
 }
-export function IdentityPages({ page, data }: PageProps): React.ReactNode | null {
+export function IdentityPages({ page, data, csrf, reload }: PageProps): React.ReactNode | null {
   switch (page) {
     case 'workspace/profile': {
       const p = data.profile as Profile;
-      return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} identity={{ employeeName: p.employeeName,
+      return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} approval={p.approvalPreview} identity={{ employeeName: p.employeeName,
         joinedOn: p.joinedOn, birthDate: (data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate }} />;
     }
-    case 'org/access-list':
-      return <AccessListPage model={data as unknown as AccessList} />;
-    case 'company/attendance':
-      return <CompanyAttendancePage model={data.companyAttendance as CompanyAttendance} />;
+    case 'org/access-list': {
+      const model = data.roleDirectory as RoleDirectory;
+      return <RoleManagementPage model={model}>
+        <RoleMembersSheet model={model} csrf={csrf} reload={reload} actorEmployeeId={model.actorEmployeeId} />
+      </RoleManagementPage>;
+    }
+    case 'attendance/follow-ups':
+      return <MyCheckoutFollowUps model={data.checkoutFollowUps as CheckoutFollowUpList | undefined} />;
+    case 'company/attendance': {
+      const blockers = data.monthCloseBlockers as MonthCloseBlockers | undefined;
+      if (blockers) return canManageMonthEnd(data) ? <MonthCloseBlockersPage model={blockers} />
+        : <ErrorNotice message="월 마감 점검 권한을 확인해 주세요." />;
+      const monthEnd = data.monthEndReview as MonthEndReview | undefined;
+      if (monthEnd) {
+        const canRequest = canManageMonthEnd(data);
+        return <MonthEndReviewPage key={JSON.stringify([monthEnd.month, monthEnd.organizationId, monthEnd.q, monthEnd.reason, monthEnd.page, canRequest])}
+          model={monthEnd} csrf={csrf} reload={reload} canRequest={canRequest} />;
+      }
+      const checkout = data.checkoutOperations as CheckoutOperations | undefined;
+      return checkout
+        ? <CheckoutOperationsPage key={JSON.stringify([checkout.date, checkout.organizationId, checkout.q, checkout.status, checkout.page, checkout.error])} model={checkout} />
+        : <CompanyAttendancePage model={data.companyAttendance as CompanyAttendance} canViewCheckout={data.canViewCheckout === true} />;
+    }
     case 'company/requests':
       return <CompanyRequestsPage model={data.companyRequests as CompanyRequests} />;
     default:

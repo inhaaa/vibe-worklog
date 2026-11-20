@@ -62,6 +62,7 @@ public final class AttendanceSettingsService {
         String normalized=exceptions.entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .map(e->fingerprint(e.getKey(),e.getValue().kind(),e.getValue().name(),e.getValue().basis())).reduce("",String::concat);
         return commands.execute(actor,form.commandId(),action,"CALENDAR",fingerprint(action,form.from(),form.to(),basis,normalized,reason),reason,()->{
+            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
             UUID id=UUID.randomUUID();int revision=mapper.nextRevision(actor.tenantId());
             mapper.calendar(actor.tenantId(),id,revision,form.from(),form.to().plusDays(1),reason,actor.accountId());
             for(LocalDate date=form.from();!date.isAfter(form.to());date=date.plusDays(1)) {

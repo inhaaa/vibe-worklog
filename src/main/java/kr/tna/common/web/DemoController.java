@@ -45,6 +45,7 @@ public final class DemoController {
         model.addAttribute("demoPassword", LocalDemoLogin.PASSWORD);
         model.addAttribute("demoApproverLogin", LocalDemoLogin.APPROVER_LOGIN);
         model.addAttribute("demoApproverPassword", LocalDemoLogin.APPROVER_PASSWORD);
+        model.addAttribute("publicDemo", localDemo.publicDemo());
         model.addAttribute("demoAccounts", authStore.demoAccounts());
         return "demo";
     }

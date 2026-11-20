@@ -6,6 +6,17 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuditSummaryBatchTest {
     @Test
+    void showsFractionalLeaveBalancesInTheAuditDetail() {
+        var summary = AuditSummary.project("""
+                {"balanceDays":7.5,"availableDays":7.0,"quantityDays":0.5,"signedQuantityDays":-0.5,"version":1.25}
+                """);
+        assertEquals("7.5", summary.get("balanceDays"));
+        assertEquals("7", summary.get("availableDays"));
+        assertEquals("0.5", summary.get("quantityDays"));
+        assertEquals("-0.5", summary.get("signedQuantityDays"));
+        assertFalse(summary.containsKey("version"));
+    }
+    @Test
     void attributionSummaryExposesClassificationAndYearWithoutFreeText() {
         var summary = AuditSummary.project("""
                 {"classificationStatus":"CONFIRMED","entitlementYear":2026,"revision":2,

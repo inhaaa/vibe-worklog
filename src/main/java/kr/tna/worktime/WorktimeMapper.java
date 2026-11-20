@@ -2,13 +2,88 @@ package kr.tna.worktime;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.worktime.WorktimeData.*;
 import org.apache.ibatis.annotations.*;
 
 @Mapper
-public interface WorktimeMapper {
+public interface WorktimeMapper extends ClosedAttendanceMonths {
+    record SettlementRow(UUID employeeId, LocalDate workDate, long inputRevision, long reviewRevision,
+            UUID scheduleVersionId, Boolean workday, LocalTime startTime, LocalTime endTime, String breaks,
+            String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod,
+            UUID calendarVersionId, String dayKind, String events, String correction, String confirmations,
+            UUID policyId, UUID assessmentId, String leaveEffects, String pendingCorrections,
+            String storedSource, Long storedInput, Long storedReview, Long actualWorkMillis, Double storedLeaveDays,
+            String reasonCodes, String savedSelectiveInputs, boolean closed, boolean unknownMembership)
+            implements MonthEndReviewMapper.DayEvidence { }
+
+    // A month's complete ISO boundary weeks contain at most 42 dates. Read sources and saved results together.
+    @Select("""
+            WITH dates AS (
+                SELECT #{employeeId}::uuid AS employee_id,#{from}::date+n AS work_date
+                FROM generate_series(0,41) n WHERE #{from}::date+n<=#{through}
+            ), closures AS (
+                SELECT DISTINCT ON (month_start) id,month_start,status,changed_at FROM tna.attendance_month_closure
+                WHERE tenant_id=#{tenantId} AND month_start>=date_trunc('month',#{from}::date::timestamp)::date
+                  AND month_start<=#{through}::date ORDER BY month_start,version DESC
+            )
+            SELECT d.employee_id,d.work_date,coalesce(rev.input_revision,0) AS input_revision,
+                coalesce(rev.review_revision,0) AS review_revision,s.version_id AS schedule_version_id,s.workday,
+                s.start_time,s.end_time,s.breaks,s.work_mode,s.core_start,s.core_end,s.standard_minutes,s.settlement_period,
+                cal.version_id AS calendar_version_id,cal.kind AS day_kind,rec.events,cor.correction,conf.confirmations,
+                policy.id AS policy_id,assessment.id AS assessment_id,l.effects AS leave_effects,p.ids AS pending_corrections,
+                r.source_fingerprint AS stored_source,r.input_revision AS stored_input,r.review_revision AS stored_review,
+                r.actual_work_millis,r.leave_days AS stored_leave_days,r.reason_codes::text AS reason_codes,
+                CASE WHEN r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE' THEN r.input_refs::text END AS saved_selective_inputs,
+                c.id IS NOT NULL AS closed,m.employee_id IS NOT NULL AND m.result_ids IS NULL AS unknown_membership
+            FROM dates d
+            LEFT JOIN closures c ON c.month_start=date_trunc('month',d.work_date::timestamp)::date AND c.status='CLOSED'
+            LEFT JOIN tna.attendance_month_selective_member m ON m.tenant_id=#{tenantId} AND m.closure_id=c.id
+                AND m.employee_id=d.employee_id
+            """ + MonthEndReviewMapper.DAY_EVIDENCE_JOINS + MonthEndReviewMapper.LEAVE_AND_POLICY_JOINS + """
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(id ORDER BY id)::text AS ids FROM tna.approval_request
+                WHERE tenant_id=#{tenantId} AND target_employee_id=d.employee_id AND kind='ATTENDANCE_CORRECTION'
+                    AND status='PENDING' AND from_date=d.work_date
+            ) p ON true
+            LEFT JOIN LATERAL (
+                SELECT source_fingerprint,input_revision,review_revision,actual_work_millis,leave_days,reason_codes,input_refs
+                FROM tna.day_result dr WHERE dr.tenant_id=#{tenantId} AND dr.employee_id=d.employee_id AND dr.work_date=d.work_date
+                    AND (c.id IS NULL OR dr.id=ANY(m.result_ids) OR
+                         (m.employee_id IS NOT NULL AND m.result_ids IS NULL AND dr.calculated_at<=c.changed_at))
+                ORDER BY dr.result_revision DESC LIMIT 1
+            ) r ON true
+            WHERE s.work_mode='SELECTIVE' OR r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE'
+            ORDER BY d.work_date
+            """)
+    List<SettlementRow> settlementDays(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("from") LocalDate from, @Param("through") LocalDate through);
+
+    @Select("""
+            SELECT after_state::text FROM tna.org_audit_event
+            WHERE tenant_id=#{tenantId} AND command_id=#{commandId} AND target_id=#{batchId}
+            """)
+    String monthEndReceipt(@Param("tenantId") UUID tenantId, @Param("commandId") UUID commandId, @Param("batchId") UUID batchId);
+
+    // Retain the effective correction that produced the saved result.
+    @Update("""
+            UPDATE tna.checkout_follow_up follow_up
+               SET resolved_at=statement_timestamp(),resolved_result_id=result.id,last_request_id=effect.request_id
+              FROM tna.day_result result
+              JOIN tna.request_effect effect ON effect.tenant_id=result.tenant_id AND effect.employee_id=result.employee_id
+                   AND effect.work_date=result.work_date AND effect.effect_kind='CORRECTION' AND effect.effect_status='EFFECTIVE'
+              JOIN tna.approval_request approved ON approved.tenant_id=effect.tenant_id AND approved.id=effect.request_id
+                   AND approved.target_employee_id=effect.employee_id AND approved.kind='ATTENDANCE_CORRECTION' AND approved.status='APPROVED'
+             WHERE follow_up.tenant_id=#{tenantId} AND follow_up.employee_id=#{employeeId} AND follow_up.work_date=#{date}
+               AND follow_up.resolved_at IS NULL AND follow_up.last_request_id IS NOT NULL
+               AND result.tenant_id=follow_up.tenant_id AND result.employee_id=follow_up.employee_id
+               AND result.work_date=follow_up.work_date AND result.id=#{resultId} AND result.actual_work_millis IS NOT NULL
+            """)
+    int settleCheckoutFollowUp(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("date") LocalDate date, @Param("resultId") UUID resultId);
+
     @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
@@ -48,13 +123,18 @@ public interface WorktimeMapper {
         @Param("revision") int revision,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("reviewed") boolean reviewed,@Param("basis") String basis,@Param("actorId") UUID actorId);
     @Select("""
-        SELECT f.id::text FROM tna.request_effect f
+        SELECT f.id::text AS id, d.quantity_days FROM tna.request_effect f
         JOIN tna.approval_request r ON r.tenant_id=f.tenant_id AND r.id=f.request_id
         JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
         WHERE f.tenant_id=#{tenantId} AND f.employee_id=#{employeeId} AND f.effect_kind='LEAVE' AND f.effect_status='EFFECTIVE'
-          AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days=1 ORDER BY f.id
+          AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days>0 ORDER BY f.id
         """)
-    List<String> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    List<LeaveEffect> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
+    record LeaveEffect(String id, double quantityDays) {
+        public static double totalDays(List<LeaveEffect> effects) {
+            return effects.stream().mapToDouble(LeaveEffect::quantityDays).sum();
+        }
+    }
     @Select("SELECT id::text FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND status='PENDING' AND from_date=#{date} ORDER BY id")
     List<String> pendingCorrections(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
     @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-1')")
@@ -146,6 +226,6 @@ public interface WorktimeMapper {
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,
-        Long holidayWorkMillis,Long legalOvertimeMillis,int leaveDays,String reasonCodes,Instant calculatedAt) { }
+        Long holidayWorkMillis,Long legalOvertimeMillis,double leaveDays,String reasonCodes,Instant calculatedAt) { }
     record SnapshotRow(UUID id,UUID requestedBy,UUID employeeId,LocalDate fromDate,LocalDate toDate,Instant asOf,byte[] workbook) { }
 }

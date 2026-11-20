@@ -12,6 +12,12 @@ import kr.tna.worktime.ReviewWorkbook;
 import org.junit.jupiter.api.Test;
 
 class ReviewWorkbookTest {
+    @Test void halfDayIsANumericExcelCell() throws Exception {
+        var sheet = entries(ReviewWorkbook.create(List.of(List.<Object>of(0.5)))).get("xl/worksheets/sheet1.xml");
+        assertTrue(sheet.contains("<v>0.5</v>"));
+        assertTrue(sheet.contains("t=\"n\""));
+    }
+
     @Test void producesAnOpenXmlWorkbookWhoseUntrustedStringsAreAlwaysText() throws Exception {
         var bytes=ReviewWorkbook.create(List.of(List.<Object>of("사원", "시간(ms)"),List.<Object>of("=HYPERLINK(\"https://invalid.test\",\"합성\")",60_100L)));
         assertTrue(bytes.length>100);var entries=entries(bytes);

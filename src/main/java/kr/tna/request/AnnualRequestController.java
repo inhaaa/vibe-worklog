@@ -25,8 +25,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 public final class AnnualRequestController {
     private static final Set<String> QUERY=Set.of("year","typeId","status","page","authoredPage","createdId");
     private static final Set<String> CONTEXT=Set.of("year","typeId","status","page","authoredPage","mode","kind","_csrf");
-    private static final Set<String> LEAVE=Set.of("bucketId","from","to","predecessorRequestId","reason","commandId");
-    private static final Set<String> CORRECTION=Set.of("workDate","baseInputRevision","sourceFingerprint","inAction","requestedInAt","outAction","requestedOutAt","presenceAsWork","breaksConfirmed","_presenceAsWork","_breaksConfirmed","actualBreaks","replacesRequestId","predecessorRequestId","reason","commandId");
+    private static final Set<String> LEAVE=Set.of("routeToken","bucketId","from","to","leavePart","predecessorRequestId","reason","commandId");
+    private static final Set<String> CORRECTION=Set.of("routeToken","workDate","baseInputRevision","sourceFingerprint","inAction","requestedInAt","outAction","requestedOutAt","presenceAsWork","breaksConfirmed","_presenceAsWork","_breaksConfirmed","actualBreaks","replacesRequestId","predecessorRequestId","reason","commandId");
     private final AnnualRequestService service;
     private final LeaveWorkflowService flow;
     public AnnualRequestController(AnnualRequestService service,LeaveWorkflowService flow){this.service=service;this.flow=flow;}
@@ -61,14 +61,14 @@ public final class AnnualRequestController {
             @RequestParam Integer year,@RequestParam(defaultValue="MODAL") String mode,HttpServletRequest request){
         parameters(request,union(CONTEXT,LEAVE));expectedKind(request,"LEAVE_DAY");binding(binding);var filter=filter(request,year);
         var draft=new Draft(mode,"LEAVE_DAY",null,form.predecessorRequestId(),form,null,false,false);
-        return submit(actor,filter,draft,()->{service.requireResubmission(actor,form.predecessorRequestId(),"LEAVE_DAY");return flow.submitLeave(actor,form);});
+        return submit(actor,filter,draft,()->{service.requireResubmission(actor,form.predecessorRequestId(),"LEAVE_DAY");return flow.submitLeave(actor,form,request.getParameter("routeToken"));});
     }
     @PostMapping(value="/me/requests/correction",params="year")
     ModelAndView correction(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute CorrectionInput form,BindingResult binding,
             @RequestParam Integer year,@RequestParam(defaultValue="MODAL") String mode,HttpServletRequest request){
         parameters(request,union(CONTEXT,CORRECTION));expectedKind(request,"ATTENDANCE_CORRECTION");binding(binding);var filter=filter(request,year);var safe=normal(form);
         var draft=new Draft(mode,"ATTENDANCE_CORRECTION",null,safe.predecessorRequestId(),null,safe,false,false);
-        return submit(actor,filter,draft,()->{service.requireResubmission(actor,safe.predecessorRequestId(),"ATTENDANCE_CORRECTION");return flow.submitCorrection(actor,safe);});
+        return submit(actor,filter,draft,()->{service.requireResubmission(actor,safe.predecessorRequestId(),"ATTENDANCE_CORRECTION");return flow.submitCorrection(actor,safe,request.getParameter("routeToken"));});
     }
     private ModelAndView submit(TnaPrincipal actor,Filter filter,Draft draft,java.util.function.Supplier<UUID> mutation){
         // An invalid navigation context must fail before an otherwise valid request is committed.

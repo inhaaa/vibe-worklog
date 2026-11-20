@@ -214,12 +214,31 @@ class ProfileCompanyWebIT {
                 .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/id", overlapping.toString())).andReturn();
         var requests = ReactPageAssertions.envelope(result).at("/data/companyRequests/requests");
         assertEquals(1, requests.size());
-        assertEquals(11, requests.get(0).size());
+        assertEquals(12, requests.get(0).size());
+        assertEquals("FULL", requests.get(0).path("leavePart").asString());
         String body = result.getResponse().getContentAsString();
         for (String secret : new String[]{PRIVATE_REASON, "authorAccountId", "approverAssignmentId", "beforeSnapshot", "@example.test"}) {
             assertFalse(body.contains(secret), secret);
         }
         assertEquals(0, count("org_audit_event"));
+    }
+
+    @Test
+    void companyRequestScopeFiltersBeforePaginationAndRejectsUnknownScope() throws Exception {
+        grantRepresentative();
+        UUID assignment = binding(employee);
+        UUID leave = request(assignment, today, today, "PENDING");
+        mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "LEAVE"))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/id", leave.toString()));
+        var correction = mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "CORRECTION")).andExpect(status().isOk()).andReturn();
+        assertEquals(0, ReactPageAssertions.envelope(correction).at("/data/companyRequests/requests").size());
+        mvc.perform(get("/company/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "OTHER")).andExpect(status().isBadRequest());
+        mvc.perform(get("/admin/requests").with(as(representative)).accept(PAGE_JSON)
+                        .param("scope", "LEAVE")).andExpect(status().isForbidden());
     }
 
     @Test

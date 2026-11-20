@@ -92,12 +92,23 @@ public final class CodeManagementService {
             var codes=new HashSet<String>();var before=new LinkedHashMap<String,Type>();var after=new LinkedHashMap<String,Type>();
             for(var row:rows){
                 Type old=row.id()==null?null:requireType(actor.tenantId(),row.id());
-                if(old!=null){version(row,old.version());if(!old.code().equals(row.code()))throw issue(row,"code",422,"근태 코드는 저장 후 변경할 수 없습니다.");if(!Objects.equals(old.systemKind(),row.systemKind()))throw issue(row,"systemKind",422,"시스템 처리 유형은 변경할 수 없습니다.");}
-                else if(row.systemKind()!=null)throw issue(row,"systemKind",422,"새 코드를 시스템 처리에 연결할 수 없습니다.");
-                var existing=mapper.typeCode(actor.tenantId(),row.code());unique(row,codes,existing==null?null:existing.id(),row.code());
+                String code;
+                if (old == null) {
+                    if (row.systemKind() != null) throw issue(row,"systemKind",422,"새 코드를 시스템 처리에 연결할 수 없습니다.");
+                    code = row.code();
+                    if (!code.matches("[A-Z0-9]{1,8}")) throw issue(row,"code",422,"근태코드는 영문 대문자와 숫자 1~8자로 입력해 주세요.");
+                    if (mapper.typeCodeExists(actor.tenantId(),code)) throw issue(row,"code",409,"이미 사용 중인 코드입니다.");
+                } else {
+                    version(row,old.version());
+                    if (!Objects.equals(old.systemKind(),row.systemKind())) throw issue(row,"systemKind",422,"시스템 처리 유형은 변경할 수 없습니다.");
+                    if (!old.code().equals(row.code()) && !row.code().equals(old.systemKind()))
+                        throw issue(row,"code",422,"근태 코드는 저장 후 변경할 수 없습니다.");
+                    code = old.code();
+                }
+                unique(row,codes,null,code);
                 if(row.effectiveFrom()==null||row.effectiveFrom().isBefore(commands.today())||row.effectiveFrom().getYear()>9999)throw issue(row,"effectiveFrom",422,"적용일은 서울 기준 오늘 이후의 날짜로 지정해 주세요.");
                 policy(row);
-                before.put(row.clientRowId(),old);after.put(row.clientRowId(),new Type(old==null?UUID.randomUUID():old.id(),row.code(),row.systemKind(),row.enabled(),old==null?0:old.version()+1,UUID.randomUUID(),old==null?1:old.revision()+1,
+                before.put(row.clientRowId(),old);after.put(row.clientRowId(),new Type(old==null?UUID.randomUUID():old.id(),code,row.systemKind(),row.enabled(),old==null?0:old.version()+1,UUID.randomUUID(),old==null?1:old.revision()+1,
                         row.effectiveFrom(),row.enabled(),row.name(),row.unit(),row.payKind(),row.deductionRule(),row.recognitionRule(),row.basis(),row.systemKind()!=null,old==null?"계산·차감 계약 미지원: 초안만 등록 가능":old.capabilityMessage()));
             }
             var changes=new ArrayList<BulkData.Change>();for(var row:rows){var old=before.get(row.clientRowId());var current=after.get(row.clientRowId());
@@ -111,7 +122,7 @@ public final class CodeManagementService {
         if(row.payKind()==null||!Set.of("UNSPECIFIED","PAID","UNPAID").contains(row.payKind()))throw issue(row,"payKind",422,"유급 구분을 선택해 주세요.");
         if(!"NOT_SUPPORTED".equals(row.recognitionRule()))throw issue(row,"recognitionRule",422,"근무 인정시간 산정은 현재 지원하지 않습니다.");
         if(row.systemKind()==null){if(row.enabled())throw issue(row,"enabled",422,"계산·차감·결재 계약 미지원 코드는 초안으로만 등록할 수 있습니다.");if(!"NONE".equals(row.deductionRule()))throw issue(row,"deductionRule",422,"초안의 차감 방식은 미연결로 지정해 주세요.");}
-        else if("ANNUAL_LEAVE".equals(row.systemKind())){if(!"DAY".equals(row.unit())||!"LEAVE_DAY".equals(row.deductionRule()))throw issue(row,"unit",422,"연차는 종일 DAY와 승인 시 원장 차감만 지원합니다.");}
+        else if("ANNUAL_LEAVE".equals(row.systemKind())){if(!"DAY".equals(row.unit())||!"LEAVE_DAY".equals(row.deductionRule()))throw issue(row,"unit",422,"연차는 일 단위로 관리하고 최종 승인 시 차감합니다.");}
         else if("ATTENDANCE_CORRECTION".equals(row.systemKind())){if(!"NONE".equals(row.unit())||!"NONE".equals(row.deductionRule()))throw issue(row,"unit",422,"정정은 휴가 단위·차감 없이 기존 정정 절차로 처리합니다.");}
         else throw issue(row,"systemKind",422,"지원하지 않는 시스템 처리 유형입니다.");
     }

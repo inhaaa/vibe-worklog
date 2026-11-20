@@ -30,9 +30,11 @@ public final class WorkspaceQueries {
     private final EmployeeMapper employees;
     private final LeaveWorkflowService leave;
     private final Clock clock;
+    private final PersonalScheduleMapper schedules;
 
     public WorkspaceQueries(BusinessCommands commands, ClockService clocks, EmployeeMapper employees,
-            LeaveWorkflowService leave, Clock clock) {
+            LeaveWorkflowService leave, Clock clock, PersonalScheduleMapper schedules) {
+        this.schedules = schedules;
         this.commands = commands;
         this.clocks = clocks;
         this.employees = employees;
@@ -48,7 +50,7 @@ public final class WorkspaceQueries {
             var employee = employees.findSelf(actor.tenantId(), actor.employeeId());
             if (employee == null) throw OrgException.notFound();
             var buckets = leave.buckets(actor, actor.employeeId());
-            Long available = buckets.isEmpty() ? null : buckets.stream().mapToLong(bucket -> bucket.availableDays()).sum();
+            Double available = buckets.isEmpty() ? null : buckets.stream().mapToDouble(bucket -> bucket.availableDays()).sum();
             return new HomeView(employee, data.days().stream().filter(day -> day.today()).findFirst().orElseThrow(),
                     data.days(), available, data.requests().stream().filter(row -> "PENDING".equals(row.status())).count(),
                     data.requests().stream().limit(3).map(row -> item(row, null, false)).toList());
@@ -63,11 +65,12 @@ public final class WorkspaceQueries {
         if (!YearMonth.from(selected).equals(month)) throw OrgException.invalid("선택 날짜는 조회 월 안에 있어야 합니다.");
         return commands.read(actor, () -> {
             var data = readDays(actor, month.atDay(1).datesUntil(month.atEndOfMonth().plusDays(1)).toList(), today, selected);
+            var selectedDay = data.days().stream().filter(DayView::selected).findFirst().orElseThrow();
             return new MonthView(month, selected, data.days(),
                     IntStream.range(0, month.atDay(1).getDayOfWeek().getValue() - 1).boxed().toList(),
                     month.equals(YearMonth.of(1, 1)) ? null : month.minusMonths(1),
                     month.equals(YearMonth.of(9999, 12)) ? null : month.plusMonths(1),
-                    data.days().stream().filter(day -> day.selected()).findFirst().orElseThrow());
+                    selectedDay, schedules.day(actor.tenantId(), selectedDay.snapshot().scheduleVersionId(), selected.getDayOfWeek().getValue()));
         });
     }
 
@@ -92,20 +95,23 @@ public final class WorkspaceQueries {
         return new ReadResult(days, requests);
     }
 
-    private static RequestItem item(RequestView row, Integer quantity, boolean dated) {
+    private static RequestItem item(RequestView row, Double quantity, boolean dated) {
         String kind = switch (row.kind()) {
-            case "LEAVE_DAY" -> "종일 연차";
-            case "CANCEL_LEAVE" -> "연차 취소";
+            case "LEAVE_DAY" -> leaveName(row.leavePart());
+            case "CANCEL_LEAVE" -> "FULL".equals(row.leavePart()) ? "연차 취소" : leaveName(row.leavePart()) + " 취소";
             case "ATTENDANCE_CORRECTION" -> "정정 신청";
+            case "OVERTIME" -> "연장근무 신청";
+            case "CANCEL_OVERTIME" -> "연장근무 취소";
             default -> row.kind();
         };
         if (dated && quantity == null) kind += " · 일별 근거 미확인";
         if (dated && quantity != null && quantity == 0) kind += " 범위 · 차감 0일";
+        boolean cancel = "CANCEL_LEAVE".equals(row.kind()) || "CANCEL_OVERTIME".equals(row.kind());
         String status = switch (row.status()) {
-            case "PENDING" -> "CANCEL_LEAVE".equals(row.kind()) ? "취소 검토 중 · 원승인 유효" : "검토 중";
+            case "PENDING" -> cancel ? "취소 검토 중 · 원승인 유효" : "검토 중";
             case "REJECTED" -> "반려";
             case "WITHDRAWN" -> "철회";
-            case "APPROVED" -> "CANCEL_LEAVE".equals(row.kind()) ? "취소 승인" : switch (row.effectStatus()) {
+            case "APPROVED" -> cancel ? "취소 승인" : switch (row.effectStatus()) {
                 case "EFFECTIVE" -> "ATTENDANCE_CORRECTION".equals(row.kind()) ? "정정 반영" : "승인 유효";
                 case "CANCELED" -> "승인 후 취소";
                 case "SUPERSEDED" -> "이전 정정 이력";
@@ -114,10 +120,18 @@ public final class WorkspaceQueries {
             default -> row.status();
         };
         boolean effective = "LEAVE_DAY".equals(row.kind()) && "APPROVED".equals(row.status())
-                && "EFFECTIVE".equals(row.effectStatus()) && (!dated || Integer.valueOf(1).equals(quantity));
+                && "EFFECTIVE".equals(row.effectStatus()) && (!dated || quantity != null && quantity > 0);
         String tone = "PENDING".equals(row.status()) ? "amber" : "APPROVED".equals(row.status())
                 && "EFFECTIVE".equals(row.effectStatus()) ? "green" : "gray";
         return new RequestItem(row, kind, status, tone, effective);
+    }
+
+    private static String leaveName(String part) {
+        return switch (part) {
+            case "AM" -> "오전 반차";
+            case "PM" -> "오후 반차";
+            default -> "종일 연차";
+        };
     }
 
     private LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))); }

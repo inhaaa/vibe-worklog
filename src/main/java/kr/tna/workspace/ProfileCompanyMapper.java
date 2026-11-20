@@ -38,7 +38,7 @@ public interface ProfileCompanyMapper {
             LEFT JOIN tna.organization_head_assignment oh ON oh.tenant_id=o.tenant_id AND oh.organization_id=o.id
               AND oh.superseded_at IS NULL AND oh.valid_from<=#{today} AND (oh.valid_to IS NULL OR oh.valid_to>#{today})
             LEFT JOIN tna.employee he ON he.tenant_id=oh.tenant_id AND he.id=oh.employee_id
-            LEFT JOIN tna.schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
+            LEFT JOIN tna.effective_schedule_assignment sa ON sa.tenant_id=e.tenant_id AND sa.employee_id=e.id
               AND sa.valid_from<=#{today} AND (sa.valid_to IS NULL OR sa.valid_to>#{today})
             LEFT JOIN tna.schedule_version sv ON sv.tenant_id=sa.tenant_id AND sv.id=sa.schedule_version_id
             LEFT JOIN tna.schedule_template t ON t.tenant_id=sv.tenant_id AND t.id=sv.template_id
@@ -82,13 +82,47 @@ public interface ProfileCompanyMapper {
             @Param("organizationId") UUID organizationId, @Param("employeeId") UUID employeeId);
 
     @Select("""
+            SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,
+              recent.id AS recent_request_id,recent.status AS recent_request_state,eff.request_id AS effective_request_id
+            FROM (
+              SELECT employee_id
+              FROM tna.attendance_event
+              WHERE tenant_id=#{tenantId} AND assigned_work_date=#{date}
+              GROUP BY employee_id HAVING COUNT(*)=1 AND bool_and(event_kind='IN')
+            ) source
+            JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=source.employee_id
+              AND e.joined_on<=#{date} AND (e.left_on IS NULL OR e.left_on>=#{date})
+            LEFT JOIN tna.employee_assignment ea ON ea.tenant_id=e.tenant_id AND ea.employee_id=e.id
+              AND ea.valid_from<=#{date} AND (ea.valid_to IS NULL OR ea.valid_to>#{date})
+            LEFT JOIN tna.organization o ON o.tenant_id=ea.tenant_id AND o.id=ea.organization_id
+            LEFT JOIN tna.request_effect eff ON eff.tenant_id=e.tenant_id AND eff.employee_id=e.id
+              AND eff.work_date=#{date} AND eff.effect_kind='CORRECTION' AND eff.effect_status='EFFECTIVE'
+            LEFT JOIN LATERAL (
+              SELECT r.id,r.status FROM tna.approval_request r
+              WHERE r.tenant_id=e.tenant_id AND r.target_employee_id=e.id
+                AND r.kind='ATTENDANCE_CORRECTION' AND r.from_date=#{date}
+              ORDER BY (r.status='PENDING') DESC,r.submitted_at DESC,r.id LIMIT 1
+            ) recent ON true
+            WHERE (#{organizationId}::uuid IS NULL OR ea.organization_id=#{organizationId})
+              AND (#{query}='' OR strpos(lower(e.employee_no),lower(#{query}))>0
+                   OR strpos(lower(e.display_name),lower(#{query}))>0)
+            ORDER BY e.employee_no,e.id
+            """)
+    List<CheckoutCandidate> checkoutCandidates(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date,
+            @Param("organizationId") UUID organizationId, @Param("query") String query);
+
+    @Select("""
             SELECT r.id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,r.kind,r.status,
               r.from_date,r.to_date,
-              COALESCE((SELECT sum(d.quantity_days) FROM tna.leave_request_day d
-                WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)
-                  AND d.leave_date>=#{from} AND d.leave_date<=#{to}),0)::integer AS quantity_days,
-              COALESCE(f.effect_status,'NONE') AS effect_status,r.submitted_at
+              COALESCE(days.quantity_days,0) AS quantity_days,
+              COALESCE(f.effect_status,'NONE') AS effect_status,r.submitted_at,
+              CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(days.leave_part,'FULL') END AS leave_part
             FROM tna.approval_request r
+            LEFT JOIN LATERAL (
+              SELECT sum(d.quantity_days) AS quantity_days, min(d.leave_part) AS leave_part FROM tna.leave_request_day d
+              WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)
+                AND d.leave_date>=#{from} AND d.leave_date<=#{to}
+            ) days ON true
             JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
             LEFT JOIN tna.employee_assignment ea ON ea.tenant_id=e.tenant_id AND ea.employee_id=e.id
               AND ea.valid_from<=#{today} AND (ea.valid_to IS NULL OR ea.valid_to>#{today})
@@ -97,9 +131,11 @@ public interface ProfileCompanyMapper {
             WHERE r.tenant_id=#{tenantId} AND r.from_date<=#{to} AND r.to_date>=#{from}
               AND (#{organizationId}::uuid IS NULL OR ea.organization_id=#{organizationId})
               AND (#{status}='' OR r.status=#{status})
+              AND (#{scope}='' OR (#{scope}='LEAVE' AND r.kind IN ('LEAVE_DAY','CANCEL_LEAVE'))
+                               OR (#{scope}='CORRECTION' AND r.kind='ATTENDANCE_CORRECTION'))
             ORDER BY r.submitted_at DESC,r.id LIMIT 51 OFFSET #{offset}
             """)
     List<CompanyRequest> requests(@Param("tenantId") UUID tenantId, @Param("today") LocalDate today,
             @Param("organizationId") UUID organizationId, @Param("status") String status,
-            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset);
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset, @Param("scope") String scope);
 }

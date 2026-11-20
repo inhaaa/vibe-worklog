@@ -24,6 +24,48 @@ beforeEach(()=>{history.replaceState(null,'','/me/requests?year=2026');Object.de
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 describe('연도별 본인 현황과 모달 신청',()=>{
+ it.each([['AM','오전 반차'],['PM','오후 반차']])('%s 반차는 하루만 보내고 미리보기와 최종 제출에서 같은 단위를 유지한다',async(part,label)=>{
+  const selected={...leave,leavePart:part,from:'2026-11-03',to:'2026-11-03',reason:'개인 일정'};
+  const checked=preview({leaveForm:selected,preview:{...(preview().data.compose as ComposeView).preview,quantityDays:0.5,selectedBucketAvailableDays:1.5}});
+  const fetcher=vi.fn<typeof fetch>().mockResolvedValue(response(checked));
+  vi.stubGlobal('fetch',fetcher);
+  const view=render(<AnnualRequestPage {...envelope({},compose)} reload={()=>{}} onClose={()=>{}}/>);
+  fireEvent.change(view.getByLabelText('휴가 단위'),{target:{value:part}});
+  expect(view.queryByRole('button',{name:/종료일/})).toBeNull();
+  fireEvent.change(view.getByLabelText('반차 사용일'),{target:{value:selected.from}});
+  fireEvent.change(view.getByLabelText('신청 사유'),{target:{value:selected.reason}});
+  fireEvent.click(view.getByRole('button',{name:'미리보기'}));
+  const review=within(await view.findByRole('region',{name:'신청 미리보기'}));
+  expect(review.getByText(label)).toBeTruthy();
+  expect(review.getByText(/예상 차감 0.5일/)).toBeTruthy();
+  const posted=new URLSearchParams(String(fetcher.mock.calls[0][1]?.body));
+  const form=new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!);
+  for (const values of [posted,form]) {
+   expect([values.get('kind'),values.get('leavePart'),values.get('from'),values.get('to')]).toEqual(['LEAVE_DAY',part,selected.from,selected.from]);
+  }
+  fireEvent.click(view.getByRole('button',{name:'내용 수정'}));
+  expect((view.getByLabelText('반차 사용일') as HTMLInputElement).value).toBe(selected.from);
+  fireEvent.change(view.getByLabelText('휴가 단위'),{target:{value:'FULL'}});
+  expect(view.getByRole('button',{name:/종료일/})).toBeTruthy();
+  expect(view.queryByRole('button',{name:'신청 제출'})).toBeNull();
+ });
+ it('오전 반차와 취소를 연도별 이름으로 찾고 대기·잔여 소수 일수를 표시한다',()=>{
+  const am={...request,leavePart:'AM',quantityDays:0.5,fromDate:leave.from,toDate:leave.from};
+  const canceled={...am,id:'cancel',kind:'CANCEL_LEAVE',originalRequestId:am.id};
+  const view=render(<App initial={envelope({requests:[am,canceled],pendingDays:0.5,currentAvailableDays:3.5})}/>);
+  expect(view.getByRole('link',{name:'오전 반차 상세'})).toBeTruthy();
+  expect(view.getByRole('link',{name:'오전 반차 취소 상세'})).toBeTruthy();
+  expect(view.getByText('3.5일')).toBeTruthy();
+ });
+ it('신청서 버전의 결재 순서와 실제 제출용 확인값을 표시한다',()=>{
+  const approval={...compose.approval,formName:'휴가 신청서',formCode:'L01',basisDate:'2026-11-18',routeToken:'preview-v3',
+   steps:[{stepNumber:1,role:'팀장',approverName:'김팀장',organizationName:'제품팀'},{stepNumber:2,role:'실장',approverName:'이실장',organizationName:'제품실'}]};
+  const view=render(<AnnualRequestPage {...envelope({},{...compose,approval})} reload={()=>{}} onClose={()=>{}}/>);
+  const route=within(view.getByRole('region',{name:'결재선'}));
+  expect(route.getByText(/L01/)).toBeTruthy();
+  expect(route.getAllByRole('listitem').map(row=>row.querySelector('strong')?.textContent).slice(1)).toEqual(['김팀장','이실장']);
+  expect(new FormData(view.container.querySelector('form[action="/me/requests/leave"]')!).get('routeToken')).toBe('preview-v3');
+ });
  it('신청 창의 X로 닫고 입력이 있으면 기존 손실 확인을 지킨다',()=>{
   const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
   const view=render(<App initial={envelope({},compose)}/>);
@@ -371,9 +413,9 @@ describe('연도별 본인 현황과 모달 신청',()=>{
   expect(view.getByRole('heading',{name:'내가 대리 작성한 이력'})).toBeTruthy();
   expect(view.getByRole('navigation',{name:'내 신청 페이지'}).querySelector('a')?.getAttribute('href')).toContain('status=PENDING');
  });
- it('확인된 부분합에는 (일부)를, 귀속 자료가 없으면 -를 보인다',()=>{
-  const partial=render(<App initial={envelope({registeredDays:5,attributedBalanceDays:3,unknownBucketCount:1,attributionPartial:true})}/>);
-  expect([...partial.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['5일 (일부)','3일 (일부)']);
+ it('귀속 기초·조정과 원장 잔액의 반일 부분합을 표시하고 귀속 자료가 없으면 -를 보인다',()=>{
+  const partial=render(<App initial={envelope({registeredDays:7.5,attributedBalanceDays:3.5,unknownBucketCount:1,attributionPartial:true})}/>);
+  expect([...partial.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['7.5일 (일부)','3.5일 (일부)']);
   cleanup();
   const none=render(<App initial={envelope({registeredDays:null,attributedBalanceDays:null,unknownBucketCount:0,attributionPartial:false})}/>);
   expect([...none.container.querySelectorAll('.t-request-balance-basis dd')].map(d=>d.textContent)).toEqual(['-','-']);

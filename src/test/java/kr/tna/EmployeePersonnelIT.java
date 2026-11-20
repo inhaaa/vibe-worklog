@@ -69,6 +69,33 @@ class EmployeePersonnelIT {
     }
 
     @Test
+    void searchesWithinCompanyAndOpensTheRequestedPersonnelTab() throws Exception {
+        var sameName = member("E002", false);
+        db.update("UPDATE tna.employee SET display_name='합성 동명이인' WHERE tenant_id=? AND id IN (?,?)",
+                tenant, employee.employeeId(), sameName.employeeId());
+        db.update("UPDATE tna.employee SET active=false,left_on=? WHERE tenant_id=? AND id=?",
+                today.minusDays(1), tenant, sameName.employeeId());
+        mvc.perform(get("/admin/employees/personnel/search").with(as(admin)).param("q", "동명이인")
+                        .param("tenantId", DatabaseFixture.TENANT_B.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rows.length()").value(2))
+                .andExpect(jsonPath("$.rows[0].employeeNo").value("E001"))
+                .andExpect(jsonPath("$.rows[1].status").value("LEFT"))
+                .andExpect(jsonPath("$.rows[0].birthDate").doesNotExist())
+                .andExpect(jsonPath("$.hasNext").value(false));
+        mvc.perform(get("/admin/employees/personnel/search").with(as(employee)).param("q", "E001"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/admin/employees/{id}/personnel", employee.employeeId()).with(as(admin))
+                        .param("tab", "family").accept(PAGE_JSON))
+                .andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/adminPersonnel/tab", "family"))
+                .andExpect(ReactPageAssertions.data("/employeeHeader/employeeId", employee.employeeId().toString()));
+        mvc.perform(get("/admin/employees/{id}/personnel", employee.employeeId()).with(as(admin))
+                        .param("tab", "other").accept(PAGE_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void nullableRegistrationPreservesEmployeeAndAccountAndMasksPrivateAudit() {
         var initial = personnel.get(admin, employee.employeeId());
         assertEquals(0, initial.version());

@@ -1,6 +1,7 @@
 package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doReturn;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -14,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
 import kr.tna.schedule.ScheduleData.*;
 import kr.tna.schedule.ScheduleService;
@@ -24,11 +26,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @SpringBootTest
 class FixedScheduleServiceIT {
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
     @Autowired ScheduleService schedules;
+    @MockitoSpyBean OrgCommands commands;
     private JdbcTemplate db;
     private TnaPrincipal actor;
     private UUID tenant;
@@ -90,6 +94,43 @@ class FixedScheduleServiceIT {
         assertEquals(1, schedules.versions(actor, id).size());
         assertEquals(1, audit(command));
         assertStatus(409, () -> schedules.create(actor, new TemplateForm(code, "다른 이름", TODAY, week(), null, "신규 일정", command)));
+    }
+
+    @Test
+    void replaysV31FixedTemplateCreateAndRevisionOnlyForTheirOriginalDays() {
+        var initial = form(code(), "기존 고정", TODAY, week(), null);
+        UUID id = schedules.create(actor, initial);
+        var revision = form(initial.code(), "고정 개정", TODAY.plusDays(1), week(), 0L);
+        schedules.revise(actor, id, revision);
+
+        // V31에 저장한 요일 문자열을 현재 Day 타입과 독립적으로 재현한다.
+        var legacyDays = week().stream().map(day -> "Day[weekday=" + day.weekday() + (day.workday()
+                ? ", workday=true, startTime=09:00, endTime=18:00, breaks=[Break[startTime=12:00, endTime=12:30], Break[startTime=12:30, endTime=13:00]]]"
+                : ", workday=false, startTime=null, endTime=null, breaks=[]]")).toList();
+        for (var form : List.of(initial, revision)) {
+            boolean creating = form.expectedVersion() == null;
+            String hash = OrgCommands.fingerprint(creating ? "SCHEDULE_CREATE" : "SCHEDULE_REVISE", creating ? null : id,
+                    form.code(), form.name(), form.validFrom(), legacyDays, form.expectedVersion(), form.reason());
+            assertEquals(1, db.update("UPDATE tna.org_audit_event SET input_hash=? WHERE tenant_id=? AND command_id=?",
+                    hash, tenant, form.commandId()));
+        }
+
+        doReturn(TODAY.plusDays(2)).when(commands).today();
+        var changedDays = replace(week(), new DayForm(1, true, "09:30", "18:00", "12:00-12:30,12:30-13:00"));
+        var changedCreate = new TemplateForm(initial.code(), initial.name(), initial.validFrom(), changedDays,
+                null, initial.reason(), initial.commandId());
+        var changedRevision = new TemplateForm(revision.code(), revision.name(), revision.validFrom(), changedDays,
+                revision.expectedVersion(), revision.reason(), revision.commandId());
+        assertAll(
+                () -> assertEquals(id, schedules.create(actor, initial)),
+                () -> assertEquals(id, schedules.revise(actor, id, revision)),
+                () -> assertStatus(409, () -> schedules.create(actor, changedCreate)),
+                () -> assertStatus(409, () -> schedules.revise(actor, id, changedRevision)),
+                () -> assertStatus(422, () -> schedules.create(actor, form(code(), "과거 등록", TODAY, week(), null))),
+                () -> assertStatus(422, () -> schedules.revise(actor, id, form(initial.code(), "과거 개정", TODAY, week(), 1L))));
+        assertEquals(2, schedules.versions(actor, id).size());
+        assertEquals(1, audit(initial.commandId()));
+        assertEquals(1, audit(revision.commandId()));
     }
 
     @Test

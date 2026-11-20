@@ -3,6 +3,8 @@ import { Modal } from '../components/Modal';
 import { ErrorNotice, Form, fmtDateTime } from '../ui';
 import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
+import { HomeCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
+import { combinedLeavePart, leavePartNames, type LeavePart } from './leavePart';
 import './WorkspaceHome.css';
 
 interface HomeRequest {
@@ -16,7 +18,7 @@ interface HomeDay {
   snapshot: Pick<DaySnapshot, 'workDate'>;
   scheduleText: string;
   calendarText: string;
-  requests: { effectiveLeave: boolean }[];
+  requests: { effectiveLeave: boolean; leavePart?: LeavePart | null }[];
 }
 
 interface HomeToday extends HomeDay {
@@ -24,6 +26,11 @@ interface HomeToday extends HomeDay {
   inRecordedAt: string | null;
   outRecordedAt: string | null;
   timeline: { time: string; title: string; kind: string }[];
+}
+
+function dayNote(day: HomeDay) {
+  const part = combinedLeavePart(day.requests.filter(request => request.effectiveLeave).map(request => request.leavePart));
+  return part ? `승인된 ${leavePartNames[part]}` : day.calendarText;
 }
 
 interface HomeView {
@@ -148,10 +155,13 @@ export function WorkspaceHome({ data, busy }: Pick<PageProps, 'data' | 'busy'>) 
     OUT: typeof data.clockOutCommand === 'string' ? data.clockOutCommand : undefined,
     error: typeof data.clockError === 'number' ? data.clockError : undefined,
   };
-  return <HomeDashboard key={storageKey} home={home} clock={clock} storageKey={storageKey} busy={busy} />;
+  return <HomeDashboard key={storageKey} home={home} clock={clock} storageKey={storageKey} busy={busy}
+    followUps={data.checkoutFollowUps as CheckoutFollowUpList | undefined} />;
 }
 
-function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; clock: ClockCommands; storageKey?: string; busy?: boolean }) {
+function HomeDashboard({ home, clock, storageKey, busy, followUps }: {
+  home: HomeView; clock: ClockCommands; storageKey?: string; busy?: boolean; followUps?: CheckoutFollowUpList;
+}) {
   const [visible, setVisible] = useState(() => readWidgets(storageKey));
   const [draft, setDraft] = useState<readonly WidgetId[] | null>(null);
   const [localOnly, setLocalOnly] = useState(false);
@@ -178,9 +188,8 @@ function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; cloc
 
   const { today, week, availableLeaveDays, pendingRequests, recentRequests } = home;
   const date = today.snapshot.workDate;
-  const todayOnLeave = today.requests.some(request => request.effectiveLeave);
   const metrics = [
-    { id: 'schedule', value: today.scheduleText, note: todayOnLeave ? '승인된 연차가 있습니다' : today.calendarText },
+    { id: 'schedule', value: today.scheduleText, note: dayNote(today) },
     { id: 'leave', value: availableLeaveDays == null ? '미등록' : `${availableLeaveDays}일`, note: '현재 사용 기간의 원장 기준' },
     { id: 'pending', value: `${pendingRequests}건`, note: '본인이 대상인 신청 기준' },
   ] as const;
@@ -201,6 +210,7 @@ function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; cloc
           <a href="/me/requests/new"><Icon name="plus" />근태 신청</a>
         </div>
       </header>
+      <HomeCheckoutFollowUps model={followUps} />
       <div className="t-work-home-toolbar">
         <h2>내 위젯</h2>
         <button type="button" className="t-btn t-work-home-settings-trigger" aria-label="위젯 설정" aria-haspopup="dialog" title="위젯 설정" disabled={busy}
@@ -289,7 +299,7 @@ function HomeDashboard({ home, clock, storageKey, busy }: { home: HomeView; cloc
             return <a key={workDate} href={`/me/schedule?month=${workDate.slice(0, 7)}&date=${workDate}`} aria-current={day.today ? 'date' : undefined}>
               <span className="t-work-home-week-date">{weekdayLabel.format(seoulDay(workDate))}<time dateTime={workDate}>{workDate.slice(5).replace('-', '.')}</time>{day.today && <span>오늘</span>}</span>
               <span className="t-work-home-week-shift"><strong>{day.scheduleText}</strong>
-                <small>{day.requests.some(request => request.effectiveLeave) ? '승인된 연차' : day.calendarText}</small></span>
+                <small>{dayNote(day)}</small></span>
             </a>;
           })}
         </div>

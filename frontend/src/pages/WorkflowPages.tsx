@@ -3,12 +3,22 @@ import './RequestDetail.css';
 import './RequestWorkspace.css';
 import './RecordDetails.css';
 import { ApprovalWorkspace } from './ApprovalWorkspace';
+import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
+import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
+import { LeaveBalanceBatch } from './LeaveBalanceBatch';
+import { SelectiveSettlements } from './SelectiveSettlements';
+import { SettlementBackLink } from './SettlementBackLink';
+import { selectiveHours, selectiveReasonLabels } from './selectiveSchedule';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
-import type { PageProps } from '../types';
+import type { CsrfToken, PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { AttendancePeriodPage, type AttendancePeriod } from './AttendancePeriodPage';
+import { AttendanceListBackLink, attendanceListReturn } from './CompanyAttendanceNavigation';
+import { LeaveOperationsBackLink, leaveOperationsReturn } from './LeaveOperationsNavigation';
 import { ApprovalStamps } from '../components/ApprovalStamps';
+import { InlineRequestApproval } from './RequestApprovalPreview';
 import { Notice } from '../components/Notice';
 import {
   Form,
@@ -113,18 +123,24 @@ function storedIntervals(value: string | null): string {
   }
 }
 
+const requestName = (value: string, names: Record<string, string>) => names[value] ?? value;
+const requestStateName = (status: string) => requestName(status, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
+const requestEffectName = (effect: string) => requestName(effect, { EFFECTIVE: '반영', CANCELED: '취소', SUPERSEDED: '대체', NONE: '미반영' });
+
 function RequestRows({ requests, pagination }: { requests: RequestView[]; pagination?: React.ReactNode }) {
   const columns = [
     sheetColumn<RequestView>({ field: 'targetEmployeeName', headerName: '대상', minWidth: 170, pinned: 'left' }, request => request.targetEmployeeName),
-    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170 }, request => <a href={`/requests/${request.id}`}>{request.kind}</a>),
+    sheetColumn<RequestView>({ field: 'kind', headerName: '종류', minWidth: 170, valueGetter: ({ data }) => data && requestKindName(data.kind,data.leavePart) }, request => <a href={`/requests/${request.id}`}>{requestKindName(request.kind,request.leavePart)}</a>),
     sheetColumn<RequestView>({ field: 'fromDate', headerName: '기간', minWidth: 230, valueGetter: ({ data }) => data ? `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}` : '' }, request => `${fmtDate(request.fromDate)} ~ ${fmtDate(request.toDate)}`),
-    sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${data.status} / ${data.effectStatus}` : '' }, request => `${request.status} / ${request.effectStatus}`),
-    sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.approverName),
+    sheetColumn<RequestView>({ colId: 'state', headerName: '상태·효력', minWidth: 190, valueGetter: ({ data }) => data ? `${requestStateName(data.status)} / ${requestEffectName(data.effectStatus)}` : '' }, request => `${requestStateName(request.status)} / ${requestEffectName(request.effectStatus)}`),
+    sheetColumn<RequestView>({ field: 'approverName', headerName: '승인자', minWidth: 150, flex: 1 }, request => request.status === 'PENDING' && request.totalSteps ? `${request.approverName} · ${request.currentStep}/${request.totalSteps}단계` : request.approverName),
   ];
   return <WorklogSheet label="근태 신청 목록" rows={requests} columns={columns} getRowId={request => request.id} emptyMessage="신청이 없습니다." pagination={pagination} />;
 }
 function Mine({ model: m }: { model: MineModel }) {
   const f = m.form;
+  const [part, setPart] = useState<LeavePart>(f.leavePart ?? 'FULL');
+  const [from, setFrom] = useState(f.from);
   return (
     <>
       <h1>내 근태 신청</h1>
@@ -133,7 +149,7 @@ function Mine({ model: m }: { model: MineModel }) {
       </p>
       <section className="panel">
         <h2>연차 잔여와 대기량</h2>
-        <p>정수 일 단위 기초 잔여이며 자동 발생이 아닙니다. 대기는 예약·차감하지 않습니다.</p>
+        <p>담당자가 등록한 기초 잔여와 조정은 0.5일 단위입니다. 대기는 예약·차감하지 않습니다.</p>
         <ul>
           {m.buckets.map((b) => (
             <li key={b.id}>
@@ -144,7 +160,7 @@ function Mine({ model: m }: { model: MineModel }) {
         </ul>
       </section>
       <section className="panel">
-        <h2>종일 연차 신청</h2>
+        <h2>연차 신청</h2>
         <Form action="/me/requests/leave" method="post" className="admin-form">
           {hidden('commandId', f.commandId)}
           {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
@@ -156,8 +172,11 @@ function Mine({ model: m }: { model: MineModel }) {
               </option>
             ))}
           </SelectField>
-          <Field label="시작일" name="from" type="date" value={f.from} required />
-          <Field label="종료일 (포함)" name="to" type="date" value={f.to} required />
+          <SelectField label="휴가 단위" name="leavePart" value={part} onChange={event => setPart(event.target.value as LeavePart)}>
+            {Object.entries(leavePartNames).map(([value,name]) => <option key={value} value={value}>{name}</option>)}
+          </SelectField>
+          <Field label={part === 'FULL' ? '시작일' : '반차 사용일'} name="from" type="date" value={from} onChange={event => setFrom(event.target.value)} required />
+          {part === 'FULL' ? <Field label="종료일 (포함)" name="to" type="date" value={f.to} required /> : hidden('to',from)}
           <Reason value={f.reason} />
           <p className="hint">
             민감정보를 적지 마세요. 일정·휴일·유효기간은 승인 때 다시 검증합니다.
@@ -175,48 +194,74 @@ function Mine({ model: m }: { model: MineModel }) {
 function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const r = m.request,
     d = m.detail;
+  const overtime = r.kind === 'OVERTIME' || r.kind === 'CANCEL_OVERTIME';
+  const isLeave = r.kind === 'LEAVE_DAY' || r.kind === 'CANCEL_LEAVE';
+  const staffLeave = m.admin && isLeave;
+  const leaveReturn = staffLeave ? leaveOperationsReturn(m.leaveReturnTo) : null;
+  const leaveTypeName = isLeave ? d.attendancePolicy?.name : null;
+  const hasLeaveDecision = staffLeave && (r.status === 'APPROVED' || r.status === 'REJECTED');
   const label = (value: string, names: Record<string, string>) => Object.hasOwn(names, value) ? names[value] : value;
-  const kindName = label(r.kind, { LEAVE_DAY: '종일 연차', ATTENDANCE_CORRECTION: '출퇴근·휴게 정정', CANCEL_LEAVE: '연차 취소' });
+  const kindName = requestKindName(r.kind,r.leavePart);
   const statusName = (value: string) => label(value, { PENDING: '결재 대기', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '철회' });
-  const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
-  const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
+  const effectName = label(r.effectStatus, { NONE: '효력 없음', EFFECTIVE: '유효', CANCELED: overtime ? '취소됨' : '효력 취소', SUPERSEDED: '후속 정정으로 대체' });
+  const eventName = (value: string) => label(value, { SUBMITTED: '신청 제출', STEP_APPROVED: '중간 승인', APPROVED: '승인', REJECTED: '반려', WITHDRAWN: '신청 철회', REASSIGNED: '결재 담당 재할당' });
+  const steps = d.steps ?? [];
+  const activeStep = steps.find(step => step.status === 'ACTIVE');
+  const intermediate = r.status === 'PENDING' && (r.currentStep ?? 1) < (r.totalSteps ?? 1);
+  const stepState = (s: string) => label(s, { ACTIVE:'결재 중', WAITING:'예정', APPROVED:'승인', REJECTED:'반려', CLOSED:'진행 종료' });
   const correctionAction = (value: string) => label(value, { KEEP: '유지', SET: '변경', CLEAR: '제거' });
+  const comparison = d.correctionComparison;
+  const correctionTimes = (times: string[] | null) =>
+    times == null ? '확인 필요' : times.length ? times.map(fmtDateTime).join(', ') : '미기록';
   const zeroReason = (value: string) => label(value, { CONFIRMED_HOLIDAY: '확정 휴일', CONFIRMED_NON_WORKDAY: '확정 비근로일' });
   const hasActions = m.canDecide || m.canWithdraw || m.canCancel || m.canCancelException || (m.admin && r.status === 'PENDING');
   const completedApproval = m.ownRequest === false && m.workspacePrincipal?.roles.includes('APPROVER')
-    && (r.status === 'APPROVED' || r.status === 'REJECTED');
+    && (r.status === 'APPROVED' || r.status === 'REJECTED' || (steps.length > 1 && !m.canDecide && !m.admin));
   const versionFields = (
     <>
       {hidden('expectedVersion', r.version)}
+      {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
+      {r.currentStep != null && hidden('expectedStep', r.currentStep)}
       {hidden('commandId', m.pageCommand)}
     </>
   );
-  const approvalTone = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
+  const approvalTone: 'ok' | 'danger' | 'warn' | undefined = r.status === 'APPROVED' ? 'ok' : r.status === 'REJECTED' ? 'danger' : r.status === 'PENDING' ? 'warn' : undefined;
   return (
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
+          <SettlementBackLink href={m.settlementReturn} />
+          {m.admin && <AttendanceListBackLink href={m.monthCloseReturnTo ?? undefined} />}
+          <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
             : completedApproval && <a className="t-btn t-request-detail-back" href="/approvals/completed">내가 처리한 결재</a>}
-          <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>
+          {overtime ? <>
+            {m.admin && <a className="t-btn t-request-detail-back" href="/admin/overtime">연장근무 신청현황</a>}
+            {m.ownRequest && <a className="t-btn t-request-detail-back" href="/me/overtime">내 연장근무 신청</a>}
+          </> : <a className="t-btn t-request-detail-back" href="/me/requests">내 신청 </a>}
         </div>} />
       <div className="t-request-detail-document">
         <section className="t-card wl-detail-approval" aria-labelledby="request-record-approval-title">
           <h2 id="request-record-approval-title">결재 진행</h2>
+          {r.formCode && <p>{r.formName} ({r.formCode}){r.legacyForm && ' · 기존 신청'}</p>}
+          {activeStep && <p>{activeStep.stepNumber}/{steps.length} {activeStep.role} 결재 중{d.reassignmentRequired && ' · 재할당 필요'}</p>}
           <ApprovalStamps steps={[
             { role: '대상 사원', name: r.targetEmployeeName, detail: d.routeSnapshot?.organizationName, state: '제출' },
-            { role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone },
+            ...(steps.length ? steps.map(step => ({
+              role: step.role, name: step.decidedByName || step.approverName,
+              detail: step.decidedAt ? fmtDateTime(step.decidedAt) : undefined, state: stepState(step.status),
+            })) : [{ role: '결재', name: r.approverName || '미지정', detail: d.routeSnapshot?.routeName, state: statusName(r.status), tone: approvalTone }]),
           ]} />
         </section>
         {d.routeSnapshot ? <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title">
           <h2 id="request-record-route-title">제출 당시 결재선</h2>
           <dl className="wl-form-table">
-            <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별' })}</dd>
-            <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원' })}</dd>
+            <dt>적용 범위</dt><dd>{label(d.routeSnapshot.scopeKind, { EMPLOYEE: '사원별', ORGANIZATION: '조직별', FORM: '신청서별' })}</dd>
+            <dt>결재 방식</dt><dd>{label(d.routeSnapshot.approverKind, { ORGANIZATION_HEAD: '대상자의 현재 조직장', DIRECT_EMPLOYEE: '지정 사원', ORGANIZATION_CHAIN: '조직장 순차결재' })}</dd>
             {d.routeSnapshot.organizationName && <><dt>제출 당시 소속</dt><dd>{d.routeSnapshot.organizationName}</dd></>}
-            <dt>최초 결재 담당</dt><dd>{d.routeSnapshot.resolvedApproverName}</dd>
+            <dt>최초 결재 담당</dt><dd>{steps.length > 1 ? steps.map(step => step.role+' '+step.originalApproverName).join(' → ') : d.routeSnapshot.resolvedApproverName}</dd>
           </dl>
-        </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2><p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p></section>}
+        </section> : <section className="t-card t-request-route t-request-record-routing" aria-labelledby="request-record-route-title"><h2 id="request-record-route-title">제출 당시 결재선</h2>{steps.length ? <ol>{steps.map(step=><li key={step.stepNumber}>{step.role} · {step.originalApproverName}</li>)}</ol> : <p className="hint">제출 당시 기존 사원별 지정 승인자를 사용한 신청입니다.</p>}</section>}
         <section className="t-card t-request-detail-summary" aria-labelledby="request-record-application-title">
           <div className="t-request-detail-summary-head">
             <div><h2 id="request-record-application-title">신청서</h2><p className="t-request-detail-person">{r.targetEmployeeName} · {kindName}</p></div>
@@ -227,13 +272,23 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
             <section className="t-request-detail-fact">
               <h3>신청 기간</h3>
               <p className="t-request-detail-dates"><span>{fmtDate(r.fromDate)}</span><span aria-hidden="true">~</span><span>{fmtDate(r.toDate)}</span></p>
-              {r.kind === 'LEAVE_DAY' && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
+              {isLeave && r.quantityDays != null && <p className="t-request-detail-quantity">{r.quantityDays}일</p>}
+              {d.overtime && <p className="t-request-detail-quantity">{d.overtime.startTime.slice(0,5)}~{d.overtime.endTime.slice(0,5)} · {d.overtime.requestedMinutes}분</p>}
+              {leaveTypeName && <p><span className="t-muted">휴가 종류 </span><strong>{leaveTypeName}</strong></p>}
+              {staffLeave && r.submittedAt && <p><span className="t-muted">접수 시각 </span><time dateTime={r.submittedAt}>{fmtDateTime(r.submittedAt)}</time></p>}
             </section>
             <section className="t-request-detail-fact"><h3>신청 사유</h3><p className="t-request-detail-reason">{r.reason}</p></section>
-            <section className="t-request-detail-fact"><h3>결재 담당</h3><p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p><p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p></section>
+            <section className="t-request-detail-fact">
+              <h3>결재 담당</h3>
+              <p className="t-request-detail-person">현재 결재 담당 {r.approverName}</p>
+              {hasLeaveDecision && <p><span className="t-muted">실제 처리자 </span><strong>{m.leaveDecidedByName?.trim() || '미확인'}</strong></p>}
+              <p className="t-muted">최초 담당은 제출 당시 결재선에서 확인하세요.</p>
+            </section>
           </div>
-          {r.kind === 'CANCEL_LEAVE' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
-          {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}`}>원신청 보기 </a>}
+          {r.kind === 'CANCEL_OVERTIME' && r.status === 'PENDING' && <Notice>취소 결재 중에는 원래 승인한 연장근무가 유효합니다.</Notice>}
+          {r.kind === 'CANCEL_LEAVE' && r.status === 'PENDING' && <Notice>취소 심사 중에는 원승인·차감이 유지됩니다.</Notice>}
+          {r.originalRequestId && <a className="t-btn t-request-detail-original" href={`/requests/${r.originalRequestId}${leaveReturn
+            ? '?' + new URLSearchParams({ returnTo: leaveReturn }) : ''}`}>원신청 보기 </a>}
         </section>
       </div>
       <div className="t-request-detail-columns">
@@ -244,11 +299,30 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               {d.days.map((day, i) => <li key={`${day.leaveDate}-${i}`}><span>{fmtDate(day.leaveDate)}</span>{r.kind === 'LEAVE_DAY' && <strong>{day.quantityDays}일</strong>}{day.zeroReason && <span className="t-muted">{zeroReason(day.zeroReason)}</span>}</li>)}
             </ul>
           </section>}
+          {!!d.scheduleChanges?.length && <section className="t-card">
+            <h2>승인 후 근무 일정 변경</h2>
+            <p>원신청의 차감 내역과 변경된 근무일을 확인하세요.</p>
+            {d.scheduleChanges.map(change => <div key={change.leaveDate}>
+              <h3>{fmtDate(change.leaveDate)}</h3>
+              <dl><dt>승인 당시 일정</dt><dd>{change.original}</dd>
+                <dt>현재 일정</dt><dd>{change.current}</dd></dl>
+            </div>)}
+          </section>}
           {d.correction && <section className="t-card">
             <h2>요청한 정정</h2>
+            {comparison && <table className="t-correction-comparison" aria-label="출퇴근 시각 비교">
+              <thead><tr><th scope="col">구분</th><th scope="col">출근 시각</th><th scope="col">퇴근 시각</th></tr></thead>
+              <tbody>
+                {([['원천 기록', comparison.source], ['현재 유효 기록', comparison.current], ['제안 기록', comparison.proposed]] as const)
+                  .map(([heading, times]) => <tr key={heading}>
+                    <th scope="row">{heading}</th><td>{correctionTimes(times.in)}</td><td>{correctionTimes(times.out)}</td>
+                  </tr>)}
+              </tbody>
+            </table>}
             <dl className="wl-form-table">
               <dt>출근</dt><dd>출근 {correctionAction(d.correction.inAction)}{d.correction.inAction === 'SET' && ` ${fmtDateTime(d.correction.requestedInAt)}`}</dd>
               <dt>퇴근</dt><dd>퇴근 {correctionAction(d.correction.outAction)}{d.correction.outAction === 'SET' && ` ${fmtDateTime(d.correction.requestedOutAt)}`}</dd>
+              <dt>실제 근로 확인</dt><dd>{d.correction.presenceAsWork ? '확인' : '미확인'}</dd>
               <dt>실제 휴게</dt><dd>{d.correction.breaksConfirmed ? storedIntervals(d.correction.actualBreaks) : '미확인'}</dd>
             </dl>
           </section>}
@@ -272,7 +346,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <>
                 <Form action={`/requests/${r.id}/approve`} method="post" className="wl-form wl-decision-form" aria-label="승인 검토">
                   <h3>승인</h3>
-                  <p>{r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
+                  <p>{intermediate ? '승인하면 다음 결재자에게 전달됩니다. 신청은 최종 승인까지 대기로 남습니다.' : r.kind === 'LEAVE_DAY' ? '승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.' : '승인하면 신청한 내용의 효력이 반영됩니다.'}</p>
                   {versionFields}
                   <FormTable><Reason label="승인 검토 사유" /></FormTable>
                   <div className="wl-form-actions"><button className="t-btn primary">승인하기</button></div>
@@ -297,13 +371,13 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
               <Form action={`/requests/${r.id}/cancellations`} method="post" className="wl-form wl-decision-form">
                 {versionFields}
                 <FormTable>
-                  <Reason label="취소 요청 사유" />
+                  <Reason label="취소 요청 사유" value={m.cancelReason}/>
                   <p>
-                    예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가
-                    필요합니다.
+                    {overtime ? '예정 시작 전까지 승인된 구간 전체의 취소를 요청할 수 있습니다.' : '예정 시작 전 본인 요청만 일반 취소를 지원합니다. 지난 날짜는 담당자 예외 경로가 필요합니다.'}
                   </p>
                 </FormTable>
-                <div className="wl-form-actions"><button className="t-btn secondary">취소 심사 요청</button></div>
+                <InlineRequestApproval approval={m.cancelApproval}/>
+                <div className="wl-form-actions"><button className="t-btn secondary" disabled={m.cancelApproval?.eligible === false}>취소 심사 요청</button></div>
               </Form>
             )}
             {m.admin && r.status === 'PENDING' && (
@@ -332,10 +406,11 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
                 <h3>과거·퇴사자 예외 취소</h3>
                 {versionFields}
                 <FormTable>
-                  <Reason label="검토 근거와 예외 취소 사유" />
+                  <Reason label="검토 근거와 예외 취소 사유" value={m.exceptionCancelReason}/>
                   <p>다른 적격 승인자의 독립 승인이 필요합니다.</p>
                 </FormTable>
-                <div className="wl-form-actions"><button className="t-btn">예외 취소 심사 요청</button></div>
+                <InlineRequestApproval approval={m.cancelApproval}/>
+                <div className="wl-form-actions"><button className="t-btn" disabled={m.cancelApproval?.eligible === false}>예외 취소 심사 요청</button></div>
               </Form>
             )}
           </section>
@@ -351,10 +426,17 @@ function Correction({ model: m }: { model: CorrectionModel }) {
   const [requestedOutAt, setRequestedOutAt] = useState(f.requestedOutAt);
   const [breaks, setBreaks] = useState(f.actualBreaks ?? '');
   const [dirty, setDirty] = useState(Boolean(f.reason));
+  const checkout = m.checkoutOnly === true;
+  const events = checkout ? m.day.effectiveEvents ?? m.day.events : m.day.events;
   const actionName = (action: string) => ({ KEEP: '유지', SET: '시각 수정', CLEAR: '누락으로 정정' }[action] ?? action);
   return (
     <div className="t-correction-workspace">
-      <PageHeader title="출퇴근·실제 휴게 정정 신청" help="확인한 기록과 실제 근로 내용을 입력해 주세요." />
+      <PageHeader title={checkout ? '퇴근 누락 정정 신청' : '출퇴근·실제 휴게 정정 신청'}
+        help="확인한 기록과 실제 근로 내용을 입력해 주세요."
+        actions={<><SettlementBackLink href={m.settlementReturn} />
+          {checkout && !m.pendingCorrectionId && <a className="t-btn" href={`/me/requests/correction?${new URLSearchParams({
+            date: f.workDate, mode: 'full', ...(m.settlementReturn && { settlementReturn: m.settlementReturn }),
+          })}`}>일반 정정 양식</a>}</>} />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -362,23 +444,30 @@ function Correction({ model: m }: { model: CorrectionModel }) {
       )}
       <section className="wl-section t-correction-source" aria-label="현재 출퇴근 기록">
         <h2>현재 출퇴근 기록</h2>
+        {checkout && <p>대상 근무일 <strong>{fmtDate(f.workDate)}</strong></p>}
         <ul className="t-correction-events">
-          {m.day.events.map((e) => (
+          {events.map((e) => (
             <li key={e.id}>
               <span>{e.kind === 'IN' ? '출근' : e.kind === 'OUT' ? '퇴근' : e.kind}</span><strong>{m.eventTimes?.[e.id] ?? fmtDateTime(e.occurredAt)}</strong>
             </li>
           ))}
-          {!m.day.events.length && <li>출퇴근 기록이 없습니다.</li>}
+          {!events.length && <li>출퇴근 기록이 없습니다.</li>}
+          {checkout && <li><span>퇴근</span><strong>미기록</strong></li>}
         </ul>
       </section>
-      <Form
-        action={m.exceptional ? '/admin/requests/exceptions' : '/me/requests/correction'}
+      {m.pendingCorrectionId ? <section className="wl-section">
+        <h2>결재 대기</h2>
+        <a className="t-btn" href={`/requests/${m.pendingCorrectionId}${m.settlementReturn
+          ? '?' + new URLSearchParams({ settlementReturn: m.settlementReturn }) : ''}`}>대기 중인 정정 보기</a>
+      </section> : <Form
+        action={m.exceptional ? '/admin/requests/exceptions' : checkout ? '/me/requests/correction?mode=checkout' : '/me/requests/correction'}
         method="post"
         className="wl-form t-correction-form"
         onChange={() => setDirty(true)}
         data-unsaved-changes={String(dirty)}
       >
         {hidden('targetEmployeeId', f.targetEmployeeId)}
+        {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
         {hidden('workDate', f.workDate)}
         {hidden('baseInputRevision', f.baseInputRevision)}
         {hidden('sourceFingerprint', f.sourceFingerprint)}
@@ -387,24 +476,38 @@ function Correction({ model: m }: { model: CorrectionModel }) {
         {f.predecessorRequestId && hidden('predecessorRequestId', f.predecessorRequestId)}
         {hidden('replacesRequestId', f.replacesRequestId)}
         <section className="wl-section">
-          <h2>출퇴근 변경</h2>
-          <FormTable columns={2}>
-            <SelectField label="출근 변경" name="inAction" value={f.inAction}>
-              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
-            </SelectField>
-            <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
-              <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
-            </FormRow>
-            <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
-              {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
-            </SelectField>
-            <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
-              <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
-            </FormRow>
-          </FormTable>
+          {checkout ? <>
+            <h2>퇴근 시각 입력</h2>
+            <p className="hint">기존 출근 시각을 유지합니다.</p>
+            {hidden('inAction', 'KEEP')}
+            {hidden('requestedInAt', '')}
+            {hidden('outAction', 'SET')}
+            <FormTable>
+              <FormRow label="실제 퇴근 시각" htmlFor={`${timeFieldId}-out`} required>
+                <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} required />
+              </FormRow>
+              <Reason label="정정 사유와 사실 근거" value={f.reason} />
+            </FormTable>
+          </> : <>
+            <h2>출퇴근 변경</h2>
+            <FormTable columns={2}>
+              <SelectField label="출근 변경" name="inAction" value={f.inAction}>
+                {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+              </SelectField>
+              <FormRow label="출근 시각" htmlFor={`${timeFieldId}-in`}>
+                <RequestDateTimeInput id={`${timeFieldId}-in`} name="requestedInAt" value={requestedInAt} onChange={setRequestedInAt} />
+              </FormRow>
+              <SelectField label="퇴근 변경" name="outAction" value={f.outAction}>
+                {m.actions.map((a) => <option key={a} value={a}>{actionName(a)}</option>)}
+              </SelectField>
+              <FormRow label="퇴근 시각" htmlFor={`${timeFieldId}-out`}>
+                <RequestDateTimeInput id={`${timeFieldId}-out`} name="requestedOutAt" value={requestedOutAt} onChange={setRequestedOutAt} />
+              </FormRow>
+            </FormTable>
+          </>}
         </section>
         <section className="wl-section">
-          <h2>실제 근로·휴게와 사유</h2>
+          <h2>{checkout ? '실제 근로·휴게' : '실제 근로·휴게와 사유'}</h2>
           <FormTable>
             <FormRow label="실제 확인">
               <Check name="presenceAsWork" label="제안 구간의 실제 근로를 확인했습니다" checked={f.presenceAsWork} />
@@ -414,21 +517,25 @@ function Correction({ model: m }: { model: CorrectionModel }) {
               <RequestBreakEditor value={breaks} onChange={value => { setBreaks(value); setDirty(true); }} />
             </FormRow>
           </FormTable>
-          <FormTable>
+          {!checkout && <FormTable>
             <Reason label="정정 사유와 사실 근거" value={f.reason} />
-          </FormTable>
+          </FormTable>}
         </section>
-        <div className="wl-form-actions"><button className="t-btn primary">정정 심사 요청</button></div>
-      </Form>
+        <InlineRequestApproval approval={m.approval}/>
+        <div className="wl-form-actions"><button className="t-btn primary" disabled={m.approval?.eligible === false}>정정 심사 요청</button></div>
+      </Form>}
     </div>
   );
 }
-function Balances({ model: m }: { model: BalancesModel }) {
+function Balances({ model: m, csrf }: { model: BalancesModel; csrf: CsrfToken }) {
   const f = m.form;
+  const [batch, setBatch] = useState(false);
+  if (batch) return <LeaveBalanceBatch model={m} csrf={csrf} />;
   return (
     <>
       <PageHeader title="기초 잔여 관리" actions={<>
-        <a className="t-btn" href="/admin/requests">고객사 신청·예외 현황</a>
+        <button className="t-btn primary" type="button" onClick={() => setBatch(true)}>사원별 일괄 입력</button>
+        <a className="t-btn" href="/admin/requests?scope=LEAVE">휴가 신청 현황</a>
         <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
       </>} />
       <Form action="/admin/leave-balances" method="get" className="wl-querybar">
@@ -454,8 +561,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
       <section className="wl-section">
         <h2>근거 있는 기초 등록</h2>
         <p className="hint">
-          자동 발생이 아닙니다. 본인의 기초 등록·증감은 다른 담당자가 처리합니다. 소수 단위는
-          지원하지 않습니다.
+          이전 원장에서 확인한 잔여를 0.5일 단위로 등록하세요. 본인의 기초 등록·조정은 다른 담당자가 처리합니다.
         </p>
         <Form action="/admin/leave-balances/entries" method="post" className="wl-form">
           {hidden('employeeId', f.employeeId)}
@@ -464,7 +570,7 @@ function Balances({ model: m }: { model: BalancesModel }) {
             <Field label="기초 기준일" name="baseDate" type="date" value={f.baseDate} required />
             <Field label="사용 가능 시작일" name="usableFrom" type="date" value={f.usableFrom} required />
             <Field label="사용 가능 종료일 (포함)" name="usableTo" type="date" value={f.usableTo ?? ''} />
-            <Field label="기초 일수 (정수)" name="quantityDays" type="number" min="0" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="기초 일수 (0.5일 단위)" name="quantityDays" type="number" min="0" max="100000" step="0.5" value={f.quantityDays ?? ''} required />
             <Field label="발생 근거 참조" name="sourceReference" maxLength={500} value={f.sourceReference} required />
             <Reason label="등록 사유" value={f.reason} />
           </FormTable>
@@ -501,7 +607,7 @@ function Ledger({ model: m }: { model: LedgerModel }) {
           {hidden('expectedVersion', f.expectedVersion)}
           {hidden('commandId', f.commandId)}
           <FormTable>
-            <Field label="조정 일수 (감액은 음수)" name="quantityDays" type="number" step="1" value={f.quantityDays ?? ''} required />
+            <Field label="조정 일수 (0.5일 단위, 감액은 음수)" name="quantityDays" type="number" min="-100000" max="100000" step="0.5" value={f.quantityDays ?? ''} required />
             <Field label="효력 기준일" name="effectiveOn" type="date" value={f.effectiveOn} required />
             <Field label="근거 참조" name="sourceReference" value={f.sourceReference} maxLength={500} required />
             <Reason label="조정 사유" value={f.reason} />
@@ -516,6 +622,10 @@ function Ledger({ model: m }: { model: LedgerModel }) {
 function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
+  const returnTo = m.admin ? attendanceListReturn(m.checkoutReturnTo ?? null) : null;
+  const settlement = m.admin ? m.settlementReturn : undefined;
+  const focusDate = settlement ? m.settlementWorkDate : returnTo ? m.checkoutWorkDate : undefined;
+  const reviewDay = focusDate ? view.days.find(day => day.workDate === focusDate) : undefined;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
   const away = (day: DayView) => day.employed === false;
   const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
@@ -559,7 +669,8 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="근로시간" />
+      <PageHeader title="근로시간" actions={settlement ? <SettlementBackLink href={settlement} />
+        : reviewDay && <AttendanceListBackLink href={returnTo} />} />
       <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
         <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
@@ -569,11 +680,18 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
+      {reviewDay && <section className="wl-section" id={settlement ? 'selective-day-review' : undefined}>
+        <h2>{reviewDay.workDate} 근무일</h2>
+        <p>실근로시간 {reviewDay.current && reviewDay.result.actualWorkMillis != null ? duration(reviewDay.result.actualWorkMillis) : '미확정'}</p>
+        {reviewDay.current && reviewDay.id && <a href={`/worktime/results/${reviewDay.id}?${new URLSearchParams(settlement
+          ? { settlementReturn: settlement } : { returnTo: returnTo! })}`}>해당 일자 집계 근거</a>}
+      </section>}
       <dl className="wl-summary" aria-label="월 요약">
         <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
         <div data-tone={summary.pendingDays ? 'warn' : undefined}><dt>확인 전</dt><dd>{summary.pendingDays}일</dd></div>
         <div><dt>휴가</dt><dd>{leaveDays}일</dd></div>
       </dl>
+      <SelectiveSettlements key={[m.admin, m.employeeId, view.month].join('/')} admin={m.admin} employeeId={m.employeeId} month={view.month} />
       <section className="wl-section">
         <WorklogSheet label="일별 근로시간" title="일별" rows={view.days} columns={columns} getRowId={day => day.workDate} scope="all" />
       </section>
@@ -587,11 +705,19 @@ function Month({ model: m }: { model: MonthModel }) {
             <a href={`/admin/work-policies?employeeId=${m.employeeId}`}>주 기산점·적용 대상 검토</a>{' '}
             · <a href="/admin/audit">감사 이력</a>
           </p>
-          <Form action="/admin/calculations" method="post" className="wl-form">
-            {periodFields}
+          <Form action="/admin/calculations" method="post" className="wl-form" id={settlement ? 'selective-day-calculation' : undefined}>
+            {settlement && reviewDay && <p>재집계 대상 <strong>{reviewDay.workDate} · {reviewDay.employeeName}
+              {' '}({reviewDay.employeeNo})</strong></p>}
+            {reviewDay ? <>
+              {hidden('employeeId', m.employeeId)}
+              {hidden('from', reviewDay.workDate)}
+              {hidden('to', reviewDay.workDate)}
+              {returnTo && hidden('returnTo', returnTo)}
+              {settlement && hidden('settlementReturn', settlement)}
+            </> : periodFields}
             {hidden('commandId', m.calculateCommand)}
             <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
-            <div className="wl-form-actions"><button className="t-btn">월과 경계 주 재집계</button></div>
+            <div className="wl-form-actions"><button className="t-btn">{reviewDay ? '대상일과 해당 주 재집계' : '월과 경계 주 재집계'}</button></div>
           </Form>
           <Form action="/admin/reports/exports" method="post" className="wl-form">
             {periodFields}
@@ -703,9 +829,8 @@ function FrozenClock({ clock: c }: { clock: DaySnapshot }) {
         {c.schedule && (
           <>
             <p>{c.schedule.workday ? '소정 근무일' : '소정 비근무일'}</p>
-            <p>
-              예정 시작·종료 {fmtTime(c.schedule.startTime)} / {fmtTime(c.schedule.endTime)}
-            </p>
+            {c.schedule.workMode === 'SELECTIVE' ? <p>{selectiveHours(c.schedule)}</p>
+              : <p>예정 시작·종료 {fmtTime(c.schedule.startTime)} / {fmtTime(c.schedule.endTime)}</p>}
             <h3>예정 휴게</h3>
             <ul>
               {c.schedule.breaks.map((b, i) => (
@@ -784,6 +909,8 @@ function Result({ model: m }: { model: ResultModel }) {
         <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
         <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초. 날짜와 실제 발생 시각은 구분합니다.</p>
       </>} actions={<>
+        <SettlementBackLink href={m.settlementReturn} />
+        {m.admin && <AttendanceListBackLink />}
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
         {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
       </>} />
@@ -809,7 +936,7 @@ function Result({ model: m }: { model: ResultModel }) {
           <dt>계산 시각</dt>
           <dd>{fmtDateTime(day.calculatedAt)}</dd>
         </dl>
-        <p>{day.current ? '현재 입력 근거와 일치' : '현재 입력 근거가 변경됨 · 재집계 필요'}</p>
+        <p>{day.current ? '유효한 계산 결과' : '현재 입력 근거가 변경됨 · 재집계 필요'}</p>
         <p>
           {d.latestVersion ? '이 날짜의 최신 계산 버전' : '과거 계산 버전 · 이후 계산 결과 있음'}
         </p>
@@ -826,7 +953,8 @@ function Result({ model: m }: { model: ResultModel }) {
         )}
         <ul>
           {day.result.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
+            <li key={reason}>{d.clock?.schedule?.workMode === 'SELECTIVE' || reason.startsWith('SELECTIVE_')
+              ? selectiveReasonLabels[reason] ?? reason : reason}</li>
           ))}
         </ul>
       </section>
@@ -834,7 +962,7 @@ function Result({ model: m }: { model: ResultModel }) {
         <h2>저장된 산정 결과</h2>
         <Summary entries={times} />
         <dl className="wl-form-table">
-          <dt>종일 연차</dt>
+          <dt>승인 연차</dt>
           <dd>{day.result.leaveDays} DAY</dd>
         </dl>
         <p>
@@ -1036,17 +1164,29 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
 }
 
 const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
+function confirmationTime(value: string) {
+  const seoul = fmtDateTime(value).slice(11);
+  const millis = new Date(value).getUTCMilliseconds();
+  return millis ? seoul + '.' + String(millis).padStart(3, '0') : fmtTime(seoul);
+}
 function scheduleLine(day: DaySnapshot) {
   if (day.schedule == null) return null;
   const head = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
+    : day.schedule.workMode === 'SELECTIVE' ? selectiveHours(day.schedule)
     : `예정 ${fmtTime(day.schedule.startTime)}~${fmtTime(day.schedule.endTime)}`;
-  const line = [head, ...day.schedule.breaks.map(b => `휴게 ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
+  const pauseLabel = day.schedule.workMode === 'SELECTIVE' ? '예정 휴게' : '휴게';
+  const line = [head, ...day.schedule.breaks.map(b => `${pauseLabel} ${fmtTime(b.startTime)}~${fmtTime(b.endTime)}`)].join(' · ');
   return day.calendarVersionId == null ? `${line} · 캘린더 미확인` : line;
 }
 export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
     d = m.day,
     f = m.confirmationForm;
+  const selective = d.schedule?.workMode === 'SELECTIVE';
+  const breaksId = useId();
+  const correctionHref = m.settlementReturn ? '/me/requests/correction?' + new URLSearchParams({
+    date: d.workDate, mode: 'full', settlementReturn: m.settlementReturn,
+  }) : `/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`;
   const time = (event: ClockEvent) => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt);
   const columns = [
     sheetColumn<ClockEvent>({ field: 'kind', headerName: '구분', minWidth: 120, pinned: 'left', valueGetter: ({ data }) => data ? eventName(data.kind) : '' }, event => eventName(event.kind)),
@@ -1084,10 +1224,11 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
         </p>
       )}
       {needsCorrection && (
-        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={`/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`}>정정 신청</a></p>
+        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={correctionHref}>정정 신청</a></p>
       )}
       {canConfirm && (
         <Form action="/me/work-confirmations" method="post" className="wl-form">
+          {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
           {hidden('workDate', f.workDate)}
           {hidden('baseInputRevision', f.baseInputRevision)}
           {hidden('expectedReviewRevision', f.expectedReviewRevision)}
@@ -1101,13 +1242,19 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
                 휴게를 뺀 실제 근로가 맞습니다
               </label>
               <label className="checkbox-label">
-                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required />
-                휴게가 예정과 같습니다
+                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required
+                  aria-describedby={selective ? breaksId : undefined} />
+                {selective ? '표시된 휴게가 실제와 같습니다' : '휴게가 예정과 같습니다'}
               </label>
+              {selective && <div className="t-subtle" id={breaksId}>
+                <p>확인할 휴게 {m.confirmationBreaks == null ? '미확인' : m.confirmationBreaks.length
+                  ? m.confirmationBreaks.map(b => confirmationTime(b.startAt) + ' ~ ' + confirmationTime(b.endAt)).join(', ') : '없음'}</p>
+                <p>실제 휴게가 다르면 <a href={correctionHref}>정정 신청</a></p>
+              </div>}
             </FormRow>
           </FormTable>
           <div className="wl-form-actions">
-            <button type="submit" className="t-btn primary">근무 확인</button>
+            <button type="submit" className="t-btn primary" disabled={selective && m.confirmationBreaks == null}>근무 확인</button>
           </div>
         </Form>
       )}
@@ -1125,7 +1272,8 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       break;
     case 'request/list': {
       const m = data as unknown as ListModel;
-      content = m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
+      content = data.leaveOperations ? <LeaveOperationsPage model={data.leaveOperations as LeaveOperations} />
+        : m.completed !== undefined ? <ApprovalWorkspace model={m} /> : (
         <>
           <PageHeader title={m.title} />
           <section className="wl-section">
@@ -1145,7 +1293,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       content = <Correction model={data as unknown as CorrectionModel} />;
       break;
     case 'request/balances':
-      content = <Balances model={data as unknown as BalancesModel} />;
+      content = <Balances model={data as unknown as BalancesModel} csrf={props.csrf} />;
       break;
     case 'request/ledger':
       content = <Ledger model={data as unknown as LedgerModel} />;
@@ -1168,12 +1316,16 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'clock/day':
       content = <AttendanceRecord data={data} />;
       break;
+    case 'clock/period':
+      return <div className="t-legacy-page content admin-shell"><AttendancePeriodPage model={data.attendancePeriod as AttendancePeriod}
+        error={typeof data.error === 'string' ? data.error : undefined} /></div>;
     case 'clock/history': {
       const clock = data as unknown as ClockModel;
       const todayCard = clock.isToday && clock.day.workDate === data.today;
       content = (
         <>
-          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요." />
+          <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요."
+            actions={<><SettlementBackLink href={clock.settlementReturn} /><a className="t-btn" href="/me/attendance?view=period">기간 조회</a></>} />
           {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => {

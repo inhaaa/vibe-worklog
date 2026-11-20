@@ -26,23 +26,30 @@ public final class OrgBulkService {
     private final OrgCommands commands;
     private final OrganizationAdminMapper organizations;
     private final EmployeeAdminMapper employees;
+    private final PublicDemoIdentityGuard identityGuard;
+    private final EmployeeOnboardingMapper onboarding;
     private final JsonMapper json = JsonMapper.builder().build();
 
-    public OrgBulkService(OrgCommands commands, OrganizationAdminMapper organizations, EmployeeAdminMapper employees) {
+    public OrgBulkService(OrgCommands commands, OrganizationAdminMapper organizations, EmployeeAdminMapper employees,
+                          PublicDemoIdentityGuard identityGuard, EmployeeOnboardingMapper onboarding) {
         this.commands = commands; this.organizations = organizations; this.employees = employees;
+        this.identityGuard = identityGuard;
+        this.onboarding = onboarding;
     }
 
     public Result organizations(TnaPrincipal actor, Form<OrganizationRow> form) {
         String reason = validate(form);
         List<OrganizationRow> rows = form.rows().stream().map(row -> new OrganizationRow(row.clientRowId(), row.id(),
-                row.expectedVersion(), row.operation(), text(row, "code", () -> requiredText(row.code(), 40, "조직 코드")),
+                row.expectedVersion(), row.operation(), text(row, "code", () -> OrganizationCodes.normalize(row.code())),
                 text(row, "name", () -> requiredText(row.name(), 120, "조직 이름")), row.parentId(),
-                row.operation() != Operation.DEACTIVATE && row.active())).toList();
+                row.operation() != Operation.DEACTIVATE && row.active(), row.approvalUnit())).toList();
         String action = "ORGANIZATION_BULK";
         return commands.executeBatch(actor, form.commandId(), action, "ORGANIZATION",
                 fingerprint(action, reason, json.writeValueAsString(rows)), reason, () -> {
                     Map<UUID, Organization> before = organizations.options(actor.tenantId()).stream()
                             .collect(Collectors.toMap(Organization::id, value -> value));
+                    var createdAt = commands.creationTime();
+                    var codes = new OrganizationCodes(createdAt, before.values().stream().map(Organization::code).toList());
                     Map<UUID, Organization> after = new HashMap<>(before);
                     Map<UUID, OrganizationRow> changed = new LinkedHashMap<>();
                     for (var row : rows) {
@@ -50,20 +57,24 @@ public final class OrgBulkService {
                         if (row.id() != null && old == null) throw OrgException.notFound();
                         if (old != null) {
                             text(row, "expectedVersion", () -> { checkVersion(row.expectedVersion(), old.version()); return old; });
-                            if (!old.code().equals(row.code())) throw issue(row, "code", 422, "조직 코드는 변경할 수 없습니다.");
+                            if (row.code() != null && !old.code().equals(row.code())) {
+                                throw issue(row, "code", 422, "조직 코드는 변경할 수 없습니다.");
+                            }
                         }
                         UUID id = old == null ? UUID.randomUUID() : old.id();
-                        after.put(id, new Organization(id, row.code(), row.name(), row.parentId(), row.active(),
-                                old == null ? 0 : old.version() + 1));
+                        String code = old == null ? text(row, "code", () -> codes.issue(row.code())) : old.code();
+                        after.put(id, new Organization(id, code, row.name(), row.parentId(), row.active(),
+                                old == null ? 0 : old.version() + 1, text(row, "approvalUnit",
+                                        () -> OrgData.approvalUnit(row.approvalUnit(), old == null ? null : old.approvalUnit()))));
                         changed.put(id, row);
                     }
                     validateOrganizations(actor, before, after, changed);
                     var changes = new ArrayList<BulkData.Change>();
                     for (var entry : changed.entrySet()) {
                         Organization old = before.get(entry.getKey()), current = after.get(entry.getKey());
-                        if (old == null) changed(organizations.insert(actor.tenantId(), current, actor.accountId()));
+                        if (old == null) changed(organizations.insert(actor.tenantId(), current, actor.accountId(), createdAt));
                         else changed(organizations.update(actor.tenantId(), new Organization(current.id(), current.code(), current.name(),
-                                current.parentId(), current.active(), old.version()), actor.accountId()));
+                                current.parentId(), current.active(), old.version(), current.approvalUnit()), actor.accountId()));
                         changes.add(new BulkData.Change(entry.getValue().clientRowId(), current.id(), current.version(), old, current));
                     }
                     return changes;
@@ -73,6 +84,7 @@ public final class OrgBulkService {
     public Result employees(TnaPrincipal actor, Form<EmployeeRow> form) {
         String reason = validate(form);
         List<EmployeeRow> rows = form.rows().stream().map(row -> {
+            identityGuard.requireMutable(actor, row.id());
             String number = row.operation() == Operation.CREATE && (row.employeeNo() == null || row.employeeNo().isBlank())
                     ? null : text(row, "employeeNo", () -> requiredText(row.employeeNo(), 40, "사번"));
             String name = text(row, "displayName", () -> requiredText(row.displayName(), 120, "이름"));
@@ -99,6 +111,9 @@ public final class OrgBulkService {
                         if (old != null) {
                             text(row, "expectedVersion", () -> { checkVersion(row.expectedVersion(), old.version()); return old; });
                             if (!old.employeeNo().equals(row.employeeNo())) throw issue(row, "employeeNo", 422, "사번은 등록 후 변경할 수 없습니다.");
+                            if (!old.joinedOn().equals(row.joinedOn()) && onboarding.isConfirmedEmployee(actor.tenantId(), old.id())) {
+                                throw issue(row, "joinedOn", 422, "최초 발령이 확정된 사원의 입사일은 변경할 수 없습니다.");
+                            }
                         }
                         UUID id = old == null ? UUID.randomUUID() : old.id();
                         String number = row.employeeNo() == null
@@ -128,6 +143,12 @@ public final class OrgBulkService {
                     var changes = new ArrayList<BulkData.Change>();
                     for (var entry : changed.entrySet()) {
                         Employee old = before.get(entry.getKey()), current = after.get(entry.getKey());
+                        try {
+                            EmployeeService.requireOpenEmployment(employees, actor.tenantId(), old, current.joinedOn(), current.leftOn());
+                        } catch (OrgException conflict) {
+                            String field = old == null || !old.joinedOn().equals(current.joinedOn()) ? "joinedOn" : "leftOn";
+                            throw issue(entry.getValue(), field, conflict.status(), conflict.getMessage());
+                        }
                         if (old == null) changed(employees.insert(actor.tenantId(), current, actor.accountId()));
                         else {
                             changed(employees.update(actor.tenantId(), current, old.version(), actor.accountId()));
@@ -181,12 +202,6 @@ public final class OrgBulkService {
 
     private void validateOrganizations(TnaPrincipal actor, Map<UUID, Organization> before, Map<UUID, Organization> after,
                                        Map<UUID, OrganizationRow> changed) {
-        for (var entry : changed.entrySet()) {
-            Organization current = after.get(entry.getKey());
-            if (after.values().stream().anyMatch(value -> !value.id().equals(current.id()) && value.code().equals(current.code()))) {
-                throw issue(entry.getValue(), "code", 409, "이미 사용 중인 조직 코드입니다.");
-            }
-        }
         for (var entry : changed.entrySet()) {
             Organization old = before.get(entry.getKey()), current = after.get(entry.getKey());
             if (current.parentId() != null) {

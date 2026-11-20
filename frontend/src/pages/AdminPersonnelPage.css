@@ -1,0 +1,60 @@
+.t-personnel-lookup {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.t-personnel-lookup form {
+  display: flex;
+  align-items: end;
+  gap: .5rem;
+}
+
+.t-personnel-lookup form label {
+  display: grid;
+  gap: .25rem;
+  inline-size: min(100%, 24rem);
+  min-width: 0;
+}
+
+.t-personnel-lookup input { inline-size: 100%; min-width: 0; }
+
+.t-personnel-search-empty { padding: 1rem; }
+
+.t-personnel-search-results ul {
+  list-style: none;
+  padding: 0;
+  margin: .5rem 0;
+  max-block-size: 18rem;
+  overflow-y: auto;
+}
+
+.t-personnel-search-results li a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .75rem;
+  padding: .5rem;
+  overflow-wrap: anywhere;
+}
+
+.t-personnel-search-pagination {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.t-personnel-tab-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-inline-start: auto; }
+
+.t-personnel-tab-editor { padding: 1rem 0; }
+
+.t-personnel-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: .75rem;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.t-personnel-edit-fields label { display: grid; gap: .25rem; min-width: 0; }
+.t-personnel-edit-fields input, .t-personnel-edit-fields select, .t-personnel-edit-fields textarea { min-width: 0; inline-size: 100%; }
+.t-personnel-edit-reason { grid-column: 1 / -1; }

@@ -1,7 +1,10 @@
 package kr.tna.workspace;
 
+import kr.tna.request.RequestScope;
+
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
@@ -26,16 +29,30 @@ public final class ProfileCompanyData {
     public record EmployeeItem(UUID id, String employeeNo, String employeeName, String organizationName) { }
 
     public record AttendanceDay(LocalDate workDate, Long scheduledMillis, Long actualWorkMillis,
-            Integer leaveDays, String status, boolean current) { }
+            Double leaveDays, String status, boolean current) { }
 
     public record CompanyAttendance(YearMonth month, Instant asOf, UUID organizationId, UUID employeeId,
             String q, int page, boolean hasNext, List<OrganizationItem> organizations, List<EmployeeItem> employees,
             EmployeeItem selectedEmployee, List<AttendanceDay> days) { }
 
+    record CompanyAttendancePage(CompanyAttendance attendance, boolean canViewCheckout) { }
+
+    record CheckoutCandidate(UUID employeeId, String employeeNo, String employeeName, String organizationName,
+            UUID recentRequestId, String recentRequestState, UUID effectiveRequestId) { }
+
+    public record CheckoutOperations(LocalDate date, LocalDate latestDate, UUID organizationId,
+            List<OrganizationItem> options, String q, String status, int page, boolean hasPrevious, boolean hasNext,
+            List<CheckoutRow> rows, String error) { }
+
+    public record CheckoutRow(UUID employeeId, String employeeNo, String employeeName, String organizationName,
+            LocalDate workDate, LocalTime scheduledEnd, Instant sourceIn, Instant sourceOut, Instant effectiveIn,
+            Instant effectiveOut, UUID requestId, String requestState, String recordState, String resultState,
+            Long actualWorkMillis, Instant calculatedAt, String resultReason, String workMode) { }
+
     public record CompanyRequest(UUID id, String employeeNo, String employeeName, String organizationName,
-            String kind, String status, LocalDate fromDate, LocalDate toDate, int quantityDays,
-            String effectStatus, Instant submittedAt) { }
+            String kind, String status, LocalDate fromDate, LocalDate toDate, double quantityDays,
+            String effectStatus, Instant submittedAt, String leavePart) { }
 
     public record CompanyRequests(int year, Instant asOf, UUID organizationId, String status, int page,
-            boolean hasNext, List<OrganizationItem> organizations, List<CompanyRequest> requests) { }
+            boolean hasNext, RequestScope scope, List<OrganizationItem> organizations, List<CompanyRequest> requests) { }
 }

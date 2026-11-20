@@ -9,10 +9,12 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /** Minimal review-only OOXML workbook; all user-provided strings are text cells. */
-// shortcut: text and integer review sheets only; reassess a spreadsheet library when upload or formulas are needed.
 public final class ReviewWorkbook {
     private ReviewWorkbook() { }
     public static byte[] create(List<List<Object>> rows) {
+        return create("근태 검토", rows);
+    }
+    static byte[] create(String sheetName, List<List<Object>> rows) {
         if(rows==null||rows.size()>1_048_576)throw new IllegalArgumentException("Invalid worksheet row count");
         var sheet=new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>");
         int rowNumber=0;
@@ -22,10 +24,11 @@ public final class ReviewWorkbook {
             for(Object value:row) {
                 String reference=column(++column)+rowNumber;
                 sheet.append("<c r=\"").append(reference).append("\"");
-                if(value instanceof Long||value instanceof Integer||value instanceof Short||value instanceof Byte) {
+                if(value instanceof Long||value instanceof Integer||value instanceof Short||value instanceof Byte
+                        || value instanceof Double decimal && Double.isFinite(decimal)) {
                     sheet.append(" t=\"n\"><v>").append(value).append("</v></c>");
                 } else {
-                    if(value!=null&&!(value instanceof String))throw new IllegalArgumentException("Only text and integral worksheet values are supported");
+                    if(value!=null&&!(value instanceof String))throw new IllegalArgumentException("Only text and finite numeric worksheet values are supported");
                     String text=value==null?"미확정":(String)value;
                     sheet.append(" t=\"inlineStr\"><is><t xml:space=\"preserve\">").append(xml(text)).append("</t></is></c>");
                 }
@@ -42,8 +45,8 @@ public final class ReviewWorkbook {
                 <?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>
                 """);
             entry(zip,"xl/workbook.xml","""
-                <?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="근태 검토" sheetId="1" r:id="rId1"/></sheets></workbook>
-                """);
+                <?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="%s" sheetId="1" r:id="rId1"/></sheets></workbook>
+                """.formatted(xml(sheetName)));
             entry(zip,"xl/_rels/workbook.xml.rels","""
                 <?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>
                 """);

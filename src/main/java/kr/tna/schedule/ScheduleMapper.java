@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface ScheduleMapper {
-    @Select("SELECT id,code,name,active,version FROM tna.schedule_template WHERE tenant_id=#{tenantId} ORDER BY code,id")
+    @Select("SELECT id,code,name,active,version FROM tna.schedule_template WHERE tenant_id=#{tenantId} AND NOT EXISTS (SELECT 1 FROM tna.work_group g WHERE g.tenant_id=#{tenantId} AND g.id=schedule_template.id) ORDER BY code,id")
     List<Template> list(@Param("tenantId") UUID tenantId);
 
     @Select("SELECT id,code,name,active,version FROM tna.schedule_template WHERE tenant_id=#{tenantId} AND id=#{id}")
@@ -28,9 +28,16 @@ public interface ScheduleMapper {
     @Select("""
             SELECT v.id,v.template_id,v.revision,v.valid_from,v.reason FROM tna.schedule_version v
             JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
-            WHERE v.tenant_id=#{tenantId} AND t.active ORDER BY t.code,v.revision DESC,v.id
+            WHERE v.tenant_id=#{tenantId} AND t.active AND NOT EXISTS (SELECT 1 FROM tna.work_group g WHERE g.tenant_id=t.tenant_id AND g.id=t.id) ORDER BY t.code,v.revision DESC,v.id
             """)
     List<TemplateVersion> assignableVersions(@Param("tenantId") UUID tenantId);
+
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.work_group WHERE tenant_id=#{tenantId} AND id=#{id})")
+    boolean isWorkGroup(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
+
+    @Select("SELECT EXISTS(SELECT 1 FROM tna.schedule_assignment WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_group_id IS NOT NULL AND (valid_to IS NULL OR valid_to>#{date}))")
+    boolean hasGroupAssignment(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+                               @Param("date") LocalDate date);
 
     @Select("SELECT weekday,workday,start_time,end_time FROM tna.schedule_day WHERE tenant_id=#{tenantId} AND version_id=#{versionId} ORDER BY weekday")
     List<DayRow> days(@Param("tenantId") UUID tenantId,@Param("versionId") UUID versionId);
@@ -74,6 +81,15 @@ public interface ScheduleMapper {
     @Select("""
             SELECT a.id,a.employee_id,a.schedule_version_id,t.name AS template_name,v.revision,
                    a.valid_from,a.valid_to,a.reason,a.version FROM tna.schedule_assignment a
+            JOIN tna.schedule_version v ON v.tenant_id=a.tenant_id AND v.id=a.schedule_version_id
+            JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
+            WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId} ORDER BY a.valid_from DESC,a.id
+            """)
+    List<Assignment> physicalAssignments(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId);
+
+    @Select("""
+            SELECT a.id,a.employee_id,a.schedule_version_id,t.name AS template_name,v.revision,
+                   a.valid_from,a.valid_to,a.reason,a.version FROM tna.effective_schedule_assignment a
             JOIN tna.schedule_version v ON v.tenant_id=a.tenant_id AND v.id=a.schedule_version_id
             JOIN tna.schedule_template t ON t.tenant_id=v.tenant_id AND t.id=v.template_id
             WHERE a.tenant_id=#{tenantId} AND a.employee_id=#{employeeId} ORDER BY a.valid_from DESC,a.id

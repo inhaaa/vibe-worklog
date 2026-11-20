@@ -44,6 +44,44 @@ const renderMarkup = async (element: ReactElement) => {
 };
 afterEach(cleanup);
 describe('개인 홈과 일정', () => {
+  it('선택근무의 코어·정산 기준을 보여 주고 달력의 시간은 표준 1일 시간으로 합산한다', () => {
+    const schedule = { workday: true, workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
+      coreStart: '10:00', coreEnd: '15:00', standardMinutes: 450, settlementPeriod: 'ISO_WEEK',
+      breaks: [{ startTime: '12:00', endTime: '13:00' }] };
+    const selected = { ...day, scheduleText: '선택 가능 07:00 ~ 22:00', snapshot: { ...snapshot, schedule, dayKind: 'WORKDAY' } };
+    const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-10', selectedDate: '2026-10-26', days: [selected], selectedDay: selected, leadingBlanks: [],
+      assignment: { group: true, name: '선택조', code: 'G01', workCode: 'SEL1', workName: '선택근무', overtimeBreaks: [], overtimeMinutes: 0 },
+    } })} />);
+    const detail = within(view.getByRole('region', { name: '선택한 날짜 상세' }));
+    expect(detail.getByText('코어시간').nextElementSibling?.textContent).toBe('10:00 ~ 15:00');
+    expect(detail.getByText('정산 기간').nextElementSibling?.textContent).toBe('1주 (월~일)');
+    expect(detail.queryByText('요일별 연장 기준')).toBeNull();
+    expect(view.container.querySelector('.wl-summary')?.textContent).toContain('1일 · 7:30');
+  });
+  it('선택일의 근무조와 근무코드, 연장 허용 구간과 예정 휴게를 조회한다', () => {
+    const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-10', selectedDate: '2026-10-26', days: [day], selectedDay: day, leadingBlanks: [],
+      assignment: { group: true, name: '운영 주간조', code: 'G01', workCode: 'W01', workName: '주간',
+        afterStart: '18:30', afterEnd: '21:00', overtimeBreaks: [{ start: '20:00', end: '20:15' }],
+        overtimeMinutes: 135 },
+    } })} />);
+    expect(view.getByText('G01 · 운영 주간조')).toBeTruthy();
+    expect(view.getByText('W01 · 주간')).toBeTruthy();
+    expect(view.getByText(/18:30.*21:00/)).toBeTruthy();
+    expect(view.getByText(/20:00.*20:15/)).toBeTruthy();
+    expect(view.getByText(/135분/)).toBeTruthy();
+  });
+  it('휴일이 평일 근무조와 겹치면 요일별 기준과 휴일 신청 범위를 구분한다', () => {
+    const holiday = { ...day, snapshot: { ...snapshot, dayKind: 'HOLIDAY' }, calendarText: '확인된 휴일' };
+    const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-10', selectedDate: '2026-10-26', days: [holiday], selectedDay: holiday, leadingBlanks: [],
+      assignment: { group: true, name: '주간', code: 'G01', workCode: 'W01', workName: '주간',
+        afterStart: '18:30', afterEnd: '21:00', overtimeBreaks: [], overtimeMinutes: 150 },
+    } })} />);
+    expect(view.getByText('휴일에는 이 연장 신청 기준을 적용하지 않습니다.')).toBeTruthy();
+    expect(view.getByText('요일별 연장 기준')).toBeTruthy();
+  });
   it('미배정·미등록·미확인을 0시간이나 0일로 바꾸지 않는다', async () => {
     const html = await renderMarkup(
       <CorePages
@@ -233,7 +271,7 @@ describe('개인 홈과 일정', () => {
     const trigger = view.getByRole('button', { name: '2026-10-26 신청 메뉴' });
     const checkMenu = () => {
       const menu = within(view.getByRole('group', { name: '2026-10-26 신청 메뉴' }));
-      for (const [name, kind] of [['종일 연차', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
+      for (const [name, kind] of [['연차·반차 신청', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
         const url = new URL((menu.getByRole('link', { name }).getAttribute('href'))!, 'https://worklog.test');
         expect(url.pathname).toBe('/me/requests/new');
         expect(Object.fromEntries(url.searchParams)).toEqual({ year: '2026', kind, date: '2026-10-26' });
@@ -243,7 +281,7 @@ describe('개인 홈과 일정', () => {
     };
 
     fireEvent.contextMenu(dateLink);
-    const first = checkMenu().getByRole('link', { name: '종일 연차' });
+    const first = checkMenu().getByRole('link', { name: '연차·반차 신청' });
     expect(document.activeElement).toBe(first);
     fireEvent.keyDown(first, { key: 'Escape' });
     expect(view.queryByRole('group', { name: '2026-10-26 신청 메뉴' })).toBeNull();

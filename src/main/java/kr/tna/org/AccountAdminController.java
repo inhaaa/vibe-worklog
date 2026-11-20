@@ -6,8 +6,10 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
@@ -18,23 +20,31 @@ import org.springframework.web.servlet.view.RedirectView;
 @Controller
 public class AccountAdminController {
     private final AccountService accounts;
+    private final RoleDirectoryService directory;
     private final ApproverService approvers;
     private final EmployeeService employees;
     private final OrgCommands commands;
     private final InvitationDelivery delivery;
 
     public AccountAdminController(AccountService accounts, ApproverService approvers, EmployeeService employees,
-                                  OrgCommands commands, InvitationDelivery delivery) {
+                                  OrgCommands commands, InvitationDelivery delivery, RoleDirectoryService directory) {
         this.accounts = accounts; this.approvers = approvers; this.employees = employees;
-        this.commands = commands; this.delivery = delivery;
+        this.commands = commands; this.delivery = delivery; this.directory = directory;
     }
 
     @GetMapping("/admin/access")
     ModelAndView list(@AuthenticationPrincipal TnaPrincipal actor,
+            @RequestParam(defaultValue = "ATTENDANCE_ADMIN") String role,
             @RequestParam(defaultValue = "") String q, @RequestParam(defaultValue = "0") int page) {
-        var rows = accounts.list(actor, q, page);
-        return new ModelAndView("org/access-list").addObject("accessRows", rows.stream().limit(50).toList())
-                .addObject("q", q).addObject("page", page).addObject("hasNext", rows.size() > 50);
+        return new ModelAndView("org/access-list").addObject("roleDirectory", directory.directory(actor, role, q, page));
+    }
+
+    @GetMapping(value = "/admin/access/roles/{role}/candidates", produces = "application/json")
+    @ResponseBody
+    ResponseEntity<RoleDirectoryService.Candidates> candidates(@AuthenticationPrincipal TnaPrincipal actor,
+            @PathVariable String role, @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "0") int page) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(directory.candidates(actor, role, q, page));
     }
 
     @GetMapping("/admin/employees/{id}/access")

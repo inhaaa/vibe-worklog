@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import kr.tna.clock.AttendanceHistory;
 import kr.tna.clock.ClockData;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
@@ -32,6 +34,7 @@ import kr.tna.org.OrgData.Employee;
 import kr.tna.org.OrgException;
 import kr.tna.worktime.WorktimeData.*;
 import kr.tna.worktime.WorktimeCalculator.*;
+import kr.tna.worktime.SelectiveSettlement.Action;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -62,14 +65,15 @@ public final class WorktimeService {
                 var person=employee(actor.tenantId(),stored.employeeId());
                 var current=input(actor.tenantId(),person,stored.workDate());
                 var result=storedResult(stored);
-                boolean currentSource=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())
-                        &&stored.sourceFingerprint().equals(current.source());
                 var latest=mapper.latest(actor.tenantId(),stored.employeeId(),stored.workDate(),stored.workDate()).getFirst();
+                boolean isLatest = stored.id().equals(latest.id());
+                boolean employed = employed(person,stored.workDate());
+                boolean currentSource = current(current.clock(),current.source(),stored.inputRevision(),stored.reviewRevision(),stored.sourceFingerprint())
+                        || (isLatest && employed && !mapper.closedMonths(actor.tenantId(),stored.workDate(),stored.workDate()).isEmpty());
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
-                boolean employed=employed(person,stored.workDate());
                 return new ResultDetail(storedDay(person,stored,result,currentSource,
-                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),stored.id().equals(latest.id()),latest.id(),run,
+                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),isLatest,latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
@@ -79,10 +83,41 @@ public final class WorktimeService {
     /** 확인 전인 날 중 일정과 캘린더가 있고, 승인 휴가나 대기 정정이 없는 재직일만 안내한다. */
     public boolean correctionSuggested(TnaPrincipal actor,LocalDate date) {
         if(actor==null)throw OrgException.forbidden();
-        return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());var in=input(actor.tenantId(),employee,date);
-            return employed(employee,date)&&in.clock().schedule()!=null&&in.clock().calendarVersionId()!=null
-                    &&in.day().approvedLeaveDays()==0&&!in.day().pendingCorrection()
-                    &&calculator.pending(in.day(),LocalDate.now(clock.withZone(SEOUL)),false,null);});
+        return read(actor,actor.employeeId(),()->{var employee=employee(actor.tenantId(),actor.employeeId());
+            if (!mapper.closedMonths(actor.tenantId(),date,date).isEmpty()) return false;
+            var in = input(actor.tenantId(),employee,date);
+            return correctionEligible(in.clock(), in.day(), employed(employee,date), LocalDate.now(clock.withZone(SEOUL)));});
+    }
+
+    private boolean correctionEligible(ClockData.DaySnapshot snapshot, DayInput day, boolean employed, LocalDate today) {
+        return employed && snapshot.schedule() != null && snapshot.calendarVersionId() != null
+                && day.approvedLeaveDays() < 1 && !day.pendingCorrection()
+                && calculator.pending(day, today, false, null);
+    }
+
+    public List<AttendanceHistory.Row> attendanceHistory(TnaPrincipal actor, AttendanceHistory.Range range) {
+        UUID employeeId = target(actor, null);
+        return read(actor, employeeId, () -> {
+            UUID tenant = actor.tenantId();
+            var employee = employee(tenant, employeeId);
+            var stored = latestDays(tenant, employee, range.from(), range.to());
+            var closedMonths = Set.copyOf(mapper.closedMonths(tenant, range.from(), range.to()));
+            var rows = new ArrayList<AttendanceHistory.Row>();
+            for (LocalDate date = range.to(); !date.isBefore(range.from()); date = date.minusDays(1)) {
+                var in = input(tenant, employee, date);
+                var day = in.clock();
+                var saved = stored.get(date);
+                boolean closed = closedMonths.contains(date.withDayOfMonth(1));
+                var view = dayView(employee, in, saved, range.today(), closed);
+                boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
+                boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(day, in.day(), view.employed(), range.today())
+                        && !clocks.canConfirm(day);
+                rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
+                        in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
+                        view.current() ? view.result().actualWorkMillis() : null, suggest));
+            }
+            return List.copyOf(rows);
+        });
     }
 
     public List<EmployeeChoice> employees(TnaPrincipal actor) {
@@ -98,6 +133,115 @@ public final class WorktimeService {
     public List<DayView> companyDays(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(employeeId==null||month==null||month.getYear()<1||month.getYear()>9999)throw OrgException.invalid("대상 사원과 조회 월을 확인해 주세요.");
         return companyAccess.read(actor,()->readDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()));
+    }
+
+    public SelectiveSettlement.Overview ownSettlements(TnaPrincipal actor, String rawMonth) {
+        var employeeId = target(actor, null);
+        return read(actor, employeeId, () -> settlements(actor.tenantId(), employeeId, AttendanceMonthCloseService.month(rawMonth)));
+    }
+
+    public SelectiveSettlement.Overview adminSettlements(TnaPrincipal actor, UUID employeeId, String rawMonth) {
+        return commands.read(actor, () -> administration.readShared(actor, () -> {
+            if (employeeId == null) throw OrgException.invalid("정산을 조회할 사원을 선택해 주세요.");
+            return settlements(actor.tenantId(), employeeId, AttendanceMonthCloseService.month(rawMonth));
+        }));
+    }
+
+    public boolean matchesSettlementDay(TnaPrincipal actor, UUID employeeId, LocalDate date, String period) {
+        if (actor == null || employeeId == null || date == null || date.getYear() < 1 || date.getYear() > 9999
+                || !("ISO_WEEK".equals(period) || "CALENDAR_MONTH".equals(period))) return false;
+        boolean own = employeeId.equals(actor.employeeId());
+        if (!own && !actor.roles().contains("ATTENDANCE_ADMIN")) return false;
+        Supplier<Boolean> matches = () -> {
+            var employee = employees.get(actor.tenantId(), employeeId);
+            if (employee == null) return false;
+            var today = LocalDate.now(clock.withZone(SEOUL));
+            return mapper.settlementDays(actor.tenantId(), employeeId, date, date).stream()
+                    .filter(row -> !row.unknownMembership())
+                    .map(row -> appliedSettlementDay(employee, row, YearMonth.from(date), today))
+                    .anyMatch(day -> day != null && period.equals(day.settlementPeriod()));
+        };
+        return own ? read(actor, employeeId, matches) : commands.read(actor, () -> administration.readShared(actor, matches));
+    }
+
+    private SelectiveSettlement.Overview settlements(UUID tenant, UUID employeeId, YearMonth month) {
+        var employee = employee(tenant, employeeId);
+        var from = WorktimeCalculator.weekStart(month.atDay(1));
+        var through = WorktimeCalculator.weekStart(month.atEndOfMonth()).plusDays(6);
+        var today = LocalDate.now(clock.withZone(SEOUL));
+        var days = new ArrayList<SelectiveSettlement.Day>();
+        for (var row : mapper.settlementDays(tenant, employeeId, from, through)) {
+            var day = appliedSettlementDay(employee, row, month, today);
+            if (day != null) days.add(day);
+        }
+        return new SelectiveSettlement.Overview(month, employeeId, employee.employeeNo(), employee.displayName(),
+                SelectiveSettlement.periods(month, today, days));
+    }
+
+    private SelectiveSettlement.Day appliedSettlementDay(Employee employee, WorktimeMapper.SettlementRow row,
+            YearMonth month, LocalDate today) {
+        return row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row, today);
+    }
+
+    private SelectiveSettlement.Day openSettlementDay(Employee employee, WorktimeMapper.SettlementRow row, LocalDate today) {
+        if (!"SELECTIVE".equals(row.workMode()) || !employed(employee, row.workDate())) return null;
+        var snapshot = MonthEndReviewQueries.snapshot(clocks, row);
+        var leave = MonthEndReviewQueries.list(row.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
+        var pending = MonthEndReviewQueries.list(row.pendingCorrections(), String[].class);
+        String source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
+                leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
+        boolean matches = row.storedSource() != null && current(snapshot, source, row.storedInput(), row.storedReview(), row.storedSource());
+        double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
+        var facts = dayInput(snapshot, false, !pending.isEmpty(), leaveDays);
+        var reasons = new HashSet<String>();
+        if (matches) reasons.addAll(MonthEndReviewQueries.list(row.reasonCodes(), String[].class));
+        else {
+            reasons.add(row.storedSource() == null ? "NOT_CALCULATED" : "STALE_RESULT");
+            if (!row.workDate().isAfter(today)) reasons.addAll(calculator.day(facts).reasons());
+        }
+        boolean awaitingClockOut = row.workDate().equals(today) && pending.isEmpty() && leaveDays < 1
+                && snapshot.schedule().workday() && "WORKDAY".equals(snapshot.dayKind())
+                && snapshot.effectiveEvents().size() <= 1 && snapshot.effectiveEvents().stream().noneMatch(e -> "OUT".equals(e.kind()));
+        Action employeeAction = Action.NONE;
+        if (awaitingClockOut) {
+            reasons.remove("MISSING_CLOCK_IN");
+            reasons.remove("MISSING_CLOCK_OUT");
+            reasons.add("DAY_IN_PROGRESS");
+        } else if (pending.isEmpty() && leaveDays < 1 && snapshot.confirmation() == null && !row.workDate().isAfter(today)) {
+            if (clocks.canConfirm(snapshot)) employeeAction = Action.CONFIRM;
+            else if (correctionEligible(snapshot, facts, true, today)) employeeAction = Action.CORRECT;
+        }
+        return settlementDay(snapshot, leaveDays, pending, matches ? row.actualWorkMillis() : null, reasons, employeeAction, false);
+    }
+
+    private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row, YearMonth month) {
+        if (row.savedSelectiveInputs() == null) return null;
+        var frozen = frozenEvidence(row.savedSelectiveInputs(), row.employeeId(), row.workDate());
+        if (!frozen.complete()) throw new OrgException(503, "마감 시점의 정산 근거를 확인할 수 없습니다.");
+        if (row.unknownMembership()) {
+            if (month.equals(YearMonth.from(row.workDate())) || "ISO_WEEK".equals(frozen.clock().schedule().settlementPeriod())) {
+                throw new OrgException(503, YearMonth.from(row.workDate()) + " 마감 당시 재직일을 확인할 수 없습니다. 근태 담당자가 해당 월을 재개해 다시 마감해 주세요.");
+            }
+            return null;
+        }
+        var employment = frozen.employment();
+        if (row.workDate().isBefore(employment.joinedOn()) ||
+                employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;
+        return settlementDay(frozen.clock(), row.storedLeaveDays(), frozen.pending(), row.actualWorkMillis(),
+                Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class)), Action.NONE, true);
+    }
+
+    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, List<String> pending,
+            Long actual, Set<String> reasons, Action employeeAction, boolean closed) {
+        var schedule = snapshot.schedule();
+        Integer target = null;
+        if (snapshot.calendarVersionId() != null && !"UNCONFIRMED".equals(snapshot.dayKind())) {
+            target = schedule.workday() && "WORKDAY".equals(snapshot.dayKind()) ? schedule.standardMinutes() : Integer.valueOf(0);
+        }
+        if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && pending.isEmpty() && leave == 0) return null;
+        UUID requestId = pending.isEmpty() ? null : UUID.fromString(pending.getFirst());
+        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual,
+                requestId, reasons, employeeAction, closed);
     }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(month==null)throw OrgException.invalid("조회 월을 입력해 주세요.");UUID target=target(actor,employeeId);
@@ -115,7 +259,7 @@ public final class WorktimeService {
     public UUID recalculate(TnaPrincipal actor,UUID employeeId,LocalDate from,LocalDate to,UUID commandId,String reason) {
         range(from,to);UUID target=target(actor,employeeId);String checked=requiredText(reason,500,"재집계 사유"),action="WORKTIME_RECALCULATE";
         return administration.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,target,from,to,checked),checked,()->
-                calculate(actor,employee(actor.tenantId(),target),from,to,WorktimeCalculator.weekStart(from),WorktimeCalculator.weekStart(to).plusDays(6)));
+                calculate(actor,employee(actor.tenantId(),target),from,to));
     }
     /**
      * 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
@@ -127,9 +271,12 @@ public final class WorktimeService {
         String action="WORKTIME_AUTO_CALCULATE";
         UUID commandId=UUID.nameUUIDFromBytes((action+":"+confirmationCommandId).getBytes(StandardCharsets.UTF_8));
         return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"근무 확인 후 자동 계산","EMPLOYEE",
-                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate,WorktimeCalculator.weekStart(workDate),WorktimeCalculator.weekStart(workDate).plusDays(6)));
+                ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate));
     }
-    private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to,LocalDate start,LocalDate end) {
+    private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to) {
+        var weeks=CalculationWindow.weeks(from,to);
+        var window=weeks.openDates(from,to,mapper.closedMonths(actor.tenantId(),weeks.start(),weeks.end()));
+        LocalDate start=window.start(),end=window.end();
         UUID target=employee.id(),runId=UUID.randomUUID();
         changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
         for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
@@ -142,7 +289,13 @@ public final class WorktimeService {
             changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
                     input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
                     json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
-            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));count++;
+            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));
+            var day = input.clock();
+            if (result.actualWorkMillis() != null && !input.day().pendingCorrection()
+                    && !day.events().equals(day.effectiveEvents())) {
+                mapper.settleCheckoutFollowUp(actor.tenantId(),target,date,resultId);
+            }
+            count++;
         }
         changed(mapper.completeRun(actor.tenantId(),runId));
         return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-1"));
@@ -151,6 +304,7 @@ public final class WorktimeService {
         if(form==null)throw OrgException.invalid("회사 검토 정보를 입력해 주세요.");period(form.from(),form.to());
         String basis=requiredText(form.basis(),500,"주 기산점 검토 근거"),reason=requiredText(form.reason(),500,"등록 사유"),action="WORK_POLICY_REVIEW";
         return administration.execute(actor,form.commandId(),action,"WORK_POLICY",fingerprint(action,form.from(),form.to(),form.mondayWeekReviewed(),basis,reason),reason,()->{
+            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
             UUID id=UUID.randomUUID();int revision=mapper.nextPolicy(actor.tenantId());
             changed(mapper.insertPolicy(actor.tenantId(),id,revision,form.from(),exclusive(form.to()),form.mondayWeekReviewed(),basis,actor.accountId()));
             return new Change(id,null,Map.of("revision",revision,"mondayWeekReviewed",form.mondayWeekReviewed(),"basis",basis));
@@ -160,7 +314,9 @@ public final class WorktimeService {
         if(form==null||form.employeeId()==null)throw OrgException.invalid("대상 사원을 선택해 주세요.");period(form.from(),form.to());
         String basis=requiredText(form.basis(),500,"일반 규정 검토 근거"),reason=requiredText(form.reason(),500,"등록 사유"),action="EMPLOYMENT_RULE_ASSESS";
         return administration.execute(actor,form.commandId(),action,"RULE_ASSESSMENT",fingerprint(action,form.employeeId(),form.from(),form.to(),form.generalRuleReviewed(),basis,reason),reason,()->{
-            employee(actor.tenantId(),form.employeeId());UUID id=UUID.randomUUID();int revision=mapper.nextAssessment(actor.tenantId(),form.employeeId());
+            employee(actor.tenantId(),form.employeeId());
+            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
+            UUID id=UUID.randomUUID();int revision=mapper.nextAssessment(actor.tenantId(),form.employeeId());
             changed(mapper.insertAssessment(actor.tenantId(),id,form.employeeId(),revision,form.from(),exclusive(form.to()),form.generalRuleReviewed(),basis,actor.accountId()));
             return new Change(id,null,Map.of("employeeId",form.employeeId(),"revision",revision,"generalRuleReviewed",form.generalRuleReviewed(),"basis",basis));
         });
@@ -185,7 +341,7 @@ public final class WorktimeService {
             rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙","CALC-1"));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
-                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","종일 연차(DAY)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
+                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 연차(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
                     "소속","일정 버전 ID","휴일 버전 ID","정책 버전 ID","적용 검토 ID","유효 출근","유효 퇴근","확인 휴게 구간",
                     "소정(HH:mm:ss.SSS)","체류(HH:mm:ss.SSS)","확인 실근로(HH:mm:ss.SSS)","확인 휴게(HH:mm:ss.SSS)",
                     "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)"));
@@ -193,8 +349,10 @@ public final class WorktimeService {
             for(var day:days) {
                 var evidence=day.id()==null?null:mapper.exportEvidence(actor.tenantId(),day.id());
                 var saved=evidence==null||evidence.clockJson()==null?null:json.readValue(evidence.clockJson(),ClockData.DaySnapshot.class);
+                String freshness = day.current() ? "작성 시점 현재" : "오래됨 · 재집계 필요";
+                if (day.id() == null) freshness = day.current() ? "월 마감 근거로 확인" : "미산정";
                 var r=day.result();rows.add(row(day.employeeNo(),day.employeeName(),day.workDate().toString(),r.status().name(),
-                        day.id()==null?"미산정":day.current()?"작성 시점 현재":"오래됨 · 재집계 필요",r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
+                        freshness,r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
                         r.confirmedBreakMillis(),r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                         String.join(";",r.reasons().stream().sorted().toList()),day.id()==null?null:day.id().toString(),day.runId()==null?null:day.runId().toString(),
                         day.resultRevision(),r.inputRevision(),r.reviewRevision(),day.calculatedAt()==null?null:EXPORT_INSTANT.format(day.calculatedAt()),
@@ -283,23 +441,40 @@ public final class WorktimeService {
         if(breaks.isEmpty())return "확인된 휴게 없음";
         return String.join("; ",breaks.stream().map(b->EXPORT_INSTANT.format(b.startAt())+" / "+EXPORT_INSTANT.format(b.endAt())).toList());
     }
+    private Map<LocalDate, WorktimeMapper.ResultRow> latestDays(UUID tenant, Employee employee, LocalDate from, LocalDate to) {
+        var stored = new HashMap<LocalDate, WorktimeMapper.ResultRow>();
+        for (var row : mapper.latest(tenant, employee.id(), from, to)) stored.put(row.workDate(), row);
+        return stored;
+    }
     private List<DayView> readDays(UUID tenant,Employee employee,LocalDate from,LocalDate to) {
-        var stored=new HashMap<LocalDate,WorktimeMapper.ResultRow>();for(var r:mapper.latest(tenant,employee.id(),from,to))stored.put(r.workDate(),r);
+        var stored = latestDays(tenant, employee, from, to);
+        var closedMonths = Set.copyOf(mapper.closedMonths(tenant, from, to));
         LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            Input current=input(tenant,employee,date);var r=stored.get(date);int leave=current.day().approvedLeaveDays();boolean employed=employed(employee,date);
-            if(r==null) {
-                var missing=new DayResult(date,Status.REVIEW_REQUIRED,null,null,null,null,null,null,null,null,null,leave,
-                        current.clock().inputRevision(),current.clock().reviewRevision(),Set.of("NOT_CALCULATED","LEGAL_OVERTIME_UNDETERMINED"));
-                days.add(new DayView(null,null,employee.id(),employee.employeeNo(),employee.displayName(),date,0,"CALC-1",null,current.source(),false,missing,
-                        employed&&calculator.pending(current.day(),today,false,null),leave,employed));
-            }else {
-                var result=storedResult(r);
-                boolean matches=WorktimeCalculator.current(result,current.clock().inputRevision(),current.clock().reviewRevision())&&r.sourceFingerprint().equals(current.source());
-                days.add(storedDay(employee,r,result,matches,employed&&calculator.pending(current.day(),today,matches,result.actualWorkMillis()),leave,employed));
-            }
+            days.add(dayView(employee, input(tenant, employee, date), stored.get(date), today, closedMonths.contains(date.withDayOfMonth(1))));
         }return List.copyOf(days);
+    }
+    private DayView dayView(Employee employee, Input current, WorktimeMapper.ResultRow stored, LocalDate today, boolean closed) {
+        LocalDate date = current.clock().workDate();
+        double leave = current.day().approvedLeaveDays();
+        boolean employed = employed(employee, date);
+        if (stored == null) {
+            if (closed && employed && !current.day().pendingCorrection()) {
+                var confirmed = calculator.day(current.day());
+                if (Long.valueOf(0).equals(confirmed.actualWorkMillis())) {
+                    return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null,
+                            current.source(), true, confirmed, false, leave, true);
+                }
+            }
+            var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave,
+                    current.clock().inputRevision(), current.clock().reviewRevision(), Set.of("NOT_CALCULATED", "LEGAL_OVERTIME_UNDETERMINED"));
+            return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null, current.source(), false, missing,
+                    employed && calculator.pending(current.day(), today, false, null), leave, employed);
+        }
+        var result = storedResult(stored);
+        boolean matches = (closed && employed) || current(current.clock(), current.source(), stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
+        return storedDay(employee, stored, result, matches, employed && calculator.pending(current.day(), today, matches, result.actualWorkMillis()), leave, employed);
     }
     private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}
     private DayResult storedResult(WorktimeMapper.ResultRow r) {
@@ -307,7 +482,7 @@ public final class WorktimeService {
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,int approvedLeaveDays,boolean employed) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,double approvedLeaveDays,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
                 r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,employed);
     }
@@ -353,24 +528,45 @@ public final class WorktimeService {
     }
     private Input input(UUID tenant,Employee employee,LocalDate date) {
         var snapshot=clocks.snapshot(tenant,employee.id(),date);var policy=mapper.policy(tenant,date);var assessment=mapper.assessment(tenant,employee.id(),date);
-        var leave=List.copyOf(mapper.leaveEffects(tenant,employee.id(),date));var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
+        var effects=mapper.leaveEffects(tenant,employee.id(),date);
+        var leave=effects.stream().map(WorktimeMapper.LeaveEffect::id).toList();
+        var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
+        var day=dayInput(snapshot,assessment!=null&&assessment.generalRuleReviewed()&&employed(employee,date),
+                !pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects));
+        String source=source(snapshot,employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),
+                assessment==null?null:assessment.id(),leave,pending);
+        return new Input(snapshot,policy,assessment,leave,pending,day,source);
+    }
+
+    static String source(ClockData.DaySnapshot snapshot,LocalDate joinedOn,LocalDate leftOn,UUID policyId,
+            UUID assessmentId,List<String> leave,List<String> pending) {
+        return fingerprint(snapshot.sourceFingerprint(),snapshot.inputRevision(),snapshot.reviewRevision(),
+                joinedOn,leftOn,policyId,assessmentId,leave,pending);
+    }
+
+    static boolean current(ClockData.DaySnapshot snapshot,String source,long storedInput,long storedReview,String storedSource) {
+        return WorktimeCalculator.current(storedInput,storedReview,snapshot.inputRevision(),snapshot.reviewRevision())
+                && source.equals(storedSource);
+    }
+
+    static DayInput dayInput(ClockData.DaySnapshot snapshot,boolean reviewed,boolean pending,double leaveDays) {
+        LocalDate date=snapshot.workDate();
         var events=snapshot.effectiveEvents().stream().map(e->new ClockEvent(e.id(),EventKind.valueOf(e.kind()),e.occurredAt())).toList();
         List<Schedule> schedules=List.of();
         if(snapshot.schedule()!=null) {
             var s=snapshot.schedule();schedules=List.of(new Schedule(s.workday(),s.startTime()==null?null:date.atTime(s.startTime()).atZone(SEOUL).toInstant(),
                     s.endTime()==null?null:date.atTime(s.endTime()).atZone(SEOUL).toInstant(),s.breaks().stream().map(b->new Interval(
-                    date.atTime(b.startTime()).atZone(SEOUL).toInstant(),date.atTime(b.endTime()).atZone(SEOUL).toInstant())).toList()));
+                    date.atTime(b.startTime()).atZone(SEOUL).toInstant(),date.atTime(b.endTime()).atZone(SEOUL).toInstant())).toList(),
+                    "SELECTIVE".equals(s.workMode()), s.standardMinutes(), s.coreStart()==null?null:new Interval(
+                    date.atTime(s.coreStart()).atZone(SEOUL).toInstant(),date.atTime(s.coreEnd()).atZone(SEOUL).toInstant())));
         }
         Confirmation confirmation=null;
         if(snapshot.confirmation()!=null) {
             var c=snapshot.confirmation();confirmation=new Confirmation(c.confirmedInputRevision(),c.reviewRevision(),c.presenceAsWork(),
                     c.breaks().stream().map(b->new Interval(b.startAt(),b.endAt())).toList());
         }
-        boolean reviewed=assessment!=null&&assessment.generalRuleReviewed()&&!date.isBefore(employee.joinedOn())
-                &&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));
-        var day=new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),snapshot.reviewRevision(),confirmation,!pending.isEmpty(),leave.size());
-        String source=fingerprint(snapshot.sourceFingerprint(),snapshot.inputRevision(),snapshot.reviewRevision(),employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),assessment==null?null:assessment.id(),leave,pending);
-        return new Input(snapshot,policy,assessment,leave,pending,day,source);
+        return new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),
+                snapshot.reviewRevision(),confirmation,pending,leaveDays);
     }
     private List<PeriodView> weeklyPeriods(UUID tenant,LocalDate expandedFrom,LocalDate expandedTo,List<DayView> all) {
         var weeks=new ArrayList<PeriodView>();

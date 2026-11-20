@@ -7,7 +7,11 @@ import type { PageEnvelope } from './types';
 
 const csrf = { token: 'test-csrf', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' };
 const shared = { workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] }, workspaceEmployee: { employeeName: '담당자', companyName: '합성 회사' } };
-const list: PageEnvelope = { page: 'org/access-list', csrf, data: { ...shared, q: '직원', page: 0, hasNext: false, accessRows: [{ employeeId: 'e-1', employeeNo: '26001', employeeName: '직원', roles: ['EMPLOYEE'], active: true }] } };
+const member = { employeeId: 'e-1', employeeNo: '26001', employeeName: '직원', organizationName: null,
+  version: 1, available: true, editable: false, restriction: null };
+const directory = { roles: [{ code: 'EMPLOYEE', label: '공통', editable: false, memberCount: 1 }], role: 'EMPLOYEE',
+  members: [member], q: '직원', page: 0, hasNext: false, total: 1 };
+const list: PageEnvelope = { page: 'org/access-list', csrf, data: { ...shared, roleDirectory: directory } };
 const command = { commandId: 'cmd', expectedVersion: 1, reason: '' };
 const access: PageEnvelope = { page: 'org/access', csrf, data: { ...shared, employee: { id: 'e-1', displayName: '직원', active: true }, account: { email: 'test@example.test', active: true, credentialSet: true }, eligibleEmployee: true, rolesForm: { ...command, roles: ['EMPLOYEE'] }, invitationForm: command, approverForm: { ...command, validFrom: '2026-11-04' }, candidates: [], assignments: [], currentAssignment: null } };
 function response(envelope: PageEnvelope, path: string, status = 200) {
@@ -81,8 +85,10 @@ describe('업무 모달 탐색', () => {
     expect(screen.queryByLabelText('사번·이름 검색')).toBeNull();
     expect(screen.queryByText('26001')).toBeNull();
   });
-  it('저장 성공 후 목록을 새로 읽고 닫으면 변경된 권한을 표시한다', async () => {
-    const updated = { ...list, data: { ...list.data, accessRows: [{ employeeId: 'e-1', employeeNo: '26001', employeeName: '직원', roles: ['EMPLOYEE', 'APPROVER'], active: true }] } };
+  it('상세 저장 성공 후 목록을 새로 읽고 닫으면 최신 사원 정보를 표시한다', async () => {
+    const updated = { ...list, data: { ...list.data, roleDirectory: {
+      ...directory, members: [{ ...member, organizationName: '검증 조직', version: 2 }],
+    } } };
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response(access, '/admin/employees/e-1/access'))
       .mockResolvedValueOnce(response(access, '/admin/employees/e-1/access'))
       .mockResolvedValueOnce(response(updated, '/admin/access?q=직원'));
@@ -92,7 +98,7 @@ describe('업무 모달 탐색', () => {
     await waitFor(() => expect((within(dialog).getAllByRole('button', { name: '닫기' })[0] as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(within(dialog).getAllByRole('button', { name: '닫기' })[0]);
     await waitFor(() => expect(location.pathname).toBe('/admin/access'));
-    expect(screen.getByText('공통 · 결재 담당 가능')).toBeTruthy();
+    expect(screen.getByText('검증 조직')).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole('link', { name: '직원 권한 관리' }));
   });
   it('저장은 성공하고 목록 조회만 실패하면 새 폼 버전과 정확한 결과를 유지한다', async () => {
@@ -106,5 +112,34 @@ describe('업무 모달 탐색', () => {
     const form = within(dialog).getByRole('button', { name: '역할 저장' }).closest('form')!;
     expect(new FormData(form).get('expectedVersion')).toBe('2');
     expect((within(dialog).getByLabelText('승인자 (APPROVER)') as HTMLInputElement).checked).toBe(true);
+  });
+  it('권한 시트 저장 중 뒤로 가기가 저장 결과 확인 화면을 버리지 않는다', async () => {
+    const current = '/admin/access?role=APPROVER';
+    history.replaceState(null, '', current);
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>(() => {}));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.stubGlobal('fetch', fetcher);
+    render(<App initial={{ ...list, data: { ...list.data, roleDirectory: { ...directory,
+      role: 'APPROVER', roles: [{ code: 'APPROVER', label: '결재 담당', editable: true, memberCount: 1 }],
+      members: [{ ...member, editable: true }],
+    } } }} />);
+    fireEvent.click(await screen.findByLabelText('직원 권한 행 선택'));
+    fireEvent.click(screen.getByRole('button', { name: '권한 해제' }));
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('변경 사유'), { target: { value: '담당 변경' } });
+    fireEvent.submit(within(dialog).getByLabelText('변경 사유').closest('form')!);
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      history.replaceState(null, '', '/admin/access?role=EMPLOYEE');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(location.pathname + location.search).toBe(current);
+    expect(screen.getByText('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.')).toBeTruthy();
+    expect(within(dialog).getByLabelText('변경 사유')).toBeTruthy();
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

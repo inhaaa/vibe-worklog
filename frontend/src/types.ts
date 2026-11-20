@@ -4,6 +4,13 @@ export interface CsrfToken {
   headerName: string;
 }
 
+export interface DemoAccount {
+  employeeNo: string;
+  employeeName: string;
+  roles: string[];
+  password: string;
+}
+
 export interface PageEnvelope {
   page: string;
   data: Record<string, unknown>;

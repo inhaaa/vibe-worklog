@@ -20,23 +20,26 @@ final class ApprovalRouteResolver {
     }
 
     Resolution resolve(TnaPrincipal actor,UUID target,LocalDate today) {
-        var context=mapper.routeOrganization(actor.tenantId(),target,today);
-        var route=mapper.routeBinding(actor.tenantId(),"EMPLOYEE",target,null,today);
+        return resolve(actor.tenantId(),actor.employeeId(),target,today);
+    }
+    Resolution resolve(UUID tenant,UUID author,UUID target,LocalDate today) {
+        var context=mapper.routeOrganization(tenant,target,today);
+        var route=mapper.routeBinding(tenant,"EMPLOYEE",target,null,today);
         String source="EMPLOYEE_ROUTE";
         LeaveWorkflowMapper.ApproverBinding legacy=null;
         if(route==null) {
-            legacy=mapper.binding(actor.tenantId(),target,today);
+            legacy=mapper.binding(tenant,target,today);
             if(legacy!=null)source="LEGACY";
             else {
-                route=context==null?null:mapper.routeBinding(actor.tenantId(),"ORGANIZATION",null,context.organizationId(),today);
+                route=context==null?null:mapper.routeBinding(tenant,"ORGANIZATION",null,context.organizationId(),today);
                 source=route==null?"NONE":"ORGANIZATION_ROUTE";
             }
         }
         var head=route!=null&&"ORGANIZATION_HEAD".equals(route.approverKind())&&context!=null
-                ?mapper.routeHead(actor.tenantId(),context.organizationId(),today):null;
+                ?mapper.routeHead(tenant,context.organizationId(),today):null;
         UUID candidate=legacy!=null?legacy.approverEmployeeId():route==null?null:
                 "DIRECT_EMPLOYEE".equals(route.approverKind())?route.employeeId():head==null?null:head.employeeId();
-        var employee=candidate==null?null:employees.get(actor.tenantId(),candidate);
+        var employee=candidate==null?null:employees.get(tenant,candidate);
         String message=null;
         if(route==null&&legacy==null)message="유효한 결재선 또는 지정 승인자가 필요합니다. 담당자에게 배정을 요청해 주세요.";
         else if(route!=null&&!route.routeActive())message="선택된 결재선이 비활성 상태입니다. 담당자에게 재지정을 요청해 주세요.";
@@ -44,8 +47,8 @@ final class ApprovalRouteResolver {
                 &&(context==null||!context.organizationActive()))message="현재 소속 조직이 미배정 또는 비활성 상태입니다. 담당자에게 확인해 주세요.";
         else if(candidate==null)message="현재 소속 조직의 조직장이 공석입니다. 담당자에게 배정을 요청해 주세요.";
         else if(target.equals(candidate))message="대상 사원은 자기 신청을 승인할 수 없습니다. 결재선을 재지정해 주세요.";
-        else if(actor.employeeId().equals(candidate))message="신청 작성자는 직접 승인할 수 없습니다. 결재선을 재지정해 주세요.";
-        else if(employee==null||!approvers.eligible(actor.tenantId(),candidate,today))
+        else if(author.equals(candidate))message="신청 작성자는 직접 승인할 수 없습니다. 결재선을 재지정해 주세요.";
+        else if(employee==null||!approvers.eligible(tenant,candidate,today))
             message="현재 결재자의 재직·계정 수락·결재 권한을 확인하고 재지정해 주세요.";
         return new Resolution(source,route,legacy,context,head,candidate,employee==null?null:employee.displayName(),message);
     }

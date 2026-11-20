@@ -6,14 +6,17 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.clock.ClockData.*;
@@ -49,29 +52,55 @@ public final class ClockService {
         if(!mapper.employeeExists(tenantId,employeeId))throw OrgException.notFound();
         List<Event> events=List.copyOf(mapper.events(tenantId,employeeId,date));
         var assignments=mapper.schedules(tenantId,employeeId,date,date.getDayOfWeek().getValue());
-        ScheduleData.Day schedule=null;UUID scheduleVersion=null;
-        if(assignments.size()==1) {
-            var a=assignments.getFirst();scheduleVersion=a.scheduleVersionId();
-            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),
-                    List.copyOf(schedules.breaks(tenantId,scheduleVersion,a.weekday())));
-        }
-        var calendar=mapper.calendar(tenantId,date);UUID calendarVersion=null;String dayKind="UNCONFIRMED";
-        if(calendar.size()==1){calendarVersion=calendar.getFirst().versionId();dayKind=calendar.getFirst().kind();}
+        var breaks=assignments.size()==1?schedules.breaks(tenantId,assignments.getFirst().scheduleVersionId(),date.getDayOfWeek().getValue())
+                :List.<ScheduleData.Break>of();
+        var calendars=mapper.calendar(tenantId,date);
         var revision=mapper.revision(tenantId,employeeId,date);
         long input=revision==null?0:revision.inputRevision(),review=revision==null?0:revision.reviewRevision();
         var correction=mapper.currentCorrection(tenantId,employeeId,date);
-        List<Event> effectiveEvents=correction==null?events:project(correction,date);
-        String source=fingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
-        if(correction!=null)source=fingerprint(source,correction.effectId(),effectiveEvents);
-        var saved=mapper.findConfirmation(tenantId,employeeId,date,input,source);Confirmation confirmation=null;
-        if(saved!=null) {
-            try {confirmation=new Confirmation(saved.id(),saved.confirmedInputRevision(),saved.reviewRevision(),
-                    saved.presenceAsWork(),saved.breaksMatch(),saved.sourceFingerprint(),
-                    List.copyOf(Arrays.asList(json.readValue(saved.breakSnapshot(),Interval[].class))),saved.confirmedAt());}
-            catch(JacksonException exception){throw new OrgException(503,"근로 확인 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
+        return projectSnapshot(employeeId,date,events,assignments,breaks,calendars.size()==1?calendars.getFirst():null,
+                input,review,correction,source->confirmation(mapper.findConfirmation(tenantId,employeeId,date,input,source)));
+    }
+
+    /** Builds the same effective day from an individual lookup or a month of preloaded evidence. */
+    public DaySnapshot projectSnapshot(UUID employeeId,LocalDate date,List<Event> events,List<ClockMapper.ScheduleRow> assignments,
+            List<ScheduleData.Break> breaks,ClockMapper.CalendarRow calendar,long input,long review,
+            ClockMapper.CorrectionRow correction,Function<String,Confirmation> findConfirmation) {
+        ScheduleData.Day schedule=null;UUID scheduleVersion=null;
+        if(assignments.size()==1) {
+            var a=assignments.getFirst();scheduleVersion=a.scheduleVersionId();
+            schedule=new ScheduleData.Day(a.weekday(),a.workday(),a.startTime(),a.endTime(),List.copyOf(breaks),
+                    a.workMode(),a.coreStart(),a.coreEnd(),a.standardMinutes(),a.settlementPeriod());
         }
+        UUID calendarVersion=calendar==null?null:calendar.versionId();
+        String dayKind=calendar==null?"UNCONFIRMED":calendar.kind();
+        List<Event> effectiveEvents=correction==null?events:project(correction,date);
+        String source=sourceFingerprint(employeeId,date,events,assignments,schedule,calendarVersion,dayKind);
+        if(correction!=null)source=fingerprint(source,correction.effectId(),effectiveEvents);
+        var confirmation=findConfirmation.apply(source);
         if(confirmation==null&&correction!=null)confirmation=correctionConfirmation(correction,input,review,source,scheduleVersion,calendarVersion);
         return new DaySnapshot(employeeId,date,events,schedule,scheduleVersion,calendarVersion,dayKind,input,review,confirmation,source,effectiveEvents);
+    }
+
+    private static String sourceFingerprint(UUID employee, LocalDate date, List<Event> events,
+            List<ClockMapper.ScheduleRow> rows, ScheduleData.Day schedule, UUID calendar, String dayKind) {
+        if (rows.stream().anyMatch(row -> "SELECTIVE".equals(row.workMode())))
+            return fingerprint(employee,date,events,rows,schedule,calendar,dayKind);
+        // V31 signed the record names, fields and order below. Existing confirmations and closed results use those bytes.
+        record ScheduleRow(UUID scheduleVersionId, int weekday, boolean workday, LocalTime startTime, LocalTime endTime) {}
+        record Day(int weekday, boolean workday, LocalTime startTime, LocalTime endTime, List<ScheduleData.Break> breaks) {}
+        var oldRows = rows.stream().map(row -> new ScheduleRow(row.scheduleVersionId(), row.weekday(),
+                row.workday(), row.startTime(), row.endTime())).toList();
+        var oldDay = schedule == null ? null : new Day(schedule.weekday(), schedule.workday(),
+                schedule.startTime(), schedule.endTime(), schedule.breaks());
+        return fingerprint(employee,date,events,oldRows,oldDay,calendar,dayKind);
+    }
+    private Confirmation confirmation(ClockMapper.ConfirmationRow saved) {
+        if(saved==null)return null;
+        try {return new Confirmation(saved.id(),saved.confirmedInputRevision(),saved.reviewRevision(),
+                saved.presenceAsWork(),saved.breaksMatch(),saved.sourceFingerprint(),
+                List.copyOf(Arrays.asList(json.readValue(saved.breakSnapshot(),Interval[].class))),saved.confirmedAt());}
+        catch(JacksonException exception){throw new OrgException(503,"근로 확인 자료를 읽을 수 없습니다. 담당자에게 문의해 주세요.");}
     }
     public UUID record(TnaPrincipal actor,String kind,UUID commandId,String remoteAddress) {
         if(kind==null||!Set.of("IN","OUT").contains(kind))throw OrgException.invalid("출근 또는 퇴근 기록을 선택해 주세요.");
@@ -97,6 +126,7 @@ public final class ClockService {
         return commands.execute(actor,form.commandId(),action,"WORK_CONFIRMATION",
                 fingerprint(action,form.workDate(),form.baseInputRevision(),form.expectedReviewRevision(),form.presenceAsWork(),form.breaksMatch(),form.sourceFingerprint()),
                 "본인 실제 근로·예정 휴게 일치 확인","EMPLOYEE",()->{
+            mapper.requireOpen(actor.tenantId(),form.workDate(),form.workDate());
             DaySnapshot day=snapshot(actor.tenantId(),actor.employeeId(),form.workDate());
             checkVersion(form.baseInputRevision(),day.inputRevision());checkVersion(form.expectedReviewRevision(),day.reviewRevision());
             if(!day.sourceFingerprint().equals(form.sourceFingerprint()))throw OrgException.conflict("기록·일정·휴일이 변경되었습니다. 최신 내용을 확인해 주세요.");
@@ -114,9 +144,13 @@ public final class ClockService {
         });
     }
     public boolean canConfirm(DaySnapshot day) {
+        return confirmableBreaks(day).isPresent();
+    }
+    public Optional<List<Interval>> confirmableBreaks(DaySnapshot day) {
         Instant now=clock.instant();
-        return day.confirmation()==null&&!day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())
-                &&confirmationCheck(day,now).error()==null;
+        if (day.confirmation()!=null || day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())) return Optional.empty();
+        var check = confirmationCheck(day,now);
+        return check.error()==null ? Optional.of(check.breaks()) : Optional.empty();
     }
     private static ConfirmationCheck confirmationCheck(DaySnapshot day,Instant now) {
         var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
@@ -129,6 +163,11 @@ public final class ClockService {
             return new ConfirmationCheck(List.of(),"확인할 수 없는 출퇴근 구간입니다. 정정을 신청해 주세요.");
         List<Interval> breaks=day.schedule().breaks().stream().map(b->new Interval(
                 day.workDate().atTime(b.startTime()).atZone(SEOUL).toInstant(),day.workDate().atTime(b.endTime()).atZone(SEOUL).toInstant())).toList();
+        if (day.schedule().selective()) {
+            var overlapping = breaks.stream().map(b -> new Interval(b.startAt().isBefore(start) ? start : b.startAt(),
+                    b.endAt().isAfter(end) ? end : b.endAt())).filter(b -> b.startAt().isBefore(b.endAt())).toList();
+            return new ConfirmationCheck(overlapping,null);
+        }
         if(breaks.stream().anyMatch(b->b.startAt().isBefore(start)||b.endAt().isAfter(end)))
             return new ConfirmationCheck(List.of(),"예정 휴게가 실제 출퇴근 구간 밖입니다. 실제 휴게 정정을 신청해 주세요.");
         return new ConfirmationCheck(breaks,null);

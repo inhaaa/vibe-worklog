@@ -1,3 +1,6 @@
+import type { LeavePart } from './leavePart';
+import type { WorkPolicy } from './selectiveSchedule';
+
 export interface EmployeeChoice {
   id: string;
   employeeNo: string;
@@ -12,6 +15,7 @@ export interface Bucket {
   pendingDays: number;
 }
 export interface LeaveForm {
+  leavePart?: LeavePart | null;
   bucketId: string | null;
   from: string;
   to: string;
@@ -20,6 +24,12 @@ export interface LeaveForm {
   predecessorRequestId?: string | null;
 }
 export interface RequestView {
+  leavePart?: LeavePart | null;
+  formCode?: string | null;
+  formName?: string | null;
+  currentStep?: number;
+  totalSteps?: number;
+  legacyForm?: boolean;
   id: string;
   targetEmployeeName: string;
   kind: string;
@@ -30,6 +40,7 @@ export interface RequestView {
   effectStatus: string;
   version: number;
   reason: string;
+  submittedAt?: string | null;
   approverName: string;
   originalRequestId: string | null;
 }
@@ -43,8 +54,13 @@ export interface CorrectionDetail {
   requestedInAt: string | null;
   outAction: string;
   requestedOutAt: string | null;
+  presenceAsWork?: boolean;
   breaksConfirmed: boolean;
   actualBreaks: string | null;
+}
+interface CorrectionTimes {
+  in: string[] | null;
+  out: string[] | null;
 }
 export interface ApprovalHistory {
   createdAt: string;
@@ -54,9 +70,20 @@ export interface ApprovalHistory {
   reason: string;
 }
 export interface RequestDetail {
+  overtime?: { workDate: string; startTime: string; endTime: string; requestedMinutes: number } | null;
+  steps?: { stepNumber: number; role: string; originalApproverName: string; approverName: string;
+    status: string; decidedByName: string | null; decidedAt: string | null; reason: string | null }[];
+  reassignmentRequired?: boolean;
+  scheduleChanges?: {leaveDate: string; original: string; current: string}[];
   days: RequestDay[];
   history: ApprovalHistory[];
   correction: CorrectionDetail | null;
+  attendancePolicy?: { name: string } | null;
+  correctionComparison?: {
+    source: CorrectionTimes;
+    current: CorrectionTimes;
+    proposed: CorrectionTimes;
+  } | null;
   routeSnapshot?: {
     routeName: string;
     scopeKind: string;
@@ -66,8 +93,15 @@ export interface RequestDetail {
   } | null;
 }
 export interface RequestDetailModel {
+  settlementReturn?: string;
+  cancelApproval?: import('./AnnualRequestTypes').ApprovalPreview;
+  cancelReason?: string;
+  exceptionCancelReason?: string;
   request: RequestView;
   detail: RequestDetail;
+  leaveReturnTo?: string | null;
+  monthCloseReturnTo?: string | null;
+  leaveDecidedByName?: string | null;
   ownRequest?: boolean;
   workspacePrincipal?: { roles: string[] };
   admin: boolean;
@@ -99,7 +133,7 @@ export interface ClockInterval {
   startAt: string;
   endAt: string;
 }
-export interface Schedule {
+export interface Schedule extends WorkPolicy {
   workday: boolean;
   startTime: string | null;
   endTime: string | null;
@@ -137,9 +171,11 @@ export interface ConfirmationForm {
   breaksMatch: boolean;
 }
 export interface ClockModel {
+  settlementReturn?: string;
   today?: string;
   isToday?: boolean;
   canConfirm?: boolean;
+  confirmationBreaks?: ClockInterval[];
   correctionSuggested?: boolean;
   inCommand?: string;
   outCommand?: string;
@@ -166,10 +202,14 @@ export interface CorrectionForm {
   reason: string;
 }
 export interface CorrectionModel {
+  settlementReturn?: string;
+  approval?: import('./AnnualRequestTypes').ApprovalPreview;
   day: DaySnapshot;
   exceptional: boolean;
   actions: string[];
   eventTimes: Record<string, string>;
+  checkoutOnly?: boolean;
+  pendingCorrectionId?: string | null;
   form: CorrectionForm;
 }
 export interface BucketForm {
@@ -248,6 +288,8 @@ export interface PeriodView {
   result: PeriodResult;
 }
 export interface MonthModel {
+  settlementReturn?: string;
+  settlementWorkDate?: string;
   overview: { month: string; days: DayView[]; weeks: PeriodView[]; summary: PeriodView };
   employeeId: string;
   employees: EmployeeChoice[];
@@ -256,6 +298,8 @@ export interface MonthModel {
   to: string;
   calculateCommand: string;
   exportCommand: string;
+  checkoutWorkDate?: string;
+  checkoutReturnTo?: string;
 }
 export interface PolicyForm {
   from: string;
@@ -322,6 +366,7 @@ export interface ResultDetail {
   pendingCorrections: string[];
 }
 export interface ResultModel {
+  settlementReturn?: string;
   detail: ResultDetail;
   times: Record<string, string>;
   month: string;

@@ -13,6 +13,14 @@ function page(overrides: Record<string, unknown> = {}): PageEnvelope {
   return { page: 'org/approval-routes', csrf, data: { ...principal, approvalRoutes: { q: '', page: 0, hasNext: false, candidates: [{ id: 'e-2', employeeNo: 'E002', displayName: '박승인' }], sheet: { commandId: 'batch-command', reason: '', rows: [row], latestRows: [route], errors: [] }, routes: [route], versions: [], ...overrides } } };
 }
 function form(view: ReturnType<typeof render>) { return view.container.querySelector('form[action="/admin/approval-routes/bulk"]') as HTMLFormElement; }
+it('순차결재에서 종료 단위를 선택하고 결재 방식 변경 시 숨은 값을 비운다', async () => {
+  const view = await show(<App initial={page()} />);
+  await changeCell(view, '결재 방식 1', 'ORGANIZATION_CHAIN');
+  await changeCell(view, '종료 단위 1', 'OFFICE');
+  expect(posted(view)[0]).toMatchObject({ approverKind: 'ORGANIZATION_CHAIN', terminalUnit: 'OFFICE', employeeId: null });
+  await changeCell(view, '결재 방식 1', 'DIRECT_EMPLOYEE');
+  expect(posted(view)[0]).toMatchObject({ approverKind: 'DIRECT_EMPLOYEE', terminalUnit: null });
+});
 function posted(view: ReturnType<typeof render>) { return JSON.parse(String(new FormData(form(view)).get('rows'))) as Record<string, unknown>[]; }
 async function save(view: ReturnType<typeof render>, reason?: string) {
   fireEvent.click(within(form(view)).getByRole('button', { name: '저장' }));

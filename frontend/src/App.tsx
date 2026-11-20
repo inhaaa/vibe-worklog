@@ -4,15 +4,19 @@ import type { PageEnvelope, PageProps } from './types';
 import { CsrfContext, Form } from './ui';
 import { encodeForm, fetchPage, PageDownload, PageRequestError } from './transport';
 import { AdminPages } from './pages/AdminPages';
+import { OvertimePage } from './pages/OvertimePage';
 import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
 import { WorkspaceHome, useWorkspaceHomeRefresh } from './pages/WorkspaceHome';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
+import { RequestFormPage } from './pages/RequestFormPage';
 import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
+import { leaveOperationsReturn } from './pages/LeaveOperationsNavigation';
 import { PersonnelPage } from './pages/PersonnelPage';
 import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
@@ -20,6 +24,7 @@ import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigati
 import { getNavigation, getNavigationContext, getWorkspaceMenuRoles, getWorkspaceRoles, selectWorkspaceRole } from './navigation';
 import { Modal } from './components/Modal';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { DemoAccountSwitcher } from './components/DemoAccountSwitcher';
 import './WorkspacePolish.css';
 import './design/tokens.css';
 import './design/ui.css';
@@ -29,9 +34,10 @@ import './design/workspace.css';
 import './design/screens.css';
 
 function isTaskUrl(url: URL) {
-  return /^\/admin\/employees\/[^/]+(?:\/(?:access|personnel|schedule))?$/.test(url.pathname)
+  if (url.pathname === '/admin/employees/onboarding' || url.pathname === '/admin/employees/bulk-edit') return false;
+  return /^\/admin\/employees\/[^/]+(?:\/(?:access|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
-    || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId'))
+    || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId') && url.searchParams.get('chart') !== 'true')
     || /^\/(?:me\/requests\/(?:new|correction)|admin\/requests\/exceptions\/new|admin\/approval-route-assignments)$/.test(url.pathname)
     || (url.pathname === '/admin/work-policies' && url.searchParams.has('employeeId'))
     || /^\/requests\/[^/]+$/.test(url.pathname)
@@ -40,6 +46,14 @@ function isTaskUrl(url: URL) {
 }
 
 interface BackgroundPage { envelope: PageEnvelope; url: string; revision: number; position: number }
+
+function shouldRefreshLeaveList(saved: BackgroundPage, detail: PageEnvelope) {
+  if (saved.envelope.page !== 'request/list' || detail.page !== 'request/detail'
+      || detail.data.admin !== true || typeof detail.data.leaveReturnTo !== 'string'
+      || !leaveOperationsReturn(detail.data.leaveReturnTo)) return false;
+  const url = new URL(saved.url);
+  return leaveOperationsReturn(url.pathname + url.search) !== null;
+}
 
 const publicPages = new Set([
   'login',
@@ -54,15 +68,17 @@ const publicPages = new Set([
 const titles: Record<string, string> = {
   today: '출퇴근 기록',
   'workspace/home': '홈',
-  'org/personnel': '인사정보 등록',
+  'org/personnel': '인사기본',
+  'org/personnel-home': '인사기본',
   'workspace/profile': '내 정보',
   'workspace/schedule': '내 근무 일정',
-  'org/employees': '직원 목록',
+  'org/employees': '인사정보 일괄관리',
   'org/employee': '직원 상세',
   'org/organizations': '조직 관리',
   'org/organization': '조직 상세',
   'org/organization-heads': '조직장 배정',
   'org/approval-routes': '결재선 관리',
+  'org/request-forms': '신청서코드 관리',
   'org/approval-route-assignments': '결재선 배정',
   'org/common-codes': '공통코드 관리',
   'org/attendance-types': '근태코드 관리',
@@ -79,6 +95,11 @@ const titles: Record<string, string> = {
   'clock/calendar': '근무일·휴일',
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
+  'clock/period': '출퇴근 기간 조회',
+  'attendance/follow-ups': '내 근태 보완 요청',
+  'org/onboarding': '입사 예정 관리',
+  'overtime/employee': '연장근무 신청',
+  'overtime/admin': '연장근무 신청현황',
   'request/mine': '내 근태현황·신청',
   'request/attributions': '기초 묶음 귀속연도',
   'request/detail': '신청 상세',
@@ -109,7 +130,6 @@ function Icon({ name }: { name: string }) {
     settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
     chart: 'M4 4v16h16M8 15v-4M13 15V7M18 15v-6',
     menu: 'M4 6h16M4 12h16M4 18h16',
-    switchAccount: 'M12 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6M5 15a7 5 0 0 1 14 0M4 19h16m-3-3 3 3-3 3',
     chevron: 'm9 5 7 7-7 7',
   };
   return (
@@ -129,13 +149,17 @@ function Icon({ name }: { name: string }) {
 function Workspace({
   data,
   page,
+  pageUrl,
   title,
   children,
+  busy,
 }: {
   data: Record<string, unknown>;
   page: string;
+  pageUrl: string;
   title: string;
   children: ReactNode;
+  busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -143,12 +167,14 @@ function Workspace({
     { employeeName: string; companyName: string } | undefined;
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const roleOptions = getWorkspaceRoles(roles);
+  const demo = data.workspaceDemo === true;
+  const workspaceName = demo ? 'WorkLog 데모' : (employee?.companyName ?? '워크스페이스');
   const [selectedRole, setSelectedRole] = useState(() => {
-    const href = getNavigationContext(page, location.pathname, data)?.href;
-    return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value;
+    const href = getNavigationContext(page, pageUrl, data)?.href;
+    return roleOptions.find(role => getNavigation([role.value]).some(group => group.children.some(section => section.children.some(item => item.href === href))))?.value
+      ?? (demo && roles.includes('ATTENDANCE_ADMIN') ? 'ATTENDANCE_ADMIN' : undefined);
   });
   const activeRole = selectWorkspaceRole(roles, selectedRole);
-  const demo = data.workspaceDemo === true;
   const employeeHeader = data.employeeHeader as EmployeeHeaderData | undefined;
   const headerEmployee = employeeHeader ?? employee;
   const brand = (
@@ -173,17 +199,17 @@ function Workspace({
         <div className="t-workspace-name">
           <span className="t-workspace-icon">T</span>
           <span>
-            {employee?.companyName ?? '워크스페이스'}
+            {workspaceName}
             <small>
               {formatRoles(roles)}
             </small>
           </span>
         </div>
-        <WorkspaceNavigation roles={getWorkspaceMenuRoles(roles, activeRole)} page={page} data={data} onNavigate={() => setOpen(false)} />
+        <WorkspaceNavigation roles={getWorkspaceMenuRoles(roles, activeRole)} page={page} data={data} pathname={pageUrl} onNavigate={() => setOpen(false)} />
         <div className="t-sidebar-bottom">
           {demo && (
             <>
-              <span className="t-demo-label">로컬 데모 워크스페이스</span>
+              <span className="t-demo-label">{workspaceName}</span>
               <p>합성 자료로 기능을 확인하세요.</p>
               <a href="/demo">소개 화면으로</a>
             </>
@@ -214,7 +240,7 @@ function Workspace({
             <Icon name="menu" />
           </button>
           {brand}
-          <Breadcrumbs page={page} data={data} />
+          <Breadcrumbs page={page} data={data} pathname={pageUrl} />
         </div>
         <div className="t-profile">
           <ThemeSwitcher />
@@ -226,25 +252,21 @@ function Workspace({
           </label>}
           <a className="t-profile-copy" href="/me/profile">
             <span>{employee?.employeeName ?? '직원'}</span>
-            <small>{employee?.companyName ?? '워크스페이스'}</small>
+            <small>{workspaceName}</small>
           </a>
           <span className="t-avatar blue" aria-hidden="true">
             {employee?.employeeName?.slice(0, 1) ?? 'W'}
           </span>
-          {demo && (
-            <a className="t-demo-switch" href="/demo" aria-label="다른 테스트 사원 로그인">
-              <Icon name="switchAccount" />
-            </a>
-          )}
+          {demo && <DemoAccountSwitcher busy={busy} currentEmployeeNo={location.pathname.startsWith('/me/') ? employeeHeader?.employeeNo : undefined} />}
           <Form action="/logout">
             <button className="t-btn t-logout">로그아웃</button>
           </Form>
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
-        {page !== 'workspace/home' && headerEmployee && (
+        {page !== 'workspace/home' && page !== 'org/personnel-home' && !data.adminPersonnel && headerEmployee && (
           <EmployeeHeader variant={page === 'workspace/profile' || page === 'org/personnel' ? 'card' : 'line'}
-            employee={headerEmployee} />
+            employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />
         )}
         {children}
       </main>
@@ -259,12 +281,15 @@ function Content(props: PageProps) {
       <CorePages {...props} />
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
+      {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
       <ApprovalRoutePages {...props} />
+      {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />
       <AnnualRequestPage {...props} />
       <LeaveAttributionPage {...props} />
       <PersonnelPage {...props} />
       <AdminPages {...props} />
+      <OvertimePage {...props} />
       <WorkflowPages {...props} />
     </>
   );
@@ -289,7 +314,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const pending = useRef<AbortController | null>(null);
   const currentUrl = useRef(location.href);
   const navigationFrom = useRef<string | undefined>(undefined);
-  navigationFrom.current = getNavigationContext(envelope.page, new URL(currentUrl.current).pathname, envelope.data)?.href;
+  const activeUrl = new URL(currentUrl.current);
+  navigationFrom.current = getNavigationContext(envelope.page, activeUrl.pathname + activeUrl.search, envelope.data)?.href;
   const historyPosition = useRef<number>(Number.isInteger(history.state?.worklogPosition) ? history.state.worklogPosition : 0);
   const restoringHistory = useRef(false);
   const historyState = (position: number, source?: string) => ({ ...(history.state && typeof history.state === 'object' ? history.state : {}), worklogPosition: position, worklogNavigationFrom: source ?? null });
@@ -297,6 +323,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
   const hasUnsaved = () => backgroundRef.current
     ? modalDirty.current || Boolean(document.querySelector('.t-modal [data-unsaved-changes="true"]'))
     : Boolean(document.querySelector('[data-unsaved-changes="true"]'));
+  const hasPendingSave = useCallback(() => posting.current || Boolean(document.querySelector('[data-modal-busy="true"]')), []);
   const restoreBackground = useCallback(() => {
     const saved = backgroundRef.current;
     if (!saved) return;
@@ -318,6 +345,10 @@ export function App({ initial }: { initial: PageEnvelope }) {
       !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) return;
     modalDirty.current = false;
     const saved = backgroundRef.current;
+    if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) {
+      if (location.href !== saved.url) history.back();
+      return;
+    }
     restoreBackground();
     // 모달 안의 이동은 같은 이력 항목을 교체하므로 한 번만 돌아간다.
     if (location.href !== saved.url) history.back();
@@ -330,7 +361,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       discardConfirmed = false,
       openAsTask = true,
     ) => {
-      if (posting.current && options.method?.toUpperCase() !== 'POST') {
+      if (hasPendingSave() && options.method?.toUpperCase() !== 'POST') {
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
       }
@@ -353,7 +384,9 @@ export function App({ initial }: { initial: PageEnvelope }) {
         const result = await fetchPage(url, { ...options, signal: controller.signal });
         if (requestId !== serial.current) return;
         const formError = options.method?.toUpperCase() === 'POST' && result.status >= 400;
-        const destination = new URL(formError ? currentUrl.current : result.url, location.href);
+        const headChartUrl = result.envelope.data.headChartUrl;
+        const previewUrl = result.envelope.data.headPreview && typeof headChartUrl === 'string' ? headChartUrl : result.url;
+        const destination = new URL(formError ? currentUrl.current : previewUrl, location.href);
         const requested = new URL(url, location.href);
         if (destination.pathname === requested.pathname && destination.search === requested.search)
           destination.hash = requested.hash;
@@ -361,7 +394,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
         const activeBackground = backgroundRef.current;
         const isPost = options.method?.toUpperCase() === 'POST';
-        const task = !publicPages.has(result.envelope.page) && (isTaskUrl(destination) ||
+        const task = !result.envelope.data.settlementReturn && !publicPages.has(result.envelope.page) && (isTaskUrl(destination) ||
           Boolean(activeBackground && formError));
         if (activeBackground && isPost && !formError && !publicPages.has(result.envelope.page)) {
           // 저장된 값은 배경 목록에도 반영하고, 갱신 중 권한 회수 역시 검사한다.
@@ -420,12 +453,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       } catch (error) {
         if (requestId !== serial.current || controller.signal.aborted) return;
         if (error instanceof PageDownload) {
-          const objectUrl = URL.createObjectURL(error.blob);
-          const link = document.createElement('a');
-          link.href = objectUrl;
-          link.download = error.filename;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+          error.save();
           setNotice('파일을 다운로드했습니다.');
         } else {
           const message =
@@ -454,7 +482,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
         if (requestId === serial.current) setBusy(false);
       }
     },
-    [restoreBackground],
+    [hasPendingSave, restoreBackground],
   );
   useEffect(() => {
     history.replaceState(historyState(historyPosition.current, navigationFrom.current), '', currentUrl.current);
@@ -471,26 +499,27 @@ export function App({ initial }: { initial: PageEnvelope }) {
         else history.pushState(historyState(historyPosition.current), '', currentUrl.current);
         return;
       }
-      if (saved && location.href === saved.url && !posting.current) {
+      if (saved && location.href === saved.url && !hasPendingSave()) {
         if (hasUnsaved() && !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) {
           restoringHistory.current = true;
           history.forward();
           return;
         }
-        restoreBackground();
+        if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) void navigate(saved.url, {}, 'none', true);
+        else restoreBackground();
         return;
       }
       const current = new URL(currentUrl.current);
       if (current.pathname === location.pathname && current.search === location.search) {
         currentUrl.current = location.href;
-        if (!posting.current) {
+        if (!hasPendingSave()) {
           ++serial.current;
           pending.current?.abort();
           setBusy(false);
         }
         return;
       }
-      if (posting.current) {
+      if (hasPendingSave()) {
         history.pushState(null, '', currentUrl.current);
         setNotice('저장 결과를 확인하고 있습니다. 처리가 끝난 뒤 이동해 주세요.');
         return;
@@ -515,7 +544,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       window.removeEventListener('popstate', back);
       pending.current?.abort();
     };
-  }, [navigate, restoreBackground]);
+  }, [hasPendingSave, navigate, restoreBackground]);
 
   const refreshHome = useCallback(() => {
     // 모달을 닫으면 배경 화면이 브라우저의 뒤로 가기보다 먼저 복원될 수 있다.
@@ -603,13 +632,13 @@ export function App({ initial }: { initial: PageEnvelope }) {
   };
   const submit = (event: SubmitEvent<HTMLDivElement>) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented || form.hasAttribute('data-native-submit')) return;
     const native = event.nativeEvent as globalThis.SubmitEvent;
     const submitter = native.submitter as HTMLButtonElement | null;
     const url = new URL(submitter?.getAttribute('formaction') || form.action, location.href);
     if (url.origin !== location.origin) return;
     event.preventDefault();
-    if (posting.current) return;
+    if (hasPendingSave()) return;
     const method = (submitter?.getAttribute('formmethod') || form.method || 'get').toUpperCase();
     const formData = new FormData(form);
     if (submitter?.name) formData.append(submitter.name, submitter.value);
@@ -668,7 +697,9 @@ export function App({ initial }: { initial: PageEnvelope }) {
           <Workspace
             data={base.data}
             page={base.page}
+            pageUrl={background?.url ?? currentUrl.current}
             title={titles[base.page] ?? '업무'}
+            busy={busy}
           >
             {content}
           </Workspace>

@@ -1,5 +1,7 @@
 # 계정 초대·역할·승인자 배정 구현 계약
 
+> 2026-11-17 후속. 시스템 설정의 권한별 사원 조회와 시트의 부여·해제는 [권한관리 상세 명세](../superpowers/specs/2026-11-17-role-management-design.md)를 따른다. [구현 계획과 검증 결과](../superpowers/plans/2026-11-17-role-management.md)
+
 > 2026-10-28 코드 관리 후속: [4단계 공통/근태코드 관리](code-management.md)는 `ATTENDANCE_ADMIN` 전용이다. 메뉴 표시 외에 Controller·현재 관리자 검증·tenant 조건·FORCE RLS로 제한하며 대표·공통·APPROVER·별도 운영자 지위만으로 설정을 변경하지 못한다. 공통코드에 역할·기능 권한·신청 상태를 추가하거나 시스템 코드를 편집해 권한을 우회할 수 없다. 기존 역할 변경·세션 회수·마지막 관리자 보호와 결재 자격은 유지한다. 실제 권한/격리·재전송 검증 범위는 [4단계 결과](../quality/code-management.md)를 따른다.
 
 > 2026-10-28 결재선 후속: [3단계 상세 계약](approval-routes.md)과 [실행 계획](../superpowers/plans/2026-10-28-react-approval-routes.md)에 따라 사원·조직별 불변 버전 배정과 조직장 결재를 추가했다. 기존 직접 지정은 신규 해석 우선순위의 두 번째 경로로 보존하며, 기존 신청의 참조·결정·원장은 변환하지 않는다. 조직장·대표 배정만으로 APPROVER를 부여하지 않고 실제 제출·결정에서 현재 결재 자격과 독립성을 검증한다. 최종 검증·로컬 DB 반영은 [별도 결과](../quality/approval-routes.md)로 구분한다.

@@ -36,6 +36,11 @@ async function show(initial = page()) {
 function bulkForm(view: ReturnType<typeof render>, kind = 'organizations') {
   return view.container.querySelector(`form[action="/admin/${kind}/bulk"]`) as HTMLFormElement;
 }
+it('조직 시트에서 선택한 결재 단위를 저장 요청에 포함한다', async () => {
+  const view = await show();
+  await changeCell(view, '결재 단위 1', 'OFFICE');
+  expect(postedRows(view)[0]).toMatchObject({ approvalUnit: 'OFFICE' });
+});
 function postedRows(view: ReturnType<typeof render>, kind = 'organizations') {
   return JSON.parse(String(new FormData(bulkForm(view, kind)).get('rows'))) as Record<string, unknown>[];
 }
@@ -82,6 +87,51 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('조직·사원 시트 편집', () => {
+  it('인사정보 일괄관리에서는 검색·초기화·페이지를 전용 조회 주소에 연결하고 기존 저장과 상세 링크를 유지한다', async () => {
+    history.replaceState(null, '', '/admin/employees/bulk-edit');
+    const view = render(<App initial={page('employees')} />);
+    expect(view.getByRole('heading', { name: '인사정보 일괄관리' })).toBeTruthy();
+    const search = view.getByRole('search', { name: '사원 검색' });
+    expect(search.getAttribute('action')).toBe('/admin/employees/bulk-edit');
+    expect(within(search).getByRole('link', { name: '초기화' }).getAttribute('href')).toBe('/admin/employees/bulk-edit');
+    const next = within(view.getByRole('navigation', { name: '사원 페이지' })).getByRole('link', { name: '다음' });
+    const nextUrl = new URL(next.getAttribute('href')!, location.origin);
+    expect(nextUrl.pathname).toBe('/admin/employees/bulk-edit');
+    expect(Object.fromEntries(nextUrl.searchParams)).toMatchObject({ q: '개발', organizationId: 'o-1', status: 'active', page: '2' });
+    const form = new FormData(bulkForm(view, 'employees'));
+    expect(Object.fromEntries(form)).toMatchObject({ q: '개발', organizationId: 'o-1', status: 'active', page: '1' });
+    expect((await view.findByRole('link', { name: '인사정보' })).getAttribute('href')).toBe('/admin/employees/e-1/personnel');
+  });
+
+  it('인사정보 일괄관리 메뉴는 모달 대신 전체 페이지를 연다', async () => {
+    const path = '/admin/employees/bulk-edit';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(page('employees'), 200, path)));
+    const view = render(<App initial={page()} />);
+    fireEvent.click(view.getByRole('button', { name: '인사관리' }));
+    fireEvent.click(view.getByRole('button', { name: '사원' }));
+    fireEvent.click(view.getByRole('link', { name: '인사정보 일괄관리' }));
+    await waitFor(() => expect(location.pathname).toBe(path));
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(view.getByRole('heading', { name: '인사정보 일괄관리' })).toBeTruthy();
+  });
+
+  it('인사기본 시트에서 입사 예정 관리와 선택 사원 Excel을 열고 확정 입사일을 편집하지 않는다', async () => {
+    const view = render(<App initial={page('employees', {
+      personnelAsOf: '2026-11-17',
+      personnelBasics: { 'e-1': { onboardingId: 'planned-one', gradeName: '선임',
+        positionName: '팀원', jobName: '개발', employmentStatus: 'ACTIVE' } },
+    })} />);
+    expect(within(view.getByRole('main')).getByRole('link', { name: '입사 예정 관리' }).getAttribute('href')).toBe('/admin/employees/onboarding');
+    expect(await view.findByRole('link', { name: '최초 발령 보기' })).toHaveProperty('pathname', '/admin/employees/onboarding/planned-one');
+    const joinDate = await view.findByLabelText('입사일 1');
+    fireEvent.keyDown(joinDate, { key: 'F2' });
+    expect(view.getByLabelText('입사일 1')).not.toBeInstanceOf(HTMLInputElement);
+    fireEvent.click(view.getByRole('button', { name: '인사기본 Excel' }));
+    const dialog = view.getByRole('dialog', { name: '인사기본 Excel' });
+    expect(within(dialog).getByRole('button', { name: '선택한 사원 다운로드' })).toHaveProperty('disabled', true);
+    expect(dialog.querySelector('form[data-native-submit]')).toHaveProperty('action', expect.stringContaining('/admin/employees/exports'));
+  });
+
   it('편집 전에는 텍스트 셀을 표시하고 저장된 조직 코드는 클릭·F2로 편집하지 않는다', async () => {
     const view = await show();
     const region = view.getByRole('region', { name: '조직 편집 시트' });
@@ -127,10 +177,13 @@ describe('조직·사원 시트 편집', () => {
   it('새 행은 저장 전 추가·제거하며 취소는 조회값으로 복원한다', async () => {
     const view = await show();
     fireEvent.click(view.getByRole('button', { name: '행 추가' }));
-    const code = await changeCell(view, '조직 코드 2', 'HR');
-    expect(code.hasAttribute('readonly')).toBe(false);
+    const code = await view.findByLabelText('조직 코드 2');
+    expect(code.textContent).toBe('저장 시 자동 발급');
+    expect(code.getAttribute('aria-readonly')).toBe('true');
+    fireEvent.keyDown(code.closest('.ag-cell')!, { key: 'F2' });
+    expect(view.getByLabelText('조직 코드 2')).not.toBeInstanceOf(HTMLInputElement);
     await changeCell(view, '조직 이름 2', '인사팀');
-    expect(postedRows(view)[0]).toMatchObject({ operation: 'CREATE', code: 'HR', name: '인사팀' });
+    expect(postedRows(view)[0]).toMatchObject({ operation: 'CREATE', code: '', name: '인사팀' });
     fireEvent.click(view.getByLabelText('2행 선택'));
     fireEvent.click(view.getByRole('button', { name: '비활성화' }));
     expect(view.queryByLabelText('조직 코드 2')).toBeNull();
@@ -140,18 +193,34 @@ describe('조직·사원 시트 편집', () => {
     expect(postedRows(view)).toEqual([]);
   });
 
-  it('신규 사번을 비워도 저장하며 기존 사번은 읽기 전용이다', async () => {
+  it('현재 필터에 없는 신규 조직도 저장 결과에서 코드와 상세 링크를 제공한다', async () => {
+    const view = await show(page('organizations', {
+      createdOrganizations: [{ clientRowId: 'new-row', id: 'new-id', code: '20260002' }],
+    }));
+    const result = view.getByRole('link', { name: '20260002' });
+    expect(result).toHaveProperty('pathname', '/admin/organizations/new-id');
+    expect(view.queryByText('인사팀')).toBeNull();
+  });
+
+  it('조직 관리 목록에서 단건 등록을 열고 코드 칸을 읽기 전용으로 표시한다', async () => {
+    const view = await show();
+    const summary = view.getByText('조직 단건 등록');
+    const details = summary.closest('details')!;
+    expect(details.open).toBe(false);
+    fireEvent.click(summary);
+    expect(details.open).toBe(true);
+    const field = within(details).getByRole('textbox', { name: '조직 코드' }) as HTMLInputElement;
+    expect(field.readOnly).toBe(true);
+    expect(field.value).toBe('');
+    expect(field.placeholder).toBe('저장 시 자동 발급');
+    expect(within(details).getByRole('button', { name: '조직 등록' })).toBeTruthy();
+  });
+
+  it('사원 등록은 입사 예정 흐름에서 시작하고 기존 사번은 읽기 전용이다', async () => {
     const view = await show(page('employees'));
     expect(view.getByLabelText('사번 1').getAttribute('aria-readonly')).toBe('true');
-    fireEvent.click(view.getByRole('button', { name: '행 추가' }));
-    const number = await openCell(view, '사번 2') as HTMLInputElement;
-    expect(number.required).toBe(false);
-    fireEvent.keyDown(number, { key: 'Enter' });
-    await waitFor(() => expect(number.isConnected).toBe(false));
-    await changeCell(view, '이름 2', '자동 사원');
-    await changeCell(view, '입사일 2', '2026-11-03');
-    expect(view.getByText(/사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급/)).toBeTruthy();
-    expect(postedRows(view, 'employees')[0]).toMatchObject({ employeeNo: '', joinedOn: '2026-11-03', operation: 'CREATE' });
+    expect(view.queryByRole('button', { name: '행 추가' })).toBeNull();
+    expect(within(view.getByRole('main')).getByRole('link', { name: '입사 예정 관리' })).toHaveProperty('pathname', '/admin/employees/onboarding');
   });
 
   it('기존 행 삭제는 비활성 예정이고 취소하면 복구된다', async () => {
@@ -266,17 +335,18 @@ describe('조직·사원 시트 편집', () => {
   it('422는 전체 입력·삭제예정·행 식별자를 복원하고 오류 필드로 초점을 보낸다', async () => {
     const initial = page();
     const failed = page('organizations', { organizationSheet: {
-      commandId: 'posted-command', reason: '업무 검토', rows: [{ ...orgRow, name: '중복팀', operation: 'DEACTIVATE' }, { clientRowId: 'new-row', operation: 'CREATE', code: 'NEW', name: '신규팀', parentId: null, active: true }],
-      latestRows: [organization], errors: [{ clientRowId: 'new-row', field: 'code', message: '조직 코드가 중복됩니다.' }],
+      commandId: 'posted-command', reason: '업무 검토', rows: [{ ...orgRow, name: '중복팀', operation: 'DEACTIVATE' }, { clientRowId: 'new-row', operation: 'CREATE', code: '', name: '신규팀', parentId: null, active: true }],
+      latestRows: [organization], errors: [{ clientRowId: 'new-row', field: 'name', message: '조직 이름을 확인해 주세요.' }],
     } });
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(response(failed, 422)));
     const view = await show(initial);
     await changeCell(view, '조직 이름 1', '중복팀');
     await save(view, '업무 검토');
-    await waitFor(() => expect(view.getByRole('button', { name: /조직 코드가 중복됩니다/ })).toBeTruthy());
-    expect(view.getByText('비활성 예정')).toBeTruthy();
-    expect(cellValue(view, '조직 코드 2')).toBe('NEW');
-    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 코드 2')));
+    await waitFor(() => expect(view.getByRole('button', { name: /조직 이름을 확인해 주세요/ })).toBeTruthy());
+    expect(await view.findByText('비활성 예정')).toBeTruthy();
+    expect(cellValue(view, '조직 코드 2')).toBe('저장 시 자동 발급');
+    expect(cellValue(view, '조직 이름 2')).toBe('신규팀');
+    await waitFor(() => expect(document.activeElement).toBe(view.getByLabelText('조직 이름 2')));
     expect(new FormData(bulkForm(view)).get('commandId')).toBe('posted-command');
     expect(postedRows(view).map(row => row.clientRowId)).toEqual(['row-org', 'new-row']);
   });
@@ -386,7 +456,9 @@ describe('조직·사원 시트 편집', () => {
     vi.stubGlobal('fetch', fetcher);
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const view = await show();
-    fireEvent.click(view.getByRole('link', { name: '사원 관리' }));
+    fireEvent.click(view.getByRole('button', { name: '인사관리' }));
+    fireEvent.click(view.getByRole('button', { name: '사원' }));
+    fireEvent.click(view.getByRole('link', { name: '인사기본' }));
     await view.findByLabelText('이름 1', {}, { timeout: 5000 });
     await changeCell(view, '이름 1', '직원 편집');
     const backRestored = restoredAt('/admin/employees');
@@ -478,6 +550,55 @@ function featurePage(name: string, data: Record<string, unknown>, roles = ['EMPL
   return { page: name, data: { workspacePrincipal: { roles }, workspaceEmployee: { employeeName: '직원', companyName: '합성회사' }, ...data }, csrf };
 }
 describe('조직장·조직도', () => {
+  it('담당자는 조직도 안에서 조회 문맥을 유지하며 종료일을 포함해 조직장 배정을 미리 본다', async () => {
+    const view = await show(featurePage('company/organizations', { companyOrganizations, organizationHeads }));
+    expect(view.getByRole('heading', { name: '조직도' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '조직장 배정' }));
+    const form = view.container.querySelector('main form[action="/admin/organization-heads/commands"]') as HTMLFormElement;
+    expect(form).toBeTruthy();
+    expect(view.getByLabelText('종료일 (마지막 담당일)')).toBeTruthy();
+    expect(view.getByRole('button', { name: '미리보기' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '배정 저장' })).toBeNull();
+    const body = new FormData(form);
+    expect(body.get('q')).toBe('김 & 개발');
+    expect(body.get('page')).toBe('1');
+    expect(body.get('organizationId')).toBe('o-1');
+  });
+
+  it('제시된 마지막 담당일을 넣고 날짜를 다시 편집하면 새 미리보기를 요구한다', async () => {
+    const view = await show(featurePage('company/organizations', {
+      companyOrganizations, organizationHeads,
+      headCommand: { ...headForm, operation: 'ASSIGN', lastDay: null },
+      headPreview: {
+        after: { employeeName: '김직원', validFrom: '2026-10-27', lastDay: '2026-10-29' },
+        vacancy: { from: '2026-10-30', through: '2026-10-31' },
+      },
+    }));
+    expect(view.getByRole('heading', { name: '변경 미리보기' })).toBeTruthy();
+    expect(view.getByText('2026-10-30 ~ 2026-10-31')).toBeTruthy();
+    const date = view.getByLabelText('종료일 (마지막 담당일)') as HTMLInputElement;
+    expect(date.value).toBe('2026-10-29');
+    expect(view.getByRole('button', { name: '배정 저장' })).toBeTruthy();
+    fireEvent.change(date, { target: { value: '2026-10-28' } });
+    expect(date.value).toBe('2026-10-28');
+    expect(view.queryByRole('button', { name: '배정 저장' })).toBeNull();
+    expect(view.getByRole('button', { name: '미리보기' })).toBeTruthy();
+  });
+
+  it('조직도 이력에서 종료일 변경의 이전 날짜와 새 날짜 및 변경 사유를 확인한다', async () => {
+    const view = await show(featurePage('company/organizations', {
+      companyOrganizations,
+      organizationHeads: { ...organizationHeads, endChanges: [{
+        id: 'end-1', reason: '근무 일정 <조정>', occurredAt: '2026-10-26T15:00:00Z',
+        validFrom: '2026-10-01', beforeValidTo: '2026-11-03', afterValidTo: '2026-11-01',
+      }] },
+    }));
+    const record = view.getByRole('region', { name: '종료일 변경 기록' });
+    expect(record.textContent).toContain('변경 전 마지막 담당일 2026-11-02');
+    expect(record.textContent).toContain('변경 후 마지막 담당일 2026-10-31');
+    expect(record.textContent).toContain('변경 사유 근무 일정 <조정>');
+  });
+
   it('조직장 이력과 선택 조직 직원을 공통 조회 그리드로 표시한다', async () => {
     const heads = await show(featurePage('org/organization-heads', { organizationHeads }));
     expect(heads.getByRole('region', { name: '조직장 배정 이력' }).querySelector('.ag-root-wrapper')).toBeTruthy();
@@ -513,7 +634,7 @@ describe('조직장·조직도', () => {
     expect(new FormData(end).has('employeeId')).toBe(false);
     expect(assign.querySelector('input[type="date"]')?.getAttribute('min')).toBe('2026-10-27');
     expect(view.getByText(/조직장 배정으로 관리·결재 권한/)).toBeTruthy();
-    expect(view.getByRole('link', { name: '조직장 배정' }).getAttribute('href')).toBe('/admin/organization-heads');
+    expect(view.getByRole('link', { name: '조직장 배정' }).getAttribute('href')).toBe('/admin/organization-heads?chart=true');
   });
   it('조직장 이력·부재와 결재 적격성을 구분하고 오류 입력을 보존한다', async () => {
     const view = await show(featurePage('org/organization-heads', { error: '재직 기간을 확인하세요.', organizationHeads: { ...organizationHeads, form: { ...headForm, employeeId: 'missing', reason: '기존 입력' } } }));

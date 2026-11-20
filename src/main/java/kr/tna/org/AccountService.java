@@ -8,7 +8,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
@@ -26,21 +25,23 @@ import static kr.tna.org.OrgCommands.*;
 
 @Service
 public final class AccountService {
-    private static final Set<String> SUPPORTED_ROLES = Set.of("EMPLOYEE", "APPROVER", "ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE");
+    static final Set<String> SUPPORTED_ROLES = Set.of("EMPLOYEE", "APPROVER", "ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE");
     private static final SecureRandom RANDOM = new SecureRandom();
     private final AccountAdminMapper mapper;
     private final EmployeeAdminMapper employees;
     private final OrgCommands commands;
     private final InvitationDelivery delivery;
     private final Clock clock;
+    private final PublicDemoIdentityGuard identityGuard;
 
     public AccountService(AccountAdminMapper mapper, EmployeeAdminMapper employees, OrgCommands commands,
-                          InvitationDelivery delivery, Clock clock) {
+                          InvitationDelivery delivery, Clock clock, PublicDemoIdentityGuard identityGuard) {
         this.mapper = mapper;
         this.employees = employees;
         this.commands = commands;
         this.delivery = delivery;
         this.clock = clock;
+        this.identityGuard = identityGuard;
     }
 
     public Account get(TnaPrincipal actor, UUID employeeId) {
@@ -50,17 +51,8 @@ public final class AccountService {
         });
     }
 
-    public List<AccountAdminMapper.AccessRow> list(TnaPrincipal actor, String query, int page) {
-        int offset = offset(page);
-        String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
-        String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        return commands.read(actor, () -> mapper.directory(actor.tenantId(), search, offset, commands.today()).stream()
-                .map(row -> new AccountAdminMapper.AccessRow(row.employeeId(), row.employeeNo(), row.employeeName(),
-                        row.grantedRoles().isEmpty() ? Set.of() : Set.of(row.grantedRoles().split(",")), row.active()))
-                .toList());
-    }
-
     public UUID invite(TnaPrincipal actor, UUID employeeId, InvitationForm form) {
+        identityGuard.requireMutable(actor, employeeId);
         String email = email(form.email());
         String reason = requiredText(form.reason(), 500, "초대 사유");
         String action = "ACCOUNT_INVITE";
@@ -103,6 +95,7 @@ public final class AccountService {
     }
 
     public UUID roles(TnaPrincipal actor, UUID employeeId, RolesForm form) {
+        identityGuard.requireMutable(actor, employeeId);
         if (form.roles() == null || !form.roles().contains("EMPLOYEE")
                 || form.roles().stream().anyMatch(role -> !SUPPORTED_ROLES.contains(role))) {
             throw OrgException.invalid("직원 역할을 유지하고 지원하는 역할만 선택해 주세요.");

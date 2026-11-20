@@ -1,6 +1,7 @@
 package kr.tna.org;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +22,15 @@ import static kr.tna.org.OrgCommands.*;
 public final class EmployeeService {
     private final EmployeeAdminMapper mapper;
     private final OrgCommands commands;
+    private final PublicDemoIdentityGuard identityGuard;
+    private final EmployeeOnboardingMapper onboarding;
 
-    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands) {
+    public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands, PublicDemoIdentityGuard identityGuard,
+            EmployeeOnboardingMapper onboarding) {
         this.mapper = mapper;
         this.commands = commands;
+        this.identityGuard = identityGuard;
+        this.onboarding = onboarding;
     }
 
     public List<Employee> list(TnaPrincipal actor, String query, int page) {
@@ -32,6 +38,37 @@ public final class EmployeeService {
         String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
         String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         return commands.read(actor, () -> mapper.list(actor.tenantId(), search, offset));
+    }
+
+    public record PersonnelSearch(List<PersonnelMatch> rows, int page, boolean hasNext) { }
+    public record PersonnelMatch(UUID employeeId, String employeeNo, String employeeName, String organizationName, String status) { }
+
+    PersonnelSearch searchPersonnel(TnaPrincipal actor, String query, int page) {
+        int offset = offset(page);
+        String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
+        String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return commands.readShared(actor, () -> {
+            LocalDate today = commands.today();
+            var rows = mapper.list(actor.tenantId(), search, offset);
+            var visible = rows.stream().limit(50).toList();
+            if (visible.isEmpty()) return new PersonnelSearch(List.of(), page, false);
+            var ids = visible.stream().map(Employee::id).toList();
+            Map<UUID, String> names = new HashMap<>(), statuses = new HashMap<>();
+            mapper.currentOrganizations(actor.tenantId(), ids, today)
+                    .forEach(assignment -> names.put(assignment.employeeId(), assignment.organizationName()));
+            mapper.personnelBasics(actor.tenantId(), ids, today)
+                    .forEach(person -> statuses.put(person.employeeId(), person.employmentStatus()));
+            return new PersonnelSearch(visible.stream().map(employee -> new PersonnelMatch(employee.id(),
+                    employee.employeeNo(), employee.displayName(), names.get(employee.id()),
+                    searchStatus(employee, today, statuses.get(employee.id())))).toList(), page, rows.size() > 50);
+        });
+    }
+
+    private static String searchStatus(Employee employee, LocalDate today, String status) {
+        if (employee.leftOn() != null && employee.leftOn().isBefore(today)) return "LEFT";
+        if (!employee.active()) return "INACTIVE";
+        if (employee.joinedOn().isAfter(today)) return "PRE_JOINING";
+        return Objects.requireNonNullElse(status, "UNKNOWN");
     }
 
     public OrgData.EmployeeDirectory directory(TnaPrincipal actor, String query, int page,
@@ -79,6 +116,7 @@ public final class EmployeeService {
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
                 fingerprint(action, values.employeeNo(), values.displayName(), values.joinedOn(),
                         values.leftOn(), values.active(), form.expectedVersion(), reason), reason, () -> {
+                    mapper.requireOpen(actor.tenantId(), values.joinedOn(), values.leftOn());
                     String number = values.employeeNo() == null
                             ? EmployeeNumbers.next(values.joinedOn(), mapper.employeeNumbers(actor.tenantId())) : values.employeeNo();
                     var employee = new Employee(UUID.randomUUID(), number, values.displayName(),
@@ -89,6 +127,7 @@ public final class EmployeeService {
     }
 
     public UUID update(TnaPrincipal actor, UUID id, EmployeeForm form) {
+        identityGuard.requireMutable(actor, id);
         var values = normalize(form, false);
         String reason = requiredText(form.reason(), 500, "변경 사유");
         String action = "EMPLOYEE_UPDATE";
@@ -100,22 +139,72 @@ public final class EmployeeService {
                     if (!before.employeeNo().equals(values.employeeNo())) {
                         throw OrgException.invalid("사번은 등록 후 변경할 수 없습니다.");
                     }
-                    boolean employmentChanged = before.active() != values.active()
-                            || !before.joinedOn().equals(values.joinedOn())
-                            || !Objects.equals(before.leftOn(), values.leftOn());
-                    LocalDate today = commands.today();
-                    boolean possibleRemoval = !values.active() || values.leftOn() != null || values.joinedOn().isAfter(today);
-                    if (employmentChanged && possibleRemoval
-                            && mapper.isEffectiveAdmin(actor.tenantId(), id, today)
-                            && !mapper.hasOtherPermanentAdmin(actor.tenantId(), id, today)) {
-                        throw OrgException.invalid("다른 재직 중인 활성 담당자를 지정한 뒤 재직 상태를 변경해 주세요.");
-                    }
-                    var after = new Employee(id, before.employeeNo(), values.displayName(), values.joinedOn(),
-                            values.leftOn(), values.active(), before.version() + 1);
-                    requireChanged(mapper.update(actor.tenantId(), after, before.version(), actor.accountId()));
-                    if (employmentChanged) mapper.revokeSessions(actor.tenantId(), id);
-                    return new Change(id, before, after);
+                    return new Change(id, before, applyUpdate(actor, before, values));
                 });
+    }
+
+    boolean joinedOnLocked(TnaPrincipal actor, UUID id) {
+        return onboarding.isConfirmedEmployee(actor.tenantId(), id);
+    }
+
+    long saveBasic(TnaPrincipal actor, Employee before, String name, LocalDate joinedOn, LocalDate leftOn) {
+        var values = normalize(new EmployeeForm(before.employeeNo(), name, joinedOn, leftOn, before.active(),
+                null, null, null), false);
+        if (before.displayName().equals(values.displayName()) && before.joinedOn().equals(values.joinedOn())
+                && Objects.equals(before.leftOn(), values.leftOn())) {
+            return before.version();
+        }
+        return applyUpdate(actor, before, values).version();
+    }
+
+    private Employee applyUpdate(TnaPrincipal actor, Employee before, EmployeeValues values) {
+        UUID id = before.id();
+        requireOpenEmployment(mapper, actor.tenantId(), before, values.joinedOn(), values.leftOn());
+        if (!before.joinedOn().equals(values.joinedOn()) && joinedOnLocked(actor, id)) {
+            throw OrgException.invalid("최초 발령이 확정된 사원의 입사일은 변경할 수 없습니다.");
+        }
+        boolean employmentChanged = before.active() != values.active() || !before.joinedOn().equals(values.joinedOn())
+                || !Objects.equals(before.leftOn(), values.leftOn());
+        LocalDate today = commands.today();
+        boolean possibleRemoval = !values.active() || values.leftOn() != null || values.joinedOn().isAfter(today);
+        if (employmentChanged && possibleRemoval && mapper.isEffectiveAdmin(actor.tenantId(), id, today)
+                && !mapper.hasOtherPermanentAdmin(actor.tenantId(), id, today)) {
+            throw OrgException.invalid("다른 재직 중인 활성 담당자를 지정한 뒤 재직 상태를 변경해 주세요.");
+        }
+        var after = new Employee(id, before.employeeNo(), values.displayName(), values.joinedOn(),
+                values.leftOn(), values.active(), before.version() + 1);
+        requireChanged(mapper.update(actor.tenantId(), after, before.version(), actor.accountId()));
+        if (employmentChanged) mapper.revokeSessions(actor.tenantId(), id);
+        return after;
+    }
+
+    static void requireOpenEmployment(EmployeeAdminMapper mapper, UUID tenant, Employee before, LocalDate joined, LocalDate left) {
+        if (before == null) {
+            mapper.requireOpen(tenant, joined, left);
+            return;
+        }
+        if (before.joinedOn().equals(joined) && Objects.equals(before.leftOn(), left)) return;
+        LocalDate excluded = mapper.firstNewlyExcludedFollowUp(tenant, before, joined, left);
+        if (excluded != null) {
+            throw OrgException.conflict(excluded + " 근무일의 퇴근 보완 요청을 먼저 처리한 뒤 재직 기간을 변경해 주세요.");
+        }
+        LocalDate start = before.joinedOn().isBefore(joined) ? before.joinedOn() : joined;
+        LocalDate end = null;
+        if (before.leftOn() != null && left != null) end = before.leftOn().isAfter(left) ? before.leftOn() : left;
+        for (LocalDate closed : mapper.closedMonths(tenant, start, end)) {
+            var month = YearMonth.from(closed);
+            if (!Objects.equals(inMonth(month, before.joinedOn(), before.leftOn()), inMonth(month, joined, left))) {
+                throw OrgException.conflict(month + " 근태가 마감되었습니다. 월 마감을 재개한 뒤 재직 기간을 변경해 주세요.");
+            }
+        }
+    }
+
+    private record EmploymentPeriod(LocalDate first, LocalDate last) { }
+
+    private static EmploymentPeriod inMonth(YearMonth month, LocalDate joined, LocalDate left) {
+        LocalDate first = joined.isAfter(month.atDay(1)) ? joined : month.atDay(1);
+        LocalDate last = left != null && left.isBefore(month.atEndOfMonth()) ? left : month.atEndOfMonth();
+        return last.isBefore(first) ? null : new EmploymentPeriod(first, last);
     }
 
     public List<Assignment> assignments(TnaPrincipal actor, UUID employeeId) {
@@ -126,6 +215,7 @@ public final class EmployeeService {
     }
 
     public UUID assign(TnaPrincipal actor, UUID employeeId, AssignmentForm form) {
+        identityGuard.requireMutable(actor, employeeId);
         if (form.organizationId() == null || form.validFrom() == null) {
             throw OrgException.invalid("조직과 소속 적용일을 입력해 주세요.");
         }
@@ -168,7 +258,7 @@ public final class EmployeeService {
                 });
     }
 
-    private Employee requireEmployee(UUID tenantId, UUID id) {
+    Employee requireEmployee(UUID tenantId, UUID id) {
         Employee employee = mapper.get(tenantId, id);
         if (employee == null) throw OrgException.notFound();
         return employee;

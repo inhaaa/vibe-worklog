@@ -66,7 +66,7 @@ class OrganizationWebIT {
                 .andExpect(header().string("Cache-Control", containsString("no-store")))
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(inputAttribute("active", "checked", null));
-        mvc.perform(get("/admin/employees").session(session))
+        mvc.perform(get("/admin/employees/bulk-edit").session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/employees"))
                 .andExpect(inputAttribute("active", "checked", null))
                 .andExpect(ReactPageAssertions.page());
@@ -76,10 +76,29 @@ class OrganizationWebIT {
     }
 
     @Test
+    void approvalUnitCanBeSetClearedOrPreservedByOlderClients() throws Exception {
+        var session = login(DatabaseFixture.COMPANY_A);
+        UUID id = createOrganization(session, "결재 단위 조직");
+        String code = admin.queryForObject("SELECT code FROM tna.organization WHERE tenant_id=? AND id=?",
+                String.class, DatabaseFixture.TENANT_A, id);
+        mvc.perform(organizationChange(session, id, code, "팀", 0).param("approvalUnit", "TEAM"))
+                .andExpect(status().isSeeOther());
+        mvc.perform(organizationChange(session, id, code, "새 팀 이름", 1))
+                .andExpect(status().isSeeOther());
+        mvc.perform(get("/admin/organizations/{id}", id).session(session))
+                .andExpect(ReactPageAssertions.data("/form/approvalUnit", "TEAM"));
+        mvc.perform(organizationChange(session, id, code, "팀", 2).param("approvalUnit", "INVALID"))
+                .andExpect(status().isUnprocessableEntity());
+        mvc.perform(organizationChange(session, id, code, "팀", 2).param("approvalUnit", "UNASSIGNED"))
+                .andExpect(status().isSeeOther());
+        assertNull(admin.queryForObject("SELECT approval_unit FROM tna.organization WHERE tenant_id=? AND id=?",
+                String.class, DatabaseFixture.TENANT_A, id));
+    }
+
+    @Test
     void organizationCreateAndChangeRedirectToDetailAndRejectStaleVersion() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
-        String code = uniqueCode();
-        UUID id = createOrganization(session, code, "처음 조직");
+        UUID id = createOrganization(session, "처음 조직");
         var detail = mvc.perform(get("/admin/organizations/{id}", id).session(session))
                 .andExpect(status().isOk()).andExpect(view().name("org/organization"))
                 .andExpect(content().string(containsString("처음 조직")))
@@ -87,6 +106,8 @@ class OrganizationWebIT {
                 .andReturn();
         var original = (OrgData.Organization) detail.getModelAndView().getModel().get("organization");
         assertEquals(0, original.version());
+        String code = original.code();
+        assertTrue(code.matches(today().getYear() + "[0-9]{4}"));
 
         mvc.perform(organizationChange(session, id, code, "변경 조직", original.version()))
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/admin/organizations/" + id));
@@ -126,11 +147,10 @@ class OrganizationWebIT {
     @Test
     void organizationValidationPreservesInputAndStoredNameIsEscaped() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
-        String code = uniqueCode();
         String name = "<script>alert(1)</script>";
         UUID command = UUID.randomUUID();
         var invalid = mvc.perform(post("/admin/organizations").session(session).with(csrf())
-                        .param("code", code).param("name", name).param("active", "true")
+                        .param("name", name).param("active", "true")
                         .param("reason", " ").param("commandId", command.toString()))
                 .andExpect(status().is(422)).andExpect(view().name("org/organizations"))
                 .andExpect(ReactPageAssertions.dataPresent("/error"))
@@ -139,7 +159,8 @@ class OrganizationWebIT {
         var preserved = (OrgData.OrganizationForm) invalid.getModelAndView().getModel().get("form");
         assertEquals(name, preserved.name());
         assertEquals(command, preserved.commandId());
-        UUID id = createOrganization(session, code, name);
+        UUID id = createOrganization(session, name);
+        String code = organizationCode(id);
         for (String path : List.of("/admin/organizations/" + id, "/admin/organizations")) {
             mvc.perform(get(path).session(session).param("q", code))
                     .andExpect(status().isOk())
@@ -171,7 +192,7 @@ class OrganizationWebIT {
     void everyMutationRequiresCsrf() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
         UUID employee = createEmployee(session, uniqueCode(), "CSRF 확인");
-        UUID organization = createOrganization(session, uniqueCode(), "CSRF 조직");
+        UUID organization = createOrganization(session, "CSRF 조직");
         for (String path : List.of("/admin/organizations", "/admin/organizations/" + organization + "/changes",
                 "/admin/employees", "/admin/employees/" + employee + "/changes",
                 "/admin/employees/" + employee + "/assignments")) {
@@ -188,7 +209,7 @@ class OrganizationWebIT {
                 "/admin/organizations/" + UUID.randomUUID(), "/admin/employees/" + DatabaseFixture.EMPLOYEE_B)) {
             mvc.perform(get(path).session(session)).andExpect(status().isForbidden());
         }
-        mvc.perform(organizationPost(session, uniqueCode(), "권한 없는 등록", UUID.randomUUID()))
+        mvc.perform(organizationPost(session, "권한 없는 등록", UUID.randomUUID()))
                 .andExpect(status().isForbidden());
         mvc.perform(employeePost(session, uniqueCode(), "권한 없는 사원", UUID.randomUUID()))
                 .andExpect(status().isForbidden());
@@ -203,7 +224,7 @@ class OrganizationWebIT {
         grantAdmin(DatabaseFixture.TENANT_B, DatabaseFixture.ACCOUNT_B);
         var companyA = login(DatabaseFixture.COMPANY_A);
         var companyB = login(DatabaseFixture.COMPANY_B);
-        UUID foreignOrganization = createOrganization(companyB, uniqueCode(), "다른 고객사 전용 조직");
+        UUID foreignOrganization = createOrganization(companyB, "다른 고객사 전용 조직");
         UUID employee = createEmployee(companyA, uniqueCode(), "소속 검증 사원");
         mvc.perform(get("/admin/organizations/{id}", foreignOrganization).session(companyA)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
@@ -212,7 +233,7 @@ class OrganizationWebIT {
                 .andExpect(content().string(not(containsString("다른 고객사 전용 조직"))));
         mvc.perform(get("/admin/employees/{id}", DatabaseFixture.EMPLOYEE_B).session(companyA))
                 .andExpect(status().isNotFound());
-        mvc.perform(organizationPost(companyA, uniqueCode(), "외부 부모", UUID.randomUUID())
+        mvc.perform(organizationPost(companyA, "외부 부모", UUID.randomUUID())
                         .param("parentId", foreignOrganization.toString())
                         .param("tenantId", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isNotFound());
@@ -221,8 +242,7 @@ class OrganizationWebIT {
                         .param("expectedVersion", "0").param("commandId", UUID.randomUUID().toString()).param("reason", "외부 소속"))
                 .andExpect(status().isNotFound());
 
-        String ownCode = uniqueCode();
-        var forgedCreate = mvc.perform(organizationPost(companyA, ownCode, "인증 고객사 조직", UUID.randomUUID())
+        var forgedCreate = mvc.perform(organizationPost(companyA, "인증 고객사 조직", UUID.randomUUID())
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .param("tenantId", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
@@ -243,7 +263,7 @@ class OrganizationWebIT {
                     .andExpect(content().string(not(containsString("java.lang"))))
                     .andExpect(content().string(not(containsString("jdbc:"))));
         }
-        mvc.perform(organizationPost(session, uniqueCode(), "형식 확인", UUID.randomUUID()).param("parentId", "bad-id"))
+        mvc.perform(organizationPost(session, "형식 확인", UUID.randomUUID()).param("parentId", "bad-id"))
                 .andExpect(status().isBadRequest()).andExpect(view().name("org/problem"));
         mvc.perform(post("/admin/employees").session(session).with(csrf())
                         .param("employeeNo", uniqueCode()).param("displayName", "날짜 확인")
@@ -259,8 +279,8 @@ class OrganizationWebIT {
     @Test
     void assignmentRedirectPreservesAdjacentHistoryAndRejectsSameStartWithInput() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
-        UUID first = createOrganization(session, uniqueCode(), "첫 소속");
-        UUID next = createOrganization(session, uniqueCode(), "다음 소속");
+        UUID first = createOrganization(session, "첫 소속");
+        UUID next = createOrganization(session, "다음 소속");
         UUID employee = createEmployee(session, uniqueCode(), "이동 사원");
         LocalDate from = today();
         LocalDate moved = from.plusDays(10);
@@ -295,19 +315,33 @@ class OrganizationWebIT {
     void successfulCommandRetryRedirectsToSameTargetAndChangedInputConflicts() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
         UUID command = UUID.randomUUID();
-        String code = uniqueCode();
-        var first = mvc.perform(organizationPost(session, code, "재시도 조직", command))
+        var first = mvc.perform(organizationPost(session, "재시도 조직", command))
                 .andExpect(status().isSeeOther()).andReturn();
+        String code = organizationCode(redirectedId(first));
         String target = first.getResponse().getRedirectedUrl();
-        mvc.perform(organizationPost(session, code, "재시도 조직", command))
+        mvc.perform(organizationPost(session, "재시도 조직", command))
                 .andExpect(status().isSeeOther()).andExpect(redirectedUrl(target));
-        mvc.perform(organizationPost(session, code, "다른 요청", command))
+        mvc.perform(organizationPost(session, "다른 요청", command))
                 .andExpect(status().isConflict()).andExpect(view().name("org/organizations"))
                 .andExpect(inputAttribute("name", "value", "다른 요청"));
         assertEquals(1, admin.queryForObject("SELECT count(*) FROM tna.organization WHERE tenant_id=? AND code=?",
                 Integer.class, DatabaseFixture.TENANT_A, code).intValue());
         assertEquals(1, admin.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
                 Integer.class, DatabaseFixture.TENANT_A, command).intValue());
+    }
+
+    @Test
+    void newOrganizationRejectsClientCodeAndPreservesSingleCreateForm() throws Exception {
+        var session = login(DatabaseFixture.COMPANY_A);
+        var command = UUID.randomUUID();
+        mvc.perform(organizationPost(session, "조직명 보존", command).param("code", "MANUAL"))
+                .andExpect(status().is(422))
+                .andExpect(ReactPageAssertions.data("/organizationCreateFailed", true))
+                .andExpect(ReactPageAssertions.data("/form/name", "조직명 보존"));
+        assertEquals(0, admin.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
+                Integer.class, DatabaseFixture.TENANT_A, command).intValue());
+        mvc.perform(organizationPost(session, "조직명 보존", command).param("code", " "))
+                .andExpect(status().isSeeOther());
     }
 
     @Test
@@ -340,12 +374,11 @@ class OrganizationWebIT {
     @Test
     void inactiveChildKeepsSelectedInactiveParentDuringRenameAndCannotReactivate() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
-        String parentCode = uniqueCode();
-        String childCode = uniqueCode();
-        UUID parent = createOrganization(session, parentCode, "보관 부모 조직");
-        UUID child = redirectedId(mvc.perform(organizationPost(session, childCode, "보관 하위 조직", UUID.randomUUID())
+        UUID parent = createOrganization(session, "보관 부모 조직");
+        UUID child = redirectedId(mvc.perform(organizationPost(session, "보관 하위 조직", UUID.randomUUID())
                         .param("parentId", parent.toString()))
                 .andExpect(status().isSeeOther()).andReturn());
+        String parentCode = organizationCode(parent), childCode = organizationCode(child);
         mvc.perform(organizationChange(session, child, childCode, "보관 하위 조직", 0, false)
                         .param("parentId", parent.toString()))
                 .andExpect(status().isSeeOther());
@@ -384,9 +417,9 @@ class OrganizationWebIT {
                 .andReturn().getRequest().getSession(false);
     }
 
-    private MockHttpServletRequestBuilder organizationPost(MockHttpSession session, String code, String name, UUID command) {
+    private MockHttpServletRequestBuilder organizationPost(MockHttpSession session, String name, UUID command) {
         return post("/admin/organizations").session(session).with(csrf())
-                .param("code", code).param("name", name).param("active", "true")
+                .param("name", name).param("active", "true")
                 .param("reason", "합성 자료 등록").param("commandId", command.toString());
     }
 
@@ -423,9 +456,13 @@ class OrganizationWebIT {
                 .param("commandId", UUID.randomUUID().toString());
     }
 
-    private UUID createOrganization(MockHttpSession session, String code, String name) throws Exception {
-        return redirectedId(mvc.perform(organizationPost(session, code, name, UUID.randomUUID()))
+    private UUID createOrganization(MockHttpSession session, String name) throws Exception {
+        return redirectedId(mvc.perform(organizationPost(session, name, UUID.randomUUID()))
                 .andExpect(status().isSeeOther()).andReturn());
+    }
+
+    private String organizationCode(UUID id) {
+        return admin.queryForObject("SELECT code FROM tna.organization WHERE id=?", String.class, id);
     }
 
     private UUID createEmployee(MockHttpSession session, String employeeNo, String name) throws Exception {

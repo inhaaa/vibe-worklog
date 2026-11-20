@@ -60,53 +60,6 @@ class CompanyAccessWebIT {
     }
 
     @Test
-    void administratorDirectoryReturnsOnlySafeRowsFromAuthenticatedCompany() throws Exception {
-        Member target = member("E001", "권한 검색 사원", Set.of("EMPLOYEE", "APPROVER"));
-        var session = login(manager);
-        var result = mvc.perform(get("/admin/access").session(session).param("q", "권한 검색")
-                        .param("tenantId", DatabaseFixture.TENANT_B.toString())
-                        .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString())
-                        .accept("application/vnd.worklog.page+json"))
-                .andExpect(status().isOk()).andExpect(view().name("org/access-list"))
-                .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.csrf())
-                .andExpect(ReactPageAssertions.data("/q", "권한 검색"))
-                .andExpect(ReactPageAssertions.data("/page", 0))
-                .andExpect(ReactPageAssertions.data("/hasNext", false)).andReturn();
-        var rows = ReactPageAssertions.envelope(result).at("/data/accessRows");
-        assertEquals(1, rows.size());
-        var row = rows.get(0);
-        assertEquals(target.employee().toString(), row.get("employeeId").asString());
-        assertEquals("E001", row.get("employeeNo").asString());
-        assertEquals("권한 검색 사원", row.get("employeeName").asString());
-        assertTrue(row.get("active").asBoolean());
-        assertEquals(Set.of("EMPLOYEE", "APPROVER"), Set.of(row.get("roles").get(0).asString(), row.get("roles").get(1).asString()));
-        assertEquals(5, row.size());
-        assertFalse(result.getResponse().getContentAsString().contains(target.email()));
-        assertFalse(result.getResponse().getContentAsString().contains(target.account().toString()));
-    }
-
-    @Test
-    void directoryPagesFiftyEmployeesAndEscapesSearchWildcards() throws Exception {
-        for (int index = 0; index < 51; index++) {
-            database.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'목록 사원',?)",
-                    tenant, UUID.randomUUID(), "P" + String.format("%03d", index), today().minusYears(1));
-        }
-        member("LITERAL_%", "문자 검색", Set.of("EMPLOYEE"));
-        var session = login(manager);
-        var first = mvc.perform(get("/admin/access").session(session).param("q", "P"))
-                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/hasNext", true)).andReturn();
-        assertEquals(50, ReactPageAssertions.envelope(first).at("/data/accessRows").size());
-        var second = mvc.perform(get("/admin/access").session(session).param("q", "P").param("page", "1"))
-                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/hasNext", false)).andReturn();
-        assertEquals(1, ReactPageAssertions.envelope(second).at("/data/accessRows").size());
-        assertFalse(ReactPageAssertions.envelope(second).at("/data/accessRows/0/active").asBoolean());
-        var literal = mvc.perform(get("/admin/access").session(session).param("q", "_%"))
-                .andExpect(status().isOk()).andReturn();
-        assertEquals(1, ReactPageAssertions.envelope(literal).at("/data/accessRows").size());
-        mvc.perform(get("/admin/access").session(session).param("page", "-1")).andExpect(status().is(422));
-    }
-
-    @Test
     void representativeGrantAndRemovalRevokeSessionsWhileRetainingExplicitApprover() throws Exception {
         Member target = member("REP", "합성 대표", Set.of("EMPLOYEE", "APPROVER"));
         var administrator = login(manager);

@@ -12,7 +12,12 @@ public final class BulkData {
         String clientRowId(); UUID id(); Long expectedVersion(); Operation operation();
     }
     public record OrganizationRow(String clientRowId, UUID id, Long expectedVersion, Operation operation,
-            String code, String name, UUID parentId, boolean active) implements Row { }
+            String code, String name, UUID parentId, boolean active,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) String approvalUnit) implements Row {
+        public OrganizationRow(String clientRowId,UUID id,Long expectedVersion,Operation operation,String code,String name,UUID parentId,boolean active) {
+            this(clientRowId,id,expectedVersion,operation,code,name,parentId,active,null);
+        }
+    }
     public record EmployeeRow(String clientRowId, UUID id, Long expectedVersion, Operation operation,
             String employeeNo, String displayName, LocalDate joinedOn, LocalDate leftOn, boolean active) implements Row { }
     public record Form<R extends Row>(UUID commandId, String reason, List<R> rows) { }
@@ -26,7 +31,7 @@ public final class BulkData {
     public static Sheet organizations(UUID commandId, String reason, List<OrgData.Organization> latest,
                                       List<OrganizationRow> dirty, List<FieldError> errors) {
         var base = latest.stream().map(row -> new OrganizationRow(row.id().toString(), row.id(), row.version(),
-                Operation.UPDATE, row.code(), row.name(), row.parentId(), row.active())).toList();
+                Operation.UPDATE, row.code(), row.name(), row.parentId(), row.active(), row.approvalUnit())).toList();
         return new Sheet(commandId, reason, overlay(base, dirty), latest, errors);
     }
 

@@ -2,30 +2,41 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import type { PageProps } from '../types';
 import { ErrorNotice, Field, Form, SelectField, TextAreaField, fmtDate, fmtDateTime, FormTable } from '../ui';
-import type { Employee, Organization } from './AdminTypes';
+import { approvalUnits } from './AdminTypes';
+import type { Employee, Organization, OrganizationForm } from './AdminTypes';
+import { OrganizationCreateForm } from './AdminPages';
 import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
+import { Modal } from '../components/Modal';
+import { employmentStatusName } from '../components/EmployeeHeader';
 import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
 import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
+import { OrganizationHeadChart, OrganizationHeadOverview, chartPath } from './OrganizationHeadChart';
+import type { HeadChartData, HeadCommand, HeadOverview, HeadPreview } from './OrganizationHeadChart';
 
 type Operation = 'CREATE' | 'UPDATE' | 'DEACTIVATE';
 interface RowBase { clientRowId: string; id?: string | null; expectedVersion?: number | null; operation: Operation; active: boolean }
-interface OrganizationRow extends RowBase { code: string; name: string; parentId: string | null }
+interface OrganizationRow extends RowBase { code: string; name: string; parentId: string | null; approvalUnit?: string | null }
 interface EmployeeRow extends RowBase { employeeNo: string; displayName: string; joinedOn: string; leftOn: string | null }
 type Row = OrganizationRow | EmployeeRow;
 interface RowError { clientRowId: string; field: string; message: string }
 interface SheetModel { commandId: string; reason: string; rows: Row[]; latestRows: (Employee | Organization)[]; errors: RowError[] }
 interface SheetPageModel {
   organizationSheet?: SheetModel; employeeSheet?: SheetModel;
+  form?: OrganizationForm; organizationCreateFailed?: boolean;
+  createdOrganizations?: { clientRowId: string; id: string; code: string }[];
   options: Organization[]; q: string; page: number; hasNext: boolean;
   organizationId?: string | null; status?: string;
   employeeOrganizations?: Record<string, string>; error?: string | null;
   organizationHeadsById?: Record<string, { employeeName: string; eligible: boolean; approverEligible: boolean }>;
   employeeContext?: Record<string, { organizationName: string | null; organizationHeadName: string | null; organizationHeadEligible: boolean; organizationHeadApproverEligible: boolean; scheduleName: string | null }>;
+  personnelBasics?: Record<string, { onboardingId?: string | null; gradeName?: string | null; positionName?: string | null; jobName?: string | null; employmentStatus?: string | null }>;
+  personnelAsOf?: string;
+  publicDemo?: boolean;
 }
 const fields = (organization: boolean) => organization
-  ? ['code', 'name', 'parentId', 'active'] as const
+  ? ['code', 'name', 'parentId', 'approvalUnit', 'active'] as const
   : ['employeeNo', 'displayName', 'joinedOn', 'leftOn', 'active'] as const;
 function businessValue(row: Row | Employee | Organization, field: string) {
   return (row as unknown as Record<string, unknown>)[field] ?? '';
@@ -42,6 +53,7 @@ function serialize(row: Row, organization: boolean) {
     expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation,
   };
   for (const field of fields(organization)) result[field] = (row as unknown as Record<string, unknown>)[field];
+  if (organization && row.operation === 'CREATE') result.code = '';
   return result;
 }
 function queryHref(path: string, values: Record<string, string | number | null | undefined>) {
@@ -57,6 +69,7 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const [selected, setSelected] = useState(new Set<string>());
   const [errors, setErrors] = useState(model.errors ?? []);
   const [confirming, setConfirming] = useState(() => (model.errors ?? []).some(error => error.field === 'reason'));
+  const [exporting, setExporting] = useState(false);
   const formId = useId();
   const sheet = useRef<WorklogSheetHandle>(null);
   const latest = useMemo(() => new Map(model.latestRows.map(row => [row.id, row])), [model.latestRows]);
@@ -64,9 +77,11 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   const conflicts = dirty.filter(row => row.id && latest.has(row.id) && row.expectedVersion !== latest.get(row.id)!.version);
   const unsaved = dirty.length > 0 || reason.length > 0;
   const reasonError = errors.find(error => error.field === 'reason')?.message;
-  const path = organization ? '/admin/organizations' : '/admin/employees';
-  const title = organization ? '조직 관리' : '사원 관리';
+  const path = organization ? '/admin/organizations' : '/admin/employees/bulk-edit';
+  const bulkPath = organization ? '/admin/organizations/bulk' : '/admin/employees/bulk';
+  const title = organization ? '조직 관리' : '인사정보 일괄관리';
   const label = organization ? '조직' : '사원';
+  const exportIds = rows.flatMap(row => row.id && selected.has(row.clientRowId) ? [row.id] : []);
   const renew = () => setCommandId(crypto.randomUUID());
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -82,11 +97,9 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   }
   function add() {
     const base = { clientRowId: crypto.randomUUID(), operation: 'CREATE' as const, active: true };
-    setRows(current => [...current, organization
-      ? { ...base, code: '', name: '', parentId: null }
-      : { ...base, employeeNo: '', displayName: '', joinedOn: '', leftOn: null }]);
+    setRows(current => [...current, { ...base, code: '', name: '', parentId: null }]);
     renew();
-    setTimeout(() => sheet.current?.focusCell(base.clientRowId, organization ? 'code' : 'employeeNo'), 0);
+    setTimeout(() => sheet.current?.focusCell(base.clientRowId, 'name'), 0);
   }
   function remove() {
     setRows(current => current.filter(row => row.id || !selected.has(row.clientRowId)).map(row =>
@@ -129,11 +142,12 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
   function headCell(row: Row) {
     if (!row.id) return '저장 후 배정';
     const head = m.organizationHeadsById?.[row.id];
-    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} />{' '}<a href={queryHref('/admin/organization-heads', { organizationId: row.id })}>조직장 배정</a></>;
+    return <><HeadStatus name={head?.employeeName ?? null} eligible={head?.eligible ?? false} approverEligible={head?.approverEligible ?? false} />{' '}<a href={queryHref(chartPath, { chart: 'true', organizationId: row.id })}>조직장 배정</a></>;
   }
   function employeeCell(row: Row, previous: Employee | Organization | undefined) {
     if (!row.id) return '저장 후 배정';
     const context = m.employeeContext?.[row.id];
+    const onboardingId = m.personnelBasics?.[row.id]?.onboardingId;
     const name = businessValue(previous ?? row, 'displayName');
     return <div className="t-sheet-links">
       <span>{context?.organizationName ?? m.employeeOrganizations?.[row.id] ?? '소속 미배정'}</span>
@@ -143,13 +157,27 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
       <a href={`/admin/employees/${row.id}/schedule`} aria-label={`${name} 근무 배정`}>근무 배정</a>
       <a href={`/admin/employees/${row.id}/access`}>계정·권한</a>
       <a href={`/admin/employees/${row.id}/personnel`}>인사정보</a>
+      {onboardingId && <a href={`/admin/employees/onboarding/${onboardingId}`}>최초 발령 보기</a>}
     </div>;
+  }
+  function displayedEmployment(row: Row) {
+    const stored = row.id ? latest.get(row.id) as Employee | undefined : undefined;
+    if (m.personnelAsOf && stored) {
+      if (!stored.active || (stored.leftOn && stored.leftOn < m.personnelAsOf)) return '비활성';
+      if (stored.joinedOn > m.personnelAsOf) return '입사 예정';
+    }
+    const state = row.id ? m.personnelBasics?.[row.id]?.employmentStatus : null;
+    return state ? employmentStatusName(state) : '미등록';
   }
   const values = { q: m.q, organizationId: organization ? null : m.organizationId, status: organization ? null : m.status };
   const columns = [
     sheetStateColumn<Row>(row => sheetStateOf(row, changed(row, row.id ? latest.get(row.id) : undefined, organization))),
     sheetEditorColumn<Row>({ colId: organization ? 'code' : 'employeeNo', headerName: organization ? '조직 코드' : '사번', minWidth: 150, pinned: 'left' },
-      (row, index) => input(row, index, organization ? 'code' : 'employeeNo', organization ? '조직 코드' : '사번', { fixed: true, maxLength: 40, required: organization })),
+      (row, index) => organization ? {
+        ...input(row, index, 'code', '조직 코드'),
+        value: row.id ? String(businessValue(row, 'code')) : '저장 시 자동 발급',
+        readOnly: true,
+      } : input(row, index, 'employeeNo', '사번', { fixed: true, maxLength: 40 })),
     sheetEditorColumn<Row>({ colId: organization ? 'name' : 'displayName', headerName: organization ? '조직 이름' : '이름', minWidth: 180 },
       (row, index) => input(row, index, organization ? 'name' : 'displayName', organization ? '조직 이름' : '이름', { maxLength: 120, required: true })),
     ...(organization ? [
@@ -158,11 +186,20 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
         options: [['', '없음'], ...m.options.filter(option => option.id !== row.id && (option.active || option.id === businessValue(row, 'parentId'))).map(option => [option.id, `${option.name}${option.active ? '' : ' (비활성)'}`] as const)],
         onChange: value => update(row.clientRowId, 'parentId', value || null),
       })),
+      sheetEditorColumn<Row>({ colId: 'approvalUnit', headerName: '결재 단위', minWidth: 130 }, (row, index) => ({
+        ...input(row, index, 'approvalUnit', '결재 단위'),
+        options: [['', '미지정'], ...approvalUnits],
+      })),
       sheetColumn<Row>({ colId: 'organizationHead', headerName: '조직장', minWidth: 190, valueGetter: ({ data }) => data?.id ? m.organizationHeadsById?.[data.id]?.employeeName ?? '' : '' }, row => headCell(row)),
     ] : [
-      sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true })),
+      sheetEditorColumn<Row>({ colId: 'joinedOn', headerName: '입사일', minWidth: 160 }, (row, index) => input(row, index, 'joinedOn', '입사일', { type: 'date', required: true, fixed: Boolean(row.id && m.personnelBasics?.[row.id]?.onboardingId) })),
       sheetEditorColumn<Row>({ colId: 'leftOn', headerName: '마지막 재직일', minWidth: 160 }, (row, index) => input(row, index, 'leftOn', '마지막 재직일', { type: 'date' })),
       sheetColumn<Row>({ colId: 'assignments', headerName: '현재 소속·배정', minWidth: 270, flex: 1, valueGetter: ({ data }) => data?.id ? m.employeeContext?.[data.id]?.organizationName ?? m.employeeOrganizations?.[data.id] ?? '' : '' }, row => employeeCell(row, row.id ? latest.get(row.id) : undefined)),
+      sheetColumn<Row>({ colId: 'employmentStatus', headerName: '재직 상태', minWidth: 120, valueGetter: ({ data }) => data ? displayedEmployment(data) : '' }, displayedEmployment),
+      ...([['gradeName', '직급'], ['positionName', '직책'], ['jobName', '직무']] as const).map(([field, headerName]) => {
+        const value = (row: Row) => row.id ? m.personnelBasics?.[row.id]?.[field] ?? '미등록' : '미등록';
+        return sheetColumn<Row>({ colId: field, headerName, minWidth: 120, valueGetter: ({ data }) => data ? value(data) : '' }, value);
+      }),
     ]),
     sheetColumn<Row>({ colId: 'active', field: 'active', headerName: '활성', minWidth: 90, maxWidth: 110, cellClass: 'w-sheet-center' }, (row, index) => <input className="t-sheet-check" type="checkbox" aria-label={`활성 ${index + 1}`} checked={row.active} disabled={row.operation === 'DEACTIVATE'} data-changed={String(!row.id || row.active !== latest.get(row.id)?.active)} onChange={event => update(row.clientRowId, 'active', event.target.checked)} />),
   ];
@@ -170,36 +207,70 @@ function SheetPage({ model: m, organization, busy = false }: { model: SheetPageM
     <PageHeader title={title} help={<>
       <p>여러 행을 편집하고 한 번에 저장하세요.</p>
       <p id="sheet-limit">한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 저장 전까지 서버 자료는 바뀌지 않습니다.</p>
-      {!organization && <p>신규 사번을 비우면 입사연도 두 자리와 순번 세 자리로 자동 발급합니다. 발급한 사번은 변경하거나 재사용하지 않습니다.</p>}
-    </>} actions={<a className="t-btn" href="/company/organizations">조직도</a>} />
+    </>} actions={organization ? <a className="t-btn" href="/company/organizations">조직도</a> : <>
+      <a className="t-btn" href="/admin/employees/onboarding">입사 예정 관리</a>
+      {!m.publicDemo && <button className="t-btn" type="button" onClick={() => setExporting(true)}>인사기본 Excel</button>}
+    </>} />
+    {organization && m.form && <details className="wl-section" open={m.organizationCreateFailed || undefined}>
+      <summary>조직 단건 등록</summary>
+      {m.organizationCreateFailed && <ErrorNotice message={m.error} />}
+      {unsaved && <p className="hint">시트 변경을 먼저 저장하거나 취소하세요.</p>}
+      <OrganizationCreateForm form={m.form} options={m.options} disabled={unsaved} />
+    </details>}
     <section className="wl-section">
+      {organization && Boolean(m.createdOrganizations?.length) && <div className="notice" role="status">
+        <strong>발급한 조직 코드</strong>
+        <ul>{m.createdOrganizations!.map(result => <li key={result.clientRowId}>
+          <a href={`${path}/${result.id}`}>{result.code}</a>
+        </li>)}</ul>
+      </div>}
+      {!organization && m.personnelAsOf && <p className="t-muted">조회 기준일 {m.personnelAsOf}</p>}
       <form action={path} method="get" className="wl-querybar" role="search" aria-label={`${label} 검색`}>
         <label htmlFor="sheet-q">{label} 검색</label><input id="sheet-q" className="t-input" name="q" type="search" defaultValue={m.q} maxLength={120} placeholder={organization ? '코드 또는 이름' : '사번 또는 이름'} />
         {!organization && <><label className="t-sr-only" htmlFor="sheet-org">현재 소속</label><select id="sheet-org" className="t-select" name="organizationId" defaultValue={m.organizationId ?? ''}><option value="">전체 소속</option>{m.options.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><label className="t-sr-only" htmlFor="sheet-status">활성 상태</label><select id="sheet-status" className="t-select" name="status" defaultValue={m.status ?? 'all'}><option value="all">전체 상태</option><option value="active">활성</option><option value="inactive">비활성</option></select></>}
         <div className="wl-querybar-actions"><a className="t-btn wl-query-reset" href={path}>초기화</a><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </form>
-      <Form id={formId} action={`${path}/bulk`} onSubmit={submit} className="t-sheet-form">
+      <Form id={formId} action={bulkPath} onSubmit={submit} className="t-sheet-form">
         <input type="hidden" name="commandId" value={commandId} /><input type="hidden" name="rows" value={JSON.stringify(dirty.map(row => serialize(row, organization)))} />
         <input type="hidden" name="q" value={m.q} /><input type="hidden" name="page" value={m.page} />
         {!organization && <><input type="hidden" name="organizationId" value={m.organizationId ?? ''} /><input type="hidden" name="status" value={m.status ?? 'all'} /></>}
-        {!reasonError && (m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
+        {!m.organizationCreateFailed && !reasonError && (m.error || errors.length > 0) && <div className="notice error" role="alert" tabIndex={-1} data-error-focus={errors.some(error => ['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)) ? undefined : 'true'}><p>{m.error ?? '입력을 확인해 주세요. 편집 내용은 보존되어 있습니다.'}</p>{errors.filter(error => !['code','name','employeeNo','displayName','joinedOn','leftOn'].includes(error.field)).map((error, index) => <p key={index}>{error.message}</p>)}</div>}
         <WorklogSheet ref={sheet} label={`${label} 편집 시트`} title={`${label} 목록`} rows={rows} columns={columns} getRowId={row => row.clientRowId}
           selectedIds={selected} onSelectionChange={setSelected}
           selectionLabel={(_row, index) => `${index + 1}행 선택`} changedIds={new Set(dirty.map(row => row.clientRowId))} errors={errors}
-          emptyMessage={`조회된 ${label}이 없습니다. 행 추가 버튼으로 새 행을 추가하세요.`}
+          emptyMessage={organization ? '조회된 조직이 없습니다. 행 추가 버튼으로 새 행을 추가하세요.' : '조회된 사원이 없습니다.'}
           actions={<div className="w-sheet-tools" role="group" aria-label={`${label} 시트 편집`}>
-            <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">행 추가</button>
+            {organization && <button className="t-btn" type="button" onClick={add} disabled={dirty.length >= 50} aria-describedby="sheet-limit">행 추가</button>}
             <button className="t-btn" type="button" onClick={remove} disabled={selected.size === 0} title="미저장 신규 행은 제거하고 저장된 행은 비활성 예정으로 표시합니다.">비활성화</button>
             <span className="w-sheet-divider" aria-hidden="true" />
             <button className="t-btn" type="button" onClick={cancel} disabled={!unsaved}>변경 취소</button>
             <button className="t-btn primary" type="submit" disabled={dirty.length < 1 || dirty.length > 50 || conflicts.length > 0} title={conflicts.length ? '최신값을 비교하고 확인하세요.' : dirty.length ? '변경 행을 함께 저장합니다.' : '변경한 행이 없습니다.'}>저장</button>
           </div>}
           pagination={<nav className="actions pagination" aria-label={`${label} 페이지`}><span>{m.page + 1}페이지 · 조회 {model.latestRows.length}행</span>{m.page > 0 && <a href={queryHref(path, { ...values, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref(path, { ...values, page: m.page + 1 })}>다음</a>}</nav>} />
-        {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
+        {conflicts.length > 0 && <section className="t-sheet-conflict" aria-label="충돌 최신값 비교"><h2>다른 변경이 저장되어 있습니다</h2><p className="t-muted">최신값과 현재 편집값을 비교하세요. 확인 전에는 덮어쓰지 않습니다.</p>{conflicts.map(row => <div key={row.clientRowId}><p>최신값: <strong>{String(businessValue(latest.get(row.id!)!, organization ? 'name' : 'displayName'))}</strong> · 버전 {latest.get(row.id!)!.version}</p><p>편집값: <strong>{String(businessValue(row, organization ? 'name' : 'displayName'))}</strong></p><dl>{fields(organization).map(field => <div key={field}><dt>{({ code: '코드', name: '이름', parentId: '상위 조직 ID', approvalUnit: '결재 단위', employeeNo: '사번', displayName: '이름', joinedOn: '입사일', leftOn: '마지막 재직일', active: '활성' } as Record<string,string>)[field]}</dt><dd>{String(businessValue(latest.get(row.id!)!, field)) || '없음'} → {String(businessValue(row, field)) || '없음'}</dd></div>)}</dl></div>)}<button type="button" className="t-btn" onClick={confirmLatest}>최신값 확인 후 편집 유지</button></section>}
       </Form>
     </section>
     {confirming && <SheetSaveDialog formId={formId} label="일괄 변경 사유" reason={reason} error={reasonError} counts={sheetChangeCounts(dirty)}
       busy={busy} onReasonChange={changeReason} onClose={() => setConfirming(false)} />}
+    {exporting && <Modal title="인사기본 Excel" size="s" onClose={() => setExporting(false)}>
+      {unsaved ? <p>먼저 시트의 변경 사항을 저장하거나 취소하세요.</p> : <>
+        <p>저장된 사원 정보만 다운로드합니다.</p>
+        <Form action="/admin/employees/exports" data-native-submit="true">
+          <input type="hidden" name="scope" value="SELECTED" />
+          {exportIds.map(id => <input key={id} type="hidden" name="employeeIds" value={id} />)}
+          <button className="t-btn" type="submit" disabled={!exportIds.length}>선택한 사원 다운로드</button>
+        </Form>
+        <Form action="/admin/employees/exports" data-native-submit="true">
+          <input type="hidden" name="scope" value="FILTERED" />
+          <input type="hidden" name="q" value={m.q} />
+          <input type="hidden" name="organizationId" value={m.organizationId ?? ''} />
+          <input type="hidden" name="status" value={m.status ?? 'all'} />
+          <p>현재 조회 조건에 맞는 모든 페이지의 사원, 최대 1,000행을 포함합니다.</p>
+          <label><input type="checkbox" required /> 전체 다운로드 범위를 확인했습니다.</label>
+          <button className="t-btn" type="submit">현재 조회 조건 전체 다운로드</button>
+        </Form>
+      </>}
+    </Modal>}
   </section>;
 }
 
@@ -251,8 +322,14 @@ function OrganizationHeadsPage({ model: m, error }: { model: OrganizationHeads; 
   </div>;
 }
 
-function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations }) {
+function CompanyOrganizationsPage({ model: m, pageData }: { model: CompanyOrganizations; pageData: Record<string, unknown> }) {
   const ids = new Set(m.organizations.map(organization => organization.id));
+  const management = pageData.organizationHeads as HeadChartData | undefined;
+  const overview = pageData.headOverview as HeadOverview | undefined;
+  const queryPath = management ? chartPath : '/company/organizations';
+  const query = (organizationId: string | null, page: number) => queryHref(queryPath, {
+    ...(management ? { chart: 'true' } : {}), organizationId, q: m.q, page,
+  });
   type CompanyEmployee = CompanyOrganizations['employees'][number];
   const columns = [
     sheetColumn<CompanyEmployee>({ field: 'employeeNo', headerName: '사번', minWidth: 140, pinned: 'left' }, employee => employee.employeeNo),
@@ -262,7 +339,7 @@ function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations })
   const children = (parentId: string | null) => m.organizations.filter(organization => parentId === null ? !organization.parentId || !ids.has(organization.parentId) : organization.parentId === parentId);
   function node(organization: OrganizationNode): ReactNode {
     const nested = children(organization.id);
-    const summary = <><a href={queryHref('/company/organizations', { organizationId: organization.id, q: m.q, page: 0 })} aria-current={organization.id === m.organizationId ? 'true' : undefined}>{organization.code} · {organization.name}</a>{!organization.active && <span className="t-tag gray">비활성</span>}<HeadStatus name={organization.headEmployeeName} eligible={organization.headEligible} approverEligible={organization.headApproverEligible} /></>;
+    const summary = <><a href={query(organization.id, 0)} aria-current={organization.id === m.organizationId ? 'true' : undefined}>{organization.code} · {organization.name}</a>{!organization.active && <span className="t-tag gray">비활성</span>}<HeadStatus name={organization.headEmployeeName} eligible={organization.headEligible} approverEligible={organization.headApproverEligible} /></>;
     return <li key={organization.id}>{nested.length ? <details open><summary>{summary}</summary><ul>{nested.map(node)}</ul></details> : <div className="t-org-leaf">{summary}</div>}</li>;
   }
   return <div className="t-company-organizations">
@@ -275,14 +352,22 @@ function CompanyOrganizationsPage({ model: m }: { model: CompanyOrganizations })
       <section className="wl-section t-org-tree-panel"><h2>조직 계층</h2><p className="hint">전체 조직 구조입니다. 화살표로 하위 조직을 접고 펼칠 수 있습니다.</p><nav aria-label="조직 계층" className="t-org-tree">{m.organizations.length ? <ul>{children(null).map(node)}</ul> : <p className="notice">등록된 조직이 없습니다.</p>}</nav></section>
       <section className="wl-section">{m.selectedOrganization ? <>
         <div className="t-org-selected-head"><span className="t-subtle">현재 조직장</span><HeadStatus name={m.selectedOrganization.headEmployeeName} eligible={m.selectedOrganization.headEligible} approverEligible={m.selectedOrganization.headApproverEligible} /></div>
-        <form action="/company/organizations" method="get" className="wl-querybar">
+        {overview && <OrganizationHeadOverview overview={overview} />}
+        {management ? <OrganizationHeadChart chart={m} organization={m.selectedOrganization} data={management}
+          command={pageData.headCommand as HeadCommand | undefined} preview={pageData.headPreview as HeadPreview | undefined}
+          error={pageData.headError as string | undefined} conflict={pageData.headConflict === true} saved={pageData.headSaved === true} />
+          : pageData.headManagementAllowed === true && <a className="t-btn" href={queryHref(chartPath, {
+            chart: 'true', organizationId: m.organizationId, q: m.q, page: m.page,
+          })}>조직장 관리</a>}
+        <form action={queryPath} method="get" className="wl-querybar">
+          {management && <input type="hidden" name="chart" value="true" />}
           <input type="hidden" name="organizationId" value={m.organizationId ?? ''} />
           <Field label="선택 조직 사번·이름 검색" name="q" type="search" value={m.q} maxLength={100} />
           <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
         </form>
         <WorklogSheet label="선택 조직 직원" title={`${m.selectedOrganization.name} 직원`} rows={m.employees} columns={columns} getRowId={employee => employee.id}
           emptyMessage="조회된 직원이 없습니다."
-          pagination={<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page - 1 })}>이전</a>}{m.hasNext && <a href={queryHref('/company/organizations', { organizationId: m.organizationId, q: m.q, page: m.page + 1 })}>다음</a>}</nav>} />
+          pagination={<nav className="actions pagination" aria-label="조직 직원 페이지"><span>{m.page + 1}페이지 · {m.employees.length}명</span>{m.page > 0 && <a href={query(m.organizationId, m.page - 1)}>이전</a>}{m.hasNext && <a href={query(m.organizationId, m.page + 1)}>다음</a>}</nav>} />
       </> : <><h2>조직별 직원</h2><p className="notice">조직을 선택하면 현재 조직장과 직원 목록을 볼 수 있습니다.</p></>}</section>
     </div>
   </div>;
@@ -293,6 +378,6 @@ export function OrgSheetPages({ page, data, busy }: PageProps): ReactNode {
   if (page === 'org/organizations' && m.organizationSheet) return <SheetPage model={m} organization busy={busy} />;
   if (page === 'org/employees' && m.employeeSheet) return <SheetPage model={m} organization={false} busy={busy} />;
   if (page === 'org/organization-heads') return <OrganizationHeadsPage model={data.organizationHeads as OrganizationHeads} error={data.error as string | null | undefined} />;
-  if (page === 'company/organizations') return <CompanyOrganizationsPage model={data.companyOrganizations as CompanyOrganizations} />;
+  if (page === 'company/organizations') return <CompanyOrganizationsPage model={data.companyOrganizations as CompanyOrganizations} pageData={data} />;
   return null;
 }

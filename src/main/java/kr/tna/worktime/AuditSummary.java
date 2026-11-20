@@ -1,5 +1,6 @@
 package kr.tna.worktime;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -14,9 +15,11 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** Audit states are stored evidence, not an unrestricted JSON view of account or request data. */
 final class AuditSummary {
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .enable(tools.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
     private static final SeoulTimeDisplay TIME = new SeoulTimeDisplay();
     private static final Set<String> NUMBERS = names("version employeeVersion organizationVersion authVersion revision resultRevision inputRevision reviewRevision approverAssignmentVersion quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays dayCount returnedCount confirmedInputRevision baseInputRevision weekday sequence resultCount assignmentVersion organizationAssignmentVersion organizationHeadAssignmentVersion entitlementYear");
+    private static final Set<String> LEAVE_DAYS = names("quantityDays balanceDays availableDays pendingDays futureApprovedDays signedQuantityDays");
     private static final Set<String> FLAGS = names("active credentialSet eligible exceptional workday mondayWeekReviewed generalRuleReviewed presenceAsWork breaksMatch breaksConfirmed recalculationRequired current enabled systemOwned");
     private static final Set<String> IDS = names("id assignmentId employeeId accountId organizationId parentId approverEmployeeId scheduleVersionId scheduleAssignmentId calendarVersionId templateId versionId requestId originalRequestId predecessorRequestId approverAssignmentId currentApproverId authorAccountId targetEmployeeId leaveBucketId bucketId runId resultId requestEffectId reversesEntryId requestedBy createdBy updatedBy commandId requestTraceId previousApproverId newApproverId batchId clientRowId headEmployeeId routeId routeVersionId routeSnapshotId organizationAssignmentId organizationHeadAssignmentId resolvedApproverEmployeeId attendanceTypeId attendanceTypeVersionId groupId");
     private static final Set<String> DATES = names("validFrom validTo from to fromDate toDate workDate leaveDate baseDate effectiveOn joinedOn leftOn usableFrom usableTo expandedFrom expandedTo createdAt updatedAt occurredAt receivedAt submittedAt confirmedAt calculatedAt startedAt finishedAt supersededAt resolvedAt effectiveFrom");
@@ -80,6 +83,10 @@ final class AuditSummary {
                 if (valid) result.put(path, String.join(", ", roles));
             } else if (NUMBERS.contains(key) && value.isIntegralNumber() && value.canConvertToLong()) {
                 result.put(path, Long.toString(value.asLong()));
+            } else if (LEAVE_DAYS.contains(key) && value.isNumber()) {
+                var days = value.decimalValue().stripTrailingZeros();
+                if (days.scale() <= 1 && days.abs().compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) <= 0
+                        && days.remainder(BigDecimal.valueOf(5, 1)).signum() == 0) result.put(path, days.toPlainString());
             } else if (FLAGS.contains(key) && value.isBoolean()) {
                 result.put(path, Boolean.toString(value.asBoolean()));
             } else if (OMITTED.contains(key)) {

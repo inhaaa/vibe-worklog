@@ -13,14 +13,6 @@
 #tna-app .t-hero h1 { min-width: 0; font-size: 40px; font-weight: 600; line-height: 1.3; letter-spacing: -.03em; color: var(--t-ink); white-space: normal; overflow-wrap: break-word; text-wrap: balance; }
 #tna-app .t-hero-description { margin-top: var(--space-md); color: var(--t-muted); font-size: 16px; line-height: 1.6; text-wrap: pretty; }
 #tna-app .t-intro .notice { margin: var(--space-md) 0; }
-#tna-app .t-demo-personas { display: block; margin-top: var(--space-lg); }
-#tna-app .t-demo-personas form { display: grid; gap: var(--space-xs); width: 100%; }
-#tna-app .t-demo-personas label { margin: var(--space-xs) 0 0; color: var(--t-ink); font-size: 14px; font-weight: 600; }
-#tna-app .t-demo-account-picker { display: grid; gap: var(--space-xs); }
-#tna-app .t-demo-personas :is(input, select) { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--t-field-border); border-radius: 8px; padding: var(--space-xs) var(--space-sm); color: var(--t-ink); background: var(--t-paper); font-size: 16px; }
-#tna-app .t-demo-personas .t-enter { width: 100%; min-width: 0; min-height: 44px; margin: var(--space-sm) 0 0; padding: var(--space-xs) var(--space-md); border-radius: 8px; background: var(--t-blue); border-color: var(--t-blue); color: var(--t-paper); font-size: 16px; }
-#tna-app .t-demo-flow-note, #tna-app .t-enter-note { margin: var(--space-md) 0 0; color: var(--t-muted); font-size: 14px; line-height: 1.6; }
-#tna-app .t-enter-note { display: block; margin-top: var(--space-xs); }
 #tna-app .t-feature-labels { display: flex; flex-wrap: wrap; gap: var(--space-xs) 20px; margin-top: var(--space-lg); color: var(--t-muted); font-size: 14px; }
 #tna-app .t-feature-labels span + span::before { content: none; }
 #tna-app .t-demo-guide { min-width: 0; padding: var(--space-xs) 0 var(--space-xs) var(--space-xl); border-left: 1px solid var(--t-line); }
@@ -67,7 +59,7 @@
 #tna-app :is(.login-shell, .t-intro) :is(input, select, textarea, button):disabled { opacity: .55; cursor: not-allowed; background: var(--t-canvas); color: var(--t-muted); transform: none; }
 #tna-app[aria-busy=true] :is(.login-shell, .t-intro) button { cursor: progress; }
 @media (hover: hover) {
-  #tna-app :is(.login-shell button, .t-demo-personas .t-enter):hover:not(:disabled) { background: var(--t-ink); border-color: var(--t-ink); }
+  #tna-app .login-shell button:hover:not(:disabled) { background: var(--t-ink); border-color: var(--t-ink); }
   #tna-app :is(.login-shell, .t-intro) :is(input, select, textarea):hover:not(:disabled) { border-color: var(--t-ink); }
 }
 @media (max-width: 1000px) {

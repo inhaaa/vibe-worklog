@@ -8,7 +8,7 @@ import { PageHeader } from '../components/PageHeader';
 import { SheetSaveDialog, sheetChangeCounts } from '../components/SheetSaveDialog';
 import { sheetStateColumn, sheetStateOf } from '../components/SheetState';
 import type { SheetEditorField, WorklogSheetHandle } from '../components/WorklogSheet';
-type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD';
+type Kind = 'DIRECT_EMPLOYEE' | 'ORGANIZATION_HEAD' | 'ORGANIZATION_CHAIN';
 interface Route {
   id: string;
   code: string;
@@ -18,6 +18,7 @@ interface Route {
   routeVersionId: string;
   revision: number;
   approverKind: Kind;
+  terminalUnit?: string | null;
   employeeId: string | null;
   employeeName: string | null;
 }
@@ -30,6 +31,7 @@ interface Row {
   name: string;
   active: boolean;
   approverKind: Kind;
+  terminalUnit?: string | null;
   employeeId: string | null;
 }
 interface RowError {
@@ -45,6 +47,7 @@ interface Version {
   active: boolean;
   revision: number;
   approverKind: Kind;
+  terminalUnit?: string | null;
   employeeId: string | null;
   employeeName: string | null;
   reason: string;
@@ -104,8 +107,10 @@ interface Assignments {
   history: Assignment[];
   form: AssignmentForm;
 }
-const routeFields = ['code', 'name', 'active', 'approverKind', 'employeeId'] as const;
-const kindText = (kind: string) => kind === 'ORGANIZATION_HEAD' ? '대상자의 현재 조직장' : '지정 사원';
+const routeFields = ['code', 'name', 'active', 'approverKind', 'terminalUnit', 'employeeId'] as const;
+const kindLabels: Record<Kind, string> = { DIRECT_EMPLOYEE: '지정 사원', ORGANIZATION_HEAD: '대상자의 현재 조직장', ORGANIZATION_CHAIN: '조직장 순차결재' };
+const kindText = (kind: Kind) => kindLabels[kind];
+const terminalLabel = (unit?: string | null) => unit === 'TEAM' ? '팀장까지' : unit === 'OFFICE' ? '실장까지' : '없음';
 function queryHref(path: string, values: Record<string, string | number | null>) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(values))
@@ -153,7 +158,12 @@ function RouteSheet({ model: m, error, busy = false }: {
   const renew = () => setCommandId(crypto.randomUUID());
   useUnloadGuard(unsaved);
   function update(id: string, field: string, value: string | boolean | null) {
-    setRows(current => current.map(row => row.clientRowId === id ? { ...row, [field]: value, ...(field === 'approverKind' && value === 'ORGANIZATION_HEAD' ? { employeeId: null } : {}) } : row));
+    setRows(current => current.map(row => {
+      if (row.clientRowId !== id) return row;
+      if (field !== 'approverKind') return { ...row, [field]: value };
+      return { ...row, approverKind: value as Kind, employeeId: value === 'DIRECT_EMPLOYEE' ? row.employeeId : null,
+        terminalUnit: value === 'ORGANIZATION_CHAIN' ? row.terminalUnit ?? null : null };
+    }));
     setErrors(current => current.filter(item => item.clientRowId !== id || item.field !== field));
     renew();
   }
@@ -181,6 +191,7 @@ function RouteSheet({ model: m, error, busy = false }: {
     renew();
   }
   function displayValue(route: Row | Route, field: typeof routeFields[number]) {
+    if (field === 'terminalUnit') return terminalLabel(route.terminalUnit);
     if (field === 'active') return route.active ? '활성' : '비활성';
     if (field === 'approverKind') return kindText(route.approverKind);
     if (field === 'employeeId') return m.candidates.find(employee => employee.id === route.employeeId)?.displayName ?? ('employeeName' in route ? route.employeeName : null) ?? (route.employeeId ? '현재 선택값 · 재확인 필요' : '없음');
@@ -195,11 +206,13 @@ function RouteSheet({ model: m, error, busy = false }: {
       onChange: value => update(row.clientRowId, field, field === 'employeeId' ? value || null : value),
       onCancel: () => { setRows(current => current.map(item => item.clientRowId === row.clientRowId ? row : item)); renew(); },
     };
-    if (field === 'approverKind') return { ...shared, options: [['ORGANIZATION_HEAD', '대상자의 현재 조직장'], ['DIRECT_EMPLOYEE', '지정 사원']] };
+    if (field === 'approverKind') return { ...shared, options: [['ORGANIZATION_HEAD', '대상자의 현재 조직장'], ['DIRECT_EMPLOYEE', '지정 사원'], ['ORGANIZATION_CHAIN', '조직장 순차결재']] };
+    if (field === 'terminalUnit') return { ...shared, disabled: shared.disabled || row.approverKind !== 'ORGANIZATION_CHAIN',
+      required: row.approverKind === 'ORGANIZATION_CHAIN', options: [['', '없음'], ['TEAM', '팀장까지'], ['OFFICE', '실장까지']] };
     if (field === 'employeeId') {
       const missing = row.employeeId && !m.candidates.some(employee => employee.id === row.employeeId);
-      return { ...shared, disabled: shared.disabled || row.approverKind === 'ORGANIZATION_HEAD', required: row.approverKind === 'DIRECT_EMPLOYEE',
-        options: [['', row.approverKind === 'ORGANIZATION_HEAD' ? '제출 시 조직장 해석' : '결재 사원 선택'],
+      return { ...shared, disabled: shared.disabled || row.approverKind !== 'DIRECT_EMPLOYEE', required: row.approverKind === 'DIRECT_EMPLOYEE',
+        options: [['', row.approverKind !== 'DIRECT_EMPLOYEE' ? '제출 시 조직장 해석' : '결재 사원 선택'],
           ...(missing ? [[row.employeeId!, `${previous?.employeeName ?? '현재 선택값'} (재지정 필요)`] as const] : []),
           ...m.candidates.map(employee => [employee.id, `${employee.employeeNo} · ${employee.displayName}`] as const)],
       };
@@ -215,12 +228,13 @@ function RouteSheet({ model: m, error, busy = false }: {
     setErrors(current => current.filter(item => item.field !== 'reason'));
     renew();
   }
-  const payload = dirty.map(row => ({ clientRowId: row.clientRowId, id: row.id || undefined, expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation, code: row.code, name: row.name, active: row.active, approverKind: row.approverKind, employeeId: row.employeeId }));
+  const payload = dirty.map(row => ({ clientRowId: row.clientRowId, id: row.id || undefined, expectedVersion: row.id ? row.expectedVersion : undefined, operation: row.operation, code: row.code, name: row.name, active: row.active, approverKind: row.approverKind, employeeId: row.employeeId, terminalUnit: row.terminalUnit }));
   const columns = [
     sheetStateColumn<Row>(row => sheetStateOf(row, routeChanged(row, row.id ? latest.get(row.id) : undefined))),
     sheetEditorColumn<Row>({ field: 'code', headerName: '코드', minWidth: 150, pinned: 'left' }, (row, index) => cell(row, index, 'code', '결재선 코드')),
     sheetEditorColumn<Row>({ field: 'name', headerName: '이름', minWidth: 180, flex: 1 }, (row, index) => cell(row, index, 'name', '결재선 이름')),
     sheetEditorColumn<Row>({ field: 'approverKind', headerName: '결재 방식', minWidth: 210 }, (row, index) => cell(row, index, 'approverKind', '결재 방식')),
+    sheetEditorColumn<Row>({ field: 'terminalUnit', headerName: '종료 단위', minWidth: 145 }, (row, index) => cell(row, index, 'terminalUnit', '종료 단위')),
     sheetEditorColumn<Row>({ field: 'employeeId', headerName: '지정 사원', minWidth: 210 }, (row, index) => cell(row, index, 'employeeId', '지정 결재 사원')),
     sheetColumn<Row>({ colId: 'revision', headerName: '현재 버전', minWidth: 130, valueGetter: ({ data }) => data?.id ? latest.get(data.id)?.revision ?? '' : '' }, row => {
       const previous = row.id ? latest.get(row.id) : undefined;
@@ -232,7 +246,7 @@ function RouteSheet({ model: m, error, busy = false }: {
   ];
   return <section className="t-org-sheet t-approval-routes" data-unsaved-changes={String(unsaved)}>
     <PageHeader title="결재선 관리" help={<>
-      <p>한 명의 결재자 또는 대상자의 현재 조직장을 지정하세요.</p>
+      <p>지정 사원, 소속 조직장 또는 조직장 순차결재를 선택하세요. 순차결재는 팀장까지 또는 실장까지로 설정해 신청서에 연결합니다.</p>
       <p>내용 변경은 새 버전으로 저장됩니다. 기존 배정은 유지되며 새 버전을 사용하려면 다시 배정하세요.</p>
       <p>한 번에 최대 50행을 저장합니다. 기존 행 삭제는 이력을 보존하고 비활성화합니다. 비활성 결재선은 신규 신청을 막지만 기존 신청의 결재자를 바꾸지 않습니다.</p>
     </>} actions={<a className="t-btn" href="/admin/approval-route-assignments">사원·조직별 배정</a>} />
@@ -298,7 +312,7 @@ function RouteSheet({ model: m, error, busy = false }: {
               <dl>
                 {routeFields.map(field => <div key={field}>
                   <dt>
-                    {{ code: '코드', name: '이름', active: '활성', approverKind: '결재 방식', employeeId: '지정 사원 ID' }[field]}
+                    {{ code: '코드', name: '이름', active: '활성', approverKind: '결재 방식', terminalUnit: '종료 단위', employeeId: '지정 사원 ID' }[field]}
                   </dt>
                   <dd>{displayValue(current, field)} → {displayValue(row, field)}</dd>
                 </div>)}
@@ -323,7 +337,7 @@ function VersionTable({ versions }: {
   const columns = [
     sheetColumn<Version>({ colId: 'name', headerName: '코드·이름', minWidth: 200, pinned: 'left', valueGetter: ({ data }) => data ? `${data.code} · ${data.name}` : '' }, version => <>{version.code} · {version.name}{!version.active && <span className="t-tag gray">정의 비활성</span>}</>),
     sheetColumn<Version>({ field: 'revision', headerName: '버전', minWidth: 90 }, version => `v${version.revision}`),
-    sheetColumn<Version>({ colId: 'approver', headerName: '결재자', minWidth: 230, valueGetter: ({ data }) => data ? `${kindText(data.approverKind)}${data.employeeName ? ` · ${data.employeeName}` : ''}` : '' }, version => <>{kindText(version.approverKind)}{version.employeeName ? ` · ${version.employeeName}` : ''}</>),
+    sheetColumn<Version>({ colId: 'approver', headerName: '결재자', minWidth: 230, valueGetter: ({ data }) => data ? `${kindText(data.approverKind)}${data.terminalUnit ? ` · ${terminalLabel(data.terminalUnit)}` : ''}${data.employeeName ? ` · ${data.employeeName}` : ''}` : '' }, version => <>{kindText(version.approverKind)}{version.terminalUnit ? ` · ${terminalLabel(version.terminalUnit)}` : ''}{version.employeeName ? ` · ${version.employeeName}` : ''}</>),
     sheetColumn<Version>({ field: 'createdAt', headerName: '등록 시각 (서울)', minWidth: 185 }, version => fmtDateTime(version.createdAt)),
     sheetColumn<Version>({ field: 'reason', headerName: '변경 사유', minWidth: 220, flex: 1 }, version => version.reason),
   ];

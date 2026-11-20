@@ -1,0 +1,126 @@
+{
+  "name": "worklog-demo",
+  "services": {
+    "db": {
+      "image": "worklog-demo-postgres:18.6-security",
+      "build": { "context": "../../infra/postgres" },
+      "user": "postgres",
+      "environment": {
+        "POSTGRES_DB": "worklog_demo",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD:?Set the dedicated demo database password}",
+        "POSTGRES_HOST_AUTH_METHOD": "scram-sha-256",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "TNA_MIGRATION_DB_PASSWORD": "${TNA_MIGRATION_DB_PASSWORD:?Set the dedicated migration password}",
+        "TNA_APP_DB_PASSWORD": "${TNA_APP_DB_PASSWORD:?Set the dedicated app password}",
+        "TNA_AUTH_DB_PASSWORD": "${TNA_AUTH_DB_PASSWORD:?Set the dedicated auth password}",
+        "TNA_OPERATOR_DB_PASSWORD": "${TNA_OPERATOR_DB_PASSWORD:?Set the unused operator role password}"
+      },
+      "volumes": [
+        "postgres-data:/var/lib/postgresql",
+        "../../infra/postgres/001-roles.sh:/docker-entrypoint-initdb.d/001-roles.sh:ro"
+      ],
+      "networks": ["private"],
+      "healthcheck": {
+        "test": ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d worklog_demo"],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 12,
+        "start_period": "20s"
+      },
+      "restart": "unless-stopped",
+      "read_only": true,
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=64m,mode=1777", "/var/run/postgresql:rw,noexec,nosuid,size=16m,mode=1777"],
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "cpus": "1.0",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "stop_grace_period": "60s",
+      "logging": { "driver": "json-file", "options": { "max-size": "10m", "max-file": "3" } }
+    },
+    "migrate": {
+      "image": "worklog-demo-migrate:${WORKLOG_IMAGE_TAG:-public-demo}",
+      "build": { "context": "../..", "target": "migrate" },
+      "user": "10001:10001",
+      "command": ["migrate"],
+      "environment": {
+        "TNA_JDBC_URL": "jdbc:postgresql://db:5432/worklog_demo",
+        "TNA_MIGRATION_DB_PASSWORD": "${TNA_MIGRATION_DB_PASSWORD:?Set the dedicated migration password}",
+        "JAVA_TOOL_OPTIONS": "-XX:MaxRAMPercentage=65 -XX:ActiveProcessorCount=1"
+      },
+      "depends_on": { "db": { "condition": "service_healthy" } },
+      "networks": ["private"],
+      "restart": "no",
+      "read_only": true,
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"],
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "cpus": "1.0",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": { "driver": "json-file", "options": { "max-size": "10m", "max-file": "3" } }
+    },
+    "bootstrap": {
+      "image": "worklog-demo-migrate:${WORKLOG_IMAGE_TAG:-public-demo}",
+      "build": { "context": "../..", "target": "migrate" },
+      "user": "10001:10001",
+      "profiles": ["setup"],
+      "command": ["public-demo-bootstrap"],
+      "environment": {
+        "SPRING_PROFILES_ACTIVE": "public-demo",
+        "TNA_PUBLIC_DEMO_CONFIRM": "worklog-demo",
+        "TNA_JDBC_URL": "jdbc:postgresql://127.0.0.1:5432/worklog_demo",
+        "TNA_MIGRATION_DB_PASSWORD": "${TNA_MIGRATION_DB_PASSWORD:?Set the dedicated migration password}",
+        "JAVA_TOOL_OPTIONS": "-XX:MaxRAMPercentage=65 -XX:ActiveProcessorCount=1"
+      },
+      "depends_on": { "db": { "condition": "service_healthy" } },
+      "network_mode": "service:db",
+      "restart": "no",
+      "read_only": true,
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"],
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "cpus": "1.0",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": { "driver": "json-file", "options": { "max-size": "10m", "max-file": "3" } }
+    },
+    "app": {
+      "image": "worklog-demo-app:${WORKLOG_IMAGE_TAG:-public-demo}",
+      "build": { "context": "../..", "target": "runtime" },
+      "user": "10001:10001",
+      "environment": {
+        "SPRING_PROFILES_ACTIVE": "public-demo",
+        "SERVER_ADDRESS": "0.0.0.0",
+        "SERVER_PORT": "18080",
+        "SERVER_SERVLET_SESSION_COOKIE_SECURE": "true",
+        "SERVER_FORWARD_HEADERS_STRATEGY": "native",
+        "SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES": "${SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES:?Set only the observed Docker gateway proxy address regex}",
+        "TNA_OPERATOR_ENABLED": "false",
+        "TNA_JDBC_URL": "jdbc:postgresql://db:5432/worklog_demo",
+        "TNA_APP_DB_PASSWORD": "${TNA_APP_DB_PASSWORD:?Set the dedicated app password}",
+        "TNA_AUTH_DB_PASSWORD": "${TNA_AUTH_DB_PASSWORD:?Set the dedicated auth password}",
+        "JAVA_TOOL_OPTIONS": "-XX:MaxRAMPercentage=65 -XX:ActiveProcessorCount=1"
+      },
+      "ports": ["127.0.0.1:18081:18080"],
+      "depends_on": {
+        "db": { "condition": "service_healthy" },
+        "migrate": { "condition": "service_completed_successfully" }
+      },
+      "networks": ["private"],
+      "restart": "unless-stopped",
+      "read_only": true,
+      "tmpfs": ["/tmp:rw,noexec,nosuid,size=128m,mode=1777"],
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "cpus": "1.0",
+      "mem_limit": "768m",
+      "pids_limit": 256,
+      "stop_grace_period": "30s",
+      "logging": { "driver": "json-file", "options": { "max-size": "10m", "max-file": "3" } }
+    }
+  },
+  "volumes": { "postgres-data": { "name": "worklog-demo-postgres-data" } },
+  "networks": { "private": { "name": "worklog-demo-private", "driver": "bridge" } }
+}

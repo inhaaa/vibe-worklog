@@ -66,6 +66,23 @@ class FixedScheduleWebIT {
         mvc.perform(get("/admin/schedules/not-a-uuid").session(s)).andExpect(status().isBadRequest()).andExpect(view().name("org/problem"))
             .andExpect(content().string(not(containsString("java.lang"))));
     }
+    @Test void workGroupResourcesRequireAdministratorAndAllJsonWritesRequireCsrf() throws Exception {
+        var admin=login(true);
+        var employee=login(false);
+        String base="/admin/schedules/workgroups/";
+        for(String read:java.util.List.of("codes","groups","employees")) {
+            mvc.perform(get(base+read).session(admin)).andExpect(status().isOk())
+                    .andExpect(content().contentTypeCompatibleWith("application/json"));
+            mvc.perform(get(base+read).session(employee)).andExpect(status().isForbidden());
+        }
+        for(String write:java.util.List.of("codes","groups/preview","groups/save","assignments/preview","assignments/save")) {
+            mvc.perform(post(base+write).session(admin).contentType("application/json").content("{}")).andExpect(status().isForbidden());
+            mvc.perform(post(base+write).session(employee).with(csrf()).contentType("application/json").content("{}"))
+                    .andExpect(status().isForbidden());
+            mvc.perform(post(base+write).session(admin).with(csrf()).contentType("application/json").content("{}"))
+                    .andExpect(status().is(422));
+        }
+    }
     private MockHttpSession login(boolean manager) throws Exception {
         return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",manager?DatabaseFixture.COMPANY_A:DatabaseFixture.COMPANY_B)
             .param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
