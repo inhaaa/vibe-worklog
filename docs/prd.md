@@ -2,6 +2,8 @@
 
 담당자는 선택근무의 시간대와 표준시간을 근무조에 적용하고, 직원과 담당자는 주·월 정산기간의 실근로와 유급휴가를 확인한다. [선택근무제 설정과 정산 조회](superpowers/specs/2026-11-20-selective-work.md)
 
+직원과 담당자는 미확정 날짜를 눌러 각자 처리할 업무를 연다. 실제 근무·휴게 확인이나 대상일 재집계 후에는 원래 사원·조회 월·정산기간에서 남은 날짜를 다시 조회한다. 정정 신청은 심사 중인 신청서로 연결한다. [미확정 날짜와 처리](superpowers/specs/2026-11-20-selective-unconfirmed-days.md)
+
 담당자는 [0.5일 단위 연차 잔여 이관·조정](superpowers/specs/2026-11-18-leave-balance-batch.md)과 [회사 근무현황의 월말 확인 대상](superpowers/specs/2026-11-18-month-end-review.md)을 사용한다. 담당자는 [월말 퇴근 누락 보완 요청](superpowers/specs/2026-11-18-month-end-correction-followups.md)으로 직원의 정정과 재집계 결과를 추적한다.
 
 월말 목록에서 여러 사원·근무일을 선택하면 영향을 받는 주를 미리 보고 함께 재집계할 수 있다. 처리한 날짜의 실근로와 남은 확인 사유는 [월말 일괄 재집계](superpowers/specs/2026-11-19-month-end-batch-recalculation.md)에 따른다.
