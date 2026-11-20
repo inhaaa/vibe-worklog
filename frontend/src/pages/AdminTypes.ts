@@ -204,6 +204,8 @@ export interface NetworksModel extends AdminModel {
 }
 
 export interface CalendarModel extends AdminModel {
+  settlementReturn?: string;
+  settlementWorkDate?: string;
   calendars: { id: string; revision: number; validFrom: string; validTo: string; reason: string }[];
   form: CommandForm & {
     from: string;

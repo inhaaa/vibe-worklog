@@ -147,6 +147,23 @@ public final class WorktimeService {
         }));
     }
 
+    public boolean matchesSettlementDay(TnaPrincipal actor, UUID employeeId, LocalDate date, String period) {
+        if (actor == null || employeeId == null || date == null || date.getYear() < 1 || date.getYear() > 9999
+                || !("ISO_WEEK".equals(period) || "CALENDAR_MONTH".equals(period))) return false;
+        boolean own = employeeId.equals(actor.employeeId());
+        if (!own && !actor.roles().contains("ATTENDANCE_ADMIN")) return false;
+        Supplier<Boolean> matches = () -> {
+            var employee = employees.get(actor.tenantId(), employeeId);
+            if (employee == null) return false;
+            var today = LocalDate.now(clock.withZone(SEOUL));
+            return mapper.settlementDays(actor.tenantId(), employeeId, date, date).stream()
+                    .filter(row -> !row.unknownMembership())
+                    .map(row -> appliedSettlementDay(employee, row, YearMonth.from(date), today))
+                    .anyMatch(day -> day != null && period.equals(day.settlementPeriod()));
+        };
+        return own ? read(actor, employeeId, matches) : commands.read(actor, () -> administration.readShared(actor, matches));
+    }
+
     private SelectiveSettlement.Overview settlements(UUID tenant, UUID employeeId, YearMonth month) {
         var employee = employee(tenant, employeeId);
         var from = WorktimeCalculator.weekStart(month.atDay(1));
@@ -154,11 +171,16 @@ public final class WorktimeService {
         var today = LocalDate.now(clock.withZone(SEOUL));
         var days = new ArrayList<SelectiveSettlement.Day>();
         for (var row : mapper.settlementDays(tenant, employeeId, from, through)) {
-            var day = row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row, today);
+            var day = appliedSettlementDay(employee, row, month, today);
             if (day != null) days.add(day);
         }
         return new SelectiveSettlement.Overview(month, employeeId, employee.employeeNo(), employee.displayName(),
                 SelectiveSettlement.periods(month, today, days));
+    }
+
+    private SelectiveSettlement.Day appliedSettlementDay(Employee employee, WorktimeMapper.SettlementRow row,
+            YearMonth month, LocalDate today) {
+        return row.closed() ? closedSettlementDay(row, month) : openSettlementDay(employee, row, today);
     }
 
     private SelectiveSettlement.Day openSettlementDay(Employee employee, WorktimeMapper.SettlementRow row, LocalDate today) {

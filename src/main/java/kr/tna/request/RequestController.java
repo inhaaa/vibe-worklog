@@ -8,6 +8,7 @@ import kr.tna.clock.*;
 import kr.tna.org.*;
 import kr.tna.request.RequestData.*;
 import kr.tna.worktime.MonthCloseReviewReturn;
+import kr.tna.worktime.SelectiveSettlementReturn;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,7 +22,20 @@ import org.springframework.web.servlet.view.RedirectView;
 public class RequestController {
     private final LeaveWorkflowService flow;private final ClockService clocks;private final EmployeeService employees;private final ApproverService approvers;private final OrgCommands commands;private final Clock clock;private final AnnualRequestService annual;
     private final LeaveOperationsQueries leaveOperations;
-    public RequestController(LeaveWorkflowService flow,ClockService clocks,EmployeeService employees,ApproverService approvers,OrgCommands commands,Clock clock,AnnualRequestService annual,LeaveOperationsQueries leaveOperations){this.flow=flow;this.clocks=clocks;this.employees=employees;this.approvers=approvers;this.commands=commands;this.clock=clock;this.annual=annual;this.leaveOperations=leaveOperations;}
+    private final SelectiveSettlementReturn settlements;
+    public RequestController(LeaveWorkflowService flow, ClockService clocks, EmployeeService employees, ApproverService approvers,
+            OrgCommands commands, Clock clock, AnnualRequestService annual, LeaveOperationsQueries leaveOperations,
+            SelectiveSettlementReturn settlements) {
+        this.flow = flow;
+        this.clocks = clocks;
+        this.employees = employees;
+        this.approvers = approvers;
+        this.commands = commands;
+        this.clock = clock;
+        this.annual = annual;
+        this.leaveOperations = leaveOperations;
+        this.settlements = settlements;
+    }
     @GetMapping(value="/requests/route-preview",produces=MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody ApprovalPreview routePreview(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String kind,
             @RequestParam(required=false) UUID targetEmployeeId) {
@@ -37,7 +51,7 @@ public class RequestController {
     }
     @GetMapping("/requests/{id}")
     ModelAndView detail(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
-            @RequestParam(required=false) String returnTo) {
+            @RequestParam(required=false) String returnTo, @RequestParam(required=false) String settlementReturn) {
         var detail = detailPage(actor, id);
         var request = (RequestView) detail.getModel().get("request");
         if (actor.roles().contains("ATTENDANCE_ADMIN") && isLeave(request)) {
@@ -49,32 +63,74 @@ public class RequestController {
             String back = MonthCloseReviewReturn.request(returnTo, request.fromDate(), request.toDate());
             if (back != null) detail.addObject("monthCloseReturnTo", back);
         }
-        return detail;
+        return SelectiveSettlementReturn.attach(detail, correctionOrigin(actor, request, settlementReturn));
+    }
+    private String correctionOrigin(TnaPrincipal actor, RequestView request, String raw) {
+        if (!"ATTENDANCE_CORRECTION".equals(request.kind())) return null;
+        if (actor.employeeId().equals(request.targetEmployeeId())) {
+            String own = settlements.employee(actor, raw, request.fromDate());
+            if (own != null) return own;
+        }
+        return actor.roles().contains("ATTENDANCE_ADMIN")
+                ? settlements.admin(actor, raw, request.targetEmployeeId(), request.fromDate()) : null;
     }
     @PostMapping(value="/me/requests/leave",params="!year") ModelAndView leave(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") LeaveForm f,BindingResult b,@RequestParam(required=false) String routeToken){check(b);return submit(()->flow.submitLeave(a,f,routeToken),()->minePage(a,f),"/requests/");}
     @GetMapping("/me/requests/correction")
     ModelAndView correction(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required=false) String mode) {
-        return correctionPage(actor, actor.employeeId(), date == null ? commands.today() : date, false, "full".equals(mode), null);
+            @RequestParam(required=false) String mode, @RequestParam(required=false) String settlementReturn) {
+        return SelectiveSettlementReturn.attach(
+                correctionPage(actor, actor.employeeId(), date == null ? commands.today() : date, false, "full".equals(mode), null),
+                settlements.employee(actor, settlementReturn, date));
     }
     @GetMapping("/admin/requests/exceptions/new") ModelAndView exception(@AuthenticationPrincipal TnaPrincipal a,@RequestParam UUID employeeId,@RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date){return correctionPage(a,employeeId,date==null?commands.today():date,true,true,null);}
     @PostMapping(value="/me/requests/correction",params="!year")
     ModelAndView correct(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required=false) String mode,
-            @ModelAttribute("form") CorrectionForm form, BindingResult binding,@RequestParam(required=false) String routeToken) {
+            @ModelAttribute("form") CorrectionForm form, BindingResult binding,@RequestParam(required=false) String routeToken,
+            @RequestParam(required=false) String settlementReturn) {
         check(binding);
         boolean checkout = "checkout".equals(mode);
         var safe = correctionForm(form, null, false, checkout);
+        String origin = settlements.employee(actor, settlementReturn, form.workDate());
         return submit(() -> flow.submitCorrection(actor, safe,routeToken),
-                () -> correctionPage(actor, actor.employeeId(), form.workDate(), false, !checkout, safe), "/requests/");
+                () -> SelectiveSettlementReturn.attach(correctionPage(actor, actor.employeeId(), form.workDate(), false, !checkout, safe), origin),
+                id -> origin != null ? origin : "/requests/" + id);
     }
     @PostMapping("/admin/requests/exceptions") ModelAndView exceptional(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") CorrectionForm f,BindingResult b,@RequestParam(required=false) String routeToken){check(b);var safe=correctionForm(f,f.targetEmployeeId(),true,false);return submit(()->flow.submitCorrection(a,safe,routeToken),()->correctionPage(a,f.targetEmployeeId(),f.workDate(),true,true,safe),"/requests/");}
-    @PostMapping("/requests/{id}/approve") ModelAndView approve(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.decide(a,id,new DecisionForm("APPROVE",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/requests/{id}/reject") ModelAndView reject(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.decide(a,id,new DecisionForm("REJECT",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
-    @PostMapping("/requests/{id}/withdraw") ModelAndView withdraw(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) Integer expectedStep){return submit(()->flow.withdraw(a,id,new DecisionForm("WITHDRAW",expectedVersion,reason,commandId,expectedStep)),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/requests/{id}/approve")
+    ModelAndView approve(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id, @RequestParam Long expectedVersion,
+            @RequestParam String reason, @RequestParam UUID commandId, @RequestParam(required=false) Integer expectedStep,
+            @RequestParam(required=false) String settlementReturn) {
+        var decision = new DecisionForm("APPROVE", expectedVersion, reason, commandId, expectedStep);
+        return submitDecision(actor, id, settlementReturn, () -> flow.decide(actor, id, decision));
+    }
+    @PostMapping("/requests/{id}/reject")
+    ModelAndView reject(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id, @RequestParam Long expectedVersion,
+            @RequestParam String reason, @RequestParam UUID commandId, @RequestParam(required=false) Integer expectedStep,
+            @RequestParam(required=false) String settlementReturn) {
+        var decision = new DecisionForm("REJECT", expectedVersion, reason, commandId, expectedStep);
+        return submitDecision(actor, id, settlementReturn, () -> flow.decide(actor, id, decision));
+    }
+    @PostMapping("/requests/{id}/withdraw")
+    ModelAndView withdraw(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id, @RequestParam Long expectedVersion,
+            @RequestParam String reason, @RequestParam UUID commandId, @RequestParam(required=false) Integer expectedStep,
+            @RequestParam(required=false) String settlementReturn) {
+        var decision = new DecisionForm("WITHDRAW", expectedVersion, reason, commandId, expectedStep);
+        return submitDecision(actor, id, settlementReturn, () -> flow.withdraw(actor, id, decision));
+    }
     @PostMapping("/requests/{id}/cancellations") ModelAndView cancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) String routeToken){return submit(()->flow.requestCancellation(a,id,new CancelForm(false,expectedVersion,reason,commandId),routeToken),()->detailPage(a,id).addObject("cancelReason",reason),"/requests/");}
     @PostMapping("/admin/requests/{id}/cancellation-exceptions") ModelAndView exceptionalCancellation(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId,@RequestParam(required=false) String routeToken){return submit(()->flow.requestCancellation(a,id,new CancelForm(true,expectedVersion,reason,commandId),routeToken),()->detailPage(a,id).addObject("exceptionCancelReason",reason),"/requests/");}
-    @PostMapping("/admin/requests/{id}/reassign") ModelAndView reassign(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id,@ModelAttribute ReassignForm f,BindingResult b){check(b);return submit(()->flow.reassign(a,id,f),()->detailPage(a,id),"/requests/");}
+    @PostMapping("/admin/requests/{id}/reassign")
+    ModelAndView reassign(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id, @ModelAttribute ReassignForm form,
+            BindingResult binding, @RequestParam(required=false) String settlementReturn) {
+        check(binding);
+        return submitDecision(actor, id, settlementReturn, () -> flow.reassign(actor, id, form));
+    }
+    private ModelAndView submitDecision(TnaPrincipal actor, UUID id, String rawOrigin, Supplier<UUID> action) {
+        String origin = rawOrigin == null ? null : correctionOrigin(actor, flow.get(actor,id).request(), rawOrigin);
+        return submit(action, () -> SelectiveSettlementReturn.attach(detailPage(actor,id), origin),
+                saved -> origin != null ? origin : "/requests/" + saved);
+    }
     @GetMapping("/admin/leave-balances") ModelAndView balances(@AuthenticationPrincipal TnaPrincipal a,@RequestParam(required=false) UUID employeeId){return balancesPage(a,employeeId==null?a.employeeId():employeeId,null);}
     @PostMapping("/admin/leave-balances/entries") ModelAndView opening(@AuthenticationPrincipal TnaPrincipal a,@ModelAttribute("form") BucketForm f,BindingResult b){check(b);return submit(()->flow.openBucket(a,f),()->balancesPage(a,f.employeeId(),f),"/admin/leave-balances/buckets/");}
     @GetMapping("/admin/leave-balances/buckets/{id}") ModelAndView ledger(@AuthenticationPrincipal TnaPrincipal a,@PathVariable UUID id){var rows=flow.ledger(a,id);return new ModelAndView("request/ledger").addObject("ledger",rows).addObject("bucketId",id).addObject("adjustment",new AdjustmentForm(null,commands.today(),rows.isEmpty()?0:bucketVersion(a,rows.getFirst().employeeId(),id),"","",UUID.randomUUID()));}
@@ -146,6 +202,20 @@ public class RequestController {
                 checkout ? "SET" : form.outAction(), form.requestedOutAt(), form.presenceAsWork(), form.breaksConfirmed(),
                 form.actualBreaks(), form.replacesRequestId(), form.predecessorRequestId(), exceptional, form.reason(), form.commandId());
     }
-    private ModelAndView submit(Supplier<UUID> fn,Supplier<ModelAndView> page,String prefix){try{var r=new RedirectView(prefix+fn.get(),true);r.setStatusCode(HttpStatus.SEE_OTHER);return new ModelAndView(r);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var view=page.get().addObject("error",e.getMessage());view.setStatus(HttpStatusCode.valueOf(e.status()));return view;}}
+    private ModelAndView submit(Supplier<UUID> action,Supplier<ModelAndView> page,String prefix) {
+        return submit(action, page, id -> prefix + id);
+    }
+    private ModelAndView submit(Supplier<UUID> action, Supplier<ModelAndView> page, java.util.function.Function<UUID,String> destination) {
+        try {
+            var redirect = new RedirectView(destination.apply(action.get()), true);
+            redirect.setStatusCode(HttpStatus.SEE_OTHER);
+            return new ModelAndView(redirect);
+        } catch (OrgException e) {
+            if (e.status() != 409 && e.status() != 422) throw e;
+            var view = page.get().addObject("error", e.getMessage());
+            view.setStatus(HttpStatusCode.valueOf(e.status()));
+            return view;
+        }
+    }
     private void check(BindingResult b){if(b.hasErrors())throw new OrgException(400,"신청 입력 형식을 확인해 주세요.");}
 }

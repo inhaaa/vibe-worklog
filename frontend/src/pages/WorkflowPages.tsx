@@ -7,6 +7,7 @@ import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { LeaveBalanceBatch } from './LeaveBalanceBatch';
 import { SelectiveSettlements } from './SelectiveSettlements';
+import { SettlementBackLink } from './SettlementBackLink';
 import { selectiveHours, selectiveReasonLabels } from './selectiveSchedule';
 import { RequestBreakEditor } from '../components/RequestBreakEditor';
 import { RequestDateTimeInput } from '../components/RequestDateTimeInput';
@@ -219,6 +220,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
   const versionFields = (
     <>
       {hidden('expectedVersion', r.version)}
+      {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
       {r.currentStep != null && hidden('expectedStep', r.currentStep)}
       {hidden('commandId', m.pageCommand)}
     </>
@@ -228,6 +230,7 @@ function RequestDetailPage({ model: m }: { model: RequestDetailModel }) {
     <div className="t-request-detail-page">
       <PageHeader title="신청 상세" help="신청 내용과 처리 이력을 확인하세요."
         actions={<div className="t-request-detail-backlinks">
+          <SettlementBackLink href={m.settlementReturn} />
           {m.admin && <AttendanceListBackLink href={m.monthCloseReturnTo ?? undefined} />}
           <LeaveOperationsBackLink href={leaveReturn} />
           {m.canDecide ? <a className="t-btn t-request-detail-back" href="/approvals">대기함으로</a>
@@ -430,7 +433,10 @@ function Correction({ model: m }: { model: CorrectionModel }) {
     <div className="t-correction-workspace">
       <PageHeader title={checkout ? '퇴근 누락 정정 신청' : '출퇴근·실제 휴게 정정 신청'}
         help="확인한 기록과 실제 근로 내용을 입력해 주세요."
-        actions={checkout && !m.pendingCorrectionId && <a className="t-btn" href={`/me/requests/correction?date=${f.workDate}&mode=full`}>일반 정정 양식</a>} />
+        actions={<><SettlementBackLink href={m.settlementReturn} />
+          {checkout && !m.pendingCorrectionId && <a className="t-btn" href={`/me/requests/correction?${new URLSearchParams({
+            date: f.workDate, mode: 'full', ...(m.settlementReturn && { settlementReturn: m.settlementReturn }),
+          })}`}>일반 정정 양식</a>}</>} />
       {m.exceptional && (
         <p className="notice">
           담당자 예외 신청입니다. 작성자·대상자와 다른 적격 승인자의 독립 승인이 필요합니다.
@@ -451,7 +457,8 @@ function Correction({ model: m }: { model: CorrectionModel }) {
       </section>
       {m.pendingCorrectionId ? <section className="wl-section">
         <h2>결재 대기</h2>
-        <a className="t-btn" href={`/requests/${m.pendingCorrectionId}`}>대기 중인 정정 보기</a>
+        <a className="t-btn" href={`/requests/${m.pendingCorrectionId}${m.settlementReturn
+          ? '?' + new URLSearchParams({ settlementReturn: m.settlementReturn }) : ''}`}>대기 중인 정정 보기</a>
       </section> : <Form
         action={m.exceptional ? '/admin/requests/exceptions' : checkout ? '/me/requests/correction?mode=checkout' : '/me/requests/correction'}
         method="post"
@@ -460,6 +467,7 @@ function Correction({ model: m }: { model: CorrectionModel }) {
         data-unsaved-changes={String(dirty)}
       >
         {hidden('targetEmployeeId', f.targetEmployeeId)}
+        {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
         {hidden('workDate', f.workDate)}
         {hidden('baseInputRevision', f.baseInputRevision)}
         {hidden('sourceFingerprint', f.sourceFingerprint)}
@@ -615,7 +623,9 @@ function Month({ model: m }: { model: MonthModel }) {
   const view = m.overview,
     summary = view.summary;
   const returnTo = m.admin ? attendanceListReturn(m.checkoutReturnTo ?? null) : null;
-  const reviewDay = returnTo ? view.days.find(day => day.workDate === m.checkoutWorkDate) : undefined;
+  const settlement = m.admin ? m.settlementReturn : undefined;
+  const focusDate = settlement ? m.settlementWorkDate : returnTo ? m.checkoutWorkDate : undefined;
+  const reviewDay = focusDate ? view.days.find(day => day.workDate === focusDate) : undefined;
   const shown = (day: DayView, value: number | null) => (day.current ? value : null);
   const away = (day: DayView) => day.employed === false;
   const timeColumn = (colId: string, headerName: string, pick: (day: DayView) => number | null, flagPending = false) =>
@@ -659,7 +669,8 @@ function Month({ model: m }: { model: MonthModel }) {
   );
   return (
     <>
-      <PageHeader title="근로시간" actions={reviewDay && <AttendanceListBackLink href={returnTo} />} />
+      <PageHeader title="근로시간" actions={settlement ? <SettlementBackLink href={settlement} />
+        : reviewDay && <AttendanceListBackLink href={returnTo} />} />
       <Form action={m.admin ? '/admin/attendance' : '/me/worktime'} method="get" className="wl-querybar">
         <Field label="기준 월" name="month" type="month" value={view.month} required />
         {m.admin && (
@@ -669,10 +680,11 @@ function Month({ model: m }: { model: MonthModel }) {
         )}
         <div className="wl-querybar-actions"><button className="t-btn wl-query-submit" type="submit">조회</button></div>
       </Form>
-      {reviewDay && <section className="wl-section">
+      {reviewDay && <section className="wl-section" id={settlement ? 'selective-day-review' : undefined}>
         <h2>{reviewDay.workDate} 근무일</h2>
         <p>실근로시간 {reviewDay.current && reviewDay.result.actualWorkMillis != null ? duration(reviewDay.result.actualWorkMillis) : '미확정'}</p>
-        {reviewDay.current && reviewDay.id && <a href={`/worktime/results/${reviewDay.id}?${new URLSearchParams({ returnTo: returnTo! })}`}>해당 일자 집계 근거</a>}
+        {reviewDay.current && reviewDay.id && <a href={`/worktime/results/${reviewDay.id}?${new URLSearchParams(settlement
+          ? { settlementReturn: settlement } : { returnTo: returnTo! })}`}>해당 일자 집계 근거</a>}
       </section>}
       <dl className="wl-summary" aria-label="월 요약">
         <div><dt>실근로 합계</dt><dd>{duration(summary.result.confirmedWorkMillis)}</dd></div>
@@ -693,12 +705,15 @@ function Month({ model: m }: { model: MonthModel }) {
             <a href={`/admin/work-policies?employeeId=${m.employeeId}`}>주 기산점·적용 대상 검토</a>{' '}
             · <a href="/admin/audit">감사 이력</a>
           </p>
-          <Form action="/admin/calculations" method="post" className="wl-form">
+          <Form action="/admin/calculations" method="post" className="wl-form" id={settlement ? 'selective-day-calculation' : undefined}>
+            {settlement && reviewDay && <p>재집계 대상 <strong>{reviewDay.workDate} · {reviewDay.employeeName}
+              {' '}({reviewDay.employeeNo})</strong></p>}
             {reviewDay ? <>
               {hidden('employeeId', m.employeeId)}
               {hidden('from', reviewDay.workDate)}
               {hidden('to', reviewDay.workDate)}
-              {hidden('returnTo', returnTo)}
+              {returnTo && hidden('returnTo', returnTo)}
+              {settlement && hidden('settlementReturn', settlement)}
             </> : periodFields}
             {hidden('commandId', m.calculateCommand)}
             <FormTable><Field label="재집계 사유" name="reason" maxLength={500} required /></FormTable>
@@ -894,6 +909,7 @@ function Result({ model: m }: { model: ResultModel }) {
         <p>이 결과 ID에 저장된 계산 당시의 근거입니다. 현재 입력으로 바꾸거나 재집계하지 않습니다. 법률·급여 확정 자료가 아닌 검토용 결과입니다.</p>
         <p>시각 기준: Asia/Seoul (UTC+09:00) · 시간량: 시:분:초. 날짜와 실제 발생 시각은 구분합니다.</p>
       </>} actions={<>
+        <SettlementBackLink href={m.settlementReturn} />
         {m.admin && <AttendanceListBackLink />}
         {m.workspacePrincipal?.roles.includes('EMPLOYEE') && <a className="t-btn" href={`/me/worktime?month=${m.month}`}>내 근로시간</a>}
         {m.admin && <a className="t-btn" href={`/admin/attendance?employeeId=${day.employeeId}&month=${m.month}`}>사원 월 현황</a>}
@@ -1168,7 +1184,9 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
     f = m.confirmationForm;
   const selective = d.schedule?.workMode === 'SELECTIVE';
   const breaksId = useId();
-  const correctionHref = `/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`;
+  const correctionHref = m.settlementReturn ? '/me/requests/correction?' + new URLSearchParams({
+    date: d.workDate, mode: 'full', settlementReturn: m.settlementReturn,
+  }) : `/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`;
   const time = (event: ClockEvent) => m.eventTimes?.[event.id] ?? fmtDateTime(event.occurredAt);
   const columns = [
     sheetColumn<ClockEvent>({ field: 'kind', headerName: '구분', minWidth: 120, pinned: 'left', valueGetter: ({ data }) => data ? eventName(data.kind) : '' }, event => eventName(event.kind)),
@@ -1210,6 +1228,7 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
       )}
       {canConfirm && (
         <Form action="/me/work-confirmations" method="post" className="wl-form">
+          {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
           {hidden('workDate', f.workDate)}
           {hidden('baseInputRevision', f.baseInputRevision)}
           {hidden('expectedReviewRevision', f.expectedReviewRevision)}
@@ -1306,7 +1325,7 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       content = (
         <>
           <PageHeader title="출퇴근 기록" help="출퇴근 시각을 기록하고 근무를 확인하세요."
-            actions={<a className="t-btn" href="/me/attendance?view=period">기간 조회</a>} />
+            actions={<><SettlementBackLink href={clock.settlementReturn} /><a className="t-btn" href="/me/attendance?view=period">기간 조회</a></>} />
           {todayCard && <section className="t-clock-actions t-card" aria-label="오늘 출퇴근">
             <div><span className="t-clock-indicator" aria-hidden="true" /><strong>오늘의 근무</strong>{scheduleLine(clock.day) && <p className="t-muted">{scheduleLine(clock.day)}</p>}</div>
             <div className="t-clock-buttons">{(['IN', 'OUT'] as const).map(kind => {

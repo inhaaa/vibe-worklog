@@ -379,6 +379,63 @@ class WorktimeServiceIT {
         assertFalse(current.path("reasons").toString().contains("MISSING_CLOCK_OUT"));
     }
 
+    @Test void settlementReturnMatchesOnlyTheEmployeesAppliedPeriodEvenAfterConfirmation() {
+        UUID target = employee.employeeId();
+        assertFalse(reports.matchesSettlementDay(employee, target, date, "CALENDAR_MONTH"));
+        useSelectiveCalendarMonth(date.minusDays(1), date);
+        assertTrue(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "ISO_WEEK"));
+        assertFalse(reports.matchesSettlementDay(manager, target, date.plusDays(1), "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(approver, target, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, DatabaseFixture.EMPLOYEE_B, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, UUID.randomUUID(), date, "CALENDAR_MONTH"));
+
+        var day = clocks.day(employee, date);
+        UUID command = UUID.randomUUID();
+        clocks.confirm(employee, new ConfirmationForm(date, day.inputRevision(), day.reviewRevision(), true, true,
+                day.sourceFingerprint(), command));
+        reports.calculateConfirmedDay(employee, date, command);
+        assertTrue(reports.ownSettlements(employee, YearMonth.from(date).toString()).periods().stream()
+                .flatMap(period -> period.unconfirmedDates().stream()).noneMatch(row -> date.equals(row.workDate())));
+        assertTrue(reports.matchesSettlementDay(employee, target, date, "CALENDAR_MONTH"));
+
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, target);
+        assertFalse(reports.matchesSettlementDay(manager, target, date.minusDays(1), "CALENDAR_MONTH"));
+    }
+
+    @Test void settlementReturnUsesTheClosedResultUntilReopening() {
+        UUID target = employee.employeeId(), closure = UUID.randomUUID();
+        useSelectiveCalendarMonth(date, date);
+        recalculate();
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,?,?,1,'CLOSED','합성 마감',?,'담당자')
+                """, tenant, closure, date.withDayOfMonth(1), manager.accountId());
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        db.update("""
+                INSERT INTO tna.attendance_month_selective_member(tenant_id,closure_id,employee_id,result_ids) VALUES (?,?,?,NULL)
+                """, tenant, closure, target);
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        db.update("""
+                UPDATE tna.attendance_month_selective_member m SET result_ids=ARRAY[
+                    (SELECT id FROM tna.day_result r WHERE r.tenant_id=m.tenant_id AND r.employee_id=m.employee_id AND work_date=?)]
+                WHERE tenant_id=? AND closure_id=? AND employee_id=?
+                """, date, tenant, closure, target);
+        db.update("UPDATE tna.work_time_code_version SET settlement_period='ISO_WEEK' WHERE tenant_id=? AND work_mode='SELECTIVE'", tenant);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date.plusDays(1), tenant, target);
+        assertTrue(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "ISO_WEEK"));
+
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,?,?,2,'OPEN','합성 재개',?,'담당자')
+                """, tenant, UUID.randomUUID(), date.withDayOfMonth(1), manager.accountId());
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "CALENDAR_MONTH"));
+        assertFalse(reports.matchesSettlementDay(manager, target, date, "ISO_WEEK"));
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, target);
+        assertTrue(reports.matchesSettlementDay(manager, target, date, "ISO_WEEK"));
+    }
+
     private JsonNode sameSettlement(LocalDate day) {
         String month = YearMonth.from(day).toString();
         var own = reports.ownSettlements(employee, month);

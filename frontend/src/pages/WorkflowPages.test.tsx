@@ -539,7 +539,8 @@ describe('WorkflowPages', () => {
       overview: {
         month: '2026-10',
         days: [
-          { id: 'result-1', workDate: '2026-10-26', current: true, pending: false, approvedLeaveDays: 0,
+          { id: 'result-1', workDate: '2026-10-26', employeeName: employee.displayName, employeeNo: employee.employeeNo,
+            current: true, pending: false, approvedLeaveDays: 0,
             result: { ...result, actualWorkMillis: 29_110_000, confirmedBreakMillis: 3_600_000, over8hMillis: 310_000 } },
           { id: null, workDate: '2026-10-27', current: false, pending: true, approvedLeaveDays: 0, result },
           { id: 'result-3', workDate: '2026-10-28', current: false, pending: true, approvedLeaveDays: 1,
@@ -594,6 +595,13 @@ describe('WorkflowPages', () => {
     expect(calculate.get('returnTo')).toBe(returnTo);
     expect(body(scoped, '/admin/reports/exports').get('from')).toBe('2026-10-01');
     scoped.unmount();
+    const origin = '/admin/attendance?employeeId=' + employee.id + '&month=2026-11&settlementPeriod=ISO_WEEK&settlementFrom=2026-10-26';
+    const focused = await render('worktime/month', { ...data, settlementWorkDate: '2026-10-26', settlementReturn: origin });
+    const target = focused.container.querySelector('#selective-day-calculation');
+    expect(target?.textContent).toContain('2026-10-26');
+    expect(target?.textContent).toContain(employee.displayName);
+    expect(body(focused, '/admin/calculations').get('settlementReturn')).toBe(origin);
+    focused.unmount();
     expect((await render('worktime/month', { ...data, admin: false })).container.querySelector('form[action="/admin/calculations"]')).toBeNull();
   });
   it('계산 상세는 저장 근거가 없으면 현재값으로 대체하지 않고 미확인으로 표시한다', async () => {
@@ -755,6 +763,12 @@ describe('WorkflowPages', () => {
     expect(within(grid).getByRole('columnheader', { name: /구분/ })).toBeTruthy();
     expect(within(grid).getByRole('columnheader', { name: /시각/ })).toBeTruthy();
     expect(grid.querySelector('[row-id="in-1"]')?.textContent).toContain('2026-10-26 09:00:00');
+  });
+  it('선택근무에서 연 날짜의 확인 양식과 복귀 링크는 조회한 정산기간을 유지한다', async () => {
+    const origin = '/me/worktime?month=2026-11&settlementPeriod=ISO_WEEK&settlementFrom=2026-10-26';
+    const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm, settlementReturn: origin });
+    expect(view.getByRole('link', { name: '선택근무 정산으로' }).getAttribute('href')).toBe(origin);
+    expect(body(view, '/me/work-confirmations').get('settlementReturn')).toBe(origin);
   });
   it('근무 확인은 출근·퇴근이 하나씩 있고 미확인일 때만 보이며 개정·지문·명령을 제출한다', async () => {
     const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm });

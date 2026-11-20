@@ -3,6 +3,7 @@ package kr.tna;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -32,6 +33,8 @@ import kr.tna.worktime.CheckoutFollowUpService;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -928,6 +931,84 @@ class CheckoutOperationsWebIT {
                 () -> assertEquals(1, count("attendance_event")));
     }
 
+    @Test
+    void selectiveDayKeepsTheOriginalEmployeeAndCrossMonthWeekAfterRecalculation() throws Exception {
+        date = LocalDate.of(2026, 9, 30);
+        var staff = member(tenant, "WEEKLY", null);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date.minusWeeks(1), tenant, staff.employeeId());
+        UUID version = schedule(true);
+        schedule(staff, version);
+        useSelectiveGroup(staff, version, "ISO_WEEK");
+        String employee = staff.employeeId().toString(), day = date.toString();
+        String period = "month=2026-10&settlementPeriod=ISO_WEEK&settlementFrom=2026-09-28";
+        String origin = "/admin/attendance?employeeId=" + employee + "&" + period;
+        mvc.perform(get("/admin/attendance").with(as(admin)).param("employeeId",employee).param("month","2026-09")
+                .param("workDate",day).param("settlementReturn",origin).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/settlementWorkDate",day))
+                .andExpect(ReactPageAssertions.data("/settlementReturn",origin));
+        mvc.perform(get("/admin/calendar").with(as(admin)).param("date",day).param("settlementReturn",origin).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/form/from",day))
+                .andExpect(ReactPageAssertions.data("/form/to",day)).andExpect(ReactPageAssertions.data("/settlementReturn",origin));
+        mvc.perform(post("/admin/calendar/versions").with(as(admin)).with(csrf()).param("from","2026-09-29")
+                .param("to","2026-10-02").param("date",day).param("settlementReturn",origin).accept(PAGE_JSON)
+                .param("reviewed","false").param("basis","달력 검토 중").param("exceptions","").param("reason","기간 검토")
+                .param("commandId",UUID.randomUUID().toString()))
+                .andExpect(status().isUnprocessableEntity()).andExpect(ReactPageAssertions.data("/settlementWorkDate",day))
+                .andExpect(ReactPageAssertions.data("/settlementReturn",origin));
+        mvc.perform(post("/admin/calculations").with(as(admin)).with(csrf()).param("employeeId",employee)
+                .param("from",day).param("to",day).param("reason","선택근무 미확정일 확인").param("commandId",UUID.randomUUID().toString())
+                .param("settlementReturn",origin)).andExpect(status().isSeeOther()).andExpect(redirectedUrl(origin));
+
+        String mine = "/me/worktime?" + period;
+        for (String path : List.of("/me/attendance", "/me/requests/correction")) {
+            mvc.perform(get(path).with(as(staff)).param("date",day).param("settlementReturn",mine).accept(PAGE_JSON))
+                    .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/settlementReturn",mine));
+            mvc.perform(get(path).with(as(staff)).param("date",day).param("settlementReturn",origin).accept(PAGE_JSON))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.settlementReturn").doesNotExist());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FIXED", "CALENDAR_MONTH"})
+    void fixedAndMonthlyAssignmentsDoNotRestoreAWeeklySettlement(String actualPolicy) throws Exception {
+        if ("CALENDAR_MONTH".equals(actualPolicy)) useSelectiveGroup(worker, schedule, actualPolicy);
+        String day = date.toString(), month = YearMonth.from(date).toString(), employee = worker.employeeId().toString();
+        String period = "month=" + month + "&settlementPeriod=ISO_WEEK&settlementFrom=" + date.with(DayOfWeek.MONDAY);
+        String origin = "/admin/attendance?employeeId=" + employee + "&" + period;
+        mvc.perform(get("/me/attendance").with(as(worker)).param("date",day).param("settlementReturn","/me/worktime?" + period)
+                .accept(PAGE_JSON)).andExpect(status().isOk()).andExpect(jsonPath("$.data.settlementReturn").doesNotExist());
+        mvc.perform(get("/admin/attendance").with(as(admin)).param("employeeId",employee).param("month",month)
+                .param("workDate",day).param("settlementReturn",origin).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.settlementReturn").doesNotExist())
+                .andExpect(jsonPath("$.data.settlementWorkDate").doesNotExist());
+        mvc.perform(post("/admin/calculations").with(as(admin)).with(csrf()).param("employeeId",employee)
+                .param("from",day).param("to",day).param("reason","대상일 재집계").param("commandId",UUID.randomUUID().toString())
+                .param("settlementReturn",origin)).andExpect(status().isSeeOther())
+                .andExpect(redirectedUrl("/admin/attendance?employeeId=" + employee + "&month=" + month));
+    }
+
+    @Test
+    void pendingCorrectionOpensAndWithdrawsWithinTheAuthorizedSettlement() throws Exception {
+        useSelectiveGroup(worker, schedule, "CALENDAR_MONTH");
+        clock(worker, date, date, "IN", 9);
+        UUID request = correction("18:00", null, true);
+        String period = "month=" + YearMonth.from(date) + "&settlementPeriod=CALENDAR_MONTH&settlementFrom=" + date.withDayOfMonth(1);
+        String mine = "/me/worktime?" + period;
+        String adminOrigin = "/admin/attendance?employeeId=" + worker.employeeId() + "&" + period;
+        String path = "/requests/" + request;
+        mvc.perform(get(path).with(as(worker)).param("settlementReturn",mine).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/settlementReturn",mine));
+        mvc.perform(get(path).with(as(admin)).param("settlementReturn",adminOrigin).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/settlementReturn",adminOrigin));
+        mvc.perform(get(path).with(as(worker)).param("settlementReturn",adminOrigin).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.settlementReturn").doesNotExist());
+        mvc.perform(get(path).with(as(admin)).param("settlementReturn",adminOrigin.replace(worker.employeeId().toString(),admin.employeeId().toString())).accept(PAGE_JSON))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.settlementReturn").doesNotExist());
+        mvc.perform(post(path + "/withdraw").with(as(worker)).with(csrf()).param("expectedVersion","0")
+                .param("commandId",UUID.randomUUID().toString()).param("reason","정정 재검토").param("settlementReturn",mine))
+                .andExpect(status().isSeeOther()).andExpect(redirectedUrl(mine));
+    }
+
     private MockHttpServletRequestBuilder followUpCommand(TnaPrincipal actor, UUID employee, LocalDate workDate, UUID command, String reason) {
         var payload = new tools.jackson.databind.json.JsonMapper().writeValueAsString(java.util.Map.of(
                 "employeeId", employee, "workDate", workDate.toString(), "reason", reason, "commandId", command));
@@ -1035,6 +1116,24 @@ class CheckoutOperationsWebIT {
                 INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,reason,created_by,updated_by)
                 VALUES (?,gen_random_uuid(),?,?,?,'합성 배정',?,?)
                 """, tenant, person.employeeId(), version, date.minusWeeks(1), admin.accountId(), admin.accountId());
+    }
+
+    private void useSelectiveGroup(TnaPrincipal person, UUID version, String period) {
+        UUID group = db.queryForObject("SELECT template_id FROM tna.schedule_version WHERE tenant_id=? AND id=?", UUID.class, tenant, version);
+        UUID code = UUID.randomUUID(), codeVersion = UUID.randomUUID();
+        db.update("INSERT INTO tna.work_group(tenant_id,id) VALUES (?,?)", tenant, group);
+        db.update("INSERT INTO tna.work_time_code(tenant_id,id,code) VALUES (?,?,'SEL')", tenant, code);
+        db.update("""
+                INSERT INTO tna.work_time_code_version(tenant_id,id,code_id,revision,effective_from,enabled,name,start_time,end_time,
+                    work_mode,standard_minutes,settlement_period,reason,created_by)
+                VALUES (?,?,?,1,?,true,'선택근무','09:00','18:00','SELECTIVE',480,?,'합성 정산 기준',?)
+                """, tenant, codeVersion, code, date.minusWeeks(1), period, admin.accountId());
+        db.update("""
+                INSERT INTO tna.work_group_day(tenant_id,schedule_version_id,weekday,code_version_id)
+                SELECT tenant_id,version_id,weekday,? FROM tna.schedule_day WHERE tenant_id=? AND version_id=? AND workday
+                """, codeVersion, tenant, version);
+        assertEquals(1, db.update("UPDATE tna.schedule_assignment SET work_group_id=? WHERE tenant_id=? AND employee_id=? AND schedule_version_id=?",
+                group, tenant, person.employeeId(), version));
     }
 
     private TnaPrincipal clockedWorker(String number, UUID version) {

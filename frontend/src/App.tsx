@@ -394,7 +394,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
           throw new PageRequestError(400, '이동할 주소를 확인할 수 없습니다.');
         const activeBackground = backgroundRef.current;
         const isPost = options.method?.toUpperCase() === 'POST';
-        const task = !publicPages.has(result.envelope.page) && (isTaskUrl(destination) ||
+        const task = !result.envelope.data.settlementReturn && !publicPages.has(result.envelope.page) && (isTaskUrl(destination) ||
           Boolean(activeBackground && formError));
         if (activeBackground && isPost && !formError && !publicPages.has(result.envelope.page)) {
           // 저장된 값은 배경 목록에도 반영하고, 갱신 중 권한 회수 역시 검사한다.

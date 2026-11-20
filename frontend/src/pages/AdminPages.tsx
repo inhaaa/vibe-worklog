@@ -4,6 +4,7 @@ import type { PageProps } from '../types';
 import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { WorkgroupSettings } from './WorkgroupSettings';
+import { SettlementBackLink } from './SettlementBackLink';
 import {
   Check,
   ErrorNotice,
@@ -1153,7 +1154,7 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title="휴일 캘린더" help="담당자가 근거를 확인한 날짜만 명시합니다. 미등록 날짜는 미확인입니다. 요일만으로 법정 휴일을 추정하지 않습니다."
-        actions={<a className="t-btn" href="/admin/networks">허용 네트워크</a>} />
+        actions={<><SettlementBackLink href={m.settlementReturn} /><a className="t-btn" href="/admin/networks">허용 네트워크</a></>} />
       <ErrorNotice message={m.error} />
       <section className="wl-section">
         <h2>불변 버전</h2>
@@ -1173,6 +1174,10 @@ function CalendarPage({ model: m }: { model: CalendarModel }) {
           아래 기간 전체를 일반일로 등록하고 예외 날짜를 지정합니다. 기존 기간과 중첩할 수 없습니다.
         </p>
         <Form action="/admin/calendar/versions" method="post" className="wl-form">
+          {m.settlementReturn && <>
+            <Hidden name="settlementReturn" value={m.settlementReturn} />
+            <Hidden name="date" value={m.settlementWorkDate} />
+          </>}
           <Hidden name="commandId" value={m.form.commandId} />
           <FormTable>
             <Field id="calendar-from" label="시작일 (포함)" name="from" type="date" value={m.form.from} required />

@@ -93,6 +93,7 @@ export interface RequestDetail {
   } | null;
 }
 export interface RequestDetailModel {
+  settlementReturn?: string;
   cancelApproval?: import('./AnnualRequestTypes').ApprovalPreview;
   cancelReason?: string;
   exceptionCancelReason?: string;
@@ -170,6 +171,7 @@ export interface ConfirmationForm {
   breaksMatch: boolean;
 }
 export interface ClockModel {
+  settlementReturn?: string;
   today?: string;
   isToday?: boolean;
   canConfirm?: boolean;
@@ -200,6 +202,7 @@ export interface CorrectionForm {
   reason: string;
 }
 export interface CorrectionModel {
+  settlementReturn?: string;
   approval?: import('./AnnualRequestTypes').ApprovalPreview;
   day: DaySnapshot;
   exceptional: boolean;
@@ -285,6 +288,8 @@ export interface PeriodView {
   result: PeriodResult;
 }
 export interface MonthModel {
+  settlementReturn?: string;
+  settlementWorkDate?: string;
   overview: { month: string; days: DayView[]; weeks: PeriodView[]; summary: PeriodView };
   employeeId: string;
   employees: EmployeeChoice[];
@@ -361,6 +366,7 @@ export interface ResultDetail {
   pendingCorrections: string[];
 }
 export interface ResultModel {
+  settlementReturn?: string;
   detail: ResultDetail;
   times: Record<string, string>;
   month: string;
