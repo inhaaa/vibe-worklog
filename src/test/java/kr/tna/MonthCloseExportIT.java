@@ -225,7 +225,7 @@ class MonthCloseExportIT {
                 """, tenant, calendar);
     }
 
-    private static RequestPostProcessor as(TnaPrincipal actor) {
+    static RequestPostProcessor as(TnaPrincipal actor) {
         return authentication(UsernamePasswordAuthenticationToken.authenticated(actor, null, actor.roles().stream()
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList()));
     }
@@ -257,7 +257,7 @@ class MonthCloseExportIT {
         return response.getContentAsByteArray();
     }
 
-    private static List<List<String>> worksheet(byte[] book) throws Exception {
+    static List<List<String>> worksheet(byte[] book) throws Exception {
         try (var zip = new ZipInputStream(new ByteArrayInputStream(book))) {
             for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
                 if (!"xl/worksheets/sheet1.xml".equals(entry.getName())) continue;

@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import kr.tna.clock.AttendanceHistory;
 import kr.tna.clock.ClockData;
@@ -73,7 +74,8 @@ public final class WorktimeService {
                 var run=mapper.run(actor.tenantId(),stored.runId(),stored.employeeId());
                 var frozen=frozenEvidence(mapper.resultInput(actor.tenantId(),resultId),stored.employeeId(),stored.workDate());
                 return new ResultDetail(storedDay(person,stored,result,currentSource,
-                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),current.day().approvedLeaveDays(),employed),isLatest,latest.id(),run,
+                        employed&&calculator.pending(current.day(),LocalDate.now(clock.withZone(SEOUL)),currentSource,result.actualWorkMillis()),
+                        current.day().approvedLeaveDays(),currentSource ? result.paidLeaveMillis() : approvedPaidLeaveMillis(current.day()),employed),isLatest,latest.id(),run,
                         frozen.clock(),frozen.policy(),frozen.assessment(),frozen.employment(),frozen.leave(),frozen.pending(),frozen.complete()&&run!=null);
             };
             return administrator?administration.read(actor,load):load.get();
@@ -108,7 +110,7 @@ public final class WorktimeService {
                 var day = in.clock();
                 var saved = stored.get(date);
                 boolean closed = closedMonths.contains(date.withDayOfMonth(1));
-                var view = dayView(employee, in, saved, range.today(), closed);
+                var view = dayView(employee, in.clock(), in.day(), in.source(), saved, range.today(), closed);
                 boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
                 boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(day, in.day(), view.employed(), range.today())
                         && !clocks.canConfirm(day);
@@ -132,7 +134,7 @@ public final class WorktimeService {
     /** Company reads reuse the same current-source comparison without granting administration commands. */
     public List<DayView> companyDays(TnaPrincipal actor,UUID employeeId,YearMonth month) {
         if(employeeId==null||month==null||month.getYear()<1||month.getYear()>9999)throw OrgException.invalid("대상 사원과 조회 월을 확인해 주세요.");
-        return companyAccess.read(actor,()->readDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()));
+        return companyAccess.read(actor,()->readMonthDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()).days());
     }
 
     public SelectiveSettlement.Overview ownSettlements(TnaPrincipal actor, String rawMonth) {
@@ -192,7 +194,8 @@ public final class WorktimeService {
                 leave.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
         boolean matches = row.storedSource() != null && current(snapshot, source, row.storedInput(), row.storedReview(), row.storedSource());
         double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
-        var facts = dayInput(snapshot, false, !pending.isEmpty(), leaveDays);
+        double paidLeaveDays = WorktimeMapper.LeaveEffect.paidDays(leave);
+        var facts = dayInput(snapshot, false, !pending.isEmpty(), leaveDays, paidLeaveDays);
         var reasons = new HashSet<String>();
         if (matches) reasons.addAll(MonthEndReviewQueries.list(row.reasonCodes(), String[].class));
         else {
@@ -211,7 +214,7 @@ public final class WorktimeService {
             if (clocks.canConfirm(snapshot)) employeeAction = Action.CONFIRM;
             else if (correctionEligible(snapshot, facts, true, today)) employeeAction = Action.CORRECT;
         }
-        return settlementDay(snapshot, leaveDays, pending, matches ? row.actualWorkMillis() : null, reasons, employeeAction, false);
+        return settlementDay(snapshot, leaveDays, paidLeaveDays, pending, matches ? row.actualWorkMillis() : null, reasons, employeeAction, false);
     }
 
     private SelectiveSettlement.Day closedSettlementDay(WorktimeMapper.SettlementRow row, YearMonth month) {
@@ -227,11 +230,11 @@ public final class WorktimeService {
         var employment = frozen.employment();
         if (row.workDate().isBefore(employment.joinedOn()) ||
                 employment.leftOn() != null && row.workDate().isAfter(employment.leftOn())) return null;
-        return settlementDay(frozen.clock(), row.storedLeaveDays(), frozen.pending(), row.actualWorkMillis(),
+        return settlementDay(frozen.clock(), row.storedLeaveDays(), row.storedPaidLeaveDays(), frozen.pending(), row.actualWorkMillis(),
                 Set.copyOf(MonthEndReviewQueries.list(row.reasonCodes(), String[].class)), Action.NONE, true);
     }
 
-    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, List<String> pending,
+    private static SelectiveSettlement.Day settlementDay(ClockData.DaySnapshot snapshot, double leave, double paidLeave, List<String> pending,
             Long actual, Set<String> reasons, Action employeeAction, boolean closed) {
         var schedule = snapshot.schedule();
         Integer target = null;
@@ -240,7 +243,7 @@ public final class WorktimeService {
         }
         if (Integer.valueOf(0).equals(target) && snapshot.effectiveEvents().isEmpty() && pending.isEmpty() && leave == 0) return null;
         UUID requestId = pending.isEmpty() ? null : UUID.fromString(pending.getFirst());
-        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, leave, actual,
+        return new SelectiveSettlement.Day(snapshot.workDate(), schedule.settlementPeriod(), target, paidLeave, actual,
                 requestId, reasons, employeeAction, closed);
     }
     public MonthView month(TnaPrincipal actor,UUID employeeId,YearMonth month) {
@@ -248,9 +251,9 @@ public final class WorktimeService {
         return read(actor,target,()->{
             Employee employee=employee(actor.tenantId(),target);LocalDate from=month.atDay(1),to=month.atEndOfMonth();
             LocalDate expandedFrom=WorktimeCalculator.weekStart(from),expandedTo=WorktimeCalculator.weekStart(to).plusDays(6);
-            var all=readDays(actor.tenantId(),employee,expandedFrom,expandedTo);
-            var selected=all.stream().filter(d->!d.workDate().isBefore(from)&&!d.workDate().isAfter(to)).toList();
-            var weeks=weeklyPeriods(actor.tenantId(),expandedFrom,expandedTo,all);
+            var monthDays=readMonthDays(actor.tenantId(),employee,expandedFrom,expandedTo);
+            var selected=monthDays.days().stream().filter(d->!d.workDate().isBefore(from)&&!d.workDate().isAfter(to)).toList();
+            var weeks=weeklyPeriods(expandedFrom,expandedTo,monthDays.days(),monthDays.reviewedWeekDates()::contains);
             var result=calculator.month(month,selected.stream().map(this::currentResult).toList());
             return new MonthView(month,List.copyOf(selected),List.copyOf(weeks),new PeriodView(from,to.plusDays(1),
                     selected.stream().allMatch(DayView::current),result,ids(selected),pendingDays(selected)));
@@ -284,6 +287,7 @@ public final class WorktimeService {
             UUID resultId=UUID.randomUUID();long revision=mapper.nextResult(actor.tenantId(),target,date);
             var refs=new LinkedHashMap<String,Object>();refs.put("clock",input.clock());refs.put("policy",input.policy());
             refs.put("assessment",input.assessment());refs.put("leaveEffects",input.leave());refs.put("pendingCorrections",input.pending());
+            refs.put("paidLeaveDays",input.day().paidLeaveDays());
             var employment=new LinkedHashMap<String,Object>();employment.put("joinedOn",employee.joinedOn().toString());
             employment.put("leftOn",employee.leftOn()==null?null:employee.leftOn().toString());refs.put("employment",employment);
             changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
@@ -330,7 +334,10 @@ public final class WorktimeService {
             LocalDate weeklyFrom=WorktimeCalculator.weekStart(from),weeklyTo=WorktimeCalculator.weekStart(to).plusDays(6);
             var all=readDays(actor.tenantId(),employee,weeklyFrom,weeklyTo);
             var days=all.stream().filter(d->!d.workDate().isBefore(from)&&!d.workDate().isAfter(to)).toList();
-            var weeks=weeklyPeriods(actor.tenantId(),weeklyFrom,weeklyTo,all);
+            var weeks=weeklyPeriods(weeklyFrom,weeklyTo,all,date -> {
+                var policy=mapper.policy(actor.tenantId(),date);
+                return policy!=null && policy.mondayWeekReviewed();
+            });
             String company=mapper.companyName(actor.tenantId());if(company==null)throw OrgException.notFound();
             Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);UUID id=UUID.randomUUID();
             var rows=new ArrayList<List<Object>>();
@@ -341,10 +348,10 @@ public final class WorktimeService {
             rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙","CALC-1"));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
-                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 연차(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
+                    "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 휴가(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
                     "소속","일정 버전 ID","휴일 버전 ID","정책 버전 ID","적용 검토 ID","유효 출근","유효 퇴근","확인 휴게 구간",
                     "소정(HH:mm:ss.SSS)","체류(HH:mm:ss.SSS)","확인 실근로(HH:mm:ss.SSS)","확인 휴게(HH:mm:ss.SSS)",
-                    "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)"));
+                    "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)","유급휴가 인정(ms)"));
             rows.add(row("일자별 입력 근거는 저장된 결과 당시 값입니다. 소속은 출력 시점에 확인한 근무일별 적용 소속입니다."));
             for(var day:days) {
                 var evidence=day.id()==null?null:mapper.exportEvidence(actor.tenantId(),day.id());
@@ -360,7 +367,7 @@ public final class WorktimeService {
                         saved==null||saved.calendarVersionId()==null?null:saved.calendarVersionId().toString(),evidence==null?null:evidence.policyVersionId(),evidence==null?null:evidence.assessmentId(),
                         exportedEvents(saved,"IN"),exportedEvents(saved,"OUT"),exportedBreaks(saved),
                         humanDuration(r.scheduledMillis()),humanDuration(r.presenceMillis()),humanDuration(r.actualWorkMillis()),humanDuration(r.confirmedBreakMillis()),
-                        humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis())));
+                        humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis()),r.paidLeaveMillis()));
             }
             long sum=days.stream().filter(DayView::current).map(DayView::result).filter(r->r.actualWorkMillis()!=null).mapToLong(DayResult::actualWorkMillis).sum();
             long unresolved=days.stream().filter(d->!d.current()||d.result().actualWorkMillis()==null).count();
@@ -452,39 +459,70 @@ public final class WorktimeService {
         LocalDate today=LocalDate.now(clock.withZone(SEOUL));
         var days=new ArrayList<DayView>();
         for(LocalDate date=from;!date.isAfter(to);date=date.plusDays(1)) {
-            days.add(dayView(employee, input(tenant, employee, date), stored.get(date), today, closedMonths.contains(date.withDayOfMonth(1))));
+            var current = input(tenant, employee, date);
+            days.add(dayView(employee, current.clock(), current.day(), current.source(), stored.get(date), today,
+                    closedMonths.contains(date.withDayOfMonth(1))));
         }return List.copyOf(days);
     }
-    private DayView dayView(Employee employee, Input current, WorktimeMapper.ResultRow stored, LocalDate today, boolean closed) {
-        LocalDate date = current.clock().workDate();
-        double leave = current.day().approvedLeaveDays();
+    private record MonthDays(List<DayView> days, Set<LocalDate> reviewedWeekDates) { }
+    private MonthDays readMonthDays(UUID tenant, Employee employee, LocalDate from, LocalDate through) {
+        var stored = latestDays(tenant, employee, from, through);
+        var closed = Set.copyOf(mapper.closedMonths(tenant, from, through));
+        var days = new ArrayList<DayView>();
+        var reviewedWeekDates = new HashSet<LocalDate>();
+        var today = LocalDate.now(clock.withZone(SEOUL));
+        for (var row : mapper.monthDays(tenant, employee.id(), from, through)) {
+            var snapshot = MonthEndReviewQueries.snapshot(clocks, row);
+            var effects = MonthEndReviewQueries.list(row.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
+            var pending = MonthEndReviewQueries.list(row.pendingCorrections(), String[].class);
+            var date = row.workDate();
+            var facts = dayInput(snapshot, row.generalRuleReviewed() && employed(employee, date), !pending.isEmpty(),
+                    WorktimeMapper.LeaveEffect.totalDays(effects), WorktimeMapper.LeaveEffect.paidDays(effects));
+            var source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
+                    effects.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
+            days.add(dayView(employee, snapshot, facts, source, stored.get(date), today, closed.contains(date.withDayOfMonth(1))));
+            if (row.mondayWeekReviewed()) reviewedWeekDates.add(date);
+        }
+        return new MonthDays(List.copyOf(days), Set.copyOf(reviewedWeekDates));
+    }
+    private DayView dayView(Employee employee, ClockData.DaySnapshot snapshot, DayInput facts, String source,
+            WorktimeMapper.ResultRow stored, LocalDate today, boolean closed) {
+        LocalDate date = snapshot.workDate();
+        double leave = facts.approvedLeaveDays();
         boolean employed = employed(employee, date);
         if (stored == null) {
-            if (closed && employed && !current.day().pendingCorrection()) {
-                var confirmed = calculator.day(current.day());
+            if (closed && employed && !facts.pendingCorrection()) {
+                var confirmed = calculator.day(facts);
                 if (Long.valueOf(0).equals(confirmed.actualWorkMillis())) {
                     return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null,
-                            current.source(), true, confirmed, false, leave, true);
+                            source, true, confirmed, false, leave, confirmed.paidLeaveMillis(), true);
                 }
             }
-            var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave,
-                    current.clock().inputRevision(), current.clock().reviewRevision(), Set.of("NOT_CALCULATED", "LEGAL_OVERTIME_UNDETERMINED"));
-            return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null, current.source(), false, missing,
-                    employed && calculator.pending(current.day(), today, false, null), leave, employed);
+            Long paid = approvedPaidLeaveMillis(facts);
+            var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave, paid,
+                    snapshot.inputRevision(), snapshot.reviewRevision(), Set.of("NOT_CALCULATED", "LEGAL_OVERTIME_UNDETERMINED"));
+            return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-1", null, source, false, missing,
+                    employed && calculator.pending(facts, today, false, null), leave, paid, employed);
         }
         var result = storedResult(stored);
-        boolean matches = (closed && employed) || current(current.clock(), current.source(), stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
-        return storedDay(employee, stored, result, matches, employed && calculator.pending(current.day(), today, matches, result.actualWorkMillis()), leave, employed);
+        boolean matches = (closed && employed) || current(snapshot, source, stored.inputRevision(), stored.reviewRevision(), stored.sourceFingerprint());
+        return storedDay(employee, stored, result, matches, employed && calculator.pending(facts, today, matches, result.actualWorkMillis()),
+                leave, matches ? result.paidLeaveMillis() : approvedPaidLeaveMillis(facts), employed);
+    }
+    private Long approvedPaidLeaveMillis(DayInput day) {
+        if (day.paidLeaveDays() == 0) return 0L;
+        return calculator.day(day).paidLeaveMillis();
     }
     private static boolean employed(Employee employee,LocalDate date) {return !date.isBefore(employee.joinedOn())&&(employee.leftOn()==null||!date.isAfter(employee.leftOn()));}
     private DayResult storedResult(WorktimeMapper.ResultRow r) {
         return new DayResult(r.workDate(),Status.valueOf(r.status()),r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),r.confirmedBreakMillis(),
-                r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),r.inputRevision(),r.reviewRevision(),
+                r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
+                WorktimeCalculator.paidLeaveMillis(r.savedDayKind()==null?null:DayKind.valueOf(r.savedDayKind()),r.scheduledMillis(),r.paidLeaveDays()),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))));
     }
-    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,double approvedLeaveDays,boolean employed) {
+    private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,double approvedLeaveDays,Long approvedPaidLeaveMillis,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
-                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,employed);
+                r.calculatedAt(),r.sourceFingerprint(),current,result,pending,approvedLeaveDays,approvedPaidLeaveMillis,employed);
     }
     private FrozenEvidence frozenEvidence(String value,UUID employeeId,LocalDate date) {
         try {
@@ -532,7 +570,7 @@ public final class WorktimeService {
         var leave=effects.stream().map(WorktimeMapper.LeaveEffect::id).toList();
         var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
         var day=dayInput(snapshot,assessment!=null&&assessment.generalRuleReviewed()&&employed(employee,date),
-                !pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects));
+                !pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects),WorktimeMapper.LeaveEffect.paidDays(effects));
         String source=source(snapshot,employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),
                 assessment==null?null:assessment.id(),leave,pending);
         return new Input(snapshot,policy,assessment,leave,pending,day,source);
@@ -550,6 +588,10 @@ public final class WorktimeService {
     }
 
     static DayInput dayInput(ClockData.DaySnapshot snapshot,boolean reviewed,boolean pending,double leaveDays) {
+        return dayInput(snapshot,reviewed,pending,leaveDays,leaveDays);
+    }
+
+    static DayInput dayInput(ClockData.DaySnapshot snapshot,boolean reviewed,boolean pending,double leaveDays,double paidLeaveDays) {
         LocalDate date=snapshot.workDate();
         var events=snapshot.effectiveEvents().stream().map(e->new ClockEvent(e.id(),EventKind.valueOf(e.kind()),e.occurredAt())).toList();
         List<Schedule> schedules=List.of();
@@ -566,17 +608,14 @@ public final class WorktimeService {
                     c.breaks().stream().map(b->new Interval(b.startAt(),b.endAt())).toList());
         }
         return new DayInput(date,events,schedules,DayKind.valueOf(snapshot.dayKind()),reviewed,snapshot.inputRevision(),
-                snapshot.reviewRevision(),confirmation,pending,leaveDays);
+                snapshot.reviewRevision(),confirmation,pending,leaveDays,paidLeaveDays);
     }
-    private List<PeriodView> weeklyPeriods(UUID tenant,LocalDate expandedFrom,LocalDate expandedTo,List<DayView> all) {
+    private List<PeriodView> weeklyPeriods(LocalDate expandedFrom,LocalDate expandedTo,List<DayView> all,Predicate<LocalDate> mondayReviewed) {
         var weeks=new ArrayList<PeriodView>();
         for(LocalDate start=expandedFrom;!start.isAfter(expandedTo);start=start.plusDays(7)) {
             LocalDate begin=start,end=start.plusDays(7);
             var week=all.stream().filter(d->!d.workDate().isBefore(begin)&&d.workDate().isBefore(end)).toList();
-            boolean basis=true;
-            for(LocalDate date=begin;date.isBefore(end);date=date.plusDays(1)) {
-                var policy=mapper.policy(tenant,date);if(policy==null||!policy.mondayWeekReviewed())basis=false;
-            }
+            boolean basis=week.size()==7 && week.stream().allMatch(day -> mondayReviewed.test(day.workDate()));
             var result=calculator.week(begin,week.stream().map(this::currentResult).toList(),basis);
             weeks.add(new PeriodView(begin,end,week.stream().allMatch(DayView::current),result,ids(week),pendingDays(week)));
         }
@@ -584,7 +623,8 @@ public final class WorktimeService {
     }
     private DayResult currentResult(DayView day) {
         if(day.current())return day.result();var r=day.result();var reasons=new java.util.HashSet<>(r.reasons());reasons.add(day.id()==null?"NOT_CALCULATED":"STALE_RESULT");
-        return new DayResult(r.workDate(),Status.REVIEW_REQUIRED,r.scheduledMillis(),r.presenceMillis(),null,null,null,null,null,null,null,r.leaveDays(),r.inputRevision(),r.reviewRevision(),Set.copyOf(reasons));
+        return new DayResult(r.workDate(),Status.REVIEW_REQUIRED,r.scheduledMillis(),r.presenceMillis(),null,null,null,null,null,null,null,
+                day.approvedLeaveDays(),day.approvedPaidLeaveMillis(),r.inputRevision(),r.reviewRevision(),Set.copyOf(reasons));
     }
     private <T>T read(TnaPrincipal actor,UUID target,Supplier<T> action) {
         boolean own=target.equals(actor.employeeId());

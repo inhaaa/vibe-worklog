@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipInputStream;
 import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.clock.AttendanceSettingsService;
@@ -24,11 +25,18 @@ import kr.tna.request.RequestData.CorrectionForm;
 import kr.tna.request.RequestData.DecisionForm;
 import kr.tna.worktime.WorktimeService;
 import kr.tna.worktime.WorktimeData.*;
+import org.apache.ibatis.executor.statement.StatementHandler;
+import org.apache.ibatis.plugin.Interceptor;
+import org.apache.ibatis.plugin.Intercepts;
+import org.apache.ibatis.plugin.Invocation;
+import org.apache.ibatis.plugin.Signature;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -37,11 +45,34 @@ import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest
 class WorktimeServiceIT {
+    @TestConfiguration(proxyBeanMethods = false)
+    static class MonthlyReadTestConfig {
+        @Bean MonthlySqlCount monthlySqlCount() { return new MonthlySqlCount(); }
+    }
+
+    @Intercepts(@Signature(type = StatementHandler.class, method = "prepare", args = {java.sql.Connection.class, Integer.class}))
+    static class MonthlySqlCount implements Interceptor {
+        private final ThreadLocal<AtomicInteger> active = new ThreadLocal<>();
+        public Object intercept(Invocation invocation) throws Throwable {
+            var count = active.get();
+            if (count != null) count.incrementAndGet();
+            return invocation.proceed();
+        }
+        int during(Runnable read) {
+            var count = new AtomicInteger();
+            active.set(count);
+            try {
+                read.run();
+                return count.get();
+            } finally { active.remove(); }
+        }
+    }
     @Autowired WorktimeService reports;
     @Autowired ClockService clocks;
     @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     @Autowired LeaveWorkflowService workflow;
+    @Autowired MonthlySqlCount monthlySqlCount;
     private JdbcTemplate db;
     private UUID tenant;
     private TnaPrincipal manager,employee,approver;
@@ -160,9 +191,14 @@ class WorktimeServiceIT {
     }
     @Test void pendingCorrectionMakesPreviouslyConfirmedWorkUnknown() {
         var before=clocks.day(employee,date);
-        assertNotNull(workflow.submitCorrection(employee,new CorrectionForm(null,date,before.inputRevision(),before.sourceFingerprint(),"KEEP","","SET",date+"T18:00",true,true,date+"T12:00/"+date+"T13:00",null,null,false,"민감 사유를 출력하지 않음",UUID.randomUUID())));
+        var request=workflow.submitCorrection(employee,new CorrectionForm(null,date,before.inputRevision(),before.sourceFingerprint(),"KEEP","","SET",date+"T18:00",true,true,date+"T12:00/"+date+"T13:00",null,null,false,"민감 사유를 출력하지 않음",UUID.randomUUID()));
         assertNotNull(recalculate());var day=reports.days(employee,employee.employeeId(),date,date).getFirst();
         assertNull(day.result().actualWorkMillis());assertTrue(day.result().reasons().contains("PENDING_CORRECTION"));
+        assertMonthMatchesDay(day);
+        workflow.decide(approver, request, new DecisionForm("APPROVE", 0L, "합성 정정 승인", UUID.randomUUID()));
+        assertMonthMatchesDay(reports.days(employee, employee.employeeId(), date, date).getFirst());
+        recalculate();
+        assertMonthMatchesDay(reports.days(employee, employee.employeeId(), date, date).getFirst());
     }
     @Test void employeeCannotRecalculateExportOrReadAnotherEmployeeAndRangesAreBounded() {
         assertStatus(403,()->reports.recalculate(employee,employee.employeeId(),date,date,UUID.randomUUID(),"직원 집계 우회"));
@@ -240,6 +276,35 @@ class WorktimeServiceIT {
         assertTrue(month.summary().result().unconfirmedDays()>0);assertNull(month.weeks().getFirst().result().over40hMillis());
         int before=db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant);
         assertNotNull(reports.audits(manager));assertEquals(before+1,db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='AUDIT_VIEW'",Integer.class,tenant));
+    }
+
+    @Test void monthReadsUseTheSameBoundedSqlForFourAndSixWeeks() {
+        YearMonth fourWeeks = YearMonth.of(2021, 2), sixWeeks = YearMonth.of(2026, 11);
+        int shortMonth = monthlySqlCount.during(() -> reports.month(employee, employee.employeeId(), fourWeeks));
+        int longMonth = monthlySqlCount.during(() -> reports.month(employee, employee.employeeId(), sixWeeks));
+        assertTrue(shortMonth > 0 && shortMonth <= 12, "월 조회 SQL 횟수 " + shortMonth);
+        assertEquals(shortMonth, longMonth);
+        int shortCompany = monthlySqlCount.during(() -> reports.companyDays(manager, employee.employeeId(), fourWeeks));
+        int longCompany = monthlySqlCount.during(() -> reports.companyDays(manager, employee.employeeId(), sixWeeks));
+        assertTrue(shortCompany > 0 && shortCompany <= 12, "회사 월 조회 SQL 횟수 " + shortCompany);
+        assertEquals(shortCompany, longCompany);
+
+        reports.assess(manager, new AssessmentForm(employee.employeeId(), date.minusDays(7), date.plusDays(7),
+                true, "합성 적용 대상", "월 조회 대조", UUID.randomUUID()));
+        LocalDate monday = kr.tna.worktime.WorktimeCalculator.weekStart(date);
+        reports.reviewPolicy(manager, new PolicyForm(monday, monday.plusDays(7), true,
+                "합성 월요일 주 기산", "월 조회 대조", UUID.randomUUID()));
+        recalculate();
+        assertMonthMatchesDay(reports.days(employee, employee.employeeId(), date, date).getFirst());
+        var reviewedWeek = reports.month(employee, employee.employeeId(), YearMonth.from(date)).weeks().stream()
+                .filter(week -> monday.equals(week.from())).findFirst().orElseThrow();
+        assertFalse(reviewedWeek.result().reasons().contains("WEEK_BASIS_UNCONFIRMED"));
+    }
+
+    private void assertMonthMatchesDay(DayView daily) {
+        var month = YearMonth.from(date);
+        assertEquals(daily, reports.month(employee, employee.employeeId(), month).days().get(date.getDayOfMonth()-1));
+        assertEquals(daily, reports.companyDays(manager, employee.employeeId(), month).get(date.getDayOfMonth()-1));
     }
     @Test void confirmedDayIsCalculatedOnceWithItsWeek() {
         UUID confirmation=UUID.randomUUID();
@@ -411,6 +476,7 @@ class WorktimeServiceIT {
                 INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
                 VALUES (?,?,?,1,'CLOSED','합성 마감',?,'담당자')
                 """, tenant, closure, date.withDayOfMonth(1), manager.accountId());
+        assertMonthMatchesDay(reports.days(employee, target, date, date).getFirst());
         UUID frozenResult = db.queryForObject("""
                 SELECT result_ids[1] FROM tna.attendance_month_selective_member
                 WHERE tenant_id=? AND closure_id=? AND employee_id=?

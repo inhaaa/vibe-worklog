@@ -31,7 +31,7 @@ public final class SelectiveSettlement {
             return Math.max(0L, targetMinutes * 60_000L - confirmedWorkMillis - paidLeaveMillis);
         }
     }
-    record Day(LocalDate date, String settlementPeriod, Integer targetMinutes, double approvedLeaveDays,
+    record Day(LocalDate date, String settlementPeriod, Integer targetMinutes, double paidLeaveDays,
             Long actualWorkMillis, UUID pendingRequestId, Set<String> reasons, Action employeeClockAction, boolean closed) {
         UnconfirmedDate detail(Set<String> warnings) {
             var causes = new TreeSet<>(warnings);
@@ -91,7 +91,7 @@ public final class SelectiveSettlement {
             }
             else {
                 target += day.targetMinutes();
-                paid += Math.round(day.targetMinutes() * 60_000L * day.approvedLeaveDays());
+                paid += Math.round(day.targetMinutes() * 60_000L * day.paidLeaveDays());
             }
             boolean pending = day.pendingRequestId() != null;
             if (day.actualWorkMillis() != null && !pending) work += day.actualWorkMillis();

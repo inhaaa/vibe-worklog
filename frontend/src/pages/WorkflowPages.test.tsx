@@ -79,6 +79,15 @@ it('결재자는 대기함과 신청 상세에서 반차의 구분과 0.5일을 
   expect(view.getByText('0.5일')).toBeTruthy();
   expect(view.getByText('취소 심사 중에는 원승인·차감이 유지됩니다.')).toBeTruthy();
 });
+it('결재자는 연차 미차감 회사 휴가의 정책과 이름을 확인하고 결정한다',async()=>{
+  const form={...request,companyLeaveName:'경조휴가'};
+  const inbox=await render('request/list',{title:'내 결재',requests:[form],completed:false,page:0,hasNext:false});
+  expect(inbox.getByText('경조휴가')).toBeTruthy();
+  inbox.unmount();
+  const view=await render('request/detail',{request:form,detail:{days:[],history:[],attendancePolicy:{name:'경조휴가',recognitionRule:'COMPANY_LEAVE',payKind:'PAID',deductionRule:'NONE'}},canDecide:true,pageCommand:'cmd',candidates:[]});
+  expect(view.getByText('유급 · 연차 차감 없음')).toBeTruthy();
+  expect(view.queryByText('승인하면 신청 상태와 실제 연차 차감이 함께 반영됩니다.')).toBeNull();
+});
 it('팀장 단계에서 승인해도 다음 결재자에게 전달되며 최종 효력 안내가 나오지 않는다',async()=>{
   const view=await render('request/detail',{request:{...request,formCode:'L01',formName:'휴가 신청서',currentStep:1,totalSteps:2},
     detail:{days:[],history:[],correction:null,steps:[
@@ -532,7 +541,7 @@ describe('WorkflowPages', () => {
     expect(adjusted.get('quantityDays')).toBe('-0.5');
     expect(ledger.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!.validity.valid).toBe(true);
   });
-  it('근로시간은 실근로·확인 전·휴가 지표와 다섯 열만 보이고 담당자 명령을 제한한다', async () => {
+  it('근로시간은 유급휴가 인정시간을 실근로와 구분하고 담당자 명령을 제한한다', async () => {
     const data = {
       admin: true, employeeId: employee.id, employees: [employee], from: '2026-10-01', to: '2026-10-31',
       calculateCommand: 'calc-command', exportCommand: 'export-command',
@@ -540,16 +549,16 @@ describe('WorkflowPages', () => {
         month: '2026-10',
         days: [
           { id: 'result-1', workDate: '2026-10-26', employeeName: employee.displayName, employeeNo: employee.employeeNo,
-            current: true, pending: false, approvedLeaveDays: 0,
-            result: { ...result, actualWorkMillis: 29_110_000, confirmedBreakMillis: 3_600_000, over8hMillis: 310_000 } },
+            current: true, pending: false, approvedLeaveDays: 0.5,
+            result: { ...result, actualWorkMillis: 29_110_000, paidLeaveMillis: 14_400_000, confirmedBreakMillis: 3_600_000, over8hMillis: 310_000 } },
           { id: null, workDate: '2026-10-27', current: false, pending: true, approvedLeaveDays: 0, result },
-          { id: 'result-3', workDate: '2026-10-28', current: false, pending: true, approvedLeaveDays: 1,
-            result: { ...result, actualWorkMillis: 28_800_000 } },
+          { id: 'result-3', workDate: '2026-10-28', current: false, pending: true, approvedLeaveDays: 1, approvedPaidLeaveMillis: 7_200_000,
+            result: { ...result, actualWorkMillis: 28_800_000, paidLeaveMillis: 3_600_000 } },
         ],
         weeks: [{ from: '2026-10-26', to: '2026-11-02', current: false, pendingDays: 2,
-          result: { confirmedWorkMillis: 29_110_000, unconfirmedDays: 6, over40hMillis: null, reasons: [] } }],
+          result: { confirmedWorkMillis: 29_110_000, paidLeaveMillis: 21_600_000, unconfirmedDays: 6, over40hMillis: null, reasons: [] } }],
         summary: { from: '2026-10-01', to: '2026-11-01', current: false, pendingDays: 2,
-          result: { confirmedWorkMillis: 29_110_000, unconfirmedDays: 30, over40hMillis: null, reasons: ['PARTIAL_TOTAL'] } },
+          result: { confirmedWorkMillis: 29_110_000, paidLeaveMillis: 21_600_000, unconfirmedDays: 30, over40hMillis: null, reasons: ['PARTIAL_TOTAL'] } },
       },
     };
     const view = await render('worktime/month', data);
@@ -560,11 +569,12 @@ describe('WorkflowPages', () => {
     const summary = view.getByLabelText('월 요약');
     expect(summary.textContent).toContain('실근로 합계8:05:10');
     expect(summary.textContent).toContain('확인 전2일');
-    expect(summary.textContent).toContain('휴가1일');
+    expect(summary.textContent).toContain('휴가1.5일');
+    expect(summary.textContent).toContain('유급휴가 인정시간6:00:00');
     expect(Array.from(summary.querySelectorAll('div')).find(d => d.textContent?.startsWith('확인 전'))?.getAttribute('data-tone')).toBe('warn');
     const grid = view.getByRole('grid', { name: '일별 근로시간' });
     expect(Array.from(grid.querySelectorAll('.ag-header-cell[col-id]')).map(cell => cell.getAttribute('col-id')))
-      .toEqual(['workDate', 'actualWorkMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']);
+      .toEqual(['workDate', 'actualWorkMillis', 'paidLeaveMillis', 'confirmedBreakMillis', 'over8hMillis', 'approvedLeaveDays']);
     expect(within(grid).getByRole('columnheader', { name: /8시간 초과/ })).toBeTruthy();
     expect(grid.querySelector('[row-id="2026-10-26"] [col-id="actualWorkMillis"]')?.textContent).toBe('8:05:10');
     expect(grid.querySelector('[row-id="2026-10-28"] [col-id="actualWorkMillis"]')?.textContent).toBe('확인 전');
@@ -575,11 +585,14 @@ describe('WorkflowPages', () => {
     expect(within(grid).getByRole('link', { name: '2026-10-26' }).getAttribute('href')).toBe('/worktime/results/result-1');
     expect(within(grid).queryByRole('link', { name: '2026-10-27' })).toBeNull();
     expect(grid.querySelector('[row-id="2026-10-27"] [col-id="workDate"]')?.textContent).toBe('2026-10-27');
-    expect(grid.querySelector('[row-id="2026-10-26"] [col-id="approvedLeaveDays"]')?.textContent).toBe('-');
+    expect(grid.querySelector('[row-id="2026-10-26"] [col-id="approvedLeaveDays"]')?.textContent).toBe('0.5');
+    expect(grid.querySelector('[row-id="2026-10-26"] [col-id="paidLeaveMillis"]')?.textContent).toBe('4:00:00');
+    expect(grid.querySelector('[row-id="2026-10-28"] [col-id="paidLeaveMillis"]')?.textContent).toBe('2:00:00');
     const weeks = view.getByRole('grid', { name: '주간 근로시간' });
     expect(weeks.textContent).toContain('2026-10-26 ~ 2026-11-01');
     expect(weeks.querySelector('[col-id="pendingDays"]:not(.ag-header-cell)')?.textContent).toBe('2일');
     expect(weeks.querySelector('[col-id="confirmedWorkMillis"]:not(.ag-header-cell)')?.textContent).toBe('8:05:10');
+    expect(weeks.querySelector('[col-id="paidLeaveMillis"]:not(.ag-header-cell)')?.textContent).toBe('6:00:00');
     expect(weeks.querySelector('[col-id="over40hMillis"]:not(.ag-header-cell)')?.textContent).toBe('-');
     expect(view.container.querySelector('form[action="/admin/calculations"]')).toBeTruthy();
     expect(view.container.querySelector('form[action="/admin/reports/exports"]')).toBeTruthy();

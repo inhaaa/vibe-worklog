@@ -96,16 +96,18 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
     String SAME_DAY_APPROVED_LEAVE = """
                 FROM tna.request_effect f JOIN tna.approval_request ar ON ar.tenant_id=f.tenant_id AND ar.id=f.request_id
                 JOIN tna.leave_request_day ld ON ld.tenant_id=ar.tenant_id AND ld.request_id=ar.id
+                LEFT JOIN tna.attendance_type_version lv ON lv.tenant_id=ar.tenant_id AND lv.id=ar.attendance_type_version_id
                 WHERE f.tenant_id=#{tenantId} AND f.employee_id=d.employee_id AND f.effect_kind='LEAVE' AND f.effect_status='EFFECTIVE'
                   AND ar.status='APPROVED' AND ld.leave_date=d.work_date AND ld.quantity_days>0
                 """;
 
     String LEAVE_AND_POLICY_JOINS = """
             LEFT JOIN LATERAL (
-                SELECT jsonb_agg(jsonb_build_object('id',f.id,'quantityDays',ld.quantity_days) ORDER BY f.id)::text AS effects
+                SELECT jsonb_agg(jsonb_build_object('id',f.id,'quantityDays',ld.quantity_days,
+                    'recognitionRule',lv.recognition_rule,'payKind',lv.pay_kind) ORDER BY f.id)::text AS effects
             """ + SAME_DAY_APPROVED_LEAVE + """
             ) l ON true
-            LEFT JOIN LATERAL (SELECT id FROM tna.work_policy_version WHERE tenant_id=#{tenantId}
+            LEFT JOIN LATERAL (SELECT id,monday_week_reviewed FROM tna.work_policy_version WHERE tenant_id=#{tenantId}
                 AND valid_from<=d.work_date AND (valid_to IS NULL OR valid_to>d.work_date) ORDER BY revision DESC LIMIT 1) policy ON true
             LEFT JOIN LATERAL (SELECT id,general_rule_reviewed FROM tna.employment_rule_assessment
                 WHERE tenant_id=#{tenantId} AND employee_id=d.employee_id AND valid_from<=d.work_date

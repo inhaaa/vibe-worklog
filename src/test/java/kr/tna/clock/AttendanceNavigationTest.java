@@ -195,8 +195,8 @@ class AttendanceNavigationTest {
     }
     private kr.tna.worktime.WorktimeData.DayView view(LocalDate date, boolean current, Long actual) {
         var result = new kr.tna.worktime.WorktimeCalculator.DayResult(date, kr.tna.worktime.WorktimeCalculator.Status.CALCULATED,
-                null, null, actual, null, null, null, null, null, null, 0, 4, 2, Set.of());
+                null, null, actual, null, null, null, null, null, null, 0, 0L, 4, 2, Set.of());
         return new kr.tna.worktime.WorktimeData.DayView(UUID.randomUUID(), UUID.randomUUID(), actor.employeeId(), "E001", "직원",
-                date, 1, "CALC-1", Instant.EPOCH, "a".repeat(64), current, result, false, 0, true);
+                date, 1, "CALC-1", Instant.EPOCH, "a".repeat(64), current, result, false, 0, 0L, true);
     }
 }

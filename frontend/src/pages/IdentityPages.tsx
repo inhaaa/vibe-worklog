@@ -47,6 +47,7 @@ interface CompanyAttendance {
     scheduledMillis: number | null;
     actualWorkMillis: number | null;
     leaveDays: number | null;
+    paidLeaveMillis?: number | null;
     status: string;
     current: boolean;
   }[];
@@ -67,6 +68,7 @@ interface CompanyRequests {
     organizationName: string | null;
     kind: string;
     leavePart?: LeavePart | null;
+    companyLeaveName?: string | null;
     status: string;
     fromDate: string;
     toDate: string;
@@ -233,7 +235,9 @@ function CompanyAttendancePage({ model: m, canViewCheckout }: { model: CompanyAt
                 filterValueGetter: ({ data }) => duration(data?.current ? data.actualWorkMillis : null),
                 getQuickFilterText: ({ value }) => duration(value), minWidth: 220, cellClass: 'w-sheet-number',
               },
-              { colId: 'leaveDays', headerName: '휴가 (일)', valueGetter: ({ data }) => data?.current && data.leaveDays != null ? data.leaveDays : '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
+              { colId: 'leaveDays', headerName: '승인 휴가 (일)', valueGetter: ({ data }) => data?.leaveDays ?? '미확정', minWidth: 130, cellClass: 'w-sheet-number' },
+              { colId: 'paidLeaveMillis', headerName: '유급휴가 인정시간', valueGetter: ({ data }) => data?.paidLeaveMillis ?? null,
+                valueFormatter: ({ value }) => value == null ? '미확정' : duration(value), minWidth: 160, cellClass: 'w-sheet-number' },
             ]}
           />
         )}
@@ -278,7 +282,7 @@ function CompanyRequestsPage({ model: m }: { model: CompanyRequests }) {
           columns={[
             { colId: 'employee', headerName: '사번·이름', valueGetter: ({ data }) => data && `${data.employeeNo} · ${data.employeeName}`, minWidth: 200, pinned: 'left' },
             { colId: 'organizationName', headerName: '현재 소속', valueGetter: ({ data }) => data?.organizationName ?? '미배정', minWidth: 150 },
-            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (data.kind==='ATTENDANCE_CORRECTION'?'기록 정정':requestKindName(data.kind,data.leavePart)), minWidth: 140 },
+            { colId: 'kind', headerName: '종류', valueGetter: ({ data }) => data && (data.kind==='ATTENDANCE_CORRECTION'?'기록 정정':requestKindName(data.kind,data.leavePart,data.companyLeaveName)), minWidth: 140 },
             { colId: 'period', headerName: '기간', valueGetter: ({ data }) => data && `${fmtDate(data.fromDate)} ~ ${fmtDate(data.toDate)}`, minWidth: 250 },
             { field: 'quantityDays', headerName: '조회연도 신청일량 (일)', minWidth: 220, cellClass: 'w-sheet-number' },
             { colId: 'status', headerName: '상태·효력', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${effects[data.effectStatus] ?? data.effectStatus}`, minWidth: 190 },

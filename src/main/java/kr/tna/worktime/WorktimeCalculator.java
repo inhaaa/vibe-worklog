@@ -39,14 +39,21 @@ public final class WorktimeCalculator {
                                List<Interval> actualBreaks) { }
     public record DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules,
                            DayKind dayKind, boolean generalRuleReviewed, long inputRevision, long reviewRevision,
-                           Confirmation confirmation, boolean pendingCorrection, double approvedLeaveDays) { }
+                           Confirmation confirmation, boolean pendingCorrection, double approvedLeaveDays, double paidLeaveDays) {
+        public DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules, DayKind dayKind,
+                boolean generalRuleReviewed, long inputRevision, long reviewRevision, Confirmation confirmation,
+                boolean pendingCorrection, double approvedLeaveDays) {
+            this(workDate, events, schedules, dayKind, generalRuleReviewed, inputRevision, reviewRevision,
+                    confirmation, pendingCorrection, approvedLeaveDays, approvedLeaveDays);
+        }
+    }
     public record DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
                             Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
                             Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
-                            double leaveDays, long inputRevision, long reviewRevision, Set<String> reasons) { }
+                            double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons) { }
     public record PeriodResult(LocalDate start, LocalDate end, Status status, long confirmedWorkMillis,
                                int unconfirmedDays, Long over40hMillis, Long over8hMillis, List<DayResult> days,
-                               Set<String> reasons) { }
+                               Set<String> reasons, Long paidLeaveMillis) { }
 
     public DayResult day(DayInput input) {
         Objects.requireNonNull(input); Objects.requireNonNull(input.workDate());
@@ -54,6 +61,8 @@ public final class WorktimeCalculator {
         Objects.requireNonNull(input.dayKind());
         if (input.inputRevision()<0 || input.reviewRevision()<0 || (input.approvedLeaveDays()!=0
                 && input.approvedLeaveDays()!=0.5 && input.approvedLeaveDays()!=1)) throw new IllegalArgumentException("Invalid day revision or leave quantity");
+        if ((input.paidLeaveDays()!=0 && input.paidLeaveDays()!=0.5 && input.paidLeaveDays()!=1)
+                || input.paidLeaveDays()>input.approvedLeaveDays()) throw new IllegalArgumentException("Invalid paid leave quantity");
         var reasons = new TreeSet<String>();
         reasons.add("LEGAL_OVERTIME_UNDETERMINED");
         if (!input.generalRuleReviewed()) reasons.add("LEGAL_APPLICABILITY_UNCONFIRMED");
@@ -166,7 +175,14 @@ public final class WorktimeCalculator {
         Status status=review || actual==null?Status.REVIEW_REQUIRED
                 :noEvents && nonWorkday && input.approvedLeaveDays()==0?Status.NO_SCHEDULED_WORK:Status.CALCULATED;
         return new DayResult(input.workDate(),status,scheduled,presence,actual,confirmedBreak,outside,overEight,night,holiday,
-                null,input.approvedLeaveDays(),input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons));
+                null,input.approvedLeaveDays(),paidLeaveMillis(input.dayKind(),scheduled,input.paidLeaveDays()),
+                input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons));
+    }
+
+    static Long paidLeaveMillis(DayKind dayKind, Long scheduledMillis, double paidDays) {
+        if (paidDays == 0 || dayKind == DayKind.HOLIDAY || dayKind == DayKind.NON_WORKDAY) return 0L;
+        if (scheduledMillis == null || dayKind == null || dayKind == DayKind.UNCONFIRMED) return null;
+        return Math.round(scheduledMillis * paidDays);
     }
 
     public PeriodResult week(LocalDate start,List<DayResult> days,boolean weekBasisReviewed) {
@@ -221,8 +237,10 @@ public final class WorktimeCalculator {
         if (overForty!=null && overForty>12*HOUR) reasons.add("WEEK_LIMIT_REVIEW");
         Status status=reasons.isEmpty()?Status.CALCULATED:Status.REVIEW_REQUIRED;
         if (selectiveWeek) reasons.add(SELECTIVE_SETTLEMENT);
+        Long paidLeave = missing == 0 && days.stream().allMatch(day -> day.paidLeaveMillis() != null)
+                ? days.stream().mapToLong(DayResult::paidLeaveMillis).sum() : null;
         return new PeriodResult(start,end,status,confirmed,unconfirmed,
-                overForty,overEight,List.copyOf(days),Set.copyOf(reasons));
+                overForty,overEight,List.copyOf(days),Set.copyOf(reasons),paidLeave);
     }
 
     private static void precise(Instant value) {

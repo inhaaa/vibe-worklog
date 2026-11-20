@@ -14,11 +14,17 @@ import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 class SelectiveCloseMembershipIT {
     private static final LocalDate FIRST=LocalDate.of(2024,10,27), SECOND=FIRST.plusDays(1);
     private static final String MONTH="2024-10";
@@ -28,6 +34,7 @@ class SelectiveCloseMembershipIT {
     @Autowired ClockService clocks;
     @Autowired WorktimeService reports;
     @Autowired AttendanceMonthCloseService closures;
+    @Autowired MockMvc mvc;
 
     @DynamicPropertySource static void properties(DynamicPropertyRegistry p) {
         var f=DatabaseFixture.start();
@@ -101,6 +108,87 @@ class SelectiveCloseMembershipIT {
         close("REOPEN",1);
         close("CLOSE",2);
         assertEquals(1,reports.adminSettlements(admin,person.employeeId(),MONTH).periods().getFirst().appliedDays());
+    }
+
+    @Test void companyPaidAndUnpaidDaysRemainDistinctInOpenAndClosedResults() throws Exception {
+        db=new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'회사 휴가 마감 검증')",tenant,tenant.toString());
+        admin=person("담당",SECOND.plusMonths(1),true);
+        var worker=person("사원",FIRST,false);
+        UUID department=UUID.randomUUID();
+        db.update("INSERT INTO tna.organization(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,'A01','운영팀',?,?)",
+                tenant,department,admin.accountId(),admin.accountId());
+        db.update("INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,reason,created_by,updated_by) VALUES (?,gen_random_uuid(),?,?,?,'합성 소속',?,?)",
+                tenant,worker.employeeId(),department,FIRST,admin.accountId(),admin.accountId());
+        db.update("UPDATE tna.employee SET left_on=? WHERE tenant_id=? AND id=?",SECOND,tenant,worker.employeeId());
+        schedule();
+        db.update("INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,valid_to,reason,created_by,updated_by) VALUES (?,gen_random_uuid(),?,?,?,?,'선택 배정',?,?)",
+                tenant,worker.employeeId(),version,FIRST,SECOND.plusDays(1),admin.accountId(),admin.accountId());
+        UUID assignment=UUID.randomUUID();
+        db.update("""
+                INSERT INTO tna.approver_assignment(tenant_id,id,employee_id,approver_employee_id,valid_from,reason,created_by,updated_by)
+                VALUES (?,?,?,?,?,'합성 결재선',?,?)
+                """,tenant,assignment,worker.employeeId(),admin.employeeId(),FIRST,admin.accountId(),admin.accountId());
+        reports.recalculate(admin,worker.employeeId(),FIRST,SECOND,UUID.randomUUID(),"휴가 승인 전 집계");
+        companyLeave(worker,assignment,FIRST,"C01","PAID");
+        companyLeave(worker,assignment,SECOND,"C02","UNPAID");
+        var beforeRecalculation = reports.month(admin, worker.employeeId(), YearMonth.from(FIRST));
+        assertFalse(beforeRecalculation.days().get(FIRST.getDayOfMonth()-1).current());
+        assertEquals(0L, beforeRecalculation.days().get(FIRST.getDayOfMonth()-1).result().paidLeaveMillis());
+        assertEquals(7*3_600_000L, beforeRecalculation.days().get(FIRST.getDayOfMonth()-1).approvedPaidLeaveMillis());
+        assertEquals(7*3_600_000L, beforeRecalculation.summary().result().paidLeaveMillis());
+        var companyDays = ReactPageAssertions.envelope(mvc.perform(get("/company/attendance").with(MonthCloseExportIT.as(admin))
+                .param("month", MONTH).param("employeeId", worker.employeeId().toString()).accept("application/vnd.worklog.page+json"))
+                .andExpect(status().isOk()).andReturn()).at("/data/companyAttendance/days");
+        var paid = companyDays.get(FIRST.getDayOfMonth()-1);
+        var unpaid = companyDays.get(SECOND.getDayOfMonth()-1);
+        assertEquals(1.0, paid.required("leaveDays").doubleValue());
+        assertEquals(7*3_600_000L, paid.required("paidLeaveMillis").longValue());
+        assertFalse(paid.required("current").asBoolean());
+        assertTrue(paid.required("actualWorkMillis").isNull());
+        assertEquals(1.0, unpaid.required("leaveDays").doubleValue());
+        assertEquals(0L, unpaid.required("paidLeaveMillis").longValue());
+        assertTrue(companyDays.get(0).required("leaveDays").isNull());
+        reports.recalculate(admin,worker.employeeId(),FIRST,SECOND,UUID.randomUUID(),"회사 유급·무급 휴가 대조");
+        var days=reports.month(admin,worker.employeeId(),YearMonth.from(FIRST)).days();
+        assertEquals(7*3_600_000L,days.get(FIRST.getDayOfMonth()-1).result().paidLeaveMillis());
+        assertEquals(0L,days.get(SECOND.getDayOfMonth()-1).result().paidLeaveMillis());
+        var open=reports.adminSettlements(admin,worker.employeeId(),MONTH).periods().getFirst();
+        assertEquals(7*3_600_000L,open.paidLeaveMillis());
+        assertEquals(0L,open.confirmedWorkMillis());
+        assertEquals(0,open.unconfirmedDays());
+        assertEquals(-7*3_600_000L,open.differenceMillis());
+        close("CLOSE",0);
+        assertEquals(open,reports.adminSettlements(admin,worker.employeeId(),MONTH).periods().getFirst());
+        for (String scope : List.of("COMPANY", "DEPARTMENT")) {
+            var download = get("/admin/attendance/month-close/export").with(MonthCloseExportIT.as(admin))
+                    .param("month", MONTH).param("version", "1").param("scope", scope);
+            if ("DEPARTMENT".equals(scope)) download.param("organizationId", department.toString());
+            var file = mvc.perform(download).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+            assertTrue(MonthCloseExportIT.worksheet(file).contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "2.0")));
+        }
+        assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.leave_ledger WHERE tenant_id=?",Integer.class,tenant));
+    }
+
+    private void companyLeave(TnaPrincipal worker,UUID assignment,LocalDate day,String code,String pay) {
+        UUID type=UUID.randomUUID(),policy=UUID.randomUUID(),request=UUID.randomUUID();
+        db.update("INSERT INTO tna.attendance_type(tenant_id,id,code,created_by,updated_by) VALUES (?,?,?,?,?)",
+                tenant,type,code,admin.accountId(),admin.accountId());
+        db.update("""
+                INSERT INTO tna.attendance_type_version(tenant_id,id,type_id,revision,effective_from,enabled,name,unit,pay_kind,deduction_rule,recognition_rule,basis,reason,created_by)
+                VALUES (?,?,?,1,?,true,?,'DAY',?,'NONE','COMPANY_LEAVE','회사 기준','합성 휴가',?)
+                """,tenant,policy,type,FIRST,code,pay,admin.accountId());
+        db.update("""
+                INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
+                  approver_assignment_id,approver_assignment_version,reason,from_date,to_date,client_command_id,attendance_type_version_id)
+                VALUES (?,?,?,?,'LEAVE_DAY','APPROVED',?,?,0,'합성 승인',?,?,gen_random_uuid(),?)
+                """,tenant,request,worker.employeeId(),worker.accountId(),admin.employeeId(),assignment,day,day,policy);
+        db.update("""
+                INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,schedule_version_id,calendar_version_id)
+                SELECT ?,gen_random_uuid(),?,?,1,?,c.id FROM tna.calendar_version c WHERE c.tenant_id=? AND c.revision=1
+                """,tenant,request,day,version,tenant);
+        db.update("INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by) VALUES (?,gen_random_uuid(),?,?,'LEAVE',?)",
+                tenant,request,worker.employeeId(),admin.accountId());
     }
 
     private void close(String action,long version) {

@@ -29,7 +29,7 @@ public final class ProfileCompanyData {
     public record EmployeeItem(UUID id, String employeeNo, String employeeName, String organizationName) { }
 
     public record AttendanceDay(LocalDate workDate, Long scheduledMillis, Long actualWorkMillis,
-            Double leaveDays, String status, boolean current) { }
+            Double leaveDays, Long paidLeaveMillis, String status, boolean current) { }
 
     public record CompanyAttendance(YearMonth month, Instant asOf, UUID organizationId, UUID employeeId,
             String q, int page, boolean hasNext, List<OrganizationItem> organizations, List<EmployeeItem> employees,
@@ -51,7 +51,7 @@ public final class ProfileCompanyData {
 
     public record CompanyRequest(UUID id, String employeeNo, String employeeName, String organizationName,
             String kind, String status, LocalDate fromDate, LocalDate toDate, double quantityDays,
-            String effectStatus, Instant submittedAt, String leavePart) { }
+            String effectStatus, Instant submittedAt, String leavePart, String companyLeaveName) { }
 
     public record CompanyRequests(int year, Instant asOf, UUID organizationId, String status, int page,
             boolean hasNext, RequestScope scope, List<OrganizationItem> organizations, List<CompanyRequest> requests) { }

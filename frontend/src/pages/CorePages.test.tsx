@@ -162,11 +162,11 @@ describe('개인 홈과 일정', () => {
     const view = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
       month: '2026-11', selectedDate: '2026-11-10', days, leadingBlanks: [], previousMonth: null, nextMonth: null, selectedDay: days[1] } })} />);
     const pairs = (root: Element) => [...root.querySelectorAll('dt')].map(term => [term.textContent, term.nextElementSibling?.textContent]);
-    expect(pairs(view.container.querySelector('.wl-summary')!)).toEqual([['예정 근무', '4일 · 32:00'], ['승인 연차', '1일'], ['검토 중', '1건'], ['확인 필요', '1일']]);
+    expect(pairs(view.container.querySelector('.wl-summary')!)).toEqual([['예정 근무', '4일 · 32:00'], ['승인 휴가', '1일'], ['검토 중', '1건'], ['확인 필요', '1일']]);
     const panel = view.getByRole('complementary', { name: '주간 근무와 처리할 일' });
     expect(within(panel).getByText('11.09 (월) – 11.15 (일)')).toBeTruthy();
     expect(panel.querySelector('.wl-side-big')?.firstChild?.textContent).toBe('24:00');
-    expect(pairs(panel.querySelector('.wl-side-facts')!)).toEqual([['예정 근무', '3일'], ['승인 연차', '1일'], ['비근로일·휴일', '1일'], ['확인 필요', '1일']]);
+    expect(pairs(panel.querySelector('.wl-side-facts')!)).toEqual([['예정 근무', '3일'], ['승인 휴가', '1일'], ['비근로일·휴일', '1일'], ['확인 필요', '1일']]);
     expect(within(panel).getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')])).toEqual([
       ['11.12 (목) 종일 연차', '/requests/wait'], ['11.13 (금) 근무 미배정', '/me/schedule?month=2026-11&date=2026-11-13'],
     ]);
@@ -271,7 +271,7 @@ describe('개인 홈과 일정', () => {
     const trigger = view.getByRole('button', { name: '2026-10-26 신청 메뉴' });
     const checkMenu = () => {
       const menu = within(view.getByRole('group', { name: '2026-10-26 신청 메뉴' }));
-      for (const [name, kind] of [['연차·반차 신청', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
+      for (const [name, kind] of [['휴가 신청', 'LEAVE_DAY'], ['출퇴근·휴게 정정', 'ATTENDANCE_CORRECTION']]) {
         const url = new URL((menu.getByRole('link', { name }).getAttribute('href'))!, 'https://worklog.test');
         expect(url.pathname).toBe('/me/requests/new');
         expect(Object.fromEntries(url.searchParams)).toEqual({ year: '2026', kind, date: '2026-10-26' });
@@ -281,7 +281,7 @@ describe('개인 홈과 일정', () => {
     };
 
     fireEvent.contextMenu(dateLink);
-    const first = checkMenu().getByRole('link', { name: '연차·반차 신청' });
+    const first = checkMenu().getByRole('link', { name: '휴가 신청' });
     expect(document.activeElement).toBe(first);
     fireEvent.keyDown(first, { key: 'Escape' });
     expect(view.queryByRole('group', { name: '2026-10-26 신청 메뉴' })).toBeNull();

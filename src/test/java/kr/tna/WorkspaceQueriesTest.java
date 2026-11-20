@@ -129,6 +129,25 @@ class WorkspaceQueriesTest {
     }
 
     @Test
+    void calendarAndHomeNameTheCompanyLeaveFromTheRequestVersion() {
+        LocalDate date = LocalDate.of(2026, 10, 26);
+        var original = spy(request("LEAVE_DAY","APPROVED","EFFECTIVE",actor.employeeId(),date,date,null));
+        doReturn("경조휴가").when(original).companyLeaveName();
+        doReturn("AM").when(original).leavePart();
+        var cancel = spy(request("CANCEL_LEAVE","PENDING","NONE",actor.employeeId(),date,date,original.id()));
+        doReturn("경조휴가").when(cancel).companyLeaveName();
+        doReturn("AM").when(cancel).leavePart();
+        when(leave.mine(actor)).thenReturn(List.of(original,cancel));
+        when(leave.get(actor,original.id())).thenReturn(new RequestDetail(original,
+                List.of(new RequestDay(date,.5,UUID.randomUUID(),UUID.randomUUID(),null,"AM")),null,List.of()));
+
+        var month = queries.calendar(actor,YearMonth.from(date),date);
+        assertEquals(List.of("경조휴가 · 오전","경조휴가 · 오전 취소"),
+                month.selectedDay().requests().stream().map(item -> item.kindLabel()).toList());
+        assertEquals("경조휴가 · 오전",queries.home(actor).recentRequests().getFirst().kindLabel());
+    }
+
+    @Test
     void homeUsesCurrentAvailableDaysAndCountsOnlyTheAuthenticatedEmployeesPendingRequests() {
         LocalDate date = LocalDate.of(2026, 10, 26);
         when(leave.buckets(actor, actor.employeeId())).thenReturn(List.of(bucket(9), bucket(4)));

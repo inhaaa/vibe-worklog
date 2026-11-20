@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
+import kr.tna.codes.CompanyLeavePolicy;
 import kr.tna.worktime.WorktimeData.*;
 import org.apache.ibatis.annotations.*;
 
@@ -15,39 +16,65 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
             String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod,
             UUID calendarVersionId, String dayKind, String events, String correction, String confirmations,
             UUID policyId, UUID assessmentId, String leaveEffects, String pendingCorrections,
-            String storedSource, Long storedInput, Long storedReview, Long actualWorkMillis, Double storedLeaveDays,
+            String storedSource, Long storedInput, Long storedReview, Long actualWorkMillis, Double storedLeaveDays, Double storedPaidLeaveDays,
             String reasonCodes, String savedSelectiveInputs, boolean closed, boolean unknownMembership)
             implements MonthEndReviewMapper.DayEvidence { }
 
-    // A month's complete ISO boundary weeks contain at most 42 dates. Read sources and saved results together.
-    @Select("""
+    record MonthDayRow(UUID employeeId, LocalDate workDate, long inputRevision, long reviewRevision,
+            UUID scheduleVersionId, Boolean workday, LocalTime startTime, LocalTime endTime, String breaks,
+            String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod,
+            UUID calendarVersionId, String dayKind, String events, String correction, String confirmations,
+            UUID policyId, UUID assessmentId, String leaveEffects, String pendingCorrections,
+            boolean generalRuleReviewed, boolean mondayWeekReviewed) implements MonthEndReviewMapper.DayEvidence { }
+
+    // Full ISO boundary weeks of one month cover at most 42 dates.
+    String MONTH_DATES = """
             WITH dates AS (
                 SELECT #{employeeId}::uuid AS employee_id,#{from}::date+n AS work_date
                 FROM generate_series(0,41) n WHERE #{from}::date+n<=#{through}
-            ), closures AS (
-                SELECT DISTINCT ON (month_start) id,month_start,status,changed_at FROM tna.attendance_month_closure
-                WHERE tenant_id=#{tenantId} AND month_start>=date_trunc('month',#{from}::date::timestamp)::date
-                  AND month_start<=#{through}::date ORDER BY month_start,version DESC
             )
-            SELECT d.employee_id,d.work_date,coalesce(rev.input_revision,0) AS input_revision,
+            """;
+    String MONTH_DAY_COLUMNS = """
+                d.employee_id,d.work_date,coalesce(rev.input_revision,0) AS input_revision,
                 coalesce(rev.review_revision,0) AS review_revision,s.version_id AS schedule_version_id,s.workday,
                 s.start_time,s.end_time,s.breaks,s.work_mode,s.core_start,s.core_end,s.standard_minutes,s.settlement_period,
                 cal.version_id AS calendar_version_id,cal.kind AS day_kind,rec.events,cor.correction,conf.confirmations,
                 policy.id AS policy_id,assessment.id AS assessment_id,l.effects AS leave_effects,p.ids AS pending_corrections,
+            """;
+    String MONTH_DAY_JOINS = MonthEndReviewMapper.DAY_EVIDENCE_JOINS + MonthEndReviewMapper.LEAVE_AND_POLICY_JOINS + """
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(id ORDER BY id)::text AS ids FROM tna.approval_request
+                WHERE tenant_id=#{tenantId} AND target_employee_id=d.employee_id AND kind='ATTENDANCE_CORRECTION'
+                    AND status='PENDING' AND from_date=d.work_date
+            ) p ON true
+            """;
+
+    @Select(MONTH_DATES + " SELECT " + MONTH_DAY_COLUMNS + """
+                coalesce(assessment.general_rule_reviewed,false) AS general_rule_reviewed,
+                coalesce(policy.monday_week_reviewed,false) AS monday_week_reviewed
+            FROM dates d
+            """ + MONTH_DAY_JOINS + " ORDER BY d.work_date")
+    List<MonthDayRow> monthDays(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("from") LocalDate from, @Param("through") LocalDate through);
+
+    @Select(MONTH_DATES + """
+            , closures AS (
+                SELECT DISTINCT ON (month_start) id,month_start,status,changed_at FROM tna.attendance_month_closure
+                WHERE tenant_id=#{tenantId} AND month_start>=date_trunc('month',#{from}::date::timestamp)::date
+                  AND month_start<=#{through}::date ORDER BY month_start,version DESC
+            )
+            SELECT
+            """ + MONTH_DAY_COLUMNS + """
                 r.source_fingerprint AS stored_source,r.input_revision AS stored_input,r.review_revision AS stored_review,
-                r.actual_work_millis,r.leave_days AS stored_leave_days,r.reason_codes::text AS reason_codes,
+                r.actual_work_millis,r.leave_days AS stored_leave_days,
+                coalesce((r.input_refs#>>'{0,paidLeaveDays}')::numeric,r.leave_days) AS stored_paid_leave_days,r.reason_codes::text AS reason_codes,
                 CASE WHEN r.input_refs#>>'{0,clock,schedule,workMode}'='SELECTIVE' THEN r.input_refs::text END AS saved_selective_inputs,
                 c.id IS NOT NULL AS closed,m.employee_id IS NOT NULL AND m.result_ids IS NULL AS unknown_membership
             FROM dates d
             LEFT JOIN closures c ON c.month_start=date_trunc('month',d.work_date::timestamp)::date AND c.status='CLOSED'
             LEFT JOIN tna.attendance_month_selective_member m ON m.tenant_id=#{tenantId} AND m.closure_id=c.id
                 AND m.employee_id=d.employee_id
-            """ + MonthEndReviewMapper.DAY_EVIDENCE_JOINS + MonthEndReviewMapper.LEAVE_AND_POLICY_JOINS + """
-            LEFT JOIN LATERAL (
-                SELECT jsonb_agg(id ORDER BY id)::text AS ids FROM tna.approval_request
-                WHERE tenant_id=#{tenantId} AND target_employee_id=d.employee_id AND kind='ATTENDANCE_CORRECTION'
-                    AND status='PENDING' AND from_date=d.work_date
-            ) p ON true
+            """ + MONTH_DAY_JOINS + """
             LEFT JOIN LATERAL (
                 SELECT source_fingerprint,input_revision,review_revision,actual_work_millis,leave_days,reason_codes,input_refs
                 FROM tna.day_result dr WHERE dr.tenant_id=#{tenantId} AND dr.employee_id=d.employee_id AND dr.work_date=d.work_date
@@ -123,16 +150,23 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         @Param("revision") int revision,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("reviewed") boolean reviewed,@Param("basis") String basis,@Param("actorId") UUID actorId);
     @Select("""
-        SELECT f.id::text AS id, d.quantity_days FROM tna.request_effect f
+        SELECT f.id::text AS id,d.quantity_days,v.recognition_rule,v.pay_kind
+        FROM tna.request_effect f
         JOIN tna.approval_request r ON r.tenant_id=f.tenant_id AND r.id=f.request_id
         JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
+        LEFT JOIN tna.attendance_type_version v ON v.tenant_id=r.tenant_id AND v.id=r.attendance_type_version_id
         WHERE f.tenant_id=#{tenantId} AND f.employee_id=#{employeeId} AND f.effect_kind='LEAVE' AND f.effect_status='EFFECTIVE'
           AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days>0 ORDER BY f.id
         """)
     List<LeaveEffect> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
-    record LeaveEffect(String id, double quantityDays) {
+    record LeaveEffect(String id, double quantityDays, String recognitionRule, String payKind) {
         public static double totalDays(List<LeaveEffect> effects) {
             return effects.stream().mapToDouble(LeaveEffect::quantityDays).sum();
+        }
+        public static double paidDays(List<LeaveEffect> effects) {
+            return effects.stream().filter(effect -> !CompanyLeavePolicy.RULE.equals(effect.recognitionRule())
+                            || "PAID".equals(effect.payKind()))
+                    .mapToDouble(LeaveEffect::quantityDays).sum();
         }
     }
     @Select("SELECT id::text FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND status='PENDING' AND from_date=#{date} ORDER BY id")
@@ -163,7 +197,8 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         SELECT DISTINCT ON(work_date) id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
           outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,leave_days,
-          reason_codes::text AS reason_codes,calculated_at
+          coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
+          input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date>=#{from} AND work_date<=#{to}
         ORDER BY work_date,result_revision DESC
         """)
@@ -172,7 +207,8 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         SELECT id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
           outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,leave_days,
-          reason_codes::text AS reason_codes,calculated_at
+          coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
+          input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{id}
           AND(employee_id=#{employeeId} OR #{administrator})
         """)
@@ -226,6 +262,6 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,
-        Long holidayWorkMillis,Long legalOvertimeMillis,double leaveDays,String reasonCodes,Instant calculatedAt) { }
+        Long holidayWorkMillis,Long legalOvertimeMillis,double leaveDays,double paidLeaveDays,String savedDayKind,String reasonCodes,Instant calculatedAt) { }
     record SnapshotRow(UUID id,UUID requestedBy,UUID employeeId,LocalDate fromDate,LocalDate toDate,Instant asOf,byte[] workbook) { }
 }

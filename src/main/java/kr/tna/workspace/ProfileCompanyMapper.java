@@ -116,8 +116,10 @@ public interface ProfileCompanyMapper {
               r.from_date,r.to_date,
               COALESCE(days.quantity_days,0) AS quantity_days,
               COALESCE(f.effect_status,'NONE') AS effect_status,r.submitted_at,
-              CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(days.leave_part,'FULL') END AS leave_part
+              CASE WHEN r.kind IN ('LEAVE_DAY','CANCEL_LEAVE') THEN COALESCE(days.leave_part,'FULL') END AS leave_part,
+              CASE WHEN lv.recognition_rule='COMPANY_LEAVE' THEN lv.name END AS company_leave_name
             FROM tna.approval_request r
+            LEFT JOIN tna.attendance_type_version lv ON lv.tenant_id=r.tenant_id AND lv.id=r.attendance_type_version_id
             LEFT JOIN LATERAL (
               SELECT sum(d.quantity_days) AS quantity_days, min(d.leave_part) AS leave_part FROM tna.leave_request_day d
               WHERE d.tenant_id=r.tenant_id AND d.request_id=COALESCE(r.original_request_id,r.id)

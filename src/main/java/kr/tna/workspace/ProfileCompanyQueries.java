@@ -72,7 +72,7 @@ public final class ProfileCompanyQueries {
                     : worktime.companyDays(actor, selected.id(), month).stream().map(day -> new AttendanceDay(
                             day.workDate(), day.current() ? day.result().scheduledMillis() : null,
                             day.current() ? day.result().actualWorkMillis() : null,
-                            day.current() ? day.result().leaveDays() : null,
+                            day.employed() ? day.approvedLeaveDays() : null, day.employed() ? day.approvedPaidLeaveMillis() : null,
                             day.current() ? day.result().status().name() : "REVIEW_REQUIRED", day.current())).toList();
             var attendance = new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
                     query, page, found.size() > 50, List.copyOf(mapper.organizations(actor.tenantId())), employees, selected, days);

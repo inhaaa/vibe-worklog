@@ -146,8 +146,9 @@ class ProfileCompanyWebIT {
             assertEquals("REVIEW_REQUIRED", day.get("status").asString());
             assertTrue(day.get("actualWorkMillis").isNull());
             assertTrue(day.get("scheduledMillis").isNull());
-            assertTrue(day.get("leaveDays").isNull());
-            assertEquals(6, day.size());
+            assertEquals(0.0, day.required("leaveDays").doubleValue());
+            assertEquals(0L, day.required("paidLeaveMillis").longValue());
+            assertEquals(7, day.size());
         }
         String body = result.getResponse().getContentAsString();
         for (String secret : new String[]{PRIVATE_REASON, "sourceFingerprint", "validatedIp", "reasonCodes", "inputRefs", "@example.test"}) {
@@ -214,7 +215,8 @@ class ProfileCompanyWebIT {
                 .andExpect(ReactPageAssertions.data("/companyRequests/requests/0/id", overlapping.toString())).andReturn();
         var requests = ReactPageAssertions.envelope(result).at("/data/companyRequests/requests");
         assertEquals(1, requests.size());
-        assertEquals(12, requests.get(0).size());
+        assertEquals(13, requests.get(0).size());
+        assertTrue(requests.get(0).required("companyLeaveName").isNull());
         assertEquals("FULL", requests.get(0).path("leavePart").asString());
         String body = result.getResponse().getContentAsString();
         for (String secret : new String[]{PRIVATE_REASON, "authorAccountId", "approverAssignmentId", "beforeSnapshot", "@example.test"}) {

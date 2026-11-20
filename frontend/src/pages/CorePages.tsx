@@ -308,14 +308,14 @@ function seoulCalendarToday() {
 }
 
 const calendarRequestKinds = [
-  { kind: 'LEAVE_DAY', title: '연차·반차 신청', icon: 'M4 12h16m-8-8v16' },
+  { kind: 'LEAVE_DAY', title: '휴가 신청', icon: 'M4 12h16m-8-8v16' },
   { kind: 'ATTENDANCE_CORRECTION', title: '출퇴근·휴게 정정', icon: 'M12 6v6l4 2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z' },
 ] as const;
 
 function calendarRequestRestriction(kind: typeof calendarRequestKinds[number]['kind'], date: string, today: string) {
   const year = Number(date.slice(0, 4));
   if (year < 1900 || year > 9998) return '신청은 1900~9998년 날짜로 할 수 있습니다.';
-  if (kind === 'LEAVE_DAY' && date < today) return '지난 날짜에는 연차를 신청할 수 없습니다.';
+  if (kind === 'LEAVE_DAY' && date < today) return '지난 날짜에는 휴가를 신청할 수 없습니다.';
   if (kind === 'ATTENDANCE_CORRECTION' && date > today) return '미래 날짜는 정정할 수 없습니다.';
   return null;
 }
@@ -435,7 +435,7 @@ function Schedule({ data }: PageProps) {
       </>} />
       <dl className="wl-summary" aria-label={`${year}년 ${Number(month)}월 요약`}>
         <div><dt>{hasSelectiveDays(calendar.days) ? '근무 기준시간' : '예정 근무'}</dt><dd>{summary.workDays}일 · {formatMinutes(summary.workMinutes)}</dd></div>
-        <div><dt>승인 연차</dt><dd>{summary.leaveDays}일</dd></div>
+        <div><dt>승인 휴가</dt><dd>{summary.leaveDays}일</dd></div>
         <div data-tone={pending.length ? 'warn' : undefined}><dt>검토 중</dt><dd>{pending.length}건</dd></div>
         <div data-tone={summary.unknownDays ? 'danger' : undefined}><dt>확인 필요</dt><dd>{summary.unknownDays}일</dd></div>
       </dl>
@@ -457,7 +457,7 @@ function Schedule({ data }: PageProps) {
               )}
             </div>
             <div className="t-calendar-legend">
-              {([['work', '예정 근무'], ['off', '비근로일·휴일'], ['leave', '승인 연차'], ['wait', '검토 중'], ['unknown', '미배정·미확인']] as const)
+              {([['work', '예정 근무'], ['off', '비근로일·휴일'], ['leave', '승인 휴가'], ['wait', '검토 중'], ['unknown', '미배정·미확인']] as const)
                 .map(([kind, label]) => <span key={kind}><i className="wl-legend-swatch" data-kind={kind} aria-hidden="true" />{label}</span>)}
               <span className="t-attendance-hint">날짜 우클릭 또는 ⋯로 신청</span>
             </div>
@@ -534,7 +534,7 @@ function Schedule({ data }: PageProps) {
                 <p className="wl-side-big">{formatMinutes(weekTally.workMinutes)}<small>{hasSelectiveDays(week.days) ? '표준시간 포함' : '예정'}</small></p>
                 <dl className="wl-side-facts">
                   <div data-kind="work"><dt>예정 근무</dt><dd>{weekTally.workDays}일</dd></div>
-                  <div data-kind="leave"><dt>승인 연차</dt><dd>{weekTally.leaveDays}일</dd></div>
+                  <div data-kind="leave"><dt>승인 휴가</dt><dd>{weekTally.leaveDays}일</dd></div>
                   <div data-kind="off"><dt>비근로일·휴일</dt><dd>{weekTally.offDays}일</dd></div>
                   {weekTally.unknownDays > 0 && <div data-kind="unknown"><dt>확인 필요</dt><dd>{weekTally.unknownDays}일</dd></div>}
                 </dl>

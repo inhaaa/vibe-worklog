@@ -97,15 +97,14 @@ public final class WorkspaceQueries {
 
     private static RequestItem item(RequestView row, Double quantity, boolean dated) {
         String kind = switch (row.kind()) {
-            case "LEAVE_DAY" -> leaveName(row.leavePart());
-            case "CANCEL_LEAVE" -> "FULL".equals(row.leavePart()) ? "연차 취소" : leaveName(row.leavePart()) + " 취소";
+            case "LEAVE_DAY", "CANCEL_LEAVE" -> leaveName(row);
             case "ATTENDANCE_CORRECTION" -> "정정 신청";
             case "OVERTIME" -> "연장근무 신청";
             case "CANCEL_OVERTIME" -> "연장근무 취소";
             default -> row.kind();
         };
         if (dated && quantity == null) kind += " · 일별 근거 미확인";
-        if (dated && quantity != null && quantity == 0) kind += " 범위 · 차감 0일";
+        if (dated && quantity != null && quantity == 0) kind += row.companyLeaveName() == null ? " 범위 · 차감 0일" : " 범위 · 사용 0일";
         boolean cancel = "CANCEL_LEAVE".equals(row.kind()) || "CANCEL_OVERTIME".equals(row.kind());
         String status = switch (row.status()) {
             case "PENDING" -> cancel ? "취소 검토 중 · 원승인 유효" : "검토 중";
@@ -126,12 +125,22 @@ public final class WorkspaceQueries {
         return new RequestItem(row, kind, status, tone, effective);
     }
 
-    private static String leaveName(String part) {
-        return switch (part) {
+    private static String leaveName(RequestView row) {
+        boolean cancel = "CANCEL_LEAVE".equals(row.kind());
+        if (row.companyLeaveName() != null) {
+            String part = switch (row.leavePart()) {
+                case "AM" -> " · 오전";
+                case "PM" -> " · 오후";
+                default -> "";
+            };
+            return row.companyLeaveName() + part + (cancel ? " 취소" : "");
+        }
+        String label = switch (row.leavePart()) {
             case "AM" -> "오전 반차";
             case "PM" -> "오후 반차";
-            default -> "종일 연차";
+            default -> cancel ? "연차" : "종일 연차";
         };
+        return cancel ? label + " 취소" : label;
     }
 
     private LocalDate today() { return LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))); }

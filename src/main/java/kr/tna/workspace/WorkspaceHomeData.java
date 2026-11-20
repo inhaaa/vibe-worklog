@@ -15,7 +15,7 @@ public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> we
         Double availableLeaveDays, long pendingRequests, List<RecentRequest> recentRequests) {
     public record Employee(String employeeName) { }
     public record DateLabel(LocalDate workDate) { }
-    public record LeaveStatus(boolean effectiveLeave, String leavePart) { }
+    public record LeaveStatus(boolean effectiveLeave, String leavePart, String companyLeaveName) { }
     public record TimelineEntry(LocalTime time, String title, String kind) { }
     public record Today(DateLabel snapshot, String scheduleText, String calendarText, String confirmationText,
             Instant inRecordedAt, Instant outRecordedAt, List<TimelineEntry> timeline, List<LeaveStatus> requests) { }
@@ -48,6 +48,6 @@ public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> we
 
     private static List<LeaveStatus> effectiveLeave(DayView day) {
         return day.requests().stream().filter(RequestItem::effectiveLeave)
-                .map(item -> new LeaveStatus(true, item.request().leavePart())).toList();
+                .map(item -> new LeaveStatus(true, item.request().leavePart(), item.request().companyLeaveName())).toList();
     }
 }

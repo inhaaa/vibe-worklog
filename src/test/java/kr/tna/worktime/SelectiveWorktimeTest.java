@@ -56,7 +56,7 @@ class SelectiveWorktimeTest {
         var days = monday.datesUntil(monday.plusDays(7)).map(date -> new DayResult(date, day.status(), day.scheduledMillis(),
                 day.presenceMillis(), day.actualWorkMillis(), day.confirmedBreakMillis(), day.outsideScheduleMillis(),
                 day.over8hMillis(), day.nightWorkMillis(), day.holidayWorkMillis(), day.legalOvertimeMillis(),
-                day.leaveDays(), day.inputRevision(), day.reviewRevision(), day.reasons())).toList();
+                day.leaveDays(), day.paidLeaveMillis(), day.inputRevision(), day.reviewRevision(), day.reasons())).toList();
         var week = calculator.week(monday, days, false);
         assertEquals(63 * HOUR, week.confirmedWorkMillis());
         assertNull(week.over40hMillis());

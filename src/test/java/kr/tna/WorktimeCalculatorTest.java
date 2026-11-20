@@ -18,6 +18,30 @@ class WorktimeCalculatorTest {
     private static final LocalDate DATE = LocalDate.of(2026, 10, 26);
     private final WorktimeCalculator calculator = new WorktimeCalculator();
 
+    @Test void companyLeaveKeepsUsedDaysPaidCreditAndActualWorkSeparate() {
+        var schedule = normal().schedules();
+        var monday = calculator.day(new DayInput(DATE,List.of(),schedule,DayKind.WORKDAY,true,0,0,null,false,1,.5));
+        assertEquals(1, monday.leaveDays());
+        assertEquals(4 * HOUR, monday.paidLeaveMillis());
+        assertEquals(0L, monday.actualWorkMillis());
+
+        var week = new ArrayList<DayResult>();
+        week.add(monday);
+        for (int n = 1; n < 7; n++) {
+            LocalDate date = DATE.plusDays(n);
+            var shift = new Schedule(true, date.atTime(9,0).atZone(ZoneId.of("Asia/Seoul")).toInstant(),
+                    date.atTime(17,0).atZone(ZoneId.of("Asia/Seoul")).toInstant(), List.of());
+            week.add(calculator.day(new DayInput(date,List.of(),List.of(shift),DayKind.WORKDAY,true,0,0,null,false,1,0)));
+        }
+        assertEquals(0L, week.get(1).paidLeaveMillis());
+        assertEquals(0L, week.get(1).actualWorkMillis());
+        var period = calculator.week(DATE,week,true);
+        assertEquals(4 * HOUR, period.paidLeaveMillis());
+        assertEquals(0L, period.confirmedWorkMillis());
+        var unknown = calculator.day(new DayInput(DATE,List.of(),schedule,DayKind.UNCONFIRMED,true,0,0,null,false,1,1));
+        assertNull(unknown.paidLeaveMillis());
+    }
+
     @Test void c01ConfirmedNormalDayKeepsPresenceAndWorkSeparate() {
         var result = calculator.day(normal());
         assertEquals(Status.CALCULATED, result.status());
@@ -241,6 +265,6 @@ class WorktimeCalculatorTest {
     private Instant at(String time) { return DATE.atTime(java.time.LocalTime.parse(time)).atZone(ZoneId.of("Asia/Seoul")).toInstant(); }
     private DayResult result(LocalDate date,Long work,long overEight) {
         return new DayResult(date,work==null?Status.REVIEW_REQUIRED:Status.CALCULATED,null,work,work,0L,0L,
-                work==null?null:overEight,0L,0L,null,0,1,1,work==null?Set.of("MISSING_CLOCK_OUT"):Set.of());
+                work==null?null:overEight,0L,0L,null,0,0L,1,1,work==null?Set.of("MISSING_CLOCK_OUT"):Set.of());
     }
 }

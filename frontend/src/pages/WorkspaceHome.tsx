@@ -4,7 +4,7 @@ import { ErrorNotice, Form, fmtDateTime } from '../ui';
 import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
 import { HomeCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
-import { combinedLeavePart, leavePartNames, type LeavePart } from './leavePart';
+import { combinedLeavePart, leavePartNames, requestKindName, type LeavePart } from './leavePart';
 import './WorkspaceHome.css';
 
 interface HomeRequest {
@@ -18,7 +18,7 @@ interface HomeDay {
   snapshot: Pick<DaySnapshot, 'workDate'>;
   scheduleText: string;
   calendarText: string;
-  requests: { effectiveLeave: boolean; leavePart?: LeavePart | null }[];
+  requests: { effectiveLeave: boolean; leavePart?: LeavePart | null; companyLeaveName?: string | null }[];
 }
 
 interface HomeToday extends HomeDay {
@@ -29,7 +29,11 @@ interface HomeToday extends HomeDay {
 }
 
 function dayNote(day: HomeDay) {
-  const part = combinedLeavePart(day.requests.filter(request => request.effectiveLeave).map(request => request.leavePart));
+  const effective = day.requests.filter(request => request.effectiveLeave);
+  if (effective.some(request => request.companyLeaveName)) {
+    return '승인된 ' + effective.map(request => requestKindName('LEAVE_DAY', request.leavePart, request.companyLeaveName)).join(' / ');
+  }
+  const part = combinedLeavePart(effective.map(request => request.leavePart));
   return part ? `승인된 ${leavePartNames[part]}` : day.calendarText;
 }
 

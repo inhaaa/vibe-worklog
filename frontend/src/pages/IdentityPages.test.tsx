@@ -212,11 +212,21 @@ describe('내 정보·권한 목록·회사 현황', () => {
     expect((view.getByLabelText('사번·이름 검색') as HTMLInputElement).maxLength).toBe(100);
   });
 
-  it('회사 일별 현황의 미산정·오래된 결과를 정상 0시간으로 표시하지 않는다', async () => {
-    const view = await show('company/attendance', { companyAttendance: { ...attendance, days: [{ workDate: '2026-10-26', scheduledMillis: 28800000, actualWorkMillis: 0, leaveDays: 0, status: 'REVIEW_REQUIRED', current: false }] } });
+  it('회사 일별 현황에서 재집계 전에도 승인 휴가와 취소 효력을 바로 표시한다', async () => {
+    const stale = { ...attendance.days[0], actualWorkMillis: 0, status: 'REVIEW_REQUIRED', current: false };
+    const view = await show('company/attendance', { companyAttendance: { ...attendance, days: [
+      { ...stale, workDate: '2026-10-26', leaveDays: 0.5, paidLeaveMillis: 14400000 },
+      { ...stale, workDate: '2026-10-27', leaveDays: 0, paidLeaveMillis: 0 },
+      { ...stale, workDate: '2026-10-28', leaveDays: null, paidLeaveMillis: null },
+    ] } });
     const row = view.container.querySelector('main [row-id="2026-10-26"]')!;
     expect(row.textContent).toContain('미산정·재집계 필요');
-    expect(row.textContent?.match(/미확정/g)).toHaveLength(1);
+    expect(row.querySelector('[col-id="leaveDays"]')?.textContent).toBe('0.5');
+    expect(view.container.querySelector('[row-id="2026-10-27"] [col-id="leaveDays"]')?.textContent).toBe('0');
+    expect(view.container.querySelector('[row-id="2026-10-28"] [col-id="leaveDays"]')?.textContent).toBe('미확정');
+    expect(row.querySelector('[col-id="paidLeaveMillis"]')?.textContent).toBe('4:00:00');
+    expect(view.container.querySelector('[row-id="2026-10-27"] [col-id="paidLeaveMillis"]')?.textContent).toBe('0:00:00');
+    expect(view.container.querySelector('[row-id="2026-10-28"] [col-id="paidLeaveMillis"]')?.textContent).toBe('미확정');
     expect(row.querySelector('[col-id="scheduledMillis"]')?.textContent).toBe('-');
     expect(row.querySelector('[col-id="actualWorkMillis"]')?.textContent).toBe('-');
     expect(row.textContent).not.toContain('0:00:00');

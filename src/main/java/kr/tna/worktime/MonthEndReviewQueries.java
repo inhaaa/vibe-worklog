@@ -166,7 +166,7 @@ public final class MonthEndReviewQueries {
         var leave = list(candidate.leaveEffects(), WorktimeMapper.LeaveEffect[].class);
         boolean pending = candidate.pendingRequestId() != null;
         double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
-        var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays);
+        var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays, WorktimeMapper.LeaveEffect.paidDays(leave));
         var calculated = calculator.day(input);
         boolean selective = "SELECTIVE".equals(candidate.workMode());
         boolean unconfirmed = calculated.actualWorkMillis() == null
