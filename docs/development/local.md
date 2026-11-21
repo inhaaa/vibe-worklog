@@ -31,6 +31,20 @@ $browserClasspath = 'target/test-classes','target/classes',$testDeps -join [IO.P
 java -cp $browserClasspath kr.tna.CustomerOpeningBrowser
 ```
 
+## 정정과 휴가 승인부터 월 마감까지 검증하는 방법
+
+위 자동 검증의 프런트엔드 빌드, Puppeteer 설치, Maven 테스트 컴파일을 실행하고 `$browserClasspath`와 `WORKLOG_PUPPETEER_MODULE`을 준비한다. 실행할 때마다 빈 경로를 사용한다. 아래 두 명령은 각자 전용 PostgreSQL과 웹앱을 열어 동일한 회사의 기초자료·원천 근태를 준비하고 브라우저로 신청부터 마감까지 처리한다.
+
+```powershell
+$cycleRun = Join-Path 'target' ('month-cycle-' + [guid]::NewGuid().ToString('N'))
+$evidence = Join-Path $cycleRun 'results'
+java -cp $browserClasspath kr.tna.AttendanceMonthCycleBrowser pc (Join-Path $cycleRun 'pc') $evidence
+java -cp $browserClasspath kr.tna.AttendanceMonthCycleBrowser mobile (Join-Path $cycleRun 'mobile') $evidence
+python scripts/verify_month_cycle_workbooks.py --fixture (Join-Path $cycleRun 'pc/fixture.json') --evidence $evidence
+```
+
+마지막 명령은 PC와 모바일의 직원별 월 요약·일별 결과를 회사와 각 부서의 실제 Excel 숫자 셀에 대조한다. 각 실행에서 같은 마감본을 반대 화면 크기로 한 번 더 내려받아 파일 내용까지 비교한다. 합성 계정 비밀번호가 든 `fixture.json`은 로컬 실행 경로에만 둔다. [인수 사례와 검증 결과](../quality/attendance-month-cycle-20261121.md)
+
 > 2026-11-05 UI·모달 후속: 조직장·권한·인사·근무 배정과 신청을 공통 모달로 연결하고 내정보7탭·사원 헤더·신청/결재를 정돈했다. 개발312개·공개396개/타입·빌드 후 공개 `d320dfc`·V17에 앱만 교체했다. 공개 HTTP26항목·실제 PC/390px 모달·내정보와 V17·48표446행·기존 서비스를 보존했다. 실제 업무 저장/신청 POST·새 부하/취약점 검사는 실행하지 않았다. [구현·최종 공개 결과](../quality/workspace-modal-polish-20261105.md)를 따른다.
 
 > 2026-11-03 결재 화면·데모 승인 후속: 대기/완료 카드·승인/반려 검토와 두 계정 정상 로그인/전환을 구현했다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74와 실제 신청→독립 승인·12→12→11DAY·PC/390px를 검증하고 공개 `3e6e99c`·V16에 반영했다. [로컬 결과](../quality/approval-workspace-20261103.md)·[실제 공개 결과/체험 순서](../quality/public-approval-workspace-deploy-20261103.md)를 따른다. 아래 수치는 당시 이력이다.
