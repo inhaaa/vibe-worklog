@@ -182,6 +182,26 @@ class CodeMigrationUpgradeIT {
                     .filter(row -> !row.get("relname").toString().startsWith("annual_leave_")).toList());
             assertTrue(db.queryForObject("SELECT count(*)>0 AND count(annual_award_bucket_id)=0 FROM tna.leave_ledger", Boolean.class));
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.annual_leave_award", Integer.class));
+            var v37Columns = columns(db);
+            var v37Rows = rows(db, v37Columns);
+            var v37Permissions = access(db);
+            var employment = Flyway.configure().dataSource(migrationSource).target("39").load();
+            assertEquals(2, employment.migrate().migrationsExecuted);
+            assertEquals(0, employment.migrate().migrationsExecuted);
+            assertEquals(v37Rows, rows(db, v37Columns));
+            assertEquals(v37Permissions, access(db).stream().filter(row ->
+                    !List.of("leave_monthly_review", "leave_exit_settlement").contains(row.get("relname"))).toList());
+            assertTrue(db.queryForObject("""
+                    SELECT count(*)>0 AND count(monthly_review_id)=0 AND count(exit_settlement_id)=0 FROM tna.leave_ledger
+                    """, Boolean.class));
+            for (String reference : List.of("monthly_review_id", "exit_settlement_id")) {
+                assertTrue(db.queryForObject("""
+                        SELECT has_column_privilege('tna_app','tna.leave_ledger',?,'INSERT')
+                            AND NOT has_column_privilege('tna_app','tna.leave_ledger',?,'UPDATE')
+                            AND NOT has_column_privilege('tna_auth','tna.leave_ledger',?,'SELECT')
+                            AND NOT has_column_privilege('tna_operator','tna.leave_ledger',?,'SELECT')
+                        """, Boolean.class, reference, reference, reference, reference));
+            }
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 
@@ -468,7 +488,7 @@ class CodeMigrationUpgradeIT {
          (SELECT jsonb_agg(jsonb_build_array(a.attname,a.attacl::text) ORDER BY a.attnum)::text FROM pg_attribute a
           WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'attendance_type_version_id'
             AND NOT (c.relname='attendance_month_closure' AND a.attname='paid_leave_snapshot')
-            AND NOT (c.relname='leave_ledger' AND a.attname='annual_award_bucket_id')
+            AND NOT (c.relname='leave_ledger' AND a.attname IN ('annual_award_bucket_id','monthly_review_id','exit_settlement_id'))
             AND NOT (? AND c.relname='work_time_code_version'
                      AND a.attname IN ('work_mode','standard_minutes','core_start','core_end','settlement_period'))) AS columns
         FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
