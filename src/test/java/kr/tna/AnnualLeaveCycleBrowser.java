@@ -1,21 +1,17 @@
 package kr.tna;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.clock.AttendanceSettingsService;
-import kr.tna.common.auth.PasswordPolicy;
+import kr.tna.LeaveBrowserServer.Member;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
 import kr.tna.org.ApproverService;
@@ -23,27 +19,15 @@ import kr.tna.schedule.ScheduleData.AssignmentForm;
 import kr.tna.schedule.ScheduleData.DayForm;
 import kr.tna.schedule.ScheduleData.TemplateForm;
 import kr.tna.schedule.ScheduleService;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import tools.jackson.databind.json.JsonMapper;
 
 /** A January balance cycle in a disposable company. All current-year ledger mutations come from Chrome. */
-public final class AnnualLeaveCycleBrowser {
+public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenario {
     private static final String COMPANY = "ANNUAL-CYCLE";
     private static final LocalDate TODAY = LocalDate.of(2026, 1, 5);
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final Clock CLOCK = Clock.fixed(TODAY.atTime(10, 0).atZone(SEOUL).toInstant(), SEOUL);
-
-    private record Member(String employeeNo, String name, String email, UUID employeeId, UUID accountId) {
-        Member(String no, String name) {
-            this(no, name, no.toLowerCase(Locale.ROOT) + "@example.test", UUID.randomUUID(), UUID.randomUUID());
-        }
-    }
 
     private final UUID tenant = UUID.randomUUID();
     private final Member worker = new Member("L101", "합성이월");
@@ -52,55 +36,18 @@ public final class AnnualLeaveCycleBrowser {
     private final Member approver = new Member("L901", "합성결재");
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 2 || args.length > 3 || !Set.of("pc", "mobile", "--serve").contains(args[0])) {
-            throw new IllegalArgumentException("Usage: AnnualLeaveCycleBrowser <pc|mobile|--serve> <fresh-run-directory> [evidence-directory]");
-        }
-        if (System.getenv("TNA_TEST_JDBC_URL") != null || System.getProperty("tna.test.jdbc-url") != null) {
-            throw new IllegalArgumentException("연차 검증 전용 PostgreSQL 컨테이너가 필요합니다.");
-        }
-        Path run = Path.of(args[1]).toAbsolutePath().normalize();
-        Path manifest = run.resolve("fixture.json");
-        if (Files.exists(manifest) || Files.exists(run.resolve("stop"))) {
-            throw new IllegalArgumentException("새 검증 경로를 지정해 주세요.");
-        }
-        Files.createDirectories(run);
-        var fixture = new AnnualLeaveCycleBrowser();
-        var database = DatabaseFixture.start();
-        String password = "Annual-" + UUID.randomUUID();
-        var db = new JdbcTemplate(database.adminDataSource());
-        new TransactionTemplate(new DataSourceTransactionManager(database.adminDataSource())).executeWithoutResult(
-                tx -> fixture.seed(db, PasswordPolicy.passwordEncoder().encode(password)));
-        var application = new SpringApplication(TnaApplication.class);
-        application.addInitializers(context -> {
-            ((GenericApplicationContext) context).registerBean("annualBrowserClock", Clock.class,
-                    () -> CLOCK, definition -> definition.setPrimary(true));
-            TestPropertyValues.of("spring.datasource.url=" + database.jdbcUrl(),
-                    "spring.datasource.username=" + DatabaseFixture.APP_USER, "spring.datasource.password=" + DatabaseFixture.APP_PASSWORD,
-                    "tna.auth.url=" + database.jdbcUrl(), "tna.auth.username=" + DatabaseFixture.AUTH_USER,
-                    "tna.auth.password=" + DatabaseFixture.AUTH_PASSWORD).applyTo(context);
-        });
-        try (var app = application.run("--spring.config.location=classpath:/", "--spring.profiles.active=local",
-                "--server.address=127.0.0.1", "--server.port=0", "--tna.operator.enabled=false")) {
-            fixture.workAndApproval(app, db);
-            var configuration = Map.of("baseUrl", "http://127.0.0.1:" + app.getEnvironment().getRequiredProperty("local.server.port"),
-                    "companyCode", COMPANY, "password", password, "worker", fixture.worker, "comparison", fixture.comparison,
-                    "admin", fixture.admin, "approver", fixture.approver, "today", TODAY, "leaveDate", TODAY.plusDays(1));
-            Files.writeString(manifest, new JsonMapper().writerWithDefaultPrettyPrinter().writeValueAsString(configuration),
-                    StandardOpenOption.CREATE_NEW);
-            System.out.println("ANNUAL_LEAVE_BROWSER_READY " + manifest);
-            if ("--serve".equals(args[0])) {
-                long deadline = System.nanoTime() + TimeUnit.HOURS.toNanos(2);
-                while (!Files.exists(run.resolve("stop")) && System.nanoTime() < deadline) Thread.sleep(1000);
-            } else {
-                Path evidence = args.length == 3 ? Path.of(args[2]).toAbsolutePath() : run.resolve("browser");
-                var browser = new ProcessBuilder("node", "scripts/verify-annual-leave-cycle.cjs", manifest.toString(),
-                        args[0], evidence.toString()).inheritIO().start();
-                if (browser.waitFor() != 0) throw new IllegalStateException("연차 원장 브라우저 검증 실패");
-            }
-        }
+        LeaveBrowserServer.run(args, "scripts/verify-annual-leave-cycle.cjs", "ANNUAL_LEAVE_BROWSER_READY", new AnnualLeaveCycleBrowser());
     }
 
-    private void seed(JdbcTemplate db, String passwordHash) {
+    @Override public Clock clock(Path run) { return CLOCK; }
+
+    @Override public Map<String, Object> prepare(ConfigurableApplicationContext app, JdbcTemplate db, Path run) {
+        workAndApproval(app, db);
+        return Map.of("companyCode", COMPANY, "worker", worker, "comparison", comparison,
+                "admin", admin, "approver", approver, "today", TODAY, "leaveDate", TODAY.plusDays(1));
+    }
+
+    @Override public void seed(JdbcTemplate db, String passwordHash) {
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'가상 연차 회사')",
                 tenant, COMPANY);
         LocalDate oldHire = LocalDate.of(2024, 1, 1), newHire = LocalDate.of(2026, 1, 2);

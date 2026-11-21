@@ -58,6 +58,19 @@ java -cp $browserClasspath kr.tna.AnnualLeaveCycleBrowser mobile (Join-Path $ann
 
 각 브라우저에서 담당자가 기준을 저장해 연도별 일수를 미리 보고 반영한다. 직원은 본인의 현재 잔여와 회계연도별 원장을 조회한다. 직원과 결재자를 분리한 세션에서 반차 승인·취소 전후 수량을 대조한다. 화면 캡처와 `pc-result.json`·`mobile-result.json`은 지정한 결과 폴더에 기록한다. [회사별 연차 업무 기준](../superpowers/plans/2026-11-21-annual-leave-ledger.md)
 
+## 입사 후 월별 발생과 퇴사 잔여 검증
+
+앞의 JDK·Docker·Chrome·Puppeteer, 프런트엔드 빌드와 테스트 클래스 경로를 사용한다. 두 화면 크기를 실행할 때마다 새로운 가상 회사와 로컬 데이터베이스가 생성된다.
+
+```powershell
+$employmentRun = Join-Path 'target' ('employment-leave-' + [guid]::NewGuid().ToString('N'))
+$employmentResults = Join-Path $employmentRun 'results'
+java -cp $browserClasspath kr.tna.EmploymentLeaveBrowser pc (Join-Path $employmentRun 'pc') $employmentResults
+java -cp $browserClasspath kr.tna.EmploymentLeaveBrowser mobile (Join-Path $employmentRun 'mobile') $employmentResults
+```
+
+시나리오는 가상 출근 기록과 6월 1일의 누락 자료를 준비한다. 담당자가 월별 판단을 확정하고 직원이 반차를 신청하면 결재자가 승인한다. 비교 사원에게는 기초 1일과 승인된 종일 사용을 준비하고, 이미 사용한 개근월을 기초에 연결한 뒤 추가 부여가 0일인지 확인한다. 테스트 시계를 마지막 재직일로 이동해 담당자의 정산 근거와 직원 원장을 대조한다. 화면 캡처와 기기별 결과 JSON은 지정한 출력 경로에 남긴다. [업무 기준](../superpowers/plans/2026-11-22-employment-leave.md) · [검증 결과](../quality/employment-leave-20261122.md)
+
 > 2026-11-05 UI·모달 후속: 조직장·권한·인사·근무 배정과 신청을 공통 모달로 연결하고 내정보7탭·사원 헤더·신청/결재를 정돈했다. 개발312개·공개396개/타입·빌드 후 공개 `d320dfc`·V17에 앱만 교체했다. 공개 HTTP26항목·실제 PC/390px 모달·내정보와 V17·48표446행·기존 서비스를 보존했다. 실제 업무 저장/신청 POST·새 부하/취약점 검사는 실행하지 않았다. [구현·최종 공개 결과](../quality/workspace-modal-polish-20261105.md)를 따른다.
 
 > 2026-11-03 결재 화면·데모 승인 후속: 대기/완료 카드·승인/반려 검토와 두 계정 정상 로그인/전환을 구현했다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74와 실제 신청→독립 승인·12→12→11DAY·PC/390px를 검증하고 공개 `3e6e99c`·V16에 반영했다. [로컬 결과](../quality/approval-workspace-20261103.md)·[실제 공개 결과/체험 순서](../quality/public-approval-workspace-deploy-20261103.md)를 따른다. 아래 수치는 당시 이력이다.
