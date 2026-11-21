@@ -1,5 +1,36 @@
 # 로컬 개발 환경
 
+## 새 회사에서 첫 출근을 검증하는 방법
+
+운영자는 `/operator/login`에서 첫 담당자를 등록한다. 담당자는 초대 메일을 수락한 뒤 홈의 **회사 초기 설정**에서 조직·근무시간코드·근무조·근무일·허용망을 준비한다. 입사를 확정하고 직원과 결재자를 초대한다. 수락한 결재자에게 승인자 권한을 부여한 뒤 신청서코드의 결재선 미리보기에서 사원과 결재자를 대조한다. 초대가 만료되면 같은 주소에 재발급한다. 이미 수락한 직원은 로그인 화면의 **비밀번호 재설정**에서 코드를 요청할 수 있다. [업무 인수 기준](../superpowers/plans/2026-11-21-customer-onboarding.md)
+
+SMTP 전달에는 `tna.mail.mode=smtp`, `tna.mail.public-origin`, `tna.mail.from`과 `spring.mail.host`를 지정한다. 복구 메일을 받지 못하면 다시 요청해 새 코드를 발급받는다. 메일 주소와 일회용 코드는 수신자 메일함에서 확인한다. [설정값과 전달 실패 처리](../adr/0007-account-mail-delivery.md)
+
+### 직접 사용해 보기
+
+로컬 비밀번호 5개를 설정하고 아래 세 Compose 파일을 순서대로 지정한다. 이 구성은 별도 프로젝트 `vibe-attendance-opening`과 전용 DB 볼륨을 사용한다. 회사 계정 로그인 화면과 운영자 콘솔을 열고 계정 메일을 같은 환경의 Mailpit에 전달한다. [로컬 비밀번호 설정](#비밀값-설정) · [개통 환경 구성](../../compose.opening.yaml)
+
+```powershell
+docker compose -f compose.yaml -f compose.operator.yaml -f compose.opening.yaml up -d --build
+```
+
+최초 한 번 독립 콘솔에서 `TNA_JDBC_URL=jdbc:postgresql://127.0.0.1:15434/tna`와 개통 DB용 마이그레이션 자격을 지정해 운영자 계정을 만든다. 브라우저에서 `http://127.0.0.1:18082/operator/login`을 열어 가상 회사를 등록하고 `http://127.0.0.1:18025`에서 첫 초대 메일을 연다. 같은 회사에서 담당자·직원·결재자를 동시에 시험할 때는 역할마다 독립된 브라우저 프로필을 사용한다. [운영자 계정 생성](#phase-5-독립-운영자최초-고객사-연결)
+
+### 자동 검증
+
+아래 검증은 JDK 25, Node.js, Docker, Chrome이 있는 PC에서 실행한다. PostgreSQL과 Mailpit을 전용 컨테이너로 시작하고 운영자 한 명을 준비한다. 브라우저에서 PC와 모바일용 가상 회사를 각각 신규 등록한다. 결과와 업무 화면 캡처는 `target/customer-opening-browser`에 남는다. [테스트 메일함 공식 이미지](https://mailpit.axllent.org/docs/install/docker/)
+
+```powershell
+npm.cmd --prefix frontend ci
+npm.cmd --prefix frontend run build
+npm.cmd install --prefix target/browser-tools --no-save puppeteer-core@25.16.0
+./mvnw.cmd '-Dfrontend.skip=true' test-compile dependency:build-classpath '-Dmdep.outputFile=target/customer-opening-classpath.txt'
+$env:WORKLOG_PUPPETEER_MODULE = (Resolve-Path 'target/browser-tools/node_modules/puppeteer-core').Path
+$testDeps = (Get-Content -Raw target/customer-opening-classpath.txt).Trim()
+$browserClasspath = 'target/test-classes','target/classes',$testDeps -join [IO.Path]::PathSeparator
+java -cp $browserClasspath kr.tna.CustomerOpeningBrowser
+```
+
 > 2026-11-05 UI·모달 후속: 조직장·권한·인사·근무 배정과 신청을 공통 모달로 연결하고 내정보7탭·사원 헤더·신청/결재를 정돈했다. 개발312개·공개396개/타입·빌드 후 공개 `d320dfc`·V17에 앱만 교체했다. 공개 HTTP26항목·실제 PC/390px 모달·내정보와 V17·48표446행·기존 서비스를 보존했다. 실제 업무 저장/신청 POST·새 부하/취약점 검사는 실행하지 않았다. [구현·최종 공개 결과](../quality/workspace-modal-polish-20261105.md)를 따른다.
 
 > 2026-11-03 결재 화면·데모 승인 후속: 대기/완료 카드·승인/반려 검토와 두 계정 정상 로그인/전환을 구현했다. 개발 Java698·프론트262, 공개 Java763·프론트346/타입·빌드·Python74와 실제 신청→독립 승인·12→12→11DAY·PC/390px를 검증하고 공개 `3e6e99c`·V16에 반영했다. [로컬 결과](../quality/approval-workspace-20261103.md)·[실제 공개 결과/체험 순서](../quality/public-approval-workspace-deploy-20261103.md)를 따른다. 아래 수치는 당시 이력이다.
