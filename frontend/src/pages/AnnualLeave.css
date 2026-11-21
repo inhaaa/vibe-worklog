@@ -1,0 +1,28 @@
+.annual-leave-page { min-width: 0; }
+.annual-leave-page .annual-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.annual-leave-page .wl-form-value :is(input, select) { min-width: 0; max-width: 100%; }
+.annual-leave-page .t-annual-summary-value { overflow-wrap: anywhere; }
+.annual-leave-page .t-annual-summary-value small,
+.annual-entry-source { display: block; color: var(--t-muted); }
+.annual-cycle-preview { margin-top: 20px; }
+.annual-review-counts { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; }
+.annual-review-counts li:first-child { font-weight: 700; }
+.annual-cycle-confirm, .annual-cycle-confirm label, .annual-ledger-balance {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+}
+.annual-cycle-confirm { justify-content: flex-end; margin-top: 16px; }
+.annual-cycle-confirm strong { color: var(--t-danger); }
+.annual-cycle-confirm label { min-height: 44px; gap: 8px; cursor: pointer; }
+.annual-cycle-confirm input { width: 18px; height: 18px; }
+.annual-ledger-balance {
+  justify-content: space-between; margin: 12px 0 20px; padding: 14px 16px;
+  border: 1px solid var(--t-line); border-radius: var(--r-pop); background: var(--brand-tint);
+}
+.annual-ledger-balance h2, .annual-ledger-balance span { margin: 0; color: var(--t-muted); font-size: 14px; }
+.annual-ledger-balance strong { display: block; margin-top: 3px; font-size: 24px; font-variant-numeric: tabular-nums; }
+.annual-ledger-link { display: inline-flex; align-items: center; }
+@media (max-width: 600px) {
+  .annual-leave-page :is(.t-btn, .t-input, .t-select), .annual-ledger-link { min-height: 44px; }
+  .annual-leave-page .wl-form-actions { flex-wrap: wrap; }
+  .annual-cycle-confirm { align-items: flex-start; flex-direction: column; }
+}

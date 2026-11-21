@@ -504,6 +504,7 @@ describe('WorkflowPages', () => {
       form: { employeeId: employee.id, commandId: 'opening-command', quantityDays: 7.5 },
     });
     expect(base.container.querySelector('form[action="/admin/leave-balances/entries"]')).toBeTruthy();
+    expect(base.getByRole('link', { name: '연차 부여·이월·소멸' }).getAttribute('href')).toBe('/admin/leave-balances/annual-cycle');
     const quantity = base.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!;
     expect(quantity.getAttribute('step')).toBe('0.5');
     expect(quantity.getAttribute('min')).toBe('0');
@@ -533,7 +534,7 @@ describe('WorkflowPages', () => {
         reason: '조정',
       },
     });
-    expect(ledger.container.textContent).toContain('RESTORE');
+    expect(ledger.container.textContent).toContain('취소 복원');
     expect(ledger.getByRole('grid', { name: '연차 원장' })).toBeTruthy();
     expect(ledger.container.querySelector('[row-id="entry-1"]')).toBeTruthy();
     const adjusted = body(ledger, '/admin/leave-balances/buckets/bucket-1/adjustments');

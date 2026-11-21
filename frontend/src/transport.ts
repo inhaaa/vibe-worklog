@@ -1,4 +1,4 @@
-import type { PageEnvelope } from './types';
+import type { CsrfToken, PageEnvelope } from './types';
 export const PAGE_ACCEPT = 'application/vnd.worklog.page+json';
 export class PageRequestError extends Error {
   constructor(
@@ -24,6 +24,21 @@ export class PageDownload extends Error {
     try { link.click(); }
     finally { setTimeout(() => URL.revokeObjectURL(objectUrl), 0); }
   }
+}
+export async function requestJson<T>(url: string, post?: { csrf: CsrfToken; body: object }, signal?: AbortSignal): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json, ' + PAGE_ACCEPT + ';q=0.9' };
+  if (post) { headers['Content-Type'] = 'application/json'; headers[post.csrf.headerName] = post.csrf.token; }
+  const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', signal, headers,
+    method: post ? 'POST' : 'GET', body: post ? JSON.stringify(post.body) : undefined });
+  if (response.redirected) throw new PageRequestError(401, '다시 로그인해 주세요.');
+  const data = await response.json().catch(() => null);
+  if (data?.page === 'login') throw new PageRequestError(401, '다시 로그인해 주세요.');
+  if (!response.ok || data?.data?.reauthenticate === true) {
+    const message = data?.message || data?.data?.message;
+    throw new PageRequestError(response.status, typeof message === 'string' ? message : '현재 상태를 다시 확인해 주세요.',
+      data?.data?.reauthenticate === true);
+  }
+  return data as T;
 }
 export function encodeForm(data: FormData): URLSearchParams {
   const encoded = new URLSearchParams();

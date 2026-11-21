@@ -24,7 +24,7 @@ it('연간 요약 표의 각 값은 모바일에서도 열 이름과 표 의미�
     },
   }} />);
 
-  for (const name of ['기초 묶음·귀속 정보', '유형별 연간 신청']) {
+  for (const name of ['연차 묶음·귀속 정보', '유형별 연간 신청']) {
     const table = view.getByRole('table', { name });
     const headers = within(table).getAllByRole('columnheader');
     const cells = within(table).getAllByRole('cell');
@@ -32,9 +32,9 @@ it('연간 요약 표의 각 값은 모바일에서도 열 이름과 표 의미�
     cells.forEach((cell, index) => expect(cell.getAttribute('data-label')).toBe(headers[index].textContent));
     expect(headers.every(header => header.getAttribute('scope') === 'col')).toBe(true);
   }
-  expect(within(view.getByRole('table', { name: '기초 묶음·귀속 정보' })).getByText('2026년')).toBeTruthy();
+  expect(within(view.getByRole('table', { name: '연차 묶음·귀속 정보' })).getByText('2026년')).toBeTruthy();
   expect(view.getByText('합성 등록 근거')).toBeTruthy();
-  expect(within(view.getByRole('table', { name: '기초 묶음·귀속 정보' })).getAllByText('9일')).toHaveLength(2);
+  expect(within(view.getByRole('table', { name: '연차 묶음·귀속 정보' })).getAllByText('9일')).toHaveLength(2);
   expect([...view.container.querySelectorAll('.t-request-balance-basis dd')].map(d => d.textContent)).toEqual(['15일', '9일']);
   expect(within(view.getByRole('table', { name: '유형별 연간 신청' })).getByText('사용 3 / 예정 2 / 대기 1')).toBeTruthy();
 });

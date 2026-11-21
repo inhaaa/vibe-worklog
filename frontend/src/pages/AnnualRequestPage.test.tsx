@@ -451,6 +451,8 @@ describe('연도별 본인 현황과 모달 신청',()=>{
  it('연도별 조회를 먼저 제공하고 기본 화면에 즉시 제출 폼을 두지 않는다',()=>{
   const view=render(<App initial={envelope()}/>);
   expect(view.getByRole('heading',{name:'내 근태현황·신청'})).toBeTruthy();
+  expect(view.getByRole('link',{name:'내 연차 원장'}).getAttribute('href')).toBe('/me/leave-ledger');
+  expect(view.getByText('등록·부여·이월·조정')).toBeTruthy();
   expect(view.getByRole('button',{name:'신청'}).getAttribute('href')).toContain('/me/requests/new?year=2026');
   expect(view.container.querySelector('form[action="/me/requests/leave"]')).toBeNull();
   expect(view.getByLabelText('조회 연도')).toBeTruthy();

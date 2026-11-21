@@ -6,6 +6,9 @@ import { ApprovalWorkspace } from './ApprovalWorkspace';
 import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { LeaveBalanceBatch } from './LeaveBalanceBatch';
+import { AnnualLeaveCycle } from './AnnualLeaveCycle';
+import { ledgerKindName, PersonalLeaveLedger } from './PersonalLeaveLedger';
+import type { AnnualCycleModel, PersonalLedger } from './annualLeaveTypes';
 import { SelectiveSettlements } from './SelectiveSettlements';
 import { SettlementBackLink } from './SettlementBackLink';
 import { selectiveHours, selectiveReasonLabels } from './selectiveSchedule';
@@ -536,6 +539,7 @@ function Balances({ model: m, csrf }: { model: BalancesModel; csrf: CsrfToken })
   return (
     <>
       <PageHeader title="기초 잔여 관리" actions={<>
+        <a className="t-btn" href="/admin/leave-balances/annual-cycle">연차 부여·이월·소멸</a>
         <button className="t-btn primary" type="button" onClick={() => setBatch(true)}>사원별 일괄 입력</button>
         <a className="t-btn" href="/admin/requests?scope=LEAVE">휴가 신청 현황</a>
         <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
@@ -585,7 +589,8 @@ function Balances({ model: m, csrf }: { model: BalancesModel; csrf: CsrfToken })
 function Ledger({ model: m }: { model: LedgerModel }) {
   const f = m.adjustment;
   const columns = [
-    sheetColumn<LedgerEntry>({ field: 'entryKind', headerName: '종류', minWidth: 160, pinned: 'left' }, entry => entry.entryKind),
+    sheetColumn<LedgerEntry>({ field: 'entryKind', headerName: '종류', minWidth: 160, pinned: 'left',
+      valueGetter: ({ data }) => data ? ledgerKindName(data.entryKind) : '' }, entry => ledgerKindName(entry.entryKind)),
     sheetColumn<LedgerEntry>({ field: 'signedQuantityDays', headerName: '일수 증감', minWidth: 135, cellClass: 'w-sheet-number', filter: 'agNumberColumnFilter' }, entry => entry.signedQuantityDays),
     sheetColumn<LedgerEntry>({ field: 'effectiveOn', headerName: '기준일', minWidth: 150 }, entry => fmtDate(entry.effectiveOn)),
     sheetColumn<LedgerEntry>({ colId: 'basis', headerName: '근거·사유', minWidth: 280, flex: 1, valueGetter: ({ data }) => data ? `${data.sourceReference} · ${data.reason}` : '' }, entry => `${entry.sourceReference} · ${entry.reason}`),
@@ -1306,6 +1311,12 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
       break;
     case 'request/ledger':
       content = <Ledger model={data as unknown as LedgerModel} />;
+      break;
+    case 'request/annual-cycle':
+      content = <AnnualLeaveCycle model={data as unknown as AnnualCycleModel} csrf={props.csrf} />;
+      break;
+    case 'request/personal-ledger':
+      content = <PersonalLeaveLedger ledger={data.ledger as PersonalLedger} />;
       break;
     case 'worktime/month':
       content = <Month model={data as unknown as MonthModel} />;
