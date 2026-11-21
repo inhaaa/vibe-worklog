@@ -46,7 +46,8 @@ public class SecurityConfiguration {
                     if (localDemo.publicDemo()) {
                         authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
                                 "/admin/employees/onboarding/**", "/admin/employees/exports",
-                                "/admin/employees/*/personnel/tabs/*/export").denyAll();
+                                "/admin/employees/*/personnel/tabs/*/export",
+                                "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply").denyAll();
                         for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
                             String identity = "/admin/employees/" + employeeId;
                             authorize.requestMatchers(new RegexRequestMatcher(identity
@@ -69,7 +70,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/worktime/selective-settlements").hasRole("EMPLOYEE")
                         .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close/export-options",
                                 "/admin/attendance/month-close/export").hasRole("ATTENDANCE_ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups", "/me/leave-ledger").hasRole("EMPLOYEE")
                         .requestMatchers("/admin/organizations", "/admin/organizations/**",
                                 "/admin/employees", "/admin/employees/**", "/admin/access",
                                 "/admin/organization-heads", "/admin/organization-heads/**",

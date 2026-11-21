@@ -72,6 +72,8 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("request/detail", "pageCommand", "detail", "request", "admin", "ownRequest", "canDecide", "canWithdraw", "canCancel", "canCancelException", "candidates",
                     "leaveReturnTo", "monthCloseReturnTo", "settlementReturn", "leaveDecidedByName", "cancelApproval", "cancelReason", "exceptionCancelReason"),
             page("request/balances", "employee", "employees", "buckets", "form"),
+            page("request/annual-cycle", "policy", "year", "yearSelected", "today", "publicDemo"),
+            page("request/personal-ledger", "ledger"),
             page("request/ledger", "ledger", "bucketId", "adjustment"),
             page("request/correction", "actions", "day", "exceptional", "eventTimes", "form", "checkoutOnly", "pendingCorrectionId", "approval", "settlementReturn"),
             page("worktime/month", "overview", "employeeId", "admin", "employees", "from", "to", "calculateCommand", "exportCommand", "checkoutWorkDate", "checkoutReturnTo", "settlementWorkDate", "settlementReturn"),

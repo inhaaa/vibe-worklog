@@ -16,6 +16,7 @@ import org.springframework.web.servlet.ModelAndView;
         kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class,
         kr.tna.request.LeaveOperationsController.class,
         kr.tna.request.LeaveAttributionController.class, kr.tna.request.AnnualRequestController.class,
+        kr.tna.request.AnnualLeaveCycleController.class,
         kr.tna.worktime.WorktimeController.class, kr.tna.workspace.WorkspaceController.class,
         kr.tna.workspace.ProfileCompanyController.class})
 public class OrgErrorAdvice {

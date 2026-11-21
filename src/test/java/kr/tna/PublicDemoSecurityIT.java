@@ -153,6 +153,20 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
     }
 
     @Test
+    void annualCycleAllowsPreviewAndProtectsSharedCompanyPolicyAndBalances() throws Exception {
+        var session = publicLogin("198.51.100.246");
+        String path = "/admin/leave-balances/annual-cycle";
+        publicMvc.perform(get(path).session(session)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/publicDemo", true));
+        publicMvc.perform(post(path + "/preview").session(session).with(csrf())
+                .contentType("application/json").content("{\"year\":2026}")).andExpect(status().isOk());
+        for (String write : List.of("/policy", "/apply")) {
+            publicMvc.perform(post(path + write).session(session).with(csrf())
+                    .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        }
+    }
+
+    @Test
     void publicLandingIdentifiesTheSharedSyntheticEnvironment() throws Exception {
         publicMvc.perform(get("/demo"))
                 .andExpect(status().isOk())
