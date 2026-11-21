@@ -130,12 +130,15 @@ function useUnloadGuard(dirty: boolean) {
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty]);
 }
+function routeFieldChanged(row: Row, previous: Route | undefined, field: typeof routeFields[number]) {
+  return !previous || (row[field] ?? null) !== (previous[field] ?? null);
+}
 function routeChanged(row: Row, previous: Route | undefined) {
   if (!row.id || !previous)
     return true;
   if (row.operation === 'DEACTIVATE')
     return previous.active;
-  return routeFields.some(field => row[field] !== previous[field]);
+  return routeFields.some(field => routeFieldChanged(row, previous, field));
 }
 function RouteSheet({ model: m, error, busy = false }: {
   model: Routes;
@@ -202,7 +205,7 @@ function RouteSheet({ model: m, error, busy = false }: {
     const previous = row.id ? latest.get(row.id) : undefined;
     const shared: SheetEditorField = {
       label: `${label} ${index + 1}`, value: String(row[field] ?? ''),
-      disabled: row.operation === 'DEACTIVATE', changed: !previous || row[field] !== previous[field], error: fieldError?.message,
+      disabled: row.operation === 'DEACTIVATE', changed: routeFieldChanged(row, previous, field), error: fieldError?.message,
       onChange: value => update(row.clientRowId, field, field === 'employeeId' ? value || null : value),
       onCancel: () => { setRows(current => current.map(item => item.clientRowId === row.clientRowId ? row : item)); renew(); },
     };

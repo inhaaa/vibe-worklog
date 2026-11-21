@@ -13,6 +13,18 @@ function page(overrides: Record<string, unknown> = {}): PageEnvelope {
   return { page: 'org/approval-routes', csrf, data: { ...principal, approvalRoutes: { q: '', page: 0, hasNext: false, candidates: [{ id: 'e-2', employeeNo: 'E002', displayName: '박승인' }], sheet: { commandId: 'batch-command', reason: '', rows: [row], latestRows: [route], errors: [] }, routes: [route], versions: [], ...overrides } } };
 }
 function form(view: ReturnType<typeof render>) { return view.container.querySelector('form[action="/admin/approval-routes/bulk"]') as HTMLFormElement; }
+it('저장한 지정 사원 결재선의 빈 종료 단위는 변경 건수가 아니며 바로 다음 업무로 이동할 수 있다', async () => {
+  const stored = { ...route, approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2', terminalUnit: null };
+  const savedRow = { ...row, approverKind: 'DIRECT_EMPLOYEE', employeeId: 'e-2' };
+  const view = await show(<App initial={page({
+    routes: [stored], sheet: { commandId: 'after-save', reason: '', rows: [savedRow], latestRows: [stored], errors: [] }
+  })} />);
+  expect(posted(view)).toEqual([]);
+  expect(view.container.querySelector('.t-approval-routes')?.getAttribute('data-unsaved-changes')).toBe('false');
+  expect((within(form(view)).getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(true);
+  await changeCell(view, '결재선 이름 1', '새 결재 이름');
+  expect(posted(view)).toHaveLength(1);
+});
 it('순차결재에서 종료 단위를 선택하고 결재 방식 변경 시 숨은 값을 비운다', async () => {
   const view = await show(<App initial={page()} />);
   await changeCell(view, '결재 방식 1', 'ORGANIZATION_CHAIN');
