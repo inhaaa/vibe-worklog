@@ -58,8 +58,8 @@ public class SecurityConfiguration {
                     }
                     authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/react/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/invite/*", "/password-reset").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/invite", "/invite/*", "/password-reset").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/invite/accept", "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.POST, "/admin/access/roles/*/members/bulk", "/admin/attendance/follow-ups",
                                 "/admin/calculations/month-end", "/admin/calculations/month-end/preview",

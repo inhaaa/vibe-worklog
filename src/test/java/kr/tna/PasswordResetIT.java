@@ -61,6 +61,8 @@ class PasswordResetIT {
         resets.request("UNKNOWN-"+company,email,company);assertTrue(messages().isEmpty());
         resets.request(company.toLowerCase(java.util.Locale.ROOT)," "+email.toUpperCase(java.util.Locale.ROOT)+" ",company);
         assertEquals(1,messages().size());assertEquals(43,message().token().length());assertFalse(message().toString().contains(message().token()));
+        assertEquals(message().expiresAt(), db.queryForObject(
+                "SELECT expires_at FROM tna.account_token WHERE tenant_id=?", java.sql.Timestamp.class, tenant).toInstant());
         assertEquals("RESET",db.queryForObject("SELECT purpose FROM tna.account_token WHERE tenant_id=?",String.class,tenant));
         assertEquals(1L,db.queryForObject("SELECT issued_auth_version FROM tna.account_token WHERE tenant_id=?",Long.class,tenant));
         assertEquals(HASH,hash());assertTrue(auth.isCurrent(actor));assertEquals(1L,version());

@@ -69,13 +69,14 @@ public final class PasswordResetService {
                         """,java.sql.Timestamp.from(now),tenant,account.id());
                 byte[] random=new byte[32];RANDOM.nextBytes(random);
                 String token=Base64.getUrlEncoder().withoutPadding().encodeToString(random);UUID id=UUID.randomUUID();
+                var expiresAt = now.plusSeconds(1800);
                 jdbc.update("""
                         INSERT INTO tna.account_token(tenant_id,id,account_id,purpose,token_hash,email,
                             issued_auth_version,expires_at,created_by)
                         VALUES (?,?,?,'RESET',?,?,?,?,?)
-                        """,tenant,id,account.id(),hash(token),normalizedEmail,account.version(),java.sql.Timestamp.from(now.plusSeconds(1800)),account.id());
+                        """,tenant,id,account.id(),hash(token),normalizedEmail,account.version(),java.sql.Timestamp.from(expiresAt),account.id());
                 audit(tenant,account.id(),UUID.randomUUID(),"ACCOUNT_RESET_REQUEST",account.version(),account.version());
-                var envelope=new InvitationDelivery.Envelope(company,normalizedEmail,token);
+                var envelope=InvitationDelivery.Envelope.reset(company,normalizedEmail,token,expiresAt);
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){
                     @Override public void afterCommit(){delivery.deliver(envelope);}
                 });

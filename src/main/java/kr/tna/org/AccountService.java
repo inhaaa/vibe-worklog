@@ -6,6 +6,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
@@ -79,14 +80,15 @@ public final class AccountService {
                         changed(mapper.revokeSessions(actor.tenantId(), accountId));
                     }
                     var now = clock.instant();
+                    var expiresAt = now.plus(Duration.ofHours(24)).truncatedTo(ChronoUnit.MILLIS);
                     mapper.revokeInvitations(actor.tenantId(), accountId, now);
                     byte[] random = new byte[32];
                     RANDOM.nextBytes(random);
                     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
                     mapper.insertInvitation(actor.tenantId(), UUID.randomUUID(), accountId, tokenHash(token),
-                            email, authVersion, now.plus(Duration.ofHours(24)), actor.accountId());
+                            email, authVersion, expiresAt, actor.accountId());
                     changed(employees.advanceVersion(actor.tenantId(), employeeId, employee.version(), actor.accountId()));
-                    var envelope = new InvitationDelivery.Envelope(mapper.companyCode(actor.tenantId()), email, token);
+                    var envelope = new InvitationDelivery.Envelope(mapper.companyCode(actor.tenantId()), email, token, expiresAt);
                     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                         @Override public void afterCommit() { delivery.deliver(envelope); }
                     });
@@ -144,10 +146,7 @@ public final class AccountService {
 
     private String email(String value) {
         String normalized = requiredText(value, 254, "이메일").toLowerCase(Locale.ROOT);
-        int separator = normalized.indexOf('@');
-        if (normalized.length() > 254 || separator < 1 || separator != normalized.lastIndexOf('@')
-                || separator == normalized.length() - 1
-                || normalized.codePoints().anyMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c))) {
+        if (!InvitationDelivery.isSingleMailbox(normalized)) {
             throw OrgException.invalid("공백 없이 올바른 이메일을 입력해 주세요.");
         }
         return normalized;

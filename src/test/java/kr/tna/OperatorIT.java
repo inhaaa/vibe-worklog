@@ -34,6 +34,32 @@ class OperatorIT {
     @Autowired(required=false) @Qualifier("operatorDataSource") DataSource operatorSource;
     @DynamicPropertySource static void database(DynamicPropertyRegistry p){var f=DatabaseFixture.start();p.add("spring.datasource.url",f::jdbcUrl);p.add("spring.datasource.username",()->DatabaseFixture.APP_USER);p.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);p.add("tna.auth.url",f::jdbcUrl);p.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);p.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);p.add("tna.operator.url",f::jdbcUrl);p.add("tna.operator.password",()->"synthetic-operator-db-password-only");}
     @Test void operatorMetadataSchemaExists(){assertNotNull(db().queryForObject("SELECT to_regclass('platform.operator_account')::text",String.class));}
+    @Test void companyContactMustBeOneActualMailbox() {
+        var first = form();
+        var group = new TenantForm(first.companyCode(), first.companyName(), first.employeeNo(), first.employeeName(),
+                first.joinedOn(), "group:other@example.test;", first.relationshipBasis(), first.reason(), first.commandId());
+        var actor = operator();
+        assertStatus(422, () -> operators.onboard(actor, group));
+        assertTrue(operators.tenants(actor).stream().noneMatch(t -> t.companyCode().equalsIgnoreCase(first.companyCode())));
+    }
+
+    @Test void unconfirmedFirstInviteKeepsTheCompanyAndAllowsFirstAdminReissue() {
+        var failed = org.mockito.Mockito.mock(InvitationDelivery.class);
+        org.mockito.Mockito.when(failed.enabled()).thenReturn(true);
+        org.mockito.Mockito.doThrow(new OrgException(503, "초대 재발급 필요")).when(failed).deliver(org.mockito.Mockito.any());
+        var fallible = new OperatorService(mapper, operatorSource, java.time.Clock.systemUTC(), failed);
+        var actor = operator();
+        var first = form();
+        assertStatus(503, () -> fallible.onboard(actor, first));
+        UUID tenant = operators.onboard(actor, first);
+        assertTrue(delivery.messages().stream().noneMatch(m -> m.email().equals(first.email())));
+        operators.reissue(actor, tenant, new ReissueForm(0L, "메일 재발급", UUID.randomUUID()));
+        var latest = delivery.messages().stream().filter(m -> m.email().equals(first.email())).findFirst().orElseThrow();
+        assertEquals(latest.expiresAt(), db().queryForObject(
+                "SELECT expires_at FROM tna.account_token WHERE tenant_id=? AND revoked_at IS NULL", java.sql.Timestamp.class, tenant).toInstant());
+        acceptance.accept(first.companyCode(), first.email(), latest.token(), PASSWORD, "198.18.42.16");
+        assertEquals(true, db().queryForObject("SELECT active FROM tna.tenant_account WHERE tenant_id=?", Boolean.class, tenant));
+    }
     @Test void onboardCreatesOnlyPendingFirstAdminAndGroundedMetadataAuditThenUsesExistingAcceptance(){
         var actor=operator();var form=form();UUID id=operators.onboard(actor,form);assertNotNull(id);
         assertTrue(operators.tenants(actor).stream().anyMatch(t->t.id().equals(id)));
@@ -41,6 +67,8 @@ class OperatorIT {
         assertEquals(false,account.get("active"));assertEquals(false,account.get("credential_set"));
         assertEquals(java.util.Set.of("EMPLOYEE","ATTENDANCE_ADMIN"),java.util.Set.copyOf(db().queryForList("SELECT role FROM tna.role_grant WHERE tenant_id=? AND active",String.class,id)));
         var envelope=delivery.messages().stream().filter(e->e.email().equals(form.email())).findFirst().orElseThrow();
+        assertEquals(envelope.expiresAt(), db().queryForObject(
+                "SELECT expires_at FROM tna.account_token WHERE tenant_id=?", java.sql.Timestamp.class, id).toInstant());
         var audit=db().queryForMap("SELECT relationship_basis,db_actor,summary::text AS summary FROM platform.operator_audit_event WHERE command_id=?",form.commandId());
         assertEquals(form.relationshipBasis(),audit.get("relationship_basis"));assertEquals("tna_operator",audit.get("db_actor"));
         assertFalse(audit.get("summary").toString().contains(envelope.token()));assertFalse(audit.get("summary").toString().contains(form.email()));

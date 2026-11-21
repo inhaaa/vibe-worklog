@@ -72,6 +72,31 @@ class OperatorWebIT {
         assertTrue(delivery.messages().stream().noneMatch(e->e.email().equals("forged@example.test")));
         assertEquals(1,db().queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=?",Integer.class,tenant));
     }
+
+    @Test void legacyCompanyCodeUsesTheSameSingleUseAcceptanceFromTheQueryForm() throws Exception {
+        String code = "서울/회사;%" + UUID.randomUUID().toString().toUpperCase(java.util.Locale.ROOT);
+        String email = UUID.randomUUID() + "@example.test";
+        mvc.perform(post("/operator/tenants").session(operatorLogin(null)).with(csrf())
+                .param("companyCode", code).param("companyName", "합성 회사").param("employeeNo", "FIRST")
+                .param("employeeName", "합성 담당자").param("joinedOn", LocalDate.now(ZoneId.of("Asia/Seoul")).toString())
+                .param("email", email).param("relationshipBasis", "합성 확인").param("reason", "합성 개통")
+                .param("commandId", UUID.randomUUID().toString())).andExpect(status().isSeeOther());
+        String token = delivery.messages().stream().filter(e -> e.email().equals(email)).findFirst().orElseThrow().token();
+        mvc.perform(get("/invite").queryParam("companyCode", code)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.csrf()).andExpect(ReactPageAssertions.data("/companyCode", code))
+                .andExpect(ReactPageAssertions.data("/inviteByCompany", true));
+        mvc.perform(post("/invite/accept").param("companyCode", code)).andExpect(status().isForbidden());
+        mvc.perform(post("/invite/accept").with(csrf()).param("companyCode", DatabaseFixture.COMPANY_B)
+                .param("email", email).param("token", token).param("password", PASSWORD).param("confirmation", PASSWORD))
+                .andExpect(status().is(422)).andExpect(ReactPageAssertions.data("/inviteByCompany", true))
+                .andExpect(content().string(not(containsString(token))));
+        mvc.perform(post("/invite/accept").with(csrf()).param("companyCode", code)
+                .param("email", email).param("token", token).param("password", PASSWORD).param("confirmation", PASSWORD))
+                .andExpect(redirectedUrl("/login?invited"));
+        mvc.perform(post("/invite/accept").with(csrf()).param("companyCode", code)
+                .param("email", email).param("token", token).param("password", PASSWORD).param("confirmation", PASSWORD))
+                .andExpect(status().is(422)).andExpect(content().string(not(containsString(PASSWORD))));
+    }
     private MockHttpSession operatorLogin(MockHttpSession existing)throws Exception{var request=post("/operator/login").with(csrf()).param("loginId",login).param("password",PASSWORD);if(existing!=null)request.session(existing);return (MockHttpSession)mvc.perform(request).andExpect(redirectedUrl("/operator/tenants")).andReturn().getRequest().getSession(false);}
     private MockHttpSession customerLogin()throws Exception{return (MockHttpSession)mvc.perform(post("/login").with(csrf()).param("companyCode",DatabaseFixture.COMPANY_A).param("email",DatabaseFixture.EMAIL).param("password",PASSWORD)).andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);}
     private JdbcTemplate db(){return new JdbcTemplate(DatabaseFixture.start().adminDataSource());}

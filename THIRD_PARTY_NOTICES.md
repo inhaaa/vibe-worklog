@@ -41,6 +41,8 @@
 
 ## Maven 의존성 조사
 
+2026-11-21 계정 메일에 Spring Boot 4.1.2의 mail starter를 적용하고 관련 라이브러리의 Maven 범위와 라이선스 메타데이터를 갱신했다. [메일 기술 결정](docs/adr/0007-account-mail-delivery.md) · [좌표별 라이선스](docs/development/dependency-licenses.csv)
+
 2026-10-26 React 전환 뒤 현재 CSV를 실제 Maven 앱/테스트 의존성120개와 대조해 갱신했다. 아래126개는 이전 조사 이력이다. Thymeleaf 관련6개를 제외했고 남은 좌표의 기존 라이선스 출처를 보존했으며 미확인 metadata는0개다.
 
 2026-10-24 실제 해석한 프로젝트 의존성 126개(테스트 포함)의 좌표·범위·라이선스 메타데이터를 [CSV](docs/development/dependency-licenses.csv)에 기록했다. 2026-10-25 보안 패치로 MyBatis3.6.0 및 라이선스를 선언한 parent POM 좌표를 갱신하고 전체126개 좌표·scope를 다시 대조했다. 각 아티팩트의 POM과 상속한 parent POM의 `licenses`를 사용했으며, 라이선스를 명시한 POM 좌표도 함께 남겼다. 조사 당시 라이선스 메타데이터가 없는 항목은 0개였다.

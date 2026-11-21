@@ -141,6 +141,8 @@ class AccountServiceIT {
         assertFalse(account.credentialSet());
         assertEquals(Set.of("EMPLOYEE"), account.roles());
         var message = message();
+        assertEquals(message.expiresAt(), database.queryForObject(
+                "SELECT expires_at FROM tna.account_token WHERE tenant_id=?", java.sql.Timestamp.class, tenant).toInstant());
         assertTrue(message.token().matches("[A-Za-z0-9_-]{43}"));
         assertFalse(message.toString().contains(message.token()));
         assertEquals(1, version());
@@ -154,6 +156,30 @@ class AccountServiceIT {
         String tokenHash = database.queryForObject("SELECT token_hash FROM tna.account_token WHERE tenant_id=?", String.class, tenant);
         assertFalse(audit.contains(message.token()));
         assertFalse(audit.contains(tokenHash));
+    }
+
+    @Test
+    void authenticationMailboxCannotAddressAGroupOrAnotherRecipient() {
+        assertStatus(422, () -> accounts.invite(actor, employee,
+                new InvitationForm("group:other@example.test;", 0L, "초대", UUID.randomUUID())));
+        assertNull(accounts.get(actor, employee));
+    }
+
+    @Test
+    void unconfirmedRelayLeavesOnePendingAccountThatCanBeReissued() {
+        var failed = org.mockito.Mockito.mock(InvitationDelivery.class);
+        org.mockito.Mockito.when(failed.enabled()).thenReturn(true);
+        org.mockito.Mockito.doThrow(new OrgException(503, "초대 재발급 필요")).when(failed).deliver(org.mockito.Mockito.any());
+        var fallible = new AccountService(accountMapper, employeeMapper, commands, failed, Clock.systemUTC(), identityGuard);
+        var first = new InvitationForm("employee@example.test", 0L, "최초 초대", UUID.randomUUID());
+        assertStatus(503, () -> fallible.invite(actor, employee, first));
+        assertFalse(accounts.get(actor, employee).active());
+        assertEquals(1, version());
+        assertEquals(employee, accounts.invite(actor, employee, first));
+        assertTrue(messages().isEmpty());
+        accounts.invite(actor, employee, new InvitationForm(first.email(), version(), "메일 재발급", UUID.randomUUID()));
+        accept(message());
+        assertTrue(accounts.get(actor, employee).active());
     }
 
     @Test

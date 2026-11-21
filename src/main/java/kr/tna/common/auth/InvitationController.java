@@ -19,11 +19,16 @@ public class InvitationController {
     private final InvitationAcceptance invitations;
     public InvitationController(InvitationAcceptance invitations) { this.invitations = invitations; }
 
-    @GetMapping("/invite/{companyCode}")
-    ModelAndView form(@PathVariable String companyCode) { return new ModelAndView("invite").addObject("companyCode", companyCode); }
+    @GetMapping({"/invite/{companyCode}", "/invite"})
+    ModelAndView form(@PathVariable(name = "companyCode", required = false) String pathCode,
+                      @RequestParam(name = "companyCode", defaultValue = "") String formCode) {
+        return new ModelAndView("invite").addObject("companyCode", pathCode == null ? formCode : pathCode)
+                .addObject("inviteByCompany", pathCode == null);
+    }
 
-    @PostMapping("/invite/{companyCode}/accept")
-    ModelAndView accept(@PathVariable String companyCode,
+    @PostMapping({"/invite/{companyCode}/accept", "/invite/accept"})
+    ModelAndView accept(@PathVariable(name = "companyCode", required = false) String pathCode,
+            @RequestParam(name = "companyCode", defaultValue = "") String formCode,
             @RequestParam(defaultValue = "") String email, @RequestParam(defaultValue = "") String token,
             @RequestParam(defaultValue = "") String password, @RequestParam(defaultValue = "") String confirmation,
             HttpServletRequest request, HttpServletResponse response) {
@@ -32,7 +37,7 @@ public class InvitationController {
                 LOG.warn("event=invitation_accept outcome=rejected");
                 throw OrgException.invalid("비밀번호와 확인값이 일치하지 않습니다.");
             }
-            invitations.accept(companyCode, email, token, password, request.getRemoteAddr());
+            invitations.accept(pathCode == null ? formCode : pathCode, email, token, password, request.getRemoteAddr());
             var session = request.getSession(false);
             if (session != null) session.invalidate();
             SecurityContextHolder.clearContext();
@@ -41,7 +46,7 @@ public class InvitationController {
             return new ModelAndView(redirect);
         } catch (OrgException error) {
             if (error.status() == 429) response.setHeader("Retry-After", "300");
-            var view = form(companyCode).addObject("error", error.getMessage());
+            var view = form(pathCode, formCode).addObject("error", error.getMessage());
             view.setStatus(HttpStatusCode.valueOf(error.status()));
             return view;
         }

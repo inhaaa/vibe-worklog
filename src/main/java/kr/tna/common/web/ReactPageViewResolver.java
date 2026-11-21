@@ -29,7 +29,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
     private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo", "employeeHeader");
     private static final Map<String, Set<String>> PAGES = Map.ofEntries(
             page("login", "localDemo"), page("demo", "demoLogin", "demoPassword", "demoApproverLogin", "demoApproverPassword", "demoAccounts", "publicDemo"),
-            page("invite", "companyCode"), page("password-reset"), page("operator/login"),
+            page("invite", "companyCode", "inviteByCompany"), page("password-reset"), page("operator/login"),
             page("operator/tenants", "tenants", "audit", "form"),
             page("today", "employee", "workspaceHome", "attendanceAdmin", "approver", "today", "day",
                     "eventTimes", "confirmationForm", "inCommand", "outCommand"),

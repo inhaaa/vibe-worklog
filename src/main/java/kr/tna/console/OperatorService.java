@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -35,17 +36,18 @@ public final class OperatorService {
     public UUID onboard(OperatorPrincipal actor,TenantForm form){
         if(form==null||form.commandId()==null)throw OrgException.invalid("명령 식별자가 필요합니다.");
         String email=requiredText(form.email(),254,"최초 담당자 이메일").toLowerCase(Locale.ROOT);
-        if(!email.matches("[^\\s@]+@[^\\s@]+")||email.codePoints().anyMatch(c->Character.isWhitespace(c)||Character.isSpaceChar(c)))throw OrgException.invalid("올바른 업무 이메일을 입력해 주세요.");
+        if(!InvitationDelivery.isSingleMailbox(email))throw OrgException.invalid("올바른 업무 이메일을 입력해 주세요.");
         if(form.joinedOn()==null||form.joinedOn().isAfter(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")))))throw OrgException.invalid("확인한 최초 담당자 입사일을 입력해 주세요.");
         var normalized=new TenantForm(requiredText(form.companyCode()==null?null:form.companyCode().toUpperCase(Locale.ROOT),80,"회사 코드"),requiredText(form.companyName(),120,"회사명"),requiredText(form.employeeNo(),40,"최초 사번"),requiredText(form.employeeName(),120,"최초 담당자명"),form.joinedOn(),email,requiredText(form.relationshipBasis(),500,"회사 관계·연락 경로 검토 근거"),requiredText(form.reason(),500,"등록 사유"),form.commandId());
         String hash=fingerprint("TENANT_ONBOARD",normalized.companyCode(),normalized.companyName(),normalized.employeeNo(),normalized.employeeName(),normalized.joinedOn(),email,normalized.relationshipBasis(),normalized.reason());
         return execute(actor,()->{
-            if(!delivery.enabled())throw new OrgException(503,"로컬 모의 전달이 준비되지 않았습니다.");
+            if(!delivery.enabled())throw new OrgException(503,"초대 전달 경로가 준비되지 않았습니다.");
             byte[] bytes=new byte[32];RANDOM.nextBytes(bytes);String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
             String tokenHash;
             try{tokenHash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII)));}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}
-            var result=mapper.onboard(actor,normalized,hash,UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),tokenHash,clock.instant().plus(Duration.ofHours(24)));
-            if(result.created())TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){delivery.deliver(new InvitationDelivery.Envelope(normalized.companyCode(),email,token));}});
+            var expiresAt = clock.instant().plus(Duration.ofHours(24)).truncatedTo(ChronoUnit.MILLIS);
+            var result=mapper.onboard(actor,normalized,hash,UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),UUID.randomUUID(),tokenHash,expiresAt);
+            if(result.created())TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){delivery.deliver(new InvitationDelivery.Envelope(normalized.companyCode(),email,token,expiresAt));}});
             return result.tenantId();
         });
     }
@@ -53,11 +55,12 @@ public final class OperatorService {
         if(form==null||tenantId==null||form.commandId()==null||form.expectedVersion()==null||form.expectedVersion()<0)throw OrgException.invalid("회사·현재 버전·명령 식별자가 필요합니다.");
         String reason=requiredText(form.reason(),500,"최초 초대 재발급 사유");var checked=new ReissueForm(form.expectedVersion(),reason,form.commandId());
         return execute(actor,()->{
-            if(!delivery.enabled())throw new OrgException(503,"로컬 모의 전달이 준비되지 않았습니다.");
+            if(!delivery.enabled())throw new OrgException(503,"초대 전달 경로가 준비되지 않았습니다.");
             byte[] bytes=new byte[32];RANDOM.nextBytes(bytes);String token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);String tokenHash;
             try{tokenHash=HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII)));}catch(java.security.NoSuchAlgorithmException e){throw new IllegalStateException(e);}
-            var result=mapper.reissue(actor,tenantId,checked,fingerprint("TENANT_INVITE_REISSUE",tenantId,form.expectedVersion(),reason),UUID.randomUUID(),tokenHash,clock.instant().plus(Duration.ofHours(24)));
-            if(result.sent())TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){delivery.deliver(new InvitationDelivery.Envelope(result.companyCode(),result.email(),token));}});
+            var expiresAt = clock.instant().plus(Duration.ofHours(24)).truncatedTo(ChronoUnit.MILLIS);
+            var result=mapper.reissue(actor,tenantId,checked,fingerprint("TENANT_INVITE_REISSUE",tenantId,form.expectedVersion(),reason),UUID.randomUUID(),tokenHash,expiresAt);
+            if(result.sent())TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){delivery.deliver(new InvitationDelivery.Envelope(result.companyCode(),result.email(),token,expiresAt));}});
             return tenantId;
         });
     }
