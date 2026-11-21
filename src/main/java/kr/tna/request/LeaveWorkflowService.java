@@ -89,17 +89,27 @@ public final class LeaveWorkflowService {
             var before=bucket(actor.tenantId(),bucketId);
             if(actor.employeeId().equals(before.employeeId()))throw OrgException.forbidden();
             checkVersion(clean.expectedVersion(),before.version());
-            LeaveBalanceEntries.checkAdjustment(before,clean);
+            checkAdjustment(actor.tenantId(),before,clean);
             return new Change(bucketId,before,appendAdjustment(actor,before,clean));
         });
     }
+    void checkAdjustment(UUID tenant,Bucket bucket,AdjustmentForm form) {
+        LeaveBalanceEntries.checkAdjustment(bucket,form);
+        var credit=mapper.includedCredit(tenant,bucket.employeeId(),bucket.id());
+        if (credit==null) return;
+        BigDecimal revisedAdjustment=credit.adjustedDays().add(form.quantityDays());
+        if (credit.originalDays().add(revisedAdjustment.min(BigDecimal.ZERO)).compareTo(credit.linkedDays())<0)
+            throw LeaveBalanceEntries.invalid("quantityDays","월별 개근에 이미 연결한 "+credit.linkedDays()+"일보다 원부여 일수를 줄일 수 없습니다.");
+    }
     Bucket appendOpening(TnaPrincipal actor, BucketForm form) {
+        mapper.requireUnsettled(actor.tenantId(),form.employeeId());
         UUID id=UUID.randomUUID();
         changed(mapper.insertBucket(actor.tenantId(),id,form,actor.accountId()));
         ledger(actor,id,form.employeeId(),"OPENING",form.quantityDays(),form.baseDate(),null,null,null,form.sourceReference(),form.reason());
         return bucket(actor.tenantId(),id);
     }
     Bucket appendAdjustment(TnaPrincipal actor, Bucket before, AdjustmentForm form) {
+        mapper.requireUnsettled(actor.tenantId(),before.employeeId());
         ledger(actor,before.id(),before.employeeId(),"ADJUSTMENT",form.quantityDays(),form.effectiveOn(),null,null,null,form.sourceReference(),form.reason());
         changed(mapper.advanceBucket(actor.tenantId(),before.id(),before.version()));
         return bucket(actor.tenantId(),before.id());
@@ -244,6 +254,7 @@ public final class LeaveWorkflowService {
             throw OrgException.invalid("이 휴가는 종일 단위로 신청해 주세요.");
         Bucket bucket=null;
         if ("LEAVE_DAY".equals(policy.deductionRule())) {
+            mapper.requireUnsettled(actor.tenantId(),actor.employeeId());
             if (form.bucketId()==null) throw OrgException.invalid("차감할 연차 묶음을 선택해 주세요.");
             bucket=bucket(actor.tenantId(),form.bucketId());
             if(!bucket.employeeId().equals(actor.employeeId()))throw OrgException.notFound();
@@ -252,8 +263,13 @@ public final class LeaveWorkflowService {
         predecessor(actor.tenantId(),form.predecessorRequestId(),actor.employeeId(),"LEAVE_DAY");
         var days=days(actor.tenantId(),actor.employeeId(),form.from(),form.to(),form.leavePart());
         if(days.stream().noneMatch(day->day.quantityDays()>0))throw OrgException.invalid("소정근로일이 없는 기간입니다.");
+        if (bucket != null) requireEarnedOnLeaveDates(actor.tenantId(), bucket.id(), days);
         requireFreeLeaveDays(actor.tenantId(),actor.employeeId(),days,null);
         return new LeaveInput(policy,bucket,days);
+    }
+    private void requireEarnedOnLeaveDates(UUID tenant, UUID bucket, List<RequestDay> days) {
+        if (!EmploymentAccrualData.covers(mapper.monthlyBalanceMovements(tenant, bucket), days))
+            throw OrgException.invalid("각 사용일에 발생한 월별 연차 잔여와 이미 승인된 사용량을 확인해 주세요.");
     }
     private void requireFreeLeaveDays(UUID tenant,UUID employeeId,List<RequestDay> days,UUID exceptId) {
         for(var day:days) {
@@ -320,6 +336,7 @@ public final class LeaveWorkflowService {
         return commands.execute(actor,form.commandId(),action,"REQUEST",reviewedFingerprint(routeToken,action,originalId,form.exceptional(),form.expectedVersion(),reason),reason,form.exceptional()?"ATTENDANCE_ADMIN":"EMPLOYEE",()->{
             var original=request(actor.tenantId(),originalId);
             if(!form.exceptional()&&!original.targetEmployeeId().equals(actor.employeeId()))throw OrgException.notFound();
+            if(original.leaveBucketId()!=null)mapper.requireUnsettled(actor.tenantId(),original.targetEmployeeId());
             checkVersion(form.expectedVersion(),original.version());
             boolean overtimeRequest="OVERTIME".equals(original.kind());
             if(overtimeRequest && form.exceptional()) throw OrgException.forbidden();
@@ -345,6 +362,7 @@ public final class LeaveWorkflowService {
             independent(actor.tenantId(),before.targetEmployeeId(),before.authorAccountId(),actor.employeeId());
             checkVersion(form.expectedVersion(),before.version());pending(before);checkStep(before,form.expectedStep());
             String status=form.decision().equals("APPROVE")?"APPROVED":"REJECTED";
+            if("APPROVED".equals(status)&&before.leaveBucketId()!=null)mapper.requireUnsettled(actor.tenantId(),before.targetEmployeeId());
             if(status.equals("APPROVED"))currentEmployee(actor.tenantId(),before.targetEmployeeId(),before.exceptional());
             if(!approvers.eligible(actor.tenantId(),actor.employeeId(),today()))throw OrgException.forbidden();
             mapper.requireOpen(actor.tenantId(),before.fromDate(),before.toDate());
@@ -450,6 +468,7 @@ public final class LeaveWorkflowService {
         double quantity=current.stream().mapToDouble(RequestDay::quantityDays).sum();
         if(quantity<=0)throw OrgException.invalid("승인할 휴가 사용일이 없습니다.");
         if(b!=null&&b.balanceDays()<quantity)throw OrgException.invalid("승인할 수 있는 연차 잔여가 부족합니다.");
+        if (b != null) requireEarnedOnLeaveDates(actor.tenantId(), b.id(), current);
         requireFreeLeaveDays(actor.tenantId(),request.targetEmployeeId(),current,request.id());
         UUID effect=UUID.randomUUID();changed(mapper.insertEffect(actor.tenantId(),effect,request.id(),request.targetEmployeeId(),null,"LEAVE",json.writeValueAsString(current),null,null,actor.accountId()));
         for(var d:current)if(d.quantityDays()>0) {

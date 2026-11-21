@@ -32,7 +32,10 @@ public interface AnnualLeaveCycleMapper {
             """)
     Rule appliedRule(@Param("tenantId") UUID tenantId, @Param("year") int year);
 
-    @Select("SELECT EXISTS (SELECT 1 FROM tna.annual_leave_cycle WHERE tenant_id=#{tenantId})")
+    @Select("""
+            SELECT EXISTS (SELECT 1 FROM tna.annual_leave_cycle WHERE tenant_id=#{tenantId})
+                OR EXISTS (SELECT 1 FROM tna.leave_monthly_review WHERE tenant_id=#{tenantId})
+            """)
     boolean hasCycles(UUID tenantId);
 
     @Insert("""
@@ -68,6 +71,7 @@ public interface AnnualLeaveCycleMapper {
             """ + LATEST_ATTRIBUTION + """
                 JOIN tna.attendance_type t ON t.tenant_id=b.tenant_id AND t.id=a.attendance_type_id AND t.system_kind='ANNUAL_LEAVE'
                 WHERE b.tenant_id=#{tenantId} AND a.classification_status='CONFIRMED' AND a.entitlement_year=#{year}
+                    AND NOT EXISTS (SELECT 1 FROM tna.leave_monthly_review m WHERE m.tenant_id=b.tenant_id AND m.bucket_id=b.id)
             ), later AS (
                 SELECT DISTINCT employee_id FROM tna.annual_leave_award WHERE tenant_id=#{tenantId} AND entitlement_year>#{year}
             )
@@ -79,6 +83,7 @@ public interface AnnualLeaveCycleMapper {
             LEFT JOIN later ON later.employee_id=e.id
             WHERE e.tenant_id=#{tenantId} AND e.id<>#{self} AND e.active AND e.joined_on<=#{start}
                 AND (e.left_on IS NULL OR e.left_on>=#{start})
+                AND NOT EXISTS (SELECT 1 FROM tna.leave_exit_settlement x WHERE x.tenant_id=e.tenant_id AND x.employee_id=e.id)
             ORDER BY e.employee_no,e.id
             """)
     List<Candidate> candidates(@Param("tenantId") UUID tenantId,@Param("self") UUID self,
@@ -105,6 +110,7 @@ public interface AnnualLeaveCycleMapper {
             LEFT JOIN pending ON pending.bucket_id=b.id
             WHERE b.tenant_id=#{tenantId} AND b.employee_id<>#{self} AND b.usable_to=#{lastDay} AND b.base_date<=b.usable_to
                 AND a.classification_status='CONFIRMED' AND a.entitlement_year=#{previousYear}
+                AND NOT EXISTS (SELECT 1 FROM tna.leave_monthly_review m WHERE m.tenant_id=b.tenant_id AND m.bucket_id=b.id)
                 AND NOT EXISTS (SELECT 1 FROM tna.leave_ledger settled WHERE settled.tenant_id=b.tenant_id AND settled.bucket_id=b.id
                     AND settled.entry_kind IN ('CARRY_OUT','EXPIRE'))
             GROUP BY b.tenant_id,b.id,a.revision,pending.bucket_id
@@ -132,10 +138,14 @@ public interface AnnualLeaveCycleMapper {
 
     @Select("""
             SELECT l.id,b.id AS bucket_id,e.employee_no,a.entitlement_year,l.entry_kind,l.signed_quantity_days,
-                l.effective_on,l.leave_date,l.source_reference,l.reason
+                l.effective_on,l.leave_date,
+                CASE WHEN m.included_bucket_id IS NULL THEN l.source_reference
+                     ELSE l.source_reference || ' · 기초 원장 ' || m.included_source_reference END AS source_reference,
+                l.reason,m.decision AS monthly_decision
             FROM tna.leave_ledger l JOIN tna.leave_bucket b ON b.tenant_id=l.tenant_id AND b.id=l.bucket_id AND b.employee_id=l.employee_id
             JOIN tna.employee e ON e.tenant_id=l.tenant_id AND e.id=l.employee_id
             """ + LATEST_ATTRIBUTION + """
+            LEFT JOIN tna.leave_monthly_review m ON m.tenant_id=l.tenant_id AND m.id=l.monthly_review_id AND m.employee_id=l.employee_id
             LEFT JOIN tna.annual_leave_award w ON w.tenant_id=l.tenant_id AND w.bucket_id=l.annual_award_bucket_id AND w.employee_id=l.employee_id
             WHERE l.tenant_id=#{tenantId} AND l.employee_id=#{employeeId}
                 AND (a.entitlement_year=#{year} OR w.entitlement_year=#{year} OR (l.effective_on>=#{start} AND l.effective_on<#{end}))
@@ -151,4 +161,11 @@ public interface AnnualLeaveCycleMapper {
                 AND (b.usable_to IS NULL OR b.usable_to>=#{today})
             """)
     BigDecimal available(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
+
+    @Select("""
+            SELECT left_on,settlement_days,reason FROM tna.leave_exit_settlement
+            WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND left_on>=#{start} AND left_on<#{end}
+            """)
+    AnnualLeaveCycleData.ExitReceipt exitReceipt(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("start") LocalDate start, @Param("end") LocalDate end);
 }

@@ -65,8 +65,9 @@ public final class AnnualLeaveCycleService {
                     var before = mapper.currentRule(actor.tenantId());
                     long version = before == null ? 0 : before.version();
                     checkVersion(form.expectedVersion(), version);
-                    if (before != null && before.fiscalStartMonth() != form.fiscalStartMonth() && mapper.hasCycles(actor.tenantId()))
-                        throw OrgException.conflict("원장에 반영한 회계연도의 시작월을 유지해 주세요. 부여·이월 일수는 변경할 수 있습니다.");
+                    int startMonth = before == null ? 1 : before.fiscalStartMonth();
+                    if (startMonth != form.fiscalStartMonth() && mapper.hasCycles(actor.tenantId()))
+                        throw OrgException.conflict("연간 부여나 월별 연차를 기록한 회사는 기존 회계 시작월을 유지해 주세요. 부여·이월 일수는 변경할 수 있습니다.");
                     var rule = new Rule(version + 1, form.fiscalStartMonth(), grant, cap);
                     UUID id = UUID.randomUUID();
                     changed(mapper.insertRule(actor.tenantId(), id, rule, actor.accountId()));
@@ -116,8 +117,10 @@ public final class AnnualLeaveCycleService {
             var applied = mapper.appliedRule(actor.tenantId(), year);
             var rule = applied == null ? current : applied;
             LocalDate start = LocalDate.of(year, rule == null ? 1 : rule.fiscalStartMonth(), 1);
+            LocalDate end = start.plusYears(1);
             return new Ledger(year, today, mapper.available(actor.tenantId(), actor.employeeId(), today),
-                    mapper.entries(actor.tenantId(), actor.employeeId(), year, start, start.plusYears(1)));
+                    mapper.entries(actor.tenantId(), actor.employeeId(), year, start, end),
+                    mapper.exitReceipt(actor.tenantId(), actor.employeeId(), start, end));
         });
     }
 

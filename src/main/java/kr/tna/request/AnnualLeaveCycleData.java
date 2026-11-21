@@ -24,6 +24,8 @@ public final class AnnualLeaveCycleData {
     public record Preview(int year, LocalDate periodStart, LocalDate periodEnd, Rule rule, List<Row> rows,
             int postedCount, int existingCount, int laterCount, int pendingCount, String token, boolean canPost) { }
     public record Entry(UUID id, UUID bucketId, String employeeNo, Integer entitlementYear, String entryKind,
-            BigDecimal signedQuantityDays, LocalDate effectiveOn, LocalDate leaveDate, String sourceReference, String reason) { }
-    public record Ledger(int year, LocalDate today, BigDecimal availableDays, List<Entry> entries) { }
+            BigDecimal signedQuantityDays, LocalDate effectiveOn, LocalDate leaveDate, String sourceReference, String reason,
+            String monthlyDecision) { }
+    public record ExitReceipt(LocalDate leftOn, BigDecimal settlementDays, String reason) { }
+    public record Ledger(int year, LocalDate today, BigDecimal availableDays, List<Entry> entries, ExitReceipt exitReceipt) { }
 }

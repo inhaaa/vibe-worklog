@@ -137,6 +137,20 @@ public final class WorktimeService {
         return companyAccess.read(actor,()->readMonthDays(actor.tenantId(),employee(actor.tenantId(),employeeId),month.atDay(1),month.atEndOfMonth()).days());
     }
 
+    public record LeaveAttendanceDay(LocalDate date, boolean scheduled, boolean attended, boolean leave,
+            boolean unresolved, String source, UUID resultId, long resultRevision) { }
+
+    /** A completed service month uses the same effective schedule, approved leave and result freshness as company results. */
+    public List<LeaveAttendanceDay> leaveAttendanceDays(TnaPrincipal actor, UUID employeeId, LocalDate from, LocalDate through) {
+        if (from == null || through == null || through.isBefore(from) || ChronoUnit.DAYS.between(from, through) > 33)
+            throw OrgException.invalid("월별 발생의 산정 기간을 확인해 주세요.");
+        return administration.readShared(actor, () -> {
+            var attendance = new ArrayList<LeaveAttendanceDay>();
+            readMonthDays(actor.tenantId(), employee(actor.tenantId(), employeeId), from, through, attendance);
+            return List.copyOf(attendance);
+        });
+    }
+
     public SelectiveSettlement.Overview ownSettlements(TnaPrincipal actor, String rawMonth) {
         var employeeId = target(actor, null);
         return read(actor, employeeId, () -> settlements(actor.tenantId(), employeeId, AttendanceMonthCloseService.month(rawMonth)));
@@ -466,6 +480,10 @@ public final class WorktimeService {
     }
     private record MonthDays(List<DayView> days, Set<LocalDate> reviewedWeekDates) { }
     private MonthDays readMonthDays(UUID tenant, Employee employee, LocalDate from, LocalDate through) {
+        return readMonthDays(tenant, employee, from, through, null);
+    }
+    private MonthDays readMonthDays(UUID tenant, Employee employee, LocalDate from, LocalDate through,
+            List<LeaveAttendanceDay> attendance) {
         var stored = latestDays(tenant, employee, from, through);
         var closed = Set.copyOf(mapper.closedMonths(tenant, from, through));
         var days = new ArrayList<DayView>();
@@ -480,7 +498,18 @@ public final class WorktimeService {
                     WorktimeMapper.LeaveEffect.totalDays(effects), WorktimeMapper.LeaveEffect.paidDays(effects));
             var source = source(snapshot, employee.joinedOn(), employee.leftOn(), row.policyId(), row.assessmentId(),
                     effects.stream().map(WorktimeMapper.LeaveEffect::id).toList(), pending);
-            days.add(dayView(employee, snapshot, facts, source, stored.get(date), today, closed.contains(date.withDayOfMonth(1))));
+            var day = dayView(employee, snapshot, facts, source, stored.get(date), today, closed.contains(date.withDayOfMonth(1)));
+            days.add(day);
+            if (attendance != null) {
+                boolean known = snapshot.schedule() != null && snapshot.calendarVersionId() != null
+                        && !"UNCONFIRMED".equals(snapshot.dayKind());
+                boolean scheduled = known && snapshot.schedule().workday() && "WORKDAY".equals(snapshot.dayKind());
+                boolean attended = scheduled && day.current() && pending.isEmpty()
+                        && day.result().actualWorkMillis() != null && day.result().actualWorkMillis() > 0;
+                boolean unresolved = !known || scheduled && (!pending.isEmpty() || !attended && day.approvedLeaveDays() < 1);
+                attendance.add(new LeaveAttendanceDay(date, scheduled, attended, scheduled && day.approvedLeaveDays() > 0,
+                        unresolved, source, day.id(), day.resultRevision()));
+            }
             if (row.mondayWeekReviewed()) reviewedWeekDates.add(date);
         }
         return new MonthDays(List.copyOf(days), Set.copyOf(reviewedWeekDates));

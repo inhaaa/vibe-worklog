@@ -26,6 +26,8 @@ import kr.tna.request.AnnualLeaveCycleData.RuleForm;
 import kr.tna.request.AnnualLeaveCycleMapper;
 import kr.tna.request.AnnualLeaveCycleService;
 import kr.tna.request.LeaveAttributionMapper;
+import kr.tna.request.LeaveAttributionData;
+import kr.tna.request.LeaveAttributionService;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.EmployeeAdminMapper;
@@ -40,6 +42,8 @@ import kr.tna.schedule.WorkTimeCodeData;
 import kr.tna.schedule.WorkTimeCodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -62,8 +66,12 @@ class LeaveWorkflowIT {
     @Autowired EmployeeAdminMapper workflowEmployees;
     @Autowired ApproverMapper workflowApprovers;
     @Autowired AnnualLeaveCycleService annualCycles;
+    @Autowired kr.tna.request.EmploymentAccrualService monthlyAccrual;
+    @Autowired kr.tna.request.EmploymentAccrualMapper monthlyMapper;
+    @Autowired kr.tna.worktime.WorktimeService worktime;
     @Autowired AnnualLeaveCycleMapper annualCycleMapper;
     @Autowired LeaveAttributionMapper attributionMapper;
+    @Autowired LeaveAttributionService attributions;
     @Autowired kr.tna.common.tenant.TenantTransactions tenantTransactions;
     @Autowired @org.springframework.beans.factory.annotation.Qualifier("dataSource") javax.sql.DataSource appSource;
     private JdbcTemplate db;
@@ -179,6 +187,61 @@ class LeaveWorkflowIT {
         assertEquals(0.5,balance(oldBucket));
         assertTrue(ledger.entries().stream().anyMatch(e->e.bucketId().equals(oldBucket) && e.entryKind().equals("RESTORE")
                 && e.effectiveOn().equals(boundary) && e.entitlementYear()==today.getYear()));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"OPENING","GRANT"})
+    void approvedUseOfAnOpeningOrGrantCanBeMatchedToTheEarnedMonthWithoutChangingTheRemainingDays(String kind) {
+        var joined = today.withDayOfMonth(1).minusMonths(2);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?",joined,tenant,employee.employeeId());
+        UUID source;
+        if (kind.equals("GRANT")) source = annualBucket("1","0");
+        else {
+            source = workflow.openBucket(manager,new BucketForm(employee.employeeId(),today,today,null,1,"이관 당시 기초 1일","기초 이관",UUID.randomUUID()));
+            attributions.save(manager,source,new LeaveAttributionData.Form(0L,"CONFIRMED",today.getYear(),true,"원장 귀속","이관 원장 대조",UUID.randomUUID()));
+        }
+        approve(leave(source,date));
+        assertEquals(0,balance(source));
+        var preview = monthlyAccrual.preview(manager,employee.employeeId());
+        var period = preview.periods().getLast();
+        assertTrue(preview.openingSources().stream().anyMatch(s -> source.equals(s.bucketId())));
+        monthlyAccrual.post(manager,new kr.tna.request.EmploymentAccrualData.PostForm(employee.employeeId(),period.accrualOn(),
+                "INCLUDED","선부여 원장과 개근일 대조",period.token(),UUID.randomUUID(),source));
+        assertEquals(0,annualCycles.ledger(employee,null).availableDays().signum());
+        assertEquals(1,count("tna.leave_ledger","entry_kind='USE'"));
+        assertEquals(1,count("tna.leave_ledger","entry_kind='MONTHLY_ACCRUAL' AND signed_quantity_days=0"));
+    }
+
+    @Test void monthlyLeaveMustCoverEachUsageDateAtSubmissionAndAtDelayedApproval() {
+        var joined = today.withDayOfMonth(1).minusMonths(2);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?",joined,tenant,employee.employeeId());
+        annualCycles.saveRule(manager,new RuleForm(0L,joined.getMonthValue(),BigDecimal.TEN,BigDecimal.ONE,"합성 회계연도",UUID.randomUUID()));
+        var initial = monthlyAccrual.preview(manager,employee.employeeId()).periods().getFirst();
+        monthlyAccrual.post(manager,new kr.tna.request.EmploymentAccrualData.PostForm(employee.employeeId(),initial.accrualOn(),
+                "FULL","확인한 월별 출근부",initial.token(),UUID.randomUUID()));
+        UUID bucket = annualCycles.ledger(employee,null).entries().getFirst().bucketId();
+        var monday = today.plusDays(1).with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
+        var days = new LeaveForm(bucket,monday,monday.plusDays(1),null,"월별 연차 이틀",UUID.randomUUID());
+        assertStatus(422,()->workflow.previewLeave(employee,days));
+        assertStatus(422,()->workflow.submitLeave(employee,days));
+        workflow.adjust(manager,bucket,new AdjustmentForm(1,today,0L,"합성 기초 자료","초기 추가 잔여",UUID.randomUUID()));
+        UUID request = workflow.submitLeave(employee,days);
+        workflow.adjust(manager,bucket,new AdjustmentForm(-1,today,1L,"합성 재검토","초기 추가분 정정",UUID.randomUUID()));
+        LocalDate later = monday.plusMonths(1).plusDays(1);
+        var zone = ZoneId.of("Asia/Seoul");
+        var clock = Clock.fixed(later.atTime(9,0).atZone(zone).toInstant(),zone);
+        var administration = new OrgCommands(tenantTransactions,appSource,clock);
+        var after = new kr.tna.request.EmploymentAccrualService(monthlyMapper,workflowEmployees,worktime,annualCycleMapper,
+                workflowMapper,attributionMapper,administration);
+        var next = after.preview(manager,employee.employeeId()).periods().stream()
+                .filter(p -> p.accrualOn().isAfter(monday.plusDays(1))).findFirst().orElseThrow();
+        after.post(manager,new kr.tna.request.EmploymentAccrualData.PostForm(employee.employeeId(),next.accrualOn(),
+                "FULL","다음 달의 출근부",next.token(),UUID.randomUUID()));
+        assertEquals(2,balance(bucket));
+        var delayed = new LeaveWorkflowService(workflowMapper,businessCommands,administration,workflowEmployees,workflowApprovers,clocks,clock,requestForms);
+        OrgException error = assertThrows(OrgException.class,()->delayed.decide(approver,request,new DecisionForm("APPROVE",0L,"지연 결재",UUID.randomUUID())));
+        assertEquals(422,error.status());
+        assertTrue(error.getMessage().contains("각 사용일"));
+        assertEquals("PENDING",workflow.get(employee,request).request().status());
     }
 
     private UUID annualBucket(String grant,String cap) {

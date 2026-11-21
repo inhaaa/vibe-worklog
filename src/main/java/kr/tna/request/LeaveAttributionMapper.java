@@ -23,7 +23,8 @@ public interface LeaveAttributionMapper {
     UUID annualLeaveType(@Param("tenantId") UUID tenantId);
     @Select("""
         SELECT EXISTS (SELECT 1 FROM tna.leave_ledger WHERE tenant_id=#{tenantId} AND bucket_id=#{bucketId}
-            AND entry_kind IN ('GRANT','CARRY_IN','CARRY_OUT','EXPIRE'))
+            AND entry_kind IN ('GRANT','CARRY_IN','CARRY_OUT','EXPIRE','MONTHLY_ACCRUAL'))
+            OR EXISTS (SELECT 1 FROM tna.leave_monthly_review WHERE tenant_id=#{tenantId} AND included_bucket_id=#{bucketId})
         """)
     boolean usedByAnnualCycle(@Param("tenantId") UUID tenantId,@Param("bucketId") UUID bucketId);
     @Insert("""

@@ -1,5 +1,6 @@
 package kr.tna.request;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -10,6 +11,14 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMonths {
+    @Select("SELECT EXISTS (SELECT 1 FROM tna.leave_exit_settlement WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId})")
+    boolean exitSettled(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId);
+
+    default void requireUnsettled(UUID tenantId, UUID employeeId) {
+        if (exitSettled(tenantId,employeeId))
+            throw kr.tna.org.OrgException.conflict("퇴사 연차 정산이 확정된 사원입니다. 확정 명세를 확인해 주세요.");
+    }
+
     @Update("""
             UPDATE tna.checkout_follow_up SET last_request_id=#{requestId}
             WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date=#{workDate} AND resolved_at IS NULL
@@ -67,7 +76,14 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
     int insertBucket(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("f") BucketForm form,@Param("actorId") UUID actorId);
     @Update("UPDATE tna.leave_bucket SET version=version+1 WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{version}")
     int advanceBucket(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("version") long version);
-    @Select("SELECT id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,request_effect_id,leave_date,reverses_entry_id,source_reference,reason,created_at FROM tna.leave_ledger WHERE tenant_id=#{tenantId} AND bucket_id=#{bucketId} ORDER BY created_at,id")
+    @Select("""
+        SELECT l.id,l.bucket_id,l.employee_id,l.entry_kind,l.signed_quantity_days,l.effective_on,l.request_effect_id,l.leave_date,
+            l.reverses_entry_id,CASE WHEN m.included_bucket_id IS NULL THEN l.source_reference
+                ELSE l.source_reference || ' · 기초 원장 ' || m.included_source_reference END AS source_reference,l.reason,l.created_at
+        FROM tna.leave_ledger l LEFT JOIN tna.leave_monthly_review m
+            ON m.tenant_id=l.tenant_id AND m.employee_id=l.employee_id AND m.id=l.monthly_review_id
+        WHERE l.tenant_id=#{tenantId} AND l.bucket_id=#{bucketId} ORDER BY l.created_at,l.id
+        """)
     List<LedgerEntry> ledger(@Param("tenantId") UUID tenantId,@Param("bucketId") UUID bucketId);
     @Select("SELECT id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,request_effect_id,leave_date,reverses_entry_id,source_reference,reason,created_at FROM tna.leave_ledger WHERE tenant_id=#{tenantId} AND request_effect_id=#{effectId} AND entry_kind='USE' ORDER BY leave_date,id")
     List<LedgerEntry> uses(@Param("tenantId") UUID tenantId,@Param("effectId") UUID effectId);
@@ -329,6 +345,29 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
               AND (r.status='PENDING' OR e.effect_status='EFFECTIVE'))
         """)
     boolean overlappingOvertime(UUID tenant,UUID employee,LocalDate date,java.time.LocalTime start,java.time.LocalTime end);
+
+    @Select("""
+        SELECT coalesce(l.leave_date,l.effective_on) AS date, sum(l.signed_quantity_days) AS days
+        FROM tna.leave_ledger l
+        WHERE l.tenant_id=#{tenant} AND l.bucket_id=#{bucket}
+            AND EXISTS (SELECT 1 FROM tna.leave_monthly_review m WHERE m.tenant_id=l.tenant_id AND m.bucket_id=l.bucket_id)
+        GROUP BY coalesce(l.leave_date,l.effective_on) ORDER BY date
+        """)
+    List<EmploymentAccrualData.BalanceMovement> monthlyBalanceMovements(@Param("tenant") UUID tenant, @Param("bucket") UUID bucket);
+
+    record IncludedCredit(BigDecimal originalDays, BigDecimal adjustedDays, BigDecimal linkedDays) { }
+    @Select("""
+        SELECT coalesce(sum(l.signed_quantity_days) FILTER (WHERE l.entry_kind IN ('OPENING','GRANT')
+                   AND l.signed_quantity_days>0),0) AS original_days,
+               coalesce(sum(l.signed_quantity_days) FILTER (WHERE l.entry_kind='ADJUSTMENT'),0) AS adjusted_days,
+               links.days AS linked_days
+        FROM (SELECT count(*) AS days FROM tna.leave_monthly_review
+              WHERE tenant_id=#{tenant} AND employee_id=#{employee} AND included_bucket_id=#{bucket}
+              HAVING count(*)>0) links
+        LEFT JOIN tna.leave_ledger l ON l.tenant_id=#{tenant} AND l.employee_id=#{employee} AND l.bucket_id=#{bucket}
+        GROUP BY links.days
+        """)
+    IncludedCredit includedCredit(UUID tenant, UUID employee, UUID bucket);
 
     record Effect(UUID id,UUID requestId,UUID employeeId,LocalDate workDate,String effectKind,String effectStatus,String validatedInputRefs) { }
 }
