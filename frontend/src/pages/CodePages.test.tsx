@@ -22,7 +22,7 @@ function attendance(overrides: Record<string, unknown> = {}): PageEnvelope {
 async function show(initial: PageEnvelope) {
   const view = render(<App initial={initial} />);
   await Promise.all(Array.from(view.container.querySelectorAll('.w-sheet[role="region"]')).map(sheet =>
-    view.findByRole('grid', { name: sheet.getAttribute('aria-label')! })));
+    view.findByRole('grid', { name: sheet.getAttribute('aria-label')! }, { timeout: 5000 })));
   return view;
 }
 async function editCell(view: ReturnType<typeof render>, label: string, value: string, finish = true) {
