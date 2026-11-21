@@ -49,7 +49,7 @@ describe('AuthPages', () => {
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
   });
-  it('일반 로그인은 회사코드·사번·강한 비밀번호를 사용하며 이메일 이행을 안내한다', () => {
+  it('일반 로그인은 회사코드·사번 또는 초대 이메일과 설정한 비밀번호를 사용한다', () => {
     const result = html('login', {
       localDemo: false,
       demoLogin: 'admin',
@@ -60,7 +60,7 @@ describe('AuthPages', () => {
     expect(result).toContain('name="email"');
     expect(result).toContain('type="text"');
     expect(result).toContain('사번');
-    expect(result).toContain('기존 이메일 계정도 계속 로그인');
+    expect(result).toContain('사번 또는 초대 이메일');
     expect(result).toContain('minLength="12"');
     expect(result).toContain('초대를 수락했습니다');
     expect(result).toContain('로그인 정보를 확인');
@@ -102,6 +102,14 @@ describe('AuthPages', () => {
     expect(result).toContain('&lt;script&gt;error&lt;/script&gt;');
     expect(result).toContain('24시간');
   });
+  it('경로에 넣기 어려운 회사 코드도 같은 회사에 수락 폼을 제출할 수 있다', () => {
+    const companyCode = 'A/서울 & ./';
+    const view = render(page('invite', { companyCode, inviteByCompany: true }));
+    const form = view.getByRole('button', { name: '초대 수락·비밀번호 설정' }).closest('form')!;
+    expect(form.getAttribute('action')).toBe('/invite/accept');
+    expect(new FormData(form).get('companyCode')).toBe(companyCode);
+    expect(new FormData(form).get('token')).toBe('');
+  });
   it('복구 요청·완료는 별도 POST이고 계정 존재여부를 구분하지 않는다', () => {
     const result = html('password-reset', {
       flags: { requested: true },
@@ -114,6 +122,20 @@ describe('AuthPages', () => {
     expect(result).toContain('30분');
     expect(result).toContain('기존 로그인이 종료');
     expect(result).not.toContain('secret-');
+  });
+  it('메일 수신자는 초대와 복구 모두 최신 일회용 코드를 사용하고 첫 로그인 방법을 확인한다', () => {
+    for (const name of ['invite', 'password-reset']) {
+      const view = render(page(name, { companyCode: 'NEWCO', flags: { requested: true } }));
+      const token = view.container.querySelector<HTMLInputElement>('input[name="token"]')!;
+      expect(token.autocomplete).toBe('one-time-code');
+      expect(view.container.textContent).toContain('만료 시각이 가장 늦은');
+      expect(view.container.textContent).toContain('메일');
+      expect(view.container.textContent).not.toContain('로컬 모의');
+      view.unmount();
+    }
+    const login = render(page('login', { flags: { invited: true } }));
+    expect(login.getByLabelText('사번 또는 초대 이메일')).toBeTruthy();
+    expect(login.getByRole('status').textContent).toContain('회사 코드');
   });
   it('운영자 로그인은 독립 인증 경로와 로그인명을 유지한다', () => {
     const result = html('operator/login', { flags: { error: true }, password: 'secret-pass' });

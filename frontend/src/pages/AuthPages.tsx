@@ -18,6 +18,7 @@ interface AuthModel {
   localDemo?: boolean;
   publicDemo?: boolean;
   companyCode?: string;
+  inviteByCompany?: boolean;
   demoAccounts?: DemoAccount[];
 }
 interface Tenant {
@@ -166,11 +167,11 @@ function Login({ model: m }: { model: AuthModel }) {
     <main className="login-shell">
       <section className="panel" aria-labelledby="login-title">
         <h1 id="login-title">로그인</h1>
-        <p className="t-auth-context"><span>WorkLog</span><span>로컬 개발 환경</span></p>
+        <p className="t-auth-context"><span>WorkLog</span><span>{m.localDemo ? '데모 계정' : '회사 계정'}</span></p>
         <p>
           {m.localDemo
             ? '사번과 비밀번호로 로그인해 주세요.'
-            : '소속 회사 코드와 사번, 비밀번호로 로그인해 주세요.'}
+            : '초대 메일의 회사 코드와 계정 정보를 입력해 주세요.'}
         </p>
         {m.flags?.error && (
           <p className="notice error" role="alert">
@@ -184,7 +185,7 @@ function Login({ model: m }: { model: AuthModel }) {
         )}
         {!m.localDemo && m.flags?.invited && (
           <p className="notice" role="status">
-            초대를 수락했습니다. 회사 코드와 사번으로 로그인해 주세요.
+            초대를 수락했습니다. 메일에 적힌 회사 코드와 방금 설정한 비밀번호로 로그인해 주세요.
           </p>
         )}
         {m.flags?.reset && (
@@ -206,7 +207,7 @@ function Login({ model: m }: { model: AuthModel }) {
           )}
           <Field
             id="email"
-            label="사번"
+            label={m.localDemo ? '사번' : '사번 또는 초대 이메일'}
             name="email"
             type="text"
             autoComplete="username"
@@ -227,7 +228,7 @@ function Login({ model: m }: { model: AuthModel }) {
           <p id="password-help" className="hint">
             {m.localDemo
               ? '담당자 사번은 99999입니다. 데모 상단의 사번 변경에서 다른 테스트 사원을 선택할 수 있습니다.'
-              : '공백을 포함한 12~128자의 비밀번호를 사용합니다. 기존 이메일 계정도 계속 로그인할 수 있습니다.'}
+              : '공백을 포함한 12~128자의 비밀번호를 사용합니다.'}
           </p>
           <button type="submit">로그인</button>
         </Form>
@@ -237,7 +238,7 @@ function Login({ model: m }: { model: AuthModel }) {
               <a href="/password-reset">비밀번호 재설정</a>
             </p>
             <p className="hint">
-              초대 수락 후 로그인할 수 있습니다. 개발 단계는 로컬 모의 전달만 사용합니다.
+              처음 이용하신다면 초대 메일을 열어 비밀번호를 설정해 주세요.
             </p>
           </>
         )}
@@ -246,20 +247,22 @@ function Login({ model: m }: { model: AuthModel }) {
   );
 }
 function Invite({ model: m }: { model: AuthModel }) {
+  const action = m.inviteByCompany ? '/invite/accept' : `/invite/${encodeURIComponent(m.companyCode ?? '')}/accept`;
   return (
     <main className="login-shell">
       <section className="panel" aria-labelledby="invite-title">
         <h1 id="invite-title">초대 수락</h1>
         <p className="t-auth-context"><span>WorkLog</span><span>계정 초대</span></p>
         <p>
-          회사 코드: <span>{m.companyCode}</span>
+          회사 코드 <strong>{m.companyCode}</strong>
         </p>
         <p>
-          전달받은 이메일과 초대코드를 입력하고 비밀번호를 설정하세요. 초대는24시간 유효하며
-          재발급한 이전 코드는 사용할 수 없습니다.
+          초대를 받은 이메일 주소와 코드를 입력해 주세요. 코드는 발급 후 24시간 동안 유효합니다.
+          초대 메일을 여러 번 받았다면 만료 시각이 가장 늦은 메일의 코드를 사용하세요.
         </p>
         <ErrorNotice message={m.error} />
-        <Form action={`/invite/${encodeURIComponent(m.companyCode ?? '')}/accept`} method="post">
+        <Form action={action} method="post">
+          {m.inviteByCompany && hidden('companyCode', m.companyCode)}
           <Field
             id="invite-email"
             label="초대 이메일"
@@ -275,7 +278,7 @@ function Invite({ model: m }: { model: AuthModel }) {
             name="token"
             type="password"
             maxLength={43}
-            autoComplete="off"
+            autoComplete="one-time-code"
             required
           />
           <Field
@@ -296,7 +299,7 @@ function Invite({ model: m }: { model: AuthModel }) {
             required
           />
           <p className="hint" id="password-help">
-            공백을 포함한12~128자입니다. 오류 후 비밀번호와 초대코드는 다시 입력해 주세요.
+            공백을 포함해 12~128자로 설정해 주세요.
           </p>
           <button type="submit">초대 수락·비밀번호 설정</button>
         </Form>
@@ -304,8 +307,7 @@ function Invite({ model: m }: { model: AuthModel }) {
           <a href="/login">로그인으로</a>
         </p>
         <p className="hint">
-          현재는 로컬 모의 초대 검증 단계입니다. 실제 메일 발송·이용약관 동의·파일럿 개방은 별도
-          검토합니다.
+          코드가 만료되면 초대를 보낸 담당자에게 재발급을 요청해 주세요.
         </p>
       </section>
     </main>
@@ -319,7 +321,7 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
         <p className="t-auth-context"><span>WorkLog</span><span>계정 보안</span></p>
         {m.flags?.requested && (
           <p className="notice" role="status">
-            일치하는 계정이 있으면 재설정 코드를 전달합니다. 현재는 로컬 모의 전달만 사용합니다.
+            일치하는 계정이 있으면 등록된 이메일로 재설정 코드를 보냅니다. 받은메일함과 스팸함을 확인해 주세요.
           </p>
         )}
         <ErrorNotice message={m.error} />
@@ -345,7 +347,7 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
         </Form>
         <h2>새 비밀번호 설정</h2>
         <p>
-          코드는30분 유효하며 한 번만 사용할 수 있습니다. 재발급하면 이전 코드는 사용할 수 없습니다.
+          코드는 발급 후 30분 동안 한 번만 사용할 수 있습니다. 재설정 메일을 여러 번 받았다면 만료 시각이 가장 늦은 메일의 코드를 입력하세요.
         </p>
         <Form action="/password-reset/complete" method="post">
           <Field
@@ -370,7 +372,7 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
             name="token"
             type="password"
             maxLength={43}
-            autoComplete="off"
+            autoComplete="one-time-code"
             required
           />
           <Field
@@ -391,7 +393,7 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
             required
           />
           <p className="hint" id="password-help">
-            공백을 포함한12~128자입니다. 오류 후 비밀번호와 코드는 다시 입력해 주세요.
+            공백을 포함해 12~128자로 설정해 주세요.
           </p>
           <button type="submit">비밀번호 재설정</button>
         </Form>
@@ -399,7 +401,7 @@ function PasswordReset({ model: m }: { model: AuthModel }) {
           <a href="/login">로그인으로</a>
         </p>
         <p className="hint">
-          완료하면 기존 로그인이 종료됩니다. 실제 메일 발송은 제공하지 않는 로컬 검증 단계입니다.
+          완료하면 기존 로그인이 종료됩니다. 새 비밀번호로 다시 로그인해 주세요.
         </p>
       </section>
     </main>
@@ -502,8 +504,8 @@ function Tenants({ model: m }: { model: TenantsModel }) {
           제공하지 않습니다.
         </p>
         {m.flags?.saved && (
-          <p className="notice">
-            처리했습니다. 신규 초대는 로컬 모의 전달이며 실제 메일을 발송하지 않습니다.
+          <p className="notice" role="status">
+            요청을 처리했습니다. 초대를 발급했다면 첫 담당자가 등록한 이메일에서 수락할 수 있습니다.
           </p>
         )}
         <ErrorNotice message={m.error} />

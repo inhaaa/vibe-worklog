@@ -640,7 +640,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
       <ErrorNotice message={m.error} />
       {invited && (
         <p className="notice" role="status">
-          로컬 모의 메일함에 초대를 전달했습니다. 실제 메일은 발송하지 않습니다.
+          초대를 발급했습니다. 직원이 메일을 받지 못했다면 이메일 주소를 확인하고 재발급해 주세요.
         </p>
       )}
       {!m.eligibleEmployee && (
@@ -664,19 +664,18 @@ function AccessPage({ model: m }: { model: AccessModel }) {
         ) : (
           <p>계정 없음 · 사원 등록과 별도로 초대해야 합니다.</p>
         )}
-        <p className="hint">
-          이메일 변경과 비밀번호 재설정은 후속입니다. 비밀번호·초대코드는 관리 화면에서 조회하지
-          않습니다.
-        </p>
+        {account?.active && account.credentialSet && m.eligibleEmployee && (
+          <p className="hint">직원은 로그인 화면의 비밀번호 재설정에서 등록한 이메일로 복구 코드를 받을 수 있습니다.</p>
+        )}
         {m.eligibleEmployee && (!account || (!account.active && !account.credentialSet)) && (
           <>
             <h3>{account ? '초대 재발급' : '계정 초대'}</h3>
             <p className="hint">
-              초대는24시간 유효합니다. 재발급하면 기존 초대를 사용할 수 없습니다.
+              초대는 24시간 동안 유효합니다. 재발급했다면 만료 시각이 가장 늦은 초대 메일의 코드로 수락할 수 있습니다.
             </p>
             {!m.localDelivery && (
               <p className="notice">
-                초대 전달 채널이 준비되지 않았습니다. 로컬 모의 경로에서만 검증할 수 있습니다.
+                초대 메일 전달 설정을 확인해 주세요.
               </p>
             )}
             <Form action={`${path}/invitations`} method="post" className="wl-form">
@@ -696,7 +695,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
               </FormTable>
               <div className="wl-form-actions">
                 <button type="submit" className="t-btn primary" disabled={!m.localDelivery}>
-                  초대 발급
+                  {account ? '초대 재발급' : '초대 발급'}
                 </button>
               </div>
             </Form>

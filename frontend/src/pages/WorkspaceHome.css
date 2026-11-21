@@ -1,5 +1,5 @@
-#tna-app .company-setup-guide { margin-block-end: var(--space-sm); }
-#tna-app .company-setup-guide button { min-block-size: 44px; }
+@layer legacy {
+#tna-app .company-setup-guide { --h-ctl: 44px; margin-block-end: var(--space-sm); }
 #tna-app .company-setup-guide ol {
   display: grid;
   gap: var(--space-sm);
@@ -15,7 +15,6 @@
 #tna-app .company-setup-guide li::marker { font-weight: 700; }
 #tna-app .company-setup-guide li a { font-weight: 650; text-decoration: underline; }
 
-@layer legacy {
 #tna-app .t-work-home {
   min-inline-size: 0;
   container: work-home / inline-size;

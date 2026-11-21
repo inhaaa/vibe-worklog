@@ -207,7 +207,7 @@ describe('관리 React 페이지', () => {
     expect(html).not.toContain('선택 불가');
   });
 
-  it('로컬 전달이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', async () => {
+  it('전달 채널이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', async () => {
     const html = await render('org/access', {
       ...access,
       localDelivery: false,
@@ -221,6 +221,20 @@ describe('관리 React 페이지', () => {
     expect(html).not.toContain('<option value="e-1"');
     expect(html).toContain('name="employeeId"');
     expect(html).toContain('action="/admin/approver-assignments"');
+  });
+
+  it('미수락 계정은 처음 초대한 이메일로 재발급하고 수락한 직원에게 복구 경로를 안내한다', async () => {
+    const account = { id: 'a-1', email: 'employee@example.test', active: false, credentialSet: false };
+    const pending = await render('org/access', { ...access, account });
+    const doc = new DOMParser().parseFromString(pending, 'text/html');
+    const form = doc.querySelector<HTMLFormElement>('form[action$="/invitations"]')!;
+    expect(form.querySelector('button')?.textContent?.trim()).toBe('초대 재발급');
+    expect(doc.body.textContent).toContain('만료 시각이 가장 늦은');
+    expect(form.querySelector<HTMLInputElement>('[name="email"]')?.readOnly).toBe(true);
+    expect(form.querySelector<HTMLInputElement>('[name="email"]')?.value).toBe(account.email);
+    const active = await render('org/access', { ...access, account: { ...account, active: true, credentialSet: true, roles: ['EMPLOYEE'] } });
+    expect(active).toContain('로그인 화면의 비밀번호 재설정');
+    expect(active).not.toContain('/invitations"');
   });
 
   it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', async () => {
