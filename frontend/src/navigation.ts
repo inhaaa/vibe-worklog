@@ -74,7 +74,7 @@ const navigation: NavigationGroup[] = [
     { id: 'leave-operations', label: '신청·연차', children: [
       item('admin-leave', '휴가 신청 현황', '/admin/requests?scope=LEAVE', admin),
       item('company-leave', '회사 휴가 신청 현황', '/company/requests?scope=LEAVE', ['COMPANY_REPRESENTATIVE']),
-      item('leave-balances', '연차 관리', '/admin/leave-balances', admin, 'request/balances', 'request/ledger', 'request/attributions', 'request/annual-cycle'),
+      item('leave-balances', '연차 관리', '/admin/leave-balances', admin, 'request/balances', 'request/ledger', 'request/attributions', 'request/annual-cycle', 'request/employment-leave'),
     ] },
   ] },
   { id: 'settings', label: '시스템 설정', children: [
@@ -118,6 +118,7 @@ const detailTitles: Record<string, string> = {
   'schedule/assignment': '근무 배정', 'request/detail': '신청 상세', 'request/correction': '기록 정정 신청',
   'request/ledger': '연차 원장', 'request/attributions': '기초 묶음 귀속연도',
   'request/annual-cycle': '연차 부여·이월·소멸', 'request/personal-ledger': '내 연차 원장',
+  'request/employment-leave': '입사·퇴사 연차 정산',
   'worktime/result': '계산 근거', 'worktime/audit-detail': '감사 상세',
 };
 const legacyRequests = {

@@ -505,6 +505,7 @@ describe('WorkflowPages', () => {
     });
     expect(base.container.querySelector('form[action="/admin/leave-balances/entries"]')).toBeTruthy();
     expect(base.getByRole('link', { name: '연차 부여·이월·소멸' }).getAttribute('href')).toBe('/admin/leave-balances/annual-cycle');
+    expect(base.getByRole('link', { name: '입사·퇴사 연차 정산' }).getAttribute('href')).toBe('/admin/leave-balances/employment');
     const quantity = base.container.querySelector<HTMLInputElement>('input[name="quantityDays"]')!;
     expect(quantity.getAttribute('step')).toBe('0.5');
     expect(quantity.getAttribute('min')).toBe('0');

@@ -50,6 +50,7 @@ describe('업무 메뉴 계약', () => {
     ['schedule/assignment', '/admin/employees/e-1/schedule', {}, '/admin/schedules', '근무 배정'],
     ['request/ledger', '/admin/leave-balances/buckets/b-1', {}, '/admin/leave-balances', '연차 원장'],
     ['request/annual-cycle', '/admin/leave-balances/annual-cycle', {}, '/admin/leave-balances', '연차 부여·이월·소멸'],
+    ['request/employment-leave', '/admin/leave-balances/employment', {}, '/admin/leave-balances', '입사·퇴사 연차 정산'],
     ['request/personal-ledger', '/me/leave-ledger', {}, '/me/requests', '내 연차 원장'],
     ['request/attributions', '/admin/leave-balances/attributions', {}, '/admin/leave-balances', '기초 묶음 귀속연도'],
     ['worktime/audit-detail', '/admin/audit/a-1', {}, '/admin/audit', '감사 상세'],

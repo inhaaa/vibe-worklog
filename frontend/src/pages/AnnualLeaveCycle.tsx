@@ -5,6 +5,7 @@ import { PageRequestError, requestJson } from '../transport';
 import type { CsrfToken } from '../types';
 import { FormRow, FormTable, fmtDate } from '../ui';
 import { AnnualLeaveTable } from './AnnualLeaveTable';
+import { employmentPath } from './employmentLeaveTypes';
 import type { AnnualCycleCommand, AnnualCycleModel, AnnualCyclePreview, AnnualLeaveRule, PolicyCommand } from './annualLeaveTypes';
 import './AnnualLeave.css';
 
@@ -183,7 +184,10 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
     <a className="t-btn" href="/login">다시 로그인</a></section>;
 
   return <div className="t-annual-page annual-leave-page" data-modal-busy={busy ? 'true' : undefined}>
-    <PageHeader title="연차 부여·이월·소멸" actions={<a className="t-btn" href="/admin/leave-balances">개인별 연차 관리</a>} />
+    <PageHeader title="연차 부여·이월·소멸" actions={<>
+      <a className="t-btn" href={employmentPath}>입사·퇴사 연차 정산</a>
+      <a className="t-btn" href="/admin/leave-balances">개인별 연차 관리</a>
+    </>} />
     {model.publicDemo && <p className="notice">공개 데모에서는 회사 연차 기준과 미리보기를 조회할 수 있습니다.</p>}
     <section className="wl-section">
       <h2 id="annual-policy-title">회사 연차 기준</h2>

@@ -1,11 +1,14 @@
 import { PageHeader } from '../components/PageHeader';
 import { Field, Form, fmtDate } from '../ui';
 import { AnnualLeaveTable } from './AnnualLeaveTable';
+import { ExitReceiptSummary } from './EmploymentExit';
+import { decisionNames } from './employmentLeaveTypes';
 import type { PersonalLedger } from './annualLeaveTypes';
 import './AnnualLeave.css';
 
 const kinds: Record<string, string> = {
   OPENING: '기초 등록', ADJUSTMENT: '잔여 조정', GRANT: '연차 부여', CARRY_IN: '전년도에서 이월',
+  MONTHLY_ACCRUAL: '월별 연차 발생', EXIT_SETTLEMENT: '퇴사 잔여 정산',
   CARRY_OUT: '다음 연도로 이월', EXPIRE: '연차 소멸', USE: '휴가 사용', RESTORE: '취소 복원',
 };
 export const ledgerKindName = (kind: string) => kinds[kind] ?? kind;
@@ -21,13 +24,15 @@ export function PersonalLeaveLedger({ ledger }: { ledger: PersonalLedger }) {
       <div><Field label="조회 연도" name="year" type="number" min={1900} max={9998} value={ledger.year} required /></div>
       <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
     </Form>
+    {ledger.exitReceipt && <ExitReceiptSummary receipt={ledger.exitReceipt} />}
     <section className="wl-section" aria-labelledby="annual-entries-title">
       <h2 id="annual-entries-title">연차 변동 이력</h2>
       <p className="hint">{ledger.year}년 귀속 묶음의 내역과 해당 회계기간에 효력이 생긴 변동을 표시합니다.</p>
       {ledger.entries.length ? <AnnualLeaveTable label="연차 변동 이력"
         columns={['구분', '일수 증감', '귀속연도', '효력 기준일', '휴가 사용일', '근거·사유']}
         rows={ledger.entries.map(entry => ({ id: entry.id, cells: [
-          <strong>{ledgerKindName(entry.entryKind)}</strong>,
+          <><strong>{ledgerKindName(entry.entryKind)}</strong>
+            {entry.entryKind === 'MONTHLY_ACCRUAL' && entry.monthlyDecision && <small>{decisionNames[entry.monthlyDecision]}</small>}</>,
           (entry.signedQuantityDays > 0 ? '+' : '') + entry.signedQuantityDays + '일',
           entry.entitlementYear == null ? '귀속 미확인' : entry.entitlementYear + '년',
           fmtDate(entry.effectiveOn), entry.leaveDate ? fmtDate(entry.leaveDate) : '해당 없음',

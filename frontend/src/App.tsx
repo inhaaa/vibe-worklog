@@ -108,6 +108,7 @@ const titles: Record<string, string> = {
   'request/balances': '연차 관리',
   'request/ledger': '연차 원장',
   'request/annual-cycle': '연차 부여·이월·소멸',
+  'request/employment-leave': '입사·퇴사 연차 정산',
   'request/personal-ledger': '내 연차 원장',
   'request/list': '신청 목록',
   'worktime/month': '근로시간',

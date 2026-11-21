@@ -1,3 +1,5 @@
+import type { AttendanceDecision, ExitReceipt } from './employmentLeaveTypes';
+
 export interface AnnualLeaveRule {
   version: number;
   fiscalStartMonth: number;
@@ -54,6 +56,7 @@ export interface AnnualCycleCommand {
 }
 
 export interface PersonalLedger {
+  exitReceipt?: ExitReceipt | null;
   year: number;
   today: string;
   availableDays: number;
@@ -63,6 +66,7 @@ export interface PersonalLedger {
     employeeNo: string;
     entitlementYear: number | null;
     entryKind: string;
+    monthlyDecision?: AttendanceDecision | null;
     signedQuantityDays: number;
     effectiveOn: string;
     leaveDate: string | null;

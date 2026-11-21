@@ -7,6 +7,8 @@ import { requestKindName, leavePartNames, type LeavePart } from './leavePart';
 import { LeaveOperationsPage, type LeaveOperations } from './LeaveOperationsPage';
 import { LeaveBalanceBatch } from './LeaveBalanceBatch';
 import { AnnualLeaveCycle } from './AnnualLeaveCycle';
+import { EmploymentLeave } from './EmploymentLeave';
+import { employmentPath, type EmploymentLeaveModel } from './employmentLeaveTypes';
 import { ledgerKindName, PersonalLeaveLedger } from './PersonalLeaveLedger';
 import type { AnnualCycleModel, PersonalLedger } from './annualLeaveTypes';
 import { SelectiveSettlements } from './SelectiveSettlements';
@@ -540,6 +542,7 @@ function Balances({ model: m, csrf }: { model: BalancesModel; csrf: CsrfToken })
     <>
       <PageHeader title="기초 잔여 관리" actions={<>
         <a className="t-btn" href="/admin/leave-balances/annual-cycle">연차 부여·이월·소멸</a>
+        <a className="t-btn" href={employmentPath}>입사·퇴사 연차 정산</a>
         <button className="t-btn primary" type="button" onClick={() => setBatch(true)}>사원별 일괄 입력</button>
         <a className="t-btn" href="/admin/requests?scope=LEAVE">휴가 신청 현황</a>
         <a className="t-btn" href={`/admin/requests/exceptions/new?employeeId=${m.employee.id}`}>예외 정정 신청</a>
@@ -1315,6 +1318,11 @@ export function WorkflowPages(props: PageProps): React.ReactNode | null {
     case 'request/annual-cycle':
       content = <AnnualLeaveCycle model={data as unknown as AnnualCycleModel} csrf={props.csrf} />;
       break;
+    case 'request/employment-leave': {
+      const m = data as unknown as EmploymentLeaveModel;
+      content = <EmploymentLeave key={m.monthly?.employeeId ?? m.exit?.employeeId} model={m} csrf={props.csrf} reload={props.reload} />;
+      break;
+    }
     case 'request/personal-ledger':
       content = <PersonalLeaveLedger ledger={data.ledger as PersonalLedger} />;
       break;

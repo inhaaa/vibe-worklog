@@ -38,6 +38,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it('미설정 기준에 일수를 채워 넣지 않고 입력한 회사 기준과 근거를 CSRF·기대 버전으로 저장한다', async () => {
   const send = fetches().mockResolvedValueOnce(json(policy));
   show({ policy: null });
+  expect(screen.getByRole('link', { name: '입사·퇴사 연차 정산' }).getAttribute('href')).toBe('/admin/leave-balances/employment');
   expect(field('연간 부여 일수').value).toBe('');
   expect(field('이월 한도 일수').value).toBe('');
   expect(button('미리보기').disabled).toBe(true);
