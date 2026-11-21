@@ -158,6 +158,20 @@ class CodeMigrationUpgradeIT {
             assertEquals(0, companyLeave.migrate().migrationsExecuted);
             assertEquals(oldRows, rows(db, oldColumns));
             assertEquals(oldPermissions, access(db));
+            var v35Columns = columns(db);
+            var v35Rows = rows(db, v35Columns);
+            var creditExport = Flyway.configure().dataSource(migrationSource).target("36").load();
+            assertEquals(1, creditExport.migrate().migrationsExecuted);
+            assertEquals(0, creditExport.migrate().migrationsExecuted);
+            assertEquals(v35Rows, rows(db, v35Columns));
+            assertEquals(oldPermissions, access(db));
+            assertTrue(db.queryForObject("SELECT count(*)>0 AND count(paid_leave_snapshot)=0 FROM tna.attendance_month_closure", Boolean.class));
+            assertTrue(db.queryForObject("""
+                    SELECT has_column_privilege('tna_app','tna.attendance_month_closure','paid_leave_snapshot','SELECT')
+                       AND has_column_privilege('tna_app','tna.attendance_month_closure','paid_leave_snapshot','INSERT')
+                       AND NOT has_column_privilege('tna_app','tna.attendance_month_closure','paid_leave_snapshot','UPDATE')
+                       AND NOT has_column_privilege('tna_auth','tna.attendance_month_closure','paid_leave_snapshot','SELECT')
+                    """, Boolean.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 
@@ -443,6 +457,7 @@ class CodeMigrationUpgradeIT {
          (SELECT jsonb_agg(jsonb_build_array(p.policyname,p.permissive,p.roles,p.cmd,p.qual,p.with_check) ORDER BY p.policyname)::text FROM pg_policies p WHERE p.schemaname=n.nspname AND p.tablename=c.relname) AS policies,
          (SELECT jsonb_agg(jsonb_build_array(a.attname,a.attacl::text) ORDER BY a.attnum)::text FROM pg_attribute a
           WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'attendance_type_version_id'
+            AND NOT (c.relname='attendance_month_closure' AND a.attname='paid_leave_snapshot')
             AND NOT (? AND c.relname='work_time_code_version'
                      AND a.attname IN ('work_mode','standard_minutes','core_start','core_end','settlement_period'))) AS columns
         FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace

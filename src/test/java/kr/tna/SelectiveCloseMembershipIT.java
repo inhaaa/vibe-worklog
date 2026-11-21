@@ -165,7 +165,7 @@ class SelectiveCloseMembershipIT {
                     .param("month", MONTH).param("version", "1").param("scope", scope);
             if ("DEPARTMENT".equals(scope)) download.param("organizationId", department.toString());
             var file = mvc.perform(download).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
-            assertTrue(MonthCloseExportIT.worksheet(file).contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "2.0")));
+            assertTrue(MonthCloseExportIT.worksheet(file).contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "2.0", "7.0")));
         }
         assertEquals(0,db.queryForObject("SELECT count(*) FROM tna.leave_ledger WHERE tenant_id=?",Integer.class,tenant));
     }

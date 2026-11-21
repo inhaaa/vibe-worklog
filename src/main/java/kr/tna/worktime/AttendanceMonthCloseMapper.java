@@ -68,11 +68,11 @@ public interface AttendanceMonthCloseMapper {
             @Param("through") LocalDate through, @Param("limit") int limit, @Param("offset") int offset);
 
     @Insert("""
-            INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
-            SELECT tenant_id,#{id},#{month},#{version},#{status},#{reason},#{actorId},display_name
+            INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name,paid_leave_snapshot)
+            SELECT tenant_id,#{id},#{month},#{version},#{status},#{reason},#{actorId},display_name,CAST(#{paidLeaveSnapshot} AS jsonb)
             FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{employeeId}
             """)
     int append(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("month") LocalDate month,
             @Param("version") long version, @Param("status") String status, @Param("reason") String reason,
-            @Param("actorId") UUID actorId, @Param("employeeId") UUID employeeId);
+            @Param("actorId") UUID actorId, @Param("employeeId") UUID employeeId, @Param("paidLeaveSnapshot") String paidLeaveSnapshot);
 }

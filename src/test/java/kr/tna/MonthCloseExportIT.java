@@ -80,16 +80,17 @@ class MonthCloseExportIT {
         assertEquals(Set.of(first.toString(), second.toString(), "미등록"), departments);
         var workbook = download(admin, 1, "COMPANY", null);
         var company = worksheet(workbook);
-        assertTrue(company.contains(List.of("범위 합계", "", "2", "6", "0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "A01", "이동 전 부서", "2", "0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "B01", "이동 후 부서", "2", "0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("002", "미배정 사원", "", "소속 미등록", "2", "0", "0.0", "0.0")));
+        assertTrue(company.get(3).contains("유급휴가 인정시간(시간)"));
+        assertTrue(company.contains(List.of("범위 합계", "", "2", "6", "0", "0.0", "0.0", "0.0")));
+        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "A01", "이동 전 부서", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "B01", "이동 후 부서", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(company.contains(List.of("002", "미배정 사원", "", "소속 미등록", "2", "0", "0.0", "0.0", "0.0")));
         var department = worksheet(download(admin, 1, "DEPARTMENT", second));
-        assertTrue(department.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0")));
+        assertTrue(department.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0")));
         assertFalse(department.toString().contains("미배정 사원"));
         assertFalse(department.toString().contains("이동 전 부서"));
         var unassignedSheet = worksheet(download(admin, 1, "UNASSIGNED", null));
-        assertTrue(unassignedSheet.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0")));
+        assertTrue(unassignedSheet.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0")));
         assertFalse(unassignedSheet.toString().contains("합성 이동 사원"));
 
         var other = company();
@@ -118,7 +119,26 @@ class MonthCloseExportIT {
         close(admin, "CLOSE", 2);
         mvc.perform(export(admin, 1, "COMPANY", null)).andExpect(status().isConflict());
         var reclosed = worksheet(download(admin, 3, "DEPARTMENT", first));
-        assertTrue(reclosed.contains(List.of("001", "변경된 사원", "A01", "변경된 부서", "2", "0", "0.0", "0.0")));
+        assertTrue(reclosed.contains(List.of("001", "변경된 사원", "A01", "변경된 부서", "2", "0", "0.0", "0.0", "0.0")));
+    }
+
+    @Test
+    void earlierCloseKeepsItsOriginalColumnsUntilReopenedAndClosedAgain() throws Exception {
+        db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        var admin = company();
+        var worker = employee(admin.tenantId(), "009", "기존 마감 사원", FIRST, FIRST);
+        restDays(admin, worker);
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,gen_random_uuid(),?,1,'CLOSED','기존 마감',?,'담당자')
+                """, admin.tenantId(), FIRST, admin.accountId());
+        var legacy = worksheet(download(admin, 1, "COMPANY", null));
+        assertEquals(List.of("집계 범위", "부서코드", "사원 수(명)", "재직일수(일)", "실근로 발생 일수(일)",
+                "실근로시간(시간)", "사용 휴가(일)"), legacy.get(3));
+        assertTrue(legacy.contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0")));
+        close(admin, "REOPEN", 1);
+        close(admin, "CLOSE", 2);
+        assertEquals("유급휴가 인정시간(시간)", worksheet(download(admin, 3, "COMPANY", null)).get(3).getLast());
     }
 
     @Test

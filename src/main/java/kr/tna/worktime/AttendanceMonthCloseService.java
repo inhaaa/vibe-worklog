@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -14,6 +15,7 @@ import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public final class AttendanceMonthCloseService {
@@ -44,6 +46,7 @@ public final class AttendanceMonthCloseService {
 
     private static final int BLOCKER_PAGE_SIZE = 50;
     private static final int HISTORY_LIMIT = 20;
+    private static final JsonMapper JSON = JsonMapper.builder().build();
     private final BusinessCommands commands;
     private final OrgCommands administration;
     private final AttendanceMonthCloseMapper mapper;
@@ -91,7 +94,7 @@ public final class AttendanceMonthCloseService {
     public Check check(TnaPrincipal actor, CheckForm form) {
         return read(actor, () -> {
             var month = month(form == null ? null : form.month());
-            return checkLocked(actor.tenantId(), month, mapper.history(actor.tenantId(), month.atDay(1), 1));
+            return checkLocked(actor.tenantId(), month, mapper.history(actor.tenantId(), month.atDay(1), 1), null);
         });
     }
 
@@ -111,17 +114,20 @@ public final class AttendanceMonthCloseService {
             long previousVersion = version(history);
             OrgCommands.checkVersion(form.expectedVersion(), previousVersion);
             String previousStatus = status(history);
+            String paidLeaveSnapshot = null;
             if (closing) {
                 if ("CLOSED".equals(previousStatus)) throw OrgException.conflict("이미 마감된 월입니다.");
-                String blocker = checkLocked(actor.tenantId(), month, history).blockingReason();
+                var paidDays = new ArrayList<MonthEndReviewQueries.PaidLeaveDay>();
+                String blocker = checkLocked(actor.tenantId(), month, history, paidDays).blockingReason();
                 if (blocker != null) throw OrgException.conflict(blocker);
+                paidLeaveSnapshot = JSON.writeValueAsString(paidDays);
             } else if (!"CLOSED".equals(previousStatus)) {
                 throw OrgException.conflict("마감된 월만 재개할 수 있습니다.");
             }
             UUID id = UUID.randomUUID();
             String next = closing ? "CLOSED" : "OPEN";
             if (mapper.append(actor.tenantId(), id, month.atDay(1), previousVersion + 1, next,
-                    reason, actor.accountId(), actor.employeeId()) != 1) throw OrgException.forbidden();
+                    reason, actor.accountId(), actor.employeeId(), paidLeaveSnapshot) != 1) throw OrgException.forbidden();
             return new OrgCommands.Change(id, Map.of("month", month, "status", previousStatus, "version", previousVersion),
                     Map.of("month", month, "status", next, "version", previousVersion + 1));
         });
@@ -132,14 +138,15 @@ public final class AttendanceMonthCloseService {
         });
     }
 
-    private Check checkLocked(UUID tenantId, YearMonth month, List<AttendanceMonthCloseMapper.Event> history) {
+    private Check checkLocked(UUID tenantId, YearMonth month, List<AttendanceMonthCloseMapper.Event> history,
+            List<MonthEndReviewQueries.PaidLeaveDay> paidDays) {
         LocalDate today = administration.today();
         boolean past = month.isBefore(YearMonth.from(today));
         LocalDate from = month.atDay(1), end = month.atEndOfMonth();
         var totals = mapper.totals(tenantId, from, end);
         String status = status(history);
         var days = "CLOSED".equals(status) ? MonthEndReviewQueries.Counts.NONE
-                : reviews.countAll(tenantId, from, past ? end : today.minusDays(1));
+                : reviews.countAll(tenantId, from, past ? end : today.minusDays(1), paidDays);
         var outOfEmployment = totals.openFollowUps() > 0 ? mapper.outOfEmploymentFollowUp(tenantId, from, end) : null;
         return new Check(month.toString(), status, version(history), past, totals.employeeCount(), days.days(),
                 days.uncalculated(), days.stale(), days.unconfirmed(), days.pendingCorrection(), totals.pendingRequests(),

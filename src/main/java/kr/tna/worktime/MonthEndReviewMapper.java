@@ -34,7 +34,7 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
         String confirmations();
     }
 
-    record Candidate(UUID employeeId, String employeeNo, String employeeName, String organizationName,
+    record Candidate(UUID employeeId, String employeeNo, String employeeName, String organizationName, UUID organizationId,
             LocalDate joinedOn, LocalDate leftOn, LocalDate workDate, UUID resultId, String storedSource,
             Long storedInput, Long storedReview, long inputRevision, long reviewRevision,
             UUID scheduleVersionId, Boolean workday, LocalTime startTime, LocalTime endTime, String breaks,
@@ -121,7 +121,7 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
                 SELECT #{from}::date + n AS work_date FROM generate_series(0,30) n
                 WHERE #{from}::date + n <= #{through}
             ), selected AS MATERIALIZED (
-                SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,
+                SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,o.id AS organization_id,
                        e.joined_on,e.left_on,d.work_date,r.id AS result_id,r.source_fingerprint AS stored_source,
                        r.input_revision AS stored_input,r.review_revision AS stored_review,p.id AS pending_request_id,fu.id IS NOT NULL AS open_checkout_follow_up
                 FROM tna.employee e JOIN dates d ON d.work_date>=e.joined_on AND (e.left_on IS NULL OR d.work_date<=e.left_on)
@@ -142,7 +142,7 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
                   AND (#{reason}<>'UNCALCULATED' OR r.id IS NULL) AND (#{reason}<>'STALE' OR r.id IS NOT NULL)
                 ORDER BY d.work_date DESC,e.employee_no,e.id
             )
-            SELECT d.employee_id,d.employee_no,d.employee_name,d.organization_name,d.joined_on,d.left_on,
+            SELECT d.employee_id,d.employee_no,d.employee_name,d.organization_name,d.organization_id,d.joined_on,d.left_on,
                 d.work_date,d.result_id,d.stored_source,d.stored_input,d.stored_review,
                 coalesce(rev.input_revision,0) AS input_revision,coalesce(rev.review_revision,0) AS review_revision,
                 s.version_id AS schedule_version_id,s.workday,s.start_time,s.end_time,s.breaks,

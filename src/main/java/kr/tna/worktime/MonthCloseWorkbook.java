@@ -18,26 +18,29 @@ final class MonthCloseWorkbook {
     private MonthCloseWorkbook() {}
 
     static byte[] write(String month, Event event, String scope, List<Row> records) {
+        boolean includePaid = event.includesPaidLeave();
         List<List<Object>> sheet = new ArrayList<>();
         sheet.add(List.of("월 마감 결과", month, scope));
         sheet.add(List.of("마감 버전", event.version(), "마감자", event.actorName(), "마감 일시(서울)", SEOUL.format(event.changedAt())));
         sheet.add(List.of("자료 기준", event.capturedAtClose() ? "마감 시점 기준" : "기존 마감 · 이관 시점 기준", "근무일 당시 소속"));
-        sheet.add(List.of("집계 범위", "부서코드", "사원 수(명)", "재직일수(일)", "실근로 발생 일수(일)", "실근로시간(시간)", "사용 휴가(일)"));
+        sheet.add(withPaidColumn(List.of("집계 범위", "부서코드", "사원 수(명)", "재직일수(일)", "실근로 발생 일수(일)", "실근로시간(시간)", "사용 휴가(일)"),
+                includePaid, "유급휴가 인정시간(시간)"));
         var total = new Totals();
         var departments = new LinkedHashMap<UUID, Totals>();
         for (Row row : records) {
             total.add(row);
             departments.computeIfAbsent(row.organizationId(), ignored -> new Totals()).add(row);
         }
-        sheet.add(total.summary("범위 합계", ""));
+        sheet.add(total.summary("범위 합계", "", includePaid));
         for (Totals department : departments.values()) {
-            sheet.add(department.summary(name(department.first), code(department.first)));
+            sheet.add(department.summary(name(department.first), code(department.first), includePaid));
         }
         sheet.add(List.of());
-        sheet.add(List.of("사번", "성명", "부서코드", "부서명", "재직일수(일)", "실근로 발생 일수(일)", "실근로시간(시간)", "사용 휴가(일)"));
+        sheet.add(withPaidColumn(List.of("사번", "성명", "부서코드", "부서명", "재직일수(일)", "실근로 발생 일수(일)", "실근로시간(시간)", "사용 휴가(일)"),
+                includePaid, "유급휴가 인정시간(시간)"));
         for (Row row : records) {
-            sheet.add(Arrays.asList(row.employeeNo(), row.employeeName(), code(row), name(row), row.employedDays(),
-                    row.workedDays(), hours(row.actualMillis()), row.leaveDays()));
+            sheet.add(withPaidColumn(Arrays.asList(row.employeeNo(), row.employeeName(), code(row), name(row), row.employedDays(),
+                    row.workedDays(), hours(row.actualMillis()), row.leaveDays()), includePaid, hours(row.paidLeaveMillis())));
         }
         return ReviewWorkbook.create("월 마감 결과", sheet);
     }
@@ -46,18 +49,27 @@ final class MonthCloseWorkbook {
     private static String code(Row row) { return row.organizationCode() == null ? "" : row.organizationCode(); }
     private static Double hours(Long millis) { return millis == null ? null : millis / 3_600_000.0; }
 
+    private static List<Object> withPaidColumn(List<Object> existing, boolean includePaid, Object value) {
+        if (!includePaid) return existing;
+        var cells = new ArrayList<>(existing);
+        cells.add(value);
+        return cells;
+    }
+
     private static final class Totals {
         private final Set<UUID> people = new HashSet<>();
         private Row first;
-        private long days, workedDays, actualMillis;
+        private long days, workedDays, actualMillis, paidLeaveMillis;
         private double leaveDays;
-        private boolean unknownWork;
+        private boolean unknownWork, unknownPaidLeave;
 
         void add(Row row) {
             if (first == null) first = row;
             people.add(row.employeeId());
             days += row.employedDays();
             leaveDays += row.leaveDays();
+            if (row.paidLeaveMillis() == null) unknownPaidLeave = true;
+            else paidLeaveMillis += row.paidLeaveMillis();
             if (row.actualMillis() == null || row.workedDays() == null) {
                 unknownWork = true;
             } else {
@@ -66,9 +78,9 @@ final class MonthCloseWorkbook {
             }
         }
 
-        List<Object> summary(String name, String code) {
-            return Arrays.asList(name, code, people.size(), days, unknownWork ? null : workedDays,
-                    unknownWork ? null : hours(actualMillis), leaveDays);
+        List<Object> summary(String name, String code, boolean includePaid) {
+            return withPaidColumn(Arrays.asList(name, code, people.size(), days, unknownWork ? null : workedDays,
+                    unknownWork ? null : hours(actualMillis), leaveDays), includePaid, unknownPaidLeave ? null : hours(paidLeaveMillis));
         }
     }
 }

@@ -435,10 +435,15 @@ class AttendanceMonthCloseIT {
     }
 
     private UUID selectiveFullDayLeaveWorker() {
+        return fullDayLeaveWorker(true);
+    }
+
+    private UUID fullDayLeaveWorker(boolean selective) {
         UUID worker = knownRestDay();
         UUID version = db.queryForObject("SELECT schedule_version_id FROM tna.schedule_assignment WHERE tenant_id=? AND employee_id=?", UUID.class, tenant, worker);
         UUID calendar = db.queryForObject("SELECT id FROM tna.calendar_version WHERE tenant_id=?", UUID.class, tenant);
-        useSelectiveCode(version);
+        if (selective) useSelectiveCode(version);
+        else db.update("UPDATE tna.schedule_day SET workday=true,start_time=TIME '09:00',end_time=TIME '16:30' WHERE tenant_id=? AND version_id=?", tenant, version);
         db.update("UPDATE tna.calendar_day SET kind='WORKDAY' WHERE tenant_id=? AND work_date=?", tenant, LAST);
         UUID assignment = UUID.randomUUID(), bucket = UUID.randomUUID(), request = UUID.randomUUID();
         db.update("""
@@ -462,6 +467,51 @@ class AttendanceMonthCloseIT {
         return worker;
     }
 
+    private byte[] workbook(UUID department) throws Exception {
+        var request = get(PATH + "/export").with(as(admin)).param("month", MONTH).param("version", "1")
+                .param("scope", department == null ? "COMPANY" : "DEPARTMENT");
+        if (department != null) request.param("organizationId", department.toString());
+        return mvc.perform(request).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+    }
+
+    private UUID assignDepartment(UUID worker, String code, LocalDate from, LocalDate until) {
+        UUID department = UUID.randomUUID();
+        db.update("INSERT INTO tna.organization(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,?,?,?,?)",
+                tenant, department, code, code, admin.accountId(), admin.accountId());
+        db.update("""
+                INSERT INTO tna.employee_assignment(tenant_id,id,employee_id,organization_id,valid_from,valid_to,reason,created_by,updated_by)
+                VALUES (?,gen_random_uuid(),?,?,?,?,'합성 부서 이동',?,?)
+                """, tenant, worker, department, from, until, admin.accountId(), admin.accountId());
+        return department;
+    }
+
+    @Test
+    void closingFreezesFixedPaidLeaveWithoutAStoredDayResult() throws Exception {
+        UUID worker = fullDayLeaveWorker(false);
+        LocalDate prior = LAST.minusDays(1);
+        db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", prior, tenant, worker);
+        db.update("UPDATE tna.schedule_version SET valid_from=? WHERE tenant_id=?", prior, tenant);
+        db.update("UPDATE tna.schedule_assignment SET valid_from=? WHERE tenant_id=?", prior, tenant);
+        db.update("UPDATE tna.calendar_version SET valid_from=? WHERE tenant_id=?", prior, tenant);
+        db.update("INSERT INTO tna.schedule_day(tenant_id,version_id,weekday,workday) SELECT tenant_id,id,6,false FROM tna.schedule_version WHERE tenant_id=?", tenant);
+        db.update("""
+                INSERT INTO tna.calendar_day(tenant_id,version_id,work_date,kind,name,basis)
+                SELECT tenant_id,id,?,'NON_WORKDAY','휴무','합성 달력' FROM tna.calendar_version WHERE tenant_id=?
+                """, prior, tenant);
+        UUID first = assignDepartment(worker, "A01", prior, LAST);
+        UUID second = assignDepartment(worker, "B02", LAST, null);
+        assertEquals(0, count("day_result"));
+        assertTrue(check(MONTH).path("canClose").asBoolean());
+        body(change(admin, "CLOSE", 0, UUID.randomUUID(), "유급휴가 마감"), 200);
+        var file = workbook(null);
+        assertTrue(MonthCloseExportIT.worksheet(file).contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "1.0", "7.5")));
+        assertTrue(MonthCloseExportIT.worksheet(workbook(first)).contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0", "0.0")));
+        assertTrue(MonthCloseExportIT.worksheet(workbook(second)).contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "1.0", "7.5")));
+        db.update("UPDATE tna.schedule_day SET end_time=TIME '18:00' WHERE tenant_id=? AND workday", tenant);
+        assertArrayEquals(file, workbook(null));
+    }
+
     @Test
     void selectiveFullDayLeaveRequiresCalculationAndClosedSettlementKeepsItsOriginalInputs() throws Exception {
         UUID worker = selectiveFullDayLeaveWorker();
@@ -479,6 +529,9 @@ class AttendanceMonthCloseIT {
         assertEquals(0, calculated.path("differenceMillis").asLong());
         assertTrue(check(MONTH).path("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "선택근무 마감"), 200);
+        var sheet = MonthCloseExportIT.worksheet(workbook(null));
+        assertEquals("유급휴가 인정시간(시간)", sheet.get(3).getLast());
+        assertEquals(421.0 / 60.0, Double.parseDouble(sheet.get(4).getLast()), 0.0000001);
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", LAST.plusDays(1), tenant, worker);
         db.update("UPDATE tna.work_time_code_version SET standard_minutes=360 WHERE tenant_id=? AND work_mode='SELECTIVE'", tenant);
         assertEquals(calculated, selectivePeriod(worker));

@@ -14,9 +14,9 @@ class MonthCloseWorkbookTest {
     void countsTransferredPeopleOnceAndWritesDecimalsAsNumbersAndNamesAsText() throws Exception {
         var person = UUID.randomUUID();
         var assigned = new MonthCloseExportMapper.Row(person, "0001", "=예시", UUID.randomUUID(), "A", "부서A",
-                12, 2, 7_200_000L, 0.5);
+                12, 2, 7_200_000L, 0.5, 14_400_000L);
         var unassigned = new MonthCloseExportMapper.Row(person, "0001", "=예시", null, null, null,
-                18, 1, 3_600_000L, 0);
+                18, 1, 3_600_000L, 0, 0L);
         String sheet = worksheet(List.of(assigned, unassigned), true);
         assertTrue(sheet.contains("회사 전체"));
         assertTrue(sheet.contains("소속 미등록"));
@@ -28,19 +28,31 @@ class MonthCloseWorkbookTest {
         assertTrue(summary.contains("<v>30</v>"));
         assertTrue(summary.contains("<v>1</v>"));
         assertTrue(summary.contains("<v>3.0</v>"));
+        assertTrue(summary.contains("<v>4.0</v>"));
     }
 
     @Test
     void unknownWorkRemainsUnknownInTheCompanyTotalEvenWhenOtherPeopleHaveKnownHours() throws Exception {
         var unknown = new MonthCloseExportMapper.Row(UUID.randomUUID(), "1", "가", null, null, null,
-                2, null, null, 0.5);
+                2, null, null, 0.5, null);
         var known = new MonthCloseExportMapper.Row(UUID.randomUUID(), "2", "나", null, null, null,
-                1, 0, 0L, 0);
+                1, 0, 0L, 0, 0L);
         String sheet = worksheet(List.of(unknown, known), false);
         assertTrue(sheet.contains("기존 마감 · 이관 시점 기준"));
         String summary = summaryRow(sheet);
         assertEquals(2, summary.split(">미확정<", -1).length - 1);
         assertTrue(summary.contains("<v>0.5</v>"));
+        assertFalse(sheet.contains("유급휴가 인정시간"));
+    }
+
+    @Test
+    void unknownPaidLeaveDoesNotEraseConfirmedWorkOrTurnTheScopeCreditIntoZero() throws Exception {
+        var incomplete = new MonthCloseExportMapper.Row(UUID.randomUUID(), "01", "가", null, null, null, 1, 0, 0L, 1, null);
+        var confirmed = new MonthCloseExportMapper.Row(UUID.randomUUID(), "02", "나", null, null, null, 1, 1, 3_600_000L, 0.5, 7_200_000L);
+        String summary = summaryRow(worksheet(List.of(incomplete, confirmed), true));
+        assertTrue(summary.contains("<v>1.0</v>"));
+        assertTrue(summary.contains("<v>1.5</v>"));
+        assertEquals(1, summary.split(">미확정<", -1).length - 1);
     }
 
     private static String summaryRow(String sheet) {
@@ -50,7 +62,7 @@ class MonthCloseWorkbookTest {
 
     private static String worksheet(List<MonthCloseExportMapper.Row> rows, boolean atClose) throws Exception {
         var event = new MonthCloseExportMapper.Event(UUID.randomUUID(), 1, "CLOSED",
-                Instant.parse("2026-11-01T01:00:00Z"), "담당자", atClose);
+                Instant.parse("2026-11-01T01:00:00Z"), "담당자", atClose, atClose);
         byte[] bytes = MonthCloseWorkbook.write("2026-10", event, "회사 전체", rows);
         try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {

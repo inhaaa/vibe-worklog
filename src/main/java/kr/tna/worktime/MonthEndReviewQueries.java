@@ -43,7 +43,8 @@ public final class MonthEndReviewQueries {
         }
     }
 
-    private record Review(List<String> reasons, boolean checkoutFollowUpEligible, String basis) { }
+    private record Review(List<String> reasons, boolean checkoutFollowUpEligible, String basis, Long paidLeaveMillis) { }
+    record PaidLeaveDay(UUID employee, UUID organization, LocalDate date, Long millis) { }
     record Counts(long days, long uncalculated, long stale, long unconfirmed, long pendingCorrection) {
         static final Counts NONE = new Counts(0, 0, 0, 0, 0);
     }
@@ -145,13 +146,17 @@ public final class MonthEndReviewQueries {
     }
 
     /** The caller holds the tenant lock and has checked that this month is open. */
-    Counts countAll(UUID tenantId, LocalDate from, LocalDate through) {
+    Counts countAll(UUID tenantId, LocalDate from, LocalDate through, List<PaidLeaveDay> capture) {
         if (through.isBefore(from)) return Counts.NONE;
         long days = 0;
         var counts = new HashMap<String, Long>();
         try (var candidates = mapper.candidates(tenantId, from, through, null, "", "ALL")) {
             for (var candidate : candidates) {
-                var reasons = assess(candidate, false).reasons();
+                var review = assess(candidate, false);
+                if (capture != null && !Long.valueOf(0).equals(review.paidLeaveMillis())) {
+                    capture.add(new PaidLeaveDay(candidate.employeeId(), candidate.organizationId(), candidate.workDate(), review.paidLeaveMillis()));
+                }
+                var reasons = review.reasons();
                 if (reasons.isEmpty()) continue;
                 days++;
                 for (String reason : reasons) counts.merge(reason, 1L, Long::sum);
@@ -192,7 +197,7 @@ public final class MonthEndReviewQueries {
         String basis = includeBasis ? OrgCommands.fingerprint(source, candidate.resultId(),
                 snapshot.confirmation() == null ? null : snapshot.confirmation().id(),
                 leaveDays, candidate.reviewed(), candidate.openCheckoutFollowUp()) : null;
-        return new Review(List.copyOf(reasons), CheckoutOmission.eligible(snapshot, leaveDays, pending), basis);
+        return new Review(List.copyOf(reasons), CheckoutOmission.eligible(snapshot, leaveDays, pending), basis, calculated.paidLeaveMillis());
     }
 
     static ClockData.DaySnapshot snapshot(ClockService clocks, MonthEndReviewMapper.DayEvidence row) {
