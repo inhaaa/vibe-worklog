@@ -115,6 +115,8 @@ public final class LeaveBalanceBatchService {
             if (row.employeeNo() != null) employee = employees.byNumber(actor.tenantId(), row.employeeNo().strip());
             if (employee == null) throw invalid("employeeNo", "사번을 확인해 주세요.");
             if (actor.employeeId().equals(employee.id())) throw invalid("employeeNo", "본인의 연차 잔여는 다른 담당자가 처리해야 합니다.");
+            if (buckets.exitSettled(actor.tenantId(),employee.id()))
+                throw invalid("employeeNo","퇴사 정산이 확정된 사원입니다. 정산 명세를 확인해 주세요.");
             var effective = date(row.effectiveOn(), "effectiveOn");
             var quantity = decimal(row.quantityDays());
             if ("OPENING".equals(row.operation())) {
@@ -135,7 +137,7 @@ public final class LeaveBalanceBatchService {
             if (!adjustments.add(id)) throw invalid("bucketId", "같은 묶음에 대한 조정이 중복되었습니다.");
             if (saving || !blank(row.expectedVersion())) checkVersion(row.expectedVersion(), before.version());
             var form = LeaveBalanceEntries.adjustment(new AdjustmentForm(quantity, effective, before.version(), row.sourceReference(), row.reason(), null), today);
-            LeaveBalanceEntries.checkAdjustment(before, form);
+            workflow.checkAdjustment(actor.tenantId(), before, form);
             var balance = BigDecimal.valueOf(before.balanceDays());
             var preview = new RowPreview(rowId, employee.displayName(), balance, balance.add(form.quantityDays()), before.version(), List.of());
             return new Checked(preview, null, form, before, 200);
