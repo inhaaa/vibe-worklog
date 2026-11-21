@@ -6,6 +6,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AuditSummaryBatchTest {
     @Test
+    void annualCycleShowsCompanyTermsAndPostedCountWithoutListingEmployeeBuckets() {
+        var summary = AuditSummary.project("""
+                {"fiscalStartMonth":4,"grantDays":12.5,"carryLimitDays":3,"year":2026,"ruleVersion":2,
+                 "periodStart":"2026-04-01","periodEnd":"2027-03-31","postedCount":23,
+                 "awardBuckets":["private-bucket"],"previewToken":"private-token"}
+                """);
+        assertEquals(java.util.Map.of("fiscalStartMonth","4","grantDays","12.5","carryLimitDays","3","year","2026",
+                "ruleVersion","2","periodStart","2026-04-01","periodEnd","2027-03-31","postedCount","23"), summary);
+        assertTrue(AuditSummary.project("""
+                {"ruleVersion":"private","grantDays":"private","carryLimitDays":0.25,"year":"private","periodEnd":"private"}
+                """).isEmpty());
+    }
+
+    @Test
     void showsFractionalLeaveBalancesInTheAuditDetail() {
         var summary = AuditSummary.project("""
                 {"balanceDays":7.5,"availableDays":7.0,"quantityDays":0.5,"signedQuantityDays":-0.5,"version":1.25}

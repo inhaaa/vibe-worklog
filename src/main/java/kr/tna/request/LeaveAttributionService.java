@@ -42,6 +42,8 @@ public final class LeaveAttributionService {
                 fingerprint(bucketId,form.expectedRevision(),form.classificationStatus(),form.entitlementYear(),Boolean.TRUE.equals(form.singleYearConfirmed()),basis,reason),reason,()->{
                     var bucket=bucket(actor.tenantId(),bucketId);
                     if(actor.employeeId().equals(bucket.employeeId()))throw OrgException.forbidden();
+                    if(mapper.usedByAnnualCycle(actor.tenantId(),bucketId))
+                        throw OrgException.conflict("연차 부여·이월·소멸에 반영한 묶음의 귀속연도는 변경할 수 없습니다.");
                     var history=mapper.history(actor.tenantId(),bucketId);Attribution previous=history.isEmpty()?null:history.getFirst();
                     long revision=previous==null?0:previous.revision();checkVersion(form.expectedRevision(),revision);
                     UUID type=mapper.annualLeaveType(actor.tenantId());if(type==null)throw OrgException.invalid("시스템 연차 유형을 확인해 주세요.");

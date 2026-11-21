@@ -32,7 +32,8 @@ class DatabaseFoundationIT {
                 WHERE n.nspname = 'tna' AND c.relkind = 'r' AND c.relrowsecurity AND c.relforcerowsecurity
                 ORDER BY c.relname
                 """, String.class);
-        assertEquals(List.of("account_token", "allowed_network", "approval_event", "approval_request",
+        assertEquals(List.of("account_token", "allowed_network", "annual_leave_award", "annual_leave_cycle", "annual_leave_rule",
+                "approval_event", "approval_request",
                 "approval_route", "approval_route_assignment", "approval_route_snapshot", "approval_route_version",
                 "approver_assignment", "attendance_event", "attendance_month_closure", "attendance_month_export_row", "attendance_month_selective_member",
                 "attendance_type", "attendance_type_version", "calculation_run", "calendar_day",

@@ -172,6 +172,16 @@ class CodeMigrationUpgradeIT {
                        AND NOT has_column_privilege('tna_app','tna.attendance_month_closure','paid_leave_snapshot','UPDATE')
                        AND NOT has_column_privilege('tna_auth','tna.attendance_month_closure','paid_leave_snapshot','SELECT')
                     """, Boolean.class));
+            var v36Columns = columns(db);
+            var v36Rows = rows(db, v36Columns);
+            var annual = Flyway.configure().dataSource(migrationSource).target("37").load();
+            assertEquals(1, annual.migrate().migrationsExecuted);
+            assertEquals(0, annual.migrate().migrationsExecuted);
+            assertEquals(v36Rows, rows(db, v36Columns));
+            assertEquals(oldPermissions, access(db).stream()
+                    .filter(row -> !row.get("relname").toString().startsWith("annual_leave_")).toList());
+            assertTrue(db.queryForObject("SELECT count(*)>0 AND count(annual_award_bucket_id)=0 FROM tna.leave_ledger", Boolean.class));
+            assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.annual_leave_award", Integer.class));
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 
@@ -458,6 +468,7 @@ class CodeMigrationUpgradeIT {
          (SELECT jsonb_agg(jsonb_build_array(a.attname,a.attacl::text) ORDER BY a.attnum)::text FROM pg_attribute a
           WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped AND a.attname<>'attendance_type_version_id'
             AND NOT (c.relname='attendance_month_closure' AND a.attname='paid_leave_snapshot')
+            AND NOT (c.relname='leave_ledger' AND a.attname='annual_award_bucket_id')
             AND NOT (? AND c.relname='work_time_code_version'
                      AND a.attname IN ('work_mode','standard_minutes','core_start','core_end','settlement_period'))) AS columns
         FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace

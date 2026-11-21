@@ -69,7 +69,7 @@ public interface AnnualRequestMapper {
         FROM tna.leave_bucket b
         LEFT JOIN LATERAL(SELECT classification_status,entitlement_year,basis FROM tna.leave_bucket_attribution WHERE tenant_id=b.tenant_id AND bucket_id=b.id ORDER BY revision DESC LIMIT 1)a ON true
         LEFT JOIN LATERAL(SELECT sum(signed_quantity_days) AS balance_days,
-          sum(signed_quantity_days) FILTER(WHERE entry_kind IN ('OPENING','ADJUSTMENT')) AS opening_adjustment_days
+          sum(signed_quantity_days) FILTER(WHERE entry_kind IN ('OPENING','ADJUSTMENT','GRANT','CARRY_IN')) AS opening_adjustment_days
           FROM tna.leave_ledger WHERE tenant_id=b.tenant_id AND bucket_id=b.id)l ON true
         WHERE b.tenant_id=#{tenantId} AND b.employee_id=#{employeeId} ORDER BY b.usable_from,b.id
         """)

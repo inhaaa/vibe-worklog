@@ -21,6 +21,11 @@ public interface LeaveAttributionMapper {
     List<Attribution> history(@Param("tenantId") UUID tenantId,@Param("bucketId") UUID bucketId);
     @Select("SELECT id FROM tna.attendance_type WHERE tenant_id=#{tenantId} AND system_kind='ANNUAL_LEAVE'")
     UUID annualLeaveType(@Param("tenantId") UUID tenantId);
+    @Select("""
+        SELECT EXISTS (SELECT 1 FROM tna.leave_ledger WHERE tenant_id=#{tenantId} AND bucket_id=#{bucketId}
+            AND entry_kind IN ('GRANT','CARRY_IN','CARRY_OUT','EXPIRE'))
+        """)
+    boolean usedByAnnualCycle(@Param("tenantId") UUID tenantId,@Param("bucketId") UUID bucketId);
     @Insert("""
         INSERT INTO tna.leave_bucket_attribution
           (tenant_id,id,bucket_id,revision,attendance_type_id,classification_status,entitlement_year,basis,reason,created_by)
