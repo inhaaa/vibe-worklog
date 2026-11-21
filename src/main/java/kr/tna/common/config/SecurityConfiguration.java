@@ -47,7 +47,8 @@ public class SecurityConfiguration {
                         authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
                                 "/admin/employees/onboarding/**", "/admin/employees/exports",
                                 "/admin/employees/*/personnel/tabs/*/export",
-                                "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply").denyAll();
+                                "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply",
+                                "/admin/leave-balances/employment/**").denyAll();
                         for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
                             String identity = "/admin/employees/" + employeeId;
                             authorize.requestMatchers(new RegexRequestMatcher(identity

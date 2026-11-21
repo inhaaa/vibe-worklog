@@ -164,6 +164,13 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
             publicMvc.perform(post(path + write).session(session).with(csrf())
                     .contentType("application/json").content("{}")).andExpect(status().isForbidden());
         }
+        String employment = "/admin/leave-balances/employment";
+        publicMvc.perform(get(employment).session(session)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/publicDemo", true));
+        for (String write : List.of("/monthly", "/settle")) {
+            publicMvc.perform(post(employment + write).session(session).with(csrf())
+                    .contentType("application/json").content("{}")).andExpect(status().isForbidden());
+        }
     }
 
     @Test

@@ -34,10 +34,18 @@ public final class EmployeeService {
     }
 
     public List<Employee> list(TnaPrincipal actor, String query, int page) {
+        return list(actor, query, page, null);
+    }
+
+    public List<Employee> listOtherEmployees(TnaPrincipal actor, String query, int page) {
+        return list(actor, query, page, actor.employeeId());
+    }
+
+    private List<Employee> list(TnaPrincipal actor, String query, int page, UUID excludedEmployee) {
         int offset = offset(page);
         String normalized = query == null || query.isBlank() ? "" : requiredText(query, 120, "검색어");
         String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
-        return commands.read(actor, () -> mapper.list(actor.tenantId(), search, offset));
+        return commands.read(actor, () -> mapper.list(actor.tenantId(), search, offset, excludedEmployee));
     }
 
     public record PersonnelSearch(List<PersonnelMatch> rows, int page, boolean hasNext) { }
@@ -49,7 +57,7 @@ public final class EmployeeService {
         String search = "%" + normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
         return commands.readShared(actor, () -> {
             LocalDate today = commands.today();
-            var rows = mapper.list(actor.tenantId(), search, offset);
+            var rows = mapper.list(actor.tenantId(), search, offset, null);
             var visible = rows.stream().limit(50).toList();
             if (visible.isEmpty()) return new PersonnelSearch(List.of(), page, false);
             var ids = visible.stream().map(Employee::id).toList();

@@ -39,10 +39,11 @@ public interface EmployeeAdminMapper extends ClosedAttendanceMonths {
             FROM tna.employee
             WHERE tenant_id=#{tenantId}
               AND (employee_no ILIKE #{search} OR display_name ILIKE #{search})
+              AND (CAST(#{excludedEmployee} AS uuid) IS NULL OR id<>#{excludedEmployee})
             ORDER BY employee_no, id LIMIT 51 OFFSET #{offset}
             """)
     List<Employee> list(@Param("tenantId") UUID tenantId, @Param("search") String search,
-                        @Param("offset") int offset);
+                        @Param("offset") int offset, @Param("excludedEmployee") UUID excludedEmployee);
 
     @Select("""
             SELECT e.id,e.employee_no,e.display_name,e.joined_on,e.left_on,e.active,e.version
