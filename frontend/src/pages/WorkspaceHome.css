@@ -1,3 +1,20 @@
+#tna-app .company-setup-guide { margin-block-end: var(--space-sm); }
+#tna-app .company-setup-guide button { min-block-size: 44px; }
+#tna-app .company-setup-guide ol {
+  display: grid;
+  gap: var(--space-sm);
+  margin-block: var(--space-xs) var(--space-md);
+  padding: var(--space-md) var(--space-md) var(--space-md) 2.5rem;
+  border: 1px solid var(--t-line);
+  border-radius: var(--radius-input);
+  background: var(--t-paper);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+#tna-app .company-setup-guide li::marker { font-weight: 700; }
+#tna-app .company-setup-guide li a { font-weight: 650; text-decoration: underline; }
+
 @layer legacy {
 #tna-app .t-work-home {
   min-inline-size: 0;

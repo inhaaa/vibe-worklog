@@ -13,6 +13,19 @@ const onboarding = {
 
 afterEach(cleanup);
 
+it('입사 확정에 필요한 조직이나 입사일 기준 근무가 없으면 채울 수 있는 화면으로 연결한다', () => {
+  const futureSchedule = { ...onboarding.scheduleVersions[0], validFrom: '2027-01-01' };
+  const view = render(<OnboardingPage data={{ onboarding: { ...onboarding, organizations: [], scheduleVersions: [futureSchedule] } }} />);
+  expect(view.getByRole('button', { name: '입사 확정' })).toHaveProperty('disabled', true);
+  expect(view.getByRole('link', { name: '소속 조직 등록' }).getAttribute('href')).toBe('/admin/organizations');
+  expect(view.getByRole('link', { name: '입사일 근무 설정' }).getAttribute('href')).toBe('/admin/schedules?tab=codes&date=2026-12-01');
+  view.rerender(<OnboardingPage data={{ onboarding: { ...onboarding, scheduleVersions: [futureSchedule] } }} />);
+  expect(view.queryByRole('link', { name: '소속 조직 등록' })).toBeNull();
+  expect(view.getByRole('link', { name: '입사일 근무 설정' })).toBeTruthy();
+  view.rerender(<OnboardingPage data={{ onboarding }} />);
+  expect(view.queryByRole('link', { name: '입사일 근무 설정' })).toBeNull();
+});
+
 it('입사 예정일을 바꾸면 선택한 조의 유효 개정과 요일별 시간코드를 실제 전송값과 함께 바꾼다', () => {
   const group={templateId:'g',templateName:'운영조',group:true,templateVersion:1};
   const model={...onboarding,detail:null,scheduleVersions:[

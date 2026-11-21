@@ -9,6 +9,7 @@ import { WorkflowPages } from './pages/WorkflowPages';
 import { AuthPages } from './pages/AuthPages';
 import { CorePages } from './pages/CorePages';
 import { WorkspaceHome, useWorkspaceHomeRefresh } from './pages/WorkspaceHome';
+import { CompanySetupGuide } from './pages/CompanySetupGuide';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -264,6 +265,10 @@ function Workspace({
         </div>
       </header>
       <main className="t-main" id="workspace-content" tabIndex={-1} aria-label={title}>
+        {page === 'workspace/home' && !demo && roles.includes('ATTENDANCE_ADMIN') && (
+          <CompanySetupGuide adminSelected={activeRole === 'ATTENDANCE_ADMIN'}
+            selectAdmin={() => setSelectedRole('ATTENDANCE_ADMIN')} />
+        )}
         {page !== 'workspace/home' && page !== 'org/personnel-home' && !data.adminPersonnel && headerEmployee && (
           <EmployeeHeader variant={page === 'workspace/profile' || page === 'org/personnel' ? 'card' : 'line'}
             employee={demo ? { ...headerEmployee, companyName: workspaceName } : headerEmployee} />

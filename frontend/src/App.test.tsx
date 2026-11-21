@@ -157,6 +157,38 @@ afterEach(() => {
 });
 
 describe('React 앱 탐색과 제출', () => {
+  it('첫 담당자가 홈에서 회사 초기 설정을 열면 담당자 메뉴로 전환하고 첫 출근에 필요한 화면을 순서대로 안내한다', () => {
+    window.history.replaceState(null, '', '/me/home');
+    render(<App initial={{ ...today, page: 'workspace/home', data: { ...today.data,
+      workspacePrincipal: { roles: ['EMPLOYEE', 'ATTENDANCE_ADMIN'] },
+    } }} />);
+    const role = screen.getByRole('combobox', { name: '업무 권한' }) as HTMLSelectElement;
+    expect(role.value).toBe('EMPLOYEE');
+    const toggle = screen.getByRole('button', { name: '회사 초기 설정' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(role.value).toBe('ATTENDANCE_ADMIN');
+    const guide = within(screen.getByRole('navigation', { name: '회사 초기 설정 순서' }));
+    expect(guide.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual([
+      '/admin/organizations', '/admin/schedules?tab=codes', '/admin/schedules?tab=groups', '/admin/calendar',
+      '/admin/networks', '/admin/employees/onboarding', '/admin/access?role=APPROVER',
+      '/admin/approval-routes', '/admin/request-forms',
+    ]);
+    fireEvent.change(role, { target: { value: 'EMPLOYEE' } });
+    expect(screen.queryByRole('navigation', { name: '회사 초기 설정 순서' })).toBeNull();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it.each([
+    [['EMPLOYEE'], false], [['EMPLOYEE', 'APPROVER', 'COMPANY_REPRESENTATIVE'], false],
+    [['EMPLOYEE', 'ATTENDANCE_ADMIN'], true],
+  ] as const)('보유 권한 %j, 데모 %s에서는 회사 초기 설정을 제공하지 않는다', (roles, workspaceDemo) => {
+    render(<App initial={{ ...today, page: 'workspace/home', data: { ...today.data,
+      workspaceDemo, workspacePrincipal: { roles },
+    } }} />);
+    expect(screen.queryByRole('button', { name: '회사 초기 설정' })).toBeNull();
+  });
+
   it('상단 보유 권한 선택은 로그인 사원을 유지하며 업무 메뉴만 전환한다', () => {
     const fetcher = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetcher);

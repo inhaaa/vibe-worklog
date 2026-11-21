@@ -127,12 +127,15 @@ function ConfirmForm({ model: m, row }: { model: Model; row: Row }) {
   const [organization, setOrganization] = useState(f.organizationId ?? '');
   const [schedule, setSchedule] = useState(f.scheduleVersionId ?? '');
   const org = m.organizations.find(choice => choice.id === organization);
-  const work = optionsOn(m,row.joinedOn).find(choice => choice.id === schedule);
+  const schedules = optionsOn(m, row.joinedOn);
+  const work = schedules.find(choice => choice.id === schedule);
   const expired = row.joinedOn < m.today;
   return <section className="wl-section">
     <h2>입사 확정 검토</h2>
     <p>회사 입사일 {row.joinedOn}. 소속과 근무는 같은 날부터 적용됩니다.</p>
     {expired && <p role="status">예정일이 지났습니다. 입사 예정일을 수정한 뒤 확정하세요.</p>}
+    {!expired && m.organizations.length === 0 && <p>선택할 소속이 없습니다. <a href="/admin/organizations">소속 조직 등록</a></p>}
+    {!expired && schedules.length === 0 && <p>입사일에 적용할 근무 기준이 없습니다. <a href={`/admin/schedules?tab=codes&date=${row.joinedOn}`}>입사일 근무 설정</a></p>}
     <CommandForm action={`${path}/${row.id}/confirm`} command={f}>
       <input type="hidden" name="expectedVersion" value={row.version} />
       <input type="hidden" name="expectedOrganizationVersion" value={org?.version ?? ''} />
