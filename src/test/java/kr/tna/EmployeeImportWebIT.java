@@ -1,6 +1,13 @@
 package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -12,13 +19,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 class EmployeeImportWebIT {
     @Autowired EmployeeImportService imports;
+    @Autowired MockMvc mvc;
     JdbcTemplate db;
     UUID tenant;
     kr.tna.common.auth.TnaPrincipal manager;
@@ -128,5 +143,40 @@ class EmployeeImportWebIT {
         assertEquals(422, error.status());
         assertEquals("birthDate", error.preview().rows().get(1).errors().getFirst().field());
         assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.employee WHERE tenant_id=?", Integer.class, tenant));
+    }
+
+    @Test void pageTemplateAndJsonEndpointsFollowTheContract() throws Exception {
+        mvc.perform(authenticated(get("/admin/employees/import"), manager))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
+                .andExpect(ReactPageAssertions.data("/employeeImport/maxRows", 500))
+                .andExpect(ReactPageAssertions.data("/employeeImport/organizations/0/code", "D10"));
+        var template = mvc.perform(authenticated(get("/admin/employees/import/template"), manager))
+                .andExpect(status().isOk()).andExpect(header().string("Content-Disposition", "attachment; filename=employee-import.csv"))
+                .andReturn().getResponse().getContentAsByteArray();
+        assertArrayEquals(new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}, java.util.Arrays.copyOf(template, 3));
+        assertTrue(new String(template, java.nio.charset.StandardCharsets.UTF_8).contains("사번,이름,입사일,생년월일,조직코드,직급,직책"));
+
+        String body = """
+                {"rows":[{"clientRowId":"a","employeeNo":"","displayName":"가","joinedOn":"2019-03-04","birthDate":"2019-03-04","organizationCode":"D10","gradeName":"","positionName":""}]}
+                """;
+        mvc.perform(authenticated(post("/admin/employees/import/preview"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.rows[0].errors[0].field").value("birthDate"));
+        String save = body.replace("{\"rows\"", "{\"commandId\":\"" + UUID.randomUUID() + "\",\"reason\":\"이관\",\"rows\"");
+        mvc.perform(authenticated(post("/admin/employees/import/save"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content(save))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.rows[0].errors[0].field").value("birthDate"));
+        mvc.perform(authenticated(post("/admin/employees/import/save"), manager)
+                        .contentType(MediaType.APPLICATION_JSON).content(save))
+                .andExpect(status().isForbidden());
+        mvc.perform(authenticated(post("/admin/employees/import/preview"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"rows\":[]}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.message").value("1~500행을 붙여넣어 주세요."));
+    }
+
+    private MockHttpServletRequestBuilder authenticated(MockHttpServletRequestBuilder request, kr.tna.common.auth.TnaPrincipal actor) {
+        return request.with(authentication(UsernamePasswordAuthenticationToken.authenticated(actor, null,
+                actor.roles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList())));
     }
 }

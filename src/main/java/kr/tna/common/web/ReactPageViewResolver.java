@@ -48,6 +48,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("org/employees", "employees", "employeeOrganizations", "selectedEmployee", "pageEmployeeCount",
                     "pageActiveCount", "pageInactiveCount", "organizationId", "status", "hasNext", "q", "page", "form", "options", "orgNames", "employeeSheet", "employeeContext", "personnelBasics", "personnelAsOf", "publicDemo"),
             page("org/onboarding", "onboarding"),
+            page("org/employee-import", "employeeImport"),
             page("org/organization-heads", "organizationHeads"),
             page("org/approval-routes", "approvalRoutes"),
             page("org/request-forms", "requestForms", "draft", "routePreview"),
