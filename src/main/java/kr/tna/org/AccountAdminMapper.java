@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface AccountAdminMapper {
     @Select("""
-            SELECT id,employee_id,email,active,credential_set,auth_version
+            SELECT id,employee_id,email,active,credential_set,auth_version,activation_expires_at,activation_failures
             FROM tna.tenant_account WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId}
             """)
     AccountRow account(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId);
@@ -63,6 +63,21 @@ public interface AccountAdminMapper {
             @Param("email") String email, @Param("authVersion") long authVersion,
             @Param("expiresAt") Instant expiresAt, @Param("actorId") UUID actorId);
 
-    record AccountRow(UUID id, UUID employeeId, String email, boolean active,
-                      boolean credentialSet, long authVersion) { }
+    @Insert("""
+            INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at)
+            VALUES (#{tenantId},#{accountId},#{employeeId},false,#{expiresAt})
+            """)
+    int insertPendingAccount(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId,
+                             @Param("employeeId") UUID employeeId, @Param("expiresAt") Instant expiresAt);
+
+    @Update("""
+            UPDATE tna.tenant_account
+            SET activation_expires_at=#{expiresAt},activation_failures=0,auth_version=auth_version+1
+            WHERE tenant_id=#{tenantId} AND id=#{accountId}
+            """)
+    int reopenActivation(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId,
+                         @Param("expiresAt") Instant expiresAt);
+
+    record AccountRow(UUID id, UUID employeeId, String email, boolean active, boolean credentialSet,
+                      long authVersion, Instant activationExpiresAt, int activationFailures) { }
 }

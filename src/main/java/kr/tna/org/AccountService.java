@@ -130,7 +130,8 @@ public final class AccountService {
     private Account account(UUID tenantId, UUID employeeId) {
         var row = mapper.account(tenantId, employeeId);
         return row == null ? null : new Account(row.id(), row.employeeId(), row.email(), row.active(),
-                row.credentialSet(), row.authVersion(), Set.copyOf(mapper.roles(tenantId, row.id())));
+                row.credentialSet(), row.authVersion(), Set.copyOf(mapper.roles(tenantId, row.id())),
+                row.activationExpiresAt(), row.activationFailures());
     }
 
     private OrgData.Employee requireEmployee(UUID tenantId, UUID employeeId, boolean current) {
