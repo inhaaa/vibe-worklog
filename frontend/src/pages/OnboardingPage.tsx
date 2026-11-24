@@ -33,6 +33,15 @@ interface Model {
 const path = '/admin/employees/onboarding';
 const states: Record<State, string> = { PLANNED: '입사 예정', CONFIRMED: '확정', WITHDRAWN: '철회' };
 
+// 생년월일 상한: 입사 예정일 전날과 오늘 중 빠른 날
+function birthMax(joined: string, today: string) {
+  const d = new Date(`${joined}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return today;
+  d.setUTCDate(d.getUTCDate() - 1);
+  const before = d.toISOString().slice(0, 10);
+  return before < today ? before : today;
+}
+
 function commandFor(m: Model, action: Action): Command {
   const row = m.detail;
   const initial = row ? {
@@ -107,7 +116,7 @@ function PlannedForm({ model: m }: { model: Model }) {
       <FormTable columns={2}>
         <Field label="이름" name="displayName" value={f.displayName ?? ''} maxLength={120} required />
         <Field label="입사 예정일" name="joinedOn" type="date" value={joined} onChange={e => changeDate(e.target.value)} min={m.today} required />
-        <Field label="생년월일" name="birthDate" type="date" value={f.birthDate ?? ''} max={joined} required />
+        <Field label="생년월일" name="birthDate" type="date" value={f.birthDate ?? ''} min="1900-01-01" max={birthMax(joined, m.today)} required />
         <Field label="마지막 재직일" name="leftOn" type="date" value={f.leftOn ?? ''} />
         <SelectField label="최초 소속" name="organizationId" value={f.organizationId ?? ''}>
           <option value="">확정할 때 지정</option><OrganizationOptions model={m} />
@@ -178,7 +187,7 @@ function Detail({ model: m, row }: { model: Model; row: Row }) {
       <p>입사 · {row.joinedOn} · 사번 {row.employeeNo}</p>
       <ScheduleSummary model={m} date={row.joinedOn} id={row.scheduleVersionId} name={row.scheduleTemplateName}/>
       <a className="t-btn" href={`/admin/employees/${row.employeeId}/personnel`}>확정 사원 인사기본</a>{' '}
-      {m.accountStatus && <p>계정 · {m.accountStatus} (사번으로 로그인해 생년월일 확인)</p>}
+      {m.accountStatus && <p>계정 · {m.accountStatus}{m.accountStatus === '최초 접속 대기' && ' (사번으로 로그인해 생년월일 확인)'}</p>}
     </section>}
     {planned && !m.publicDemo && <>
       <PlannedForm model={m} />

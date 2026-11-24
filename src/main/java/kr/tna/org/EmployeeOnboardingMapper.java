@@ -139,7 +139,7 @@ public interface EmployeeOnboardingMapper {
              @Param("form") Form form, @Param("actorId") UUID actorId);
 
     @Update("""
-            UPDATE tna.employee_onboarding SET state='WITHDRAWN',version=version+1,
+            UPDATE tna.employee_onboarding SET state='WITHDRAWN',birth_date=NULL,version=version+1,
                 decided_by=#{actorId},decided_at=CURRENT_TIMESTAMP,updated_by=#{actorId},updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{version} AND state='PLANNED'
             """)
@@ -147,7 +147,7 @@ public interface EmployeeOnboardingMapper {
                  @Param("version") long version, @Param("actorId") UUID actorId);
 
     @Update("""
-            UPDATE tna.employee_onboarding SET state='CONFIRMED',version=version+1,
+            UPDATE tna.employee_onboarding SET state='CONFIRMED',birth_date=NULL,version=version+1,
                 organization_id=#{organization.id},schedule_version_id=#{schedule.id},employee_id=#{employeeId},
                 organization_assignment_id=#{organizationAssignmentId},schedule_assignment_id=#{scheduleAssignmentId},
                 organization_code=#{organization.code},organization_name=#{organization.name},

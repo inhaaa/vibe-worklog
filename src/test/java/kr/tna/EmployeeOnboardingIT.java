@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.EmployeeOnboardingMapper;
 import kr.tna.schedule.ScheduleMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ class EmployeeOnboardingIT {
 
     @Autowired MockMvc mvc;
     @MockitoSpyBean ScheduleMapper schedules;
+    @MockitoSpyBean EmployeeOnboardingMapper onboardingMapper;
     private JdbcTemplate database;
     private TnaPrincipal manager;
     private UUID organization;
@@ -136,6 +138,16 @@ class EmployeeOnboardingIT {
                 "SELECT birth_date FROM tna.employee_personnel WHERE tenant_id=? AND employee_id=?", LocalDate.class, manager.tenantId(), employee));
         assertNotNull(database.queryForObject(
                 "SELECT activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", java.sql.Timestamp.class, manager.tenantId(), employee));
+        assertNull(database.queryForObject("SELECT birth_date FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                LocalDate.class, manager.tenantId(), draft));
+        mvc.perform(post("/first-login").with(csrf()).param("companyCode", "ONB-" + manager.tenantId().toString().toUpperCase(Locale.ROOT))
+                        .param("employeeNo", number).param("birthDate", "1995-04-01")
+                        .param("password", "합성 onboarding early 41!").param("confirmation", "합성 onboarding early 41!"))
+                .andExpect(result -> assertNotEquals("/login?activated", result.getResponse().getRedirectedUrl()));
+        assertNull(database.queryForObject("SELECT password_hash FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?",
+                String.class, manager.tenantId(), employee));
+        assertNotNull(database.queryForObject(
+                "SELECT activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", java.sql.Timestamp.class, manager.tenantId(), employee));
         assertEquals(java.util.List.of("EMPLOYEE"), database.queryForList("""
                 SELECT g.role FROM tna.role_grant g JOIN tna.tenant_account a ON a.tenant_id=g.tenant_id AND a.id=g.account_id
                 WHERE a.tenant_id=? AND a.employee_id=? AND g.active""", String.class, manager.tenantId(), employee));
@@ -162,9 +174,25 @@ class EmployeeOnboardingIT {
     void confirmationRequiresBirthDate() throws Exception {
         UUID planned = create(TODAY);
         database.update("UPDATE tna.employee_onboarding SET birth_date=NULL WHERE tenant_id=? AND id=?", manager.tenantId(), planned);
-        mvc.perform(confirm(planned, UUID.randomUUID())).andExpect(status().isUnprocessableContent());
+        mvc.perform(confirm(planned, UUID.randomUUID())).andExpect(status().isUnprocessableContent())
+                .andExpect(result -> assertTrue(result.getResponse().getContentAsString().contains("생년월일을 입력한 뒤 확정해 주세요.")));
+        assertEquals(1, count("employee"));
+        assertEquals(1, count("tenant_account"));
         assertEquals("PLANNED", database.queryForObject("SELECT state FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
                 String.class, manager.tenantId(), planned));
+    }
+
+    @Test
+    void invalidBirthDatesAreRejectedWithoutCreatingARecord() throws Exception {
+        LocalDate joined = TODAY.plusDays(3);
+        long before = count("employee_onboarding");
+        for (String birth : new String[]{null, joined.toString(), "1899-12-31", TODAY.plusDays(1).toString()}) {
+            var request = auth(post(PATH), manager).param("displayName", "합성 입사자").param("joinedOn", joined.toString())
+                    .param("commandId", UUID.randomUUID().toString()).param("reason", "합성 예정");
+            if (birth != null) request.param("birthDate", birth);
+            mvc.perform(request).andExpect(status().isUnprocessableContent());
+            assertEquals(before, count("employee_onboarding"), "birth=" + birth);
+        }
     }
 
     @Test
@@ -181,6 +209,8 @@ class EmployeeOnboardingIT {
         assertEquals("WITHDRAWN", database.queryForObject("SELECT state FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
                 String.class, manager.tenantId(), draft));
         assertEquals(1, count("employee"));
+        assertNull(database.queryForObject("SELECT birth_date FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                LocalDate.class, manager.tenantId(), draft));
         mvc.perform(auth(get(PATH + "/{id}", draft), member(UUID.randomUUID(), "ATTENDANCE_ADMIN")))
                 .andExpect(status().isNotFound());
         mvc.perform(auth(get(PATH), member(UUID.randomUUID(), "COMPANY_REPRESENTATIVE")))
@@ -201,6 +231,20 @@ class EmployeeOnboardingIT {
                 String.class, manager.tenantId(), draft));
         assertEquals(0L, database.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
                 Long.class, manager.tenantId(), command));
+    }
+
+    @Test
+    void failureAfterPersonnelAndAccountWritesRollsBackThem() throws Exception {
+        UUID draft = create(TODAY);
+        doThrow(new DataIntegrityViolationException("합성 확정 갱신 실패")).when(onboardingMapper)
+                .confirm(any(), any(), anyLong(), any(), any(), any(), any(), any(), any(), any());
+        mvc.perform(confirm(draft, UUID.randomUUID())).andExpect(status().isConflict());
+        assertEquals(1, count("employee"));
+        assertEquals(1, count("tenant_account"));
+        assertEquals(0, count("employee_personnel"));
+        assertEquals(0, count("employee_assignment"));
+        assertEquals("PLANNED", database.queryForObject("SELECT state FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                String.class, manager.tenantId(), draft));
     }
 
     @Test

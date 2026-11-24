@@ -79,6 +79,23 @@ it('확정된 사원은 계정 상태와 최초 접속 안내를 보여 주고 �
   expect(view.queryByRole('link', { name: '계정 초대' })).toBeNull();
 });
 
+it('최초 접속 대기가 아닌 계정 상태에는 로그인 안내를 붙이지 않는다', () => {
+  const confirmed = { ...onboarding, accountStatus: '사용 중', detail: { ...onboarding.detail, state: 'CONFIRMED', employeeId: 'employee', employeeNo: '26001' } };
+  const view = render(<OnboardingPage data={{ onboarding: confirmed }} />);
+  expect(view.getByText('계정 · 사용 중')).toBeTruthy();
+});
+
+it('생년월일 입력은 1900-01-01부터 입사일 전날과 오늘 중 빠른 날까지로 제한한다', () => {
+  const view = render(<OnboardingPage data={{ onboarding: { ...onboarding, today: '2026-11-24', detail: null } }} />);
+  const input = view.getByLabelText('생년월일');
+  expect(input.getAttribute('min')).toBe('1900-01-01');
+  expect(input.getAttribute('max')).toBe('2026-11-23');
+  fireEvent.change(view.getByLabelText('입사 예정일'), { target: { value: '2026-11-25' } });
+  expect(view.getByLabelText('생년월일').getAttribute('max')).toBe('2026-11-24');
+  fireEvent.change(view.getByLabelText('입사 예정일'), { target: { value: '2027-01-10' } });
+  expect(view.getByLabelText('생년월일').getAttribute('max')).toBe('2026-11-24');
+});
+
 it('입사 예정 등록 폼은 필수 생년월일 날짜 칸을 가진다', () => {
   const view = render(<OnboardingPage data={{ onboarding: { ...onboarding, detail: null } }} />);
   expect(view.getByLabelText('생년월일').getAttribute('type')).toBe('date');

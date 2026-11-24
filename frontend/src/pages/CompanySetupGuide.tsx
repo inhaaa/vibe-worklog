@@ -19,8 +19,8 @@ export function CompanySetupGuide({ adminSelected, selectAdmin }: { adminSelecte
           {' '}<a href="/admin/calendar">근무일·휴일</a>에서 첫 근무일이 포함된 기간을 등록합니다.</li>
         <li><a href="/admin/networks">허용 네트워크</a>에 출퇴근을 기록할 사업장의 IP 대역을 등록합니다.</li>
         <li><a href="/admin/employees/onboarding">입사 예정 관리</a>에서 직원과 결재자의 입사일·소속·근무를 확정합니다.
-          입사일부터 각 사원의 최초 발령 아래 <strong>계정 초대</strong>를 열어 초대를 발급하거나 재발급할 수 있습니다.</li>
-        <li><a href="/admin/access?role=APPROVER">승인자 권한 관리</a>에서 초대를 수락한 결재자에게 권한을 부여합니다.
+          확정하면 계정이 자동으로 만들어지고, 직원은 입사일부터 사번으로 첫 로그인해 <strong>생년월일 확인</strong> 후 비밀번호를 정합니다.</li>
+        <li><a href="/admin/access?role=APPROVER">승인자 권한 관리</a>에서 첫 로그인을 마친 결재자에게 권한을 부여합니다.
           {' '}<a href="/admin/approval-routes">결재선 관리</a>에서 결재선을 만들고 <a href="/admin/request-forms">신청서코드 관리</a>에서 신청서에 연결한 뒤 사원별로 미리 봅니다.</li>
       </ol>
     </nav>

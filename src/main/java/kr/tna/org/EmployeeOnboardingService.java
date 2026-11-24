@@ -71,9 +71,10 @@ public class EmployeeOnboardingService {
             var employee = publicDemo || detail == null || detail.employeeId() == null ? null
                     : employees.get(tenant, detail.employeeId());
             var account = employee == null ? null : accounts.account(tenant, employee.id());
+            var stored = employee == null ? null : personnel.stored(tenant, employee.id());
             String accountStatus = employee == null ? null : AccountStatus.of(account != null,
                     account != null && account.active(), account == null ? null : account.activationExpiresAt(),
-                    account == null ? 0 : account.activationFailures(), true, asOf).label();
+                    account == null ? 0 : account.activationFailures(), stored != null && stored.birthDate() != null, asOf).label();
             return new View(asOf, today, query, state, from, to, page, rows.size() > 50,
                     rows.stream().limit(50).toList(), detail, organizationOptions, scheduleOptions, scheduleDays, form, publicDemo, action,
                     duplicate, accountStatus, retrySameCommand);
@@ -214,10 +215,10 @@ public class EmployeeOnboardingService {
         }
     }
 
-    private static void validateBirthDate(LocalDate birthDate, LocalDate joinedOn) {
+    private void validateBirthDate(LocalDate birthDate, LocalDate joinedOn) {
         if (birthDate == null) throw OrgException.invalid("생년월일을 입력해 주세요.");
-        if (birthDate.isBefore(LocalDate.of(1900, 1, 1)) || !birthDate.isBefore(joinedOn)) {
-            throw OrgException.invalid("생년월일은 1900-01-01 이후, 입사일 이전으로 입력해 주세요.");
+        if (birthDate.isBefore(LocalDate.of(1900, 1, 1)) || !birthDate.isBefore(joinedOn) || birthDate.isAfter(commands.today())) {
+            throw OrgException.invalid("생년월일은 1900-01-01 이후, 입사일 이전, 오늘 이전으로 입력해 주세요.");
         }
     }
 
