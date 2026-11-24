@@ -320,6 +320,25 @@ async function run(browser, device) {
     const field = await adminPage.$(editing);
     if (field) await field.press('Enter');
   }
+  async function clockInOn(page, person, track) {
+    const clockButton = 'form:has([name=eventKind][value=IN]) button';
+    const eventPath = '/me/attendance/events';
+    if (track) {
+      page.on('request', request => {
+        if (request.method() === 'POST' && new URL(request.url()).pathname === eventPath) clockIn.posts++;
+      });
+    }
+    const button = await page.waitForSelector(clockButton + ':enabled', { visible: true });
+    assert.equal(await button.evaluate(e => e.textContent.trim()), '출근');
+    await button.evaluate(async e => {
+      e.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+      await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+    });
+    await posted(page, eventPath, () => mobile ? button.tap() : button.click(), [303]);
+    await page.waitForFunction(s => document.querySelector(s)?.disabled && /출근 \d\d:\d\d/.test(document.querySelector(s).textContent), {}, clockButton);
+    person.clock = await page.$eval(clockButton, e => e.textContent);
+  }
+  const imported = [makePerson('일괄 등록 직원 A', ''), makePerson('일괄 등록 직원 B', '')];
   try {
     await check('운영자 회사 개통', async () => {
       const operatorPage = await newPage();
@@ -408,6 +427,52 @@ async function run(browser, device) {
       await hire(locked);
       employeePage = await newPage();
     });
+    await check('재직자 일괄 등록(붙여넣기·검증 오류 수정·저장)과 사용자 관리 최초 접속 대기', async () => {
+      const ago = new Date(date + 'T00:00:00Z');
+      ago.setUTCFullYear(ago.getUTCFullYear() - 1);
+      const iso = ago.toISOString().slice(0, 10);
+      const joined = iso.replaceAll('-', '.');
+      await open(adminPage, '/admin/employees/import');
+      const orgText = await adminPage.$eval('p.t-muted', e => e.innerText);
+      const orgCode = orgText.match(/([^\s,]+) 첫 근무팀/)?.[1];
+      assert.ok(orgCode, '조직코드 안내에서 첫 근무팀 코드');
+      const row = (name, birth) => ['', name, joined, birth, orgCode, '사원', ''].join('\t');
+      const tsv = birthB => row(imported[0].name, '19900512') + '\n' + row(imported[1].name, birthB);
+      // The textarea reads clipboardData in its React paste handler; a synthetic paste event carries the TSV.
+      const paste = text => adminPage.$eval('textarea[aria-label="엑셀에서 복사한 행 붙여넣기"]', (e, t) => {
+        const data = new DataTransfer();
+        data.setData('text/plain', t);
+        e.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      }, text);
+      const validate = () => click(adminPage, 'button', '검증');
+      await paste(tsv(iso.replaceAll('-', '')));
+      await validate();
+      await visible(adminPage, '[role=status]', '오류 1행');
+      await visible(adminPage, '.ag-cell', '생년월일은 입사일 이전이어야 합니다.');
+      // Re-pasting the corrected text replaces the rows; this avoids driving a second AG Grid cell editor.
+      await paste(tsv('19900512'));
+      await validate();
+      await visible(adminPage, '[role=status]', '모든 행 정상');
+      const numbers = await adminPage.waitForFunction(() => {
+        const rows = Array.from(document.querySelectorAll('.ag-center-cols-container .ag-row'))
+          .sort((a, b) => a.getAttribute('row-index') - b.getAttribute('row-index'));
+        const found = rows.map(r => r.querySelector('[col-id="status"]')?.innerText.match(/정상 · 사번 (\S+)/)?.[1]);
+        return found.length === 2 && found.every(Boolean) && found;
+      });
+      (await numbers.jsonValue()).forEach((n, i) => { imported[i].number = n; });
+      await fill(adminPage, '#import-reason', why);
+      await click(adminPage, 'button', '저장');
+      await visible(adminPage, '[role=status]', '등록 2명 · 계정 2개');
+      await screen(adminPage, 'employee-import');
+      // 사용자 관리: filter by 최초 접속 대기 and the second imported number.
+      await open(adminPage, '/admin/accounts');
+      await selectOption(adminPage, '#account-status', '최초 접속 대기');
+      await fill(adminPage, '#account-q', imported[1].number);
+      await Promise.all([adminPage.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+        adminPage.$eval('form[action="/admin/accounts"]', f => f.requestSubmit())]);
+      await adminPage.waitForFunction(n => Array.from(document.querySelectorAll('tbody tr')).some(r =>
+        r.innerText.includes(n) && r.innerText.includes('최초 접속 대기')), {}, imported[1].number);
+    });
     await check('결재선 설정과 신청서 연결·직원별 미리보기', async () => {
       stage = '결재선 시트 등록';
       await setupLink('/admin/approval-routes');
@@ -442,21 +507,22 @@ async function run(browser, device) {
       await visible(employeePage, '.t-work-home-schedule', shift[1]);
       await visible(employeePage, '.t-work-home-timeline li', shift[2]);
       await visible(employeePage, '.t-work-home-timeline li', shift[3]);
-      const clockButton = 'form:has([name=eventKind][value=IN]) button';
-      const eventPath = '/me/attendance/events';
-      employeePage.on('request', request => {
-        if (request.method() === 'POST' && new URL(request.url()).pathname === eventPath) clockIn.posts++;
-      });
-      const button = await employeePage.waitForSelector(clockButton + ':enabled', { visible: true });
-      assert.equal(await button.evaluate(e => e.textContent.trim()), '출근');
-      await button.evaluate(async e => {
-        e.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-        await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
-      });
-      await posted(employeePage, eventPath, () => mobile ? button.tap() : button.click(), [303]);
-      await employeePage.waitForFunction(s => document.querySelector(s)?.disabled && /출근 \d\d:\d\d/.test(document.querySelector(s).textContent), {}, clockButton);
-      worker.clock = await employeePage.$eval(clockButton, e => e.textContent);
+      await clockInOn(employeePage, worker, true);
       await screen(employeePage, 'clock-in');
+    });
+    await check('일괄 등록 직원 첫 로그인(사번·생년월일), 첫 출근과 사용자 관리 사용 중', async () => {
+      const page = await newPage();
+      await startFirstLogin(page, imported[0]);
+      await setPassword(page, imported[0], imported[0].birth);
+      await login(page, imported[0], true, imported[0].number);
+      await clockInOn(page, imported[0], false);
+      await finishPage(page);
+      const manager = await newPage();
+      await login(manager, admin);
+      await open(manager, '/admin/accounts?q=' + encodeURIComponent(imported[0].number));
+      await manager.waitForFunction(n => Array.from(document.querySelectorAll('tbody tr')).some(r =>
+        r.innerText.includes(n) && r.innerText.includes('사용 중')), {}, imported[0].number);
+      await finishPage(manager);
     });
     await check('최초 접속 5회 실패 잠금, 담당자 초기화와 재접속', async () => {
       const attempt = await newPage();
@@ -502,7 +568,7 @@ async function run(browser, device) {
       } finally { await finishPage(separateSession); }
     }
     assert.equal(problems.length, 0, '브라우저 런타임 오류');
-    return { result: { device, viewport, company, date, shift, clockIn, keyboardActivations, mailboxMessages: 1, passed },
+    return { result: { device, viewport, company, date, shift, clockIn, keyboardActivations, mailboxMessages: 1, importedEmployees: imported.length, passed },
       verifySingleGrant: mobile ? verifySingleGrant : undefined };
   } catch (error) {
     let location = '';
