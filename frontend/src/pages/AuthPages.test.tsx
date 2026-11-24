@@ -49,7 +49,7 @@ describe('AuthPages', () => {
   it('다른 업무 페이지는 위임한다', () => {
     expect(html('me/today', {})).toBe('');
   });
-  it('일반 로그인은 회사코드·사번 또는 초대 이메일과 설정한 비밀번호를 사용한다', () => {
+  it('일반 로그인은 회사코드·사번 또는 이메일과 설정한 비밀번호를 사용한다', () => {
     const result = html('login', {
       localDemo: false,
       demoLogin: 'admin',
@@ -60,8 +60,11 @@ describe('AuthPages', () => {
     expect(result).toContain('name="email"');
     expect(result).toContain('type="text"');
     expect(result).toContain('사번');
-    expect(result).toContain('사번 또는 초대 이메일');
-    expect(result).toContain('minLength="12"');
+    expect(result).toContain('사번 또는 이메일');
+    expect(result).not.toContain('minLength');
+    expect(result).toContain('비밀번호 칸에 사번을');
+    expect(result).toContain('담당자에게 초기화를 요청하세요');
+    expect(result).not.toContain('초대 메일을 열어');
     expect(result).toContain('초대를 수락했습니다');
     expect(result).toContain('로그인 정보를 확인');
     expect(result).not.toContain('admin / admin');
@@ -134,7 +137,7 @@ describe('AuthPages', () => {
       view.unmount();
     }
     const login = render(page('login', { flags: { invited: true } }));
-    expect(login.getByLabelText('사번 또는 초대 이메일')).toBeTruthy();
+    expect(login.getByLabelText('사번 또는 이메일')).toBeTruthy();
     expect(login.getByRole('status').textContent).toContain('회사 코드');
   });
   it('운영자 로그인은 독립 인증 경로와 로그인명을 유지한다', () => {

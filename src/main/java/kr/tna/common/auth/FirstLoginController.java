@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Objects;
 import kr.tna.org.OrgException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -22,8 +23,8 @@ public final class FirstLoginController {
     @GetMapping("/first-login")
     ModelAndView form(HttpServletRequest request) {
         var flash = RequestContextUtils.getInputFlashMap(request);
-        return view(flash == null ? "" : String.valueOf(flash.get("companyCode")),
-                flash == null ? "" : String.valueOf(flash.get("employeeNo")));
+        return view(flash == null ? "" : Objects.toString(flash.get("companyCode"), ""),
+                flash == null ? "" : Objects.toString(flash.get("employeeNo"), ""));
     }
 
     @PostMapping("/first-login")

@@ -545,7 +545,7 @@ describe('React 앱 탐색과 제출', () => {
     vi.stubGlobal('fetch', fetcher);
     const view = render(<App initial={login} />);
     fireEvent.change(screen.getByLabelText('회사 코드'), { target: { value: 'sample-company' } });
-    fireEvent.change(screen.getByLabelText('사번 또는 초대 이메일'), {
+    fireEvent.change(screen.getByLabelText('사번 또는 이메일'), {
       target: { value: 'employee+test@example.test' },
     });
     fireEvent.change(screen.getByLabelText('비밀번호'), {

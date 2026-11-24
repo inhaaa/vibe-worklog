@@ -4,6 +4,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.servlet.FlashMap;
+import org.springframework.web.servlet.support.SessionFlashMapManager;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -48,6 +51,43 @@ class FirstLoginWebIT {
                 .andExpect(jsonPath("$.page").value("first-login"))
                 .andExpect(jsonPath("$.data.companyCode").value(company))
                 .andExpect(jsonPath("$.data.employeeNo").value("2019031"));
+    }
+
+    @Test void unknownCompanyAndEmployeeGetTheSameRedirectAsARealPendingAccount() throws Exception {
+        mvc.perform(post("/login").with(csrf()).param("companyCode", "NO-SUCH-" + UUID.randomUUID())
+                        .param("email", "0000000").param("password", "0000000"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/first-login"));
+    }
+
+    @Test void overLongOrMissingInputsFallThroughToTheGenericError() throws Exception {
+        String longLogin = "1".repeat(41);
+        mvc.perform(post("/login").with(csrf()).param("companyCode", company).param("email", longLogin).param("password", longLogin))
+                .andExpect(redirectedUrl("/login?error"));
+        mvc.perform(post("/login").with(csrf()).param("companyCode", "C".repeat(81)).param("email", "2019031").param("password", "2019031"))
+                .andExpect(redirectedUrl("/login?error"));
+        mvc.perform(post("/login").with(csrf()).param("email", "2019031").param("password", "2019031"))
+                .andExpect(redirectedUrl("/login?error"));
+    }
+
+    @Test void firstLoginPostRequiresCsrf() throws Exception {
+        mvc.perform(post("/first-login")).andExpect(status().isForbidden());
+    }
+
+    @Test void flashCarriesOnlyCompanyCodeAndEmployeeNumber() throws Exception {
+        var session = new MockHttpSession();
+        mvc.perform(post("/login").session(session).with(csrf()).param("companyCode", company)
+                        .param("email", "2019031").param("password", "2019031"))
+                .andExpect(redirectedUrl("/first-login"));
+        @SuppressWarnings("unchecked")
+        var maps = (java.util.List<FlashMap>) session.getAttribute(SessionFlashMapManager.class.getName() + ".FLASH_MAPS");
+        org.junit.jupiter.api.Assertions.assertEquals(1, maps.size());
+        org.junit.jupiter.api.Assertions.assertEquals(Set.of("companyCode", "employeeNo"), maps.get(0).keySet());
+    }
+
+    @Test void pageClientGetsTheSameRedirect() throws Exception {
+        mvc.perform(post("/login").with(csrf()).accept(PAGE).param("companyCode", company)
+                        .param("email", "2019031").param("password", "2019031"))
+                .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/first-login"));
     }
 
     @Test void otherWrongPasswordsStayOnLogin() throws Exception {

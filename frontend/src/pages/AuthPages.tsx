@@ -214,7 +214,7 @@ function Login({ model: m }: { model: AuthModel }) {
           )}
           <Field
             id="email"
-            label={m.localDemo ? '사번' : '사번 또는 초대 이메일'}
+            label={m.localDemo ? '사번' : '사번 또는 이메일'}
             name="email"
             type="text"
             autoComplete="username"
@@ -227,7 +227,7 @@ function Login({ model: m }: { model: AuthModel }) {
             name="password"
             type="password"
             autoComplete="current-password"
-            minLength={m.localDemo ? 5 : 12}
+            minLength={m.localDemo ? 5 : undefined}
             maxLength={256}
             required
             aria-describedby="password-help"
@@ -235,7 +235,7 @@ function Login({ model: m }: { model: AuthModel }) {
           <p id="password-help" className="hint">
             {m.localDemo
               ? '담당자 사번은 99999입니다. 데모 상단의 사번 변경에서 다른 테스트 사원을 선택할 수 있습니다.'
-              : '공백을 포함한 12~128자의 비밀번호를 사용합니다.'}
+              : '처음 로그인할 때는 비밀번호 칸에 사번을, 그 외에는 12~128자 비밀번호를 입력하세요.'}
           </p>
           <button type="submit">로그인</button>
         </Form>
@@ -245,7 +245,7 @@ function Login({ model: m }: { model: AuthModel }) {
               <a href="/password-reset">비밀번호 재설정</a>
             </p>
             <p className="hint">
-              처음 이용하신다면 초대 메일을 열어 비밀번호를 설정해 주세요.
+              처음이라면 비밀번호 칸에 사번을 입력하면 최초 접속 화면으로 이동합니다. 비밀번호를 잊었는데 이메일이 없으면 담당자에게 초기화를 요청하세요.
             </p>
           </>
         )}
@@ -326,15 +326,15 @@ function FirstLogin({ model: m }: { model: AuthModel }) {
       <section className="panel" aria-labelledby="first-login-title">
         <h1 id="first-login-title">최초 접속</h1>
         <p className="t-auth-context"><span>WorkLog</span><span>회사 계정</span></p>
-        <p>인사정보에 등록된 생년월일을 확인한 뒤 새 비밀번호를 정합니다. 최초 접속은 계정을 만든 날부터 7일 동안 할 수 있습니다.</p>
+        <p>인사정보에 등록된 생년월일을 확인한 뒤 새 비밀번호를 정합니다. 입사일부터 7일 안에(입사일이 지났다면 계정을 만든 날부터 7일) 설정해야 합니다.</p>
         <ErrorNotice message={m.error} />
         <Form action="/first-login" method="post">
           <Field id="first-company" label="회사 코드" name="companyCode" value={m.companyCode ?? ''} maxLength={80} autoComplete="organization" required />
           <Field id="first-employee" label="사번" name="employeeNo" value={m.employeeNo ?? ''} maxLength={40} autoComplete="username" required />
           <Field id="first-birth" label="생년월일" name="birthDate" type="date" autoComplete="bday" required />
-          <Field id="first-password" label="새 비밀번호" name="password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required />
+          <Field id="first-password" label="새 비밀번호" name="password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required aria-describedby="first-password-help" />
           <Field id="first-confirmation" label="새 비밀번호 확인" name="confirmation" type="password" minLength={12} maxLength={128} autoComplete="new-password" required />
-          <p className="hint">공백을 포함해 12~128자로 설정해 주세요. 사번과 같은 비밀번호는 쓸 수 없습니다.</p>
+          <p id="first-password-help" className="hint">공백을 포함해 12~128자로 설정해 주세요. 사번과 같은 비밀번호는 쓸 수 없습니다.</p>
           <button type="submit">비밀번호 정하기</button>
         </Form>
         <p><a href="/login">로그인으로</a></p>

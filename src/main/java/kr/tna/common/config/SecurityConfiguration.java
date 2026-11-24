@@ -118,11 +118,14 @@ public class SecurityConfiguration {
                                 response.setContentType("text/plain;charset=UTF-8");
                                 response.getWriter().write("일시적으로 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
                             } else {
-                                String login = request.getParameter("email"), typed = request.getParameter("password");
+                                String login = request.getParameter("email"), typed = request.getParameter("password"),
+                                        company = request.getParameter("companyCode");
+                                // Input-only decision (never DB state) with bounded values, so nothing leaks and the session flash stays small.
                                 if (!localDemo.enabled() && login != null && typed != null && !login.isBlank() && !login.contains("@")
-                                        && login.strip().equals(typed)) {
+                                        && login.strip().length() <= 40 && login.strip().equals(typed)
+                                        && company != null && !company.isBlank() && company.strip().length() <= 80) {
                                     var flash = new org.springframework.web.servlet.FlashMap();
-                                    flash.put("companyCode", String.valueOf(request.getParameter("companyCode")));
+                                    flash.put("companyCode", company.strip());
                                     flash.put("employeeNo", login.strip());
                                     flash.setTargetRequestPath(request.getContextPath() + "/first-login");
                                     new org.springframework.web.servlet.support.SessionFlashMapManager()
