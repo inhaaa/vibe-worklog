@@ -22,17 +22,25 @@ public class EmployeeOnboardingService {
     private final EmployeeAdminMapper employees;
     private final OrganizationAdminMapper organizations;
     private final ScheduleMapper schedules;
+    private final EmployeePersonnelMapper personnel;
+    private final AccountProvisioning provisioning;
+    private final AccountAdminMapper accounts;
     private final Clock clock;
     private final boolean publicDemo;
 
     public EmployeeOnboardingService(OrgCommands commands, EmployeeOnboardingMapper onboarding,
                                     EmployeeAdminMapper employees, OrganizationAdminMapper organizations,
-                                    ScheduleMapper schedules, Clock clock, Environment environment) {
+                                    ScheduleMapper schedules, EmployeePersonnelMapper personnel,
+                                    AccountProvisioning provisioning, AccountAdminMapper accounts,
+                                    Clock clock, Environment environment) {
         this.commands = commands;
         this.onboarding = onboarding;
         this.employees = employees;
         this.organizations = organizations;
         this.schedules = schedules;
+        this.personnel = personnel;
+        this.provisioning = provisioning;
+        this.accounts = accounts;
         this.clock = clock;
         this.publicDemo = environment.matchesProfiles("public-demo");
     }
@@ -62,11 +70,13 @@ public class EmployeeOnboardingService {
                     && onboarding.possibleDuplicate(tenant, id, detail.displayName(), detail.joinedOn());
             var employee = publicDemo || detail == null || detail.employeeId() == null ? null
                     : employees.get(tenant, detail.employeeId());
-            boolean inviteEligible = employee != null && employee.active() && !employee.joinedOn().isAfter(today)
-                    && (employee.leftOn() == null || !employee.leftOn().isBefore(today));
+            var account = employee == null ? null : accounts.account(tenant, employee.id());
+            String accountStatus = employee == null ? null : AccountStatus.of(account != null,
+                    account != null && account.active(), account == null ? null : account.activationExpiresAt(),
+                    account == null ? 0 : account.activationFailures(), true, asOf).label();
             return new View(asOf, today, query, state, from, to, page, rows.size() > 50,
                     rows.stream().limit(50).toList(), detail, organizationOptions, scheduleOptions, scheduleDays, form, publicDemo, action,
-                    duplicate, inviteEligible, retrySameCommand);
+                    duplicate, accountStatus, retrySameCommand);
         });
     }
 
@@ -76,13 +86,14 @@ public class EmployeeOnboardingService {
         String reason = requiredText(form.reason(), 500, "변경 사유");
         String action = id == null ? "ONBOARDING_CREATE" : "ONBOARDING_EDIT";
         var input = new Form(name, form.joinedOn(), form.leftOn(), form.organizationId(), form.scheduleVersionId(),
-                null, form.expectedVersion(), null, null, form.commandId(), reason);
+                null, form.expectedVersion(), null, null, form.commandId(), reason, form.birthDate());
         return commands.execute(actor, input.commandId(), action, "EMPLOYEE_ONBOARDING",
                 fingerprint(action, id, name, input.joinedOn(), input.leftOn(), input.organizationId(),
                         input.scheduleVersionId(), input.expectedVersion(), reason), reason, () -> {
                     UUID tenant = actor.tenantId();
                     Row previous = id == null ? null : requirePlanned(tenant, id, input.expectedVersion());
                     validateDates(input.joinedOn(), input.leftOn());
+                    validateBirthDate(input.birthDate(), input.joinedOn());
                     if (input.organizationId() != null) activeOrganization(tenant, input.organizationId());
                     if (input.scheduleVersionId() != null) activeSchedule(tenant, input.scheduleVersionId(), input.joinedOn());
                     UUID target = previous == null ? UUID.randomUUID() : id;
@@ -104,6 +115,7 @@ public class EmployeeOnboardingService {
                     UUID tenant = actor.tenantId(), account = actor.accountId();
                     Row planned = requirePlanned(tenant, id, form.expectedVersion());
                     validateDates(planned.joinedOn(), planned.leftOn());
+                    if (planned.birthDate() == null) throw OrgException.invalid("생년월일을 입력한 뒤 확정해 주세요.");
                     var organization = activeOrganization(tenant, form.organizationId());
                     checkVersion(form.expectedOrganizationVersion(), organization.version());
                     var selected = activeSchedule(tenant, form.scheduleVersionId(), planned.joinedOn());
@@ -122,6 +134,9 @@ public class EmployeeOnboardingService {
                         changed(schedules.insertAssignment(tenant, scheduleAssignment, employeeId, selected.version().id(),
                                 planned.joinedOn(), reason, account));
                     }
+                    changed(personnel.save(tenant, employeeId, new EmployeePersonnelData.Stored(planned.birthDate(),
+                            null, null, null, null, null, 1), 0, account));
+                    provisioning.provision(tenant, employeeId, planned.joinedOn());
                     changed(onboarding.confirm(tenant, id, planned.version(), organization, selected.version(), selected.template(),
                             employeeId, organizationAssignment, scheduleAssignment, account));
                     return new Change(id, audit(planned), audit(requireRow(tenant, id)));
@@ -143,14 +158,14 @@ public class EmployeeOnboardingService {
 
     private Form newForm(Row detail, LocalDate today, List<OrganizationOption> orgOptions, List<ScheduleOption> choices) {
         if (detail == null) {
-            return new Form("", today, null, null, null, null, null, null, null, UUID.randomUUID(), "");
+            return new Form("", today, null, null, null, null, null, null, null, UUID.randomUUID(), "", null);
         }
         Long organizationVersion = orgOptions.stream().filter(option -> option.id().equals(detail.organizationId()))
                 .findFirst().map(OrganizationOption::version).orElse(null);
         Long templateVersion = choices.stream().filter(option -> option.id().equals(detail.scheduleVersionId()))
                 .findFirst().map(ScheduleOption::templateVersion).orElse(null);
         return new Form(detail.displayName(), detail.joinedOn(), detail.leftOn(), detail.organizationId(),
-                detail.scheduleVersionId(), null, detail.version(), organizationVersion, templateVersion, UUID.randomUUID(), "");
+                detail.scheduleVersionId(), null, detail.version(), organizationVersion, templateVersion, UUID.randomUUID(), "", detail.birthDate());
     }
 
     private Row requireRow(UUID tenant, UUID id) {
@@ -196,6 +211,13 @@ public class EmployeeOnboardingService {
         }
         if (last != null && (invalidYear(last) || last.isBefore(joined))) {
             throw OrgException.invalid("마지막 재직일을 입사일 이후로 지정해 주세요.");
+        }
+    }
+
+    private static void validateBirthDate(LocalDate birthDate, LocalDate joinedOn) {
+        if (birthDate == null) throw OrgException.invalid("생년월일을 입력해 주세요.");
+        if (birthDate.isBefore(LocalDate.of(1900, 1, 1)) || !birthDate.isBefore(joinedOn)) {
+            throw OrgException.invalid("생년월일은 1900-01-01 이후, 입사일 이전으로 입력해 주세요.");
         }
     }
 

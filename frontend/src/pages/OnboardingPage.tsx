@@ -9,7 +9,7 @@ type Action = 'CREATE' | 'EDIT' | 'CONFIRM' | 'WITHDRAW';
 interface Row {
   id: string; state: State; version: number; displayName: string; joinedOn: string;
   leftOn?: string | null; organizationId?: string | null; scheduleVersionId?: string | null;
-  organizationCode?: string | null; organizationName?: string | null; scheduleTemplateName?: string | null;
+  birthDate?: string | null; organizationCode?: string | null; organizationName?: string | null; scheduleTemplateName?: string | null;
   scheduleRevision?: number | null; employeeId?: string | null; employeeNo?: string | null;
   decidedByName?: string | null; decidedAt?: string | null; decisionReason?: string | null;
 }
@@ -17,7 +17,7 @@ interface Command {
   displayName?: string; joinedOn?: string; leftOn?: string | null; organizationId?: string | null;
   scheduleVersionId?: string | null; employeeNo?: string | null; expectedVersion?: number | null;
   expectedOrganizationVersion?: number | null; expectedTemplateVersion?: number | null;
-  commandId?: string; reason?: string;
+  commandId?: string; reason?: string; birthDate?: string | null;
 }
 interface Model {
   today: string; q?: string; state?: State | null; from?: string | null; to?: string | null;
@@ -27,7 +27,7 @@ interface Model {
   scheduleDays?: {versionId:string;weekday:number;group:boolean;templateCode:string;workCode:string|null;workday:boolean;
     startTime:string|null;endTime:string|null;workMode?:WorkMode|null}[];
   action?: Action | null; publicDemo?: boolean; possibleDuplicate?: boolean;
-  inviteEligible?: boolean; retrySameCommand?: boolean;
+  accountStatus?: string | null; retrySameCommand?: boolean;
 }
 
 const path = '/admin/employees/onboarding';
@@ -36,7 +36,7 @@ const states: Record<State, string> = { PLANNED: '입사 예정', CONFIRMED: '�
 function commandFor(m: Model, action: Action): Command {
   const row = m.detail;
   const initial = row ? {
-    displayName: row.displayName, joinedOn: row.joinedOn, leftOn: row.leftOn,
+    displayName: row.displayName, joinedOn: row.joinedOn, birthDate: row.birthDate, leftOn: row.leftOn,
     organizationId: row.organizationId, scheduleVersionId: row.scheduleVersionId, expectedVersion: row.version,
   } : { joinedOn: m.today };
   return m.action === action ? { ...initial, ...m.form, commandId: m.retrySameCommand ? m.form.commandId : undefined } : initial;
@@ -107,6 +107,7 @@ function PlannedForm({ model: m }: { model: Model }) {
       <FormTable columns={2}>
         <Field label="이름" name="displayName" value={f.displayName ?? ''} maxLength={120} required />
         <Field label="입사 예정일" name="joinedOn" type="date" value={joined} onChange={e => changeDate(e.target.value)} min={m.today} required />
+        <Field label="생년월일" name="birthDate" type="date" value={f.birthDate ?? ''} max={joined} required />
         <Field label="마지막 재직일" name="leftOn" type="date" value={f.leftOn ?? ''} />
         <SelectField label="최초 소속" name="organizationId" value={f.organizationId ?? ''}>
           <option value="">확정할 때 지정</option><OrganizationOptions model={m} />
@@ -177,8 +178,7 @@ function Detail({ model: m, row }: { model: Model; row: Row }) {
       <p>입사 · {row.joinedOn} · 사번 {row.employeeNo}</p>
       <ScheduleSummary model={m} date={row.joinedOn} id={row.scheduleVersionId} name={row.scheduleTemplateName}/>
       <a className="t-btn" href={`/admin/employees/${row.employeeId}/personnel`}>확정 사원 인사기본</a>{' '}
-      {row.joinedOn > m.today && <p>계정 초대는 입사일부터 할 수 있습니다.</p>}
-      {m.inviteEligible && <a className="t-btn" href={`/admin/employees/${row.employeeId}/access`}>계정 초대</a>}
+      {m.accountStatus && <p>계정 · {m.accountStatus} (사번으로 로그인해 생년월일 확인)</p>}
     </section>}
     {planned && !m.publicDemo && <>
       <PlannedForm model={m} />

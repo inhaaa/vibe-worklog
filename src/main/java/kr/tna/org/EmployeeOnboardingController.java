@@ -21,9 +21,9 @@ import org.springframework.web.servlet.view.RedirectView;
 @RequestMapping(EmployeeOnboardingController.PATH)
 public class EmployeeOnboardingController {
     static final String PATH = "/admin/employees/onboarding";
-    private static final Set<String> CREATE = Set.of("displayName", "joinedOn", "leftOn", "organizationId",
+    private static final Set<String> CREATE = Set.of("displayName", "joinedOn", "birthDate", "leftOn", "organizationId",
             "scheduleVersionId", "commandId", "reason", "_csrf");
-    private static final Set<String> EDIT = Set.of("displayName", "joinedOn", "leftOn", "organizationId",
+    private static final Set<String> EDIT = Set.of("displayName", "joinedOn", "birthDate", "leftOn", "organizationId",
             "scheduleVersionId", "expectedVersion", "commandId", "reason", "_csrf");
     private static final Set<String> CONFIRM = Set.of("organizationId", "scheduleVersionId", "employeeNo",
             "expectedVersion", "expectedOrganizationVersion", "expectedTemplateVersion", "commandId", "reason", "_csrf");

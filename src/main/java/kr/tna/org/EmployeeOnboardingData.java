@@ -16,9 +16,10 @@ public final class EmployeeOnboardingData {
     public record Form(String displayName, @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate joinedOn,
                        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate leftOn,
                        UUID organizationId, UUID scheduleVersionId, String employeeNo, Long expectedVersion,
-                       Long expectedOrganizationVersion, Long expectedTemplateVersion, UUID commandId, String reason) { }
+                       Long expectedOrganizationVersion, Long expectedTemplateVersion, UUID commandId, String reason,
+                       @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate birthDate) { }
 
-    public record Row(UUID id, State state, long version, String displayName, LocalDate joinedOn, LocalDate leftOn,
+    public record Row(UUID id, State state, long version, String displayName, LocalDate joinedOn, LocalDate birthDate, LocalDate leftOn,
                       UUID organizationId, UUID scheduleVersionId, UUID employeeId, String employeeNo,
                       UUID organizationAssignmentId, UUID scheduleAssignmentId, UUID decidedBy, Instant decidedAt,
                       String organizationCode, String organizationName, String scheduleTemplateName,
@@ -34,5 +35,5 @@ public final class EmployeeOnboardingData {
     public record View(Instant asOf, LocalDate today, String q, State state, LocalDate from, LocalDate to, int page,
                        boolean hasNext, List<Row> rows, Row detail, List<OrganizationOption> organizations,
                        List<ScheduleOption> scheduleVersions, List<ScheduleDayOption> scheduleDays, Form form, boolean publicDemo, Action action,
-                       boolean possibleDuplicate, boolean inviteEligible, boolean retrySameCommand) { }
+                       boolean possibleDuplicate, String accountStatus, boolean retrySameCommand) { }
 }

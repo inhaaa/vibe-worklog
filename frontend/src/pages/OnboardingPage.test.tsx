@@ -72,11 +72,15 @@ it('확정 폼은 검토한 조직과 근무 버전을 함께 보내고 공개 �
   expect(view.queryByRole('button', { name: '입사 확정' })).toBeNull();
 });
 
-it('확정된 미래 사원은 발령을 보여 주고 현재 재직 확인 후에만 초대를 연결한다', () => {
-  const confirmed = { ...onboarding, detail: { ...onboarding.detail, state: 'CONFIRMED', employeeId: 'employee', employeeNo: '26001' } };
+it('확정된 사원은 계정 상태와 최초 접속 안내를 보여 주고 초대 버튼은 없다', () => {
+  const confirmed = { ...onboarding, accountStatus: '최초 접속 대기', detail: { ...onboarding.detail, state: 'CONFIRMED', employeeId: 'employee', employeeNo: '26001' } };
   const view = render(<OnboardingPage data={{ onboarding: confirmed }} />);
-  expect(view.getByText('계정 초대는 입사일부터 할 수 있습니다.')).toBeTruthy();
+  expect(view.getByText('계정 · 최초 접속 대기 (사번으로 로그인해 생년월일 확인)')).toBeTruthy();
   expect(view.queryByRole('link', { name: '계정 초대' })).toBeNull();
-  view.rerender(<OnboardingPage data={{ onboarding: { ...confirmed, today: '2026-12-01', inviteEligible: true } }} />);
-  expect(view.getByRole('link', { name: '계정 초대' })).toHaveProperty('pathname', '/admin/employees/employee/access');
+});
+
+it('입사 예정 등록 폼은 필수 생년월일 날짜 칸을 가진다', () => {
+  const view = render(<OnboardingPage data={{ onboarding: { ...onboarding, detail: null } }} />);
+  expect(view.getByLabelText('생년월일').getAttribute('type')).toBe('date');
+  expect(view.getByLabelText('생년월일').hasAttribute('required')).toBe(true);
 });

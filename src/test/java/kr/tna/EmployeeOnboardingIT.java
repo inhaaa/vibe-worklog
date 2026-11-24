@@ -6,7 +6,6 @@ import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.schedule.ScheduleMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +40,6 @@ class EmployeeOnboardingIT {
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
     @Autowired MockMvc mvc;
-    @Autowired InvitationDelivery delivery;
     @MockitoSpyBean ScheduleMapper schedules;
     private JdbcTemplate database;
     private TnaPrincipal manager;
@@ -122,7 +120,7 @@ class EmployeeOnboardingIT {
         mvc.perform(confirm(draft, command)).andExpect(status().isSeeOther());
         mvc.perform(confirm(draft, UUID.randomUUID())).andExpect(status().isConflict());
         assertEquals(2, count("employee"));
-        assertEquals(1, count("tenant_account"));
+        assertEquals(2, count("tenant_account"));
         assertEquals(1, count("employee_assignment"));
         assertEquals(1, count("schedule_assignment"));
         assertEquals(1L, database.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
@@ -134,12 +132,18 @@ class EmployeeOnboardingIT {
                 UUID.class, manager.tenantId(), draft);
         String number = database.queryForObject("SELECT employee_no FROM tna.employee WHERE tenant_id=? AND id=?",
                 String.class, manager.tenantId(), employee);
+        assertEquals(LocalDate.of(1995, 4, 1), database.queryForObject(
+                "SELECT birth_date FROM tna.employee_personnel WHERE tenant_id=? AND employee_id=?", LocalDate.class, manager.tenantId(), employee));
+        assertNotNull(database.queryForObject(
+                "SELECT activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", java.sql.Timestamp.class, manager.tenantId(), employee));
+        assertEquals(java.util.List.of("EMPLOYEE"), database.queryForList("""
+                SELECT g.role FROM tna.role_grant g JOIN tna.tenant_account a ON a.tenant_id=g.tenant_id AND a.id=g.account_id
+                WHERE a.tenant_id=? AND a.employee_id=? AND g.active""", String.class, manager.tenantId(), employee));
+        assertEquals(0L, database.queryForObject("""
+                SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND (before_state::text LIKE '%1995%'
+                    OR after_state::text LIKE '%1995%')""", Long.class, manager.tenantId()));
         mvc.perform(auth(get(PATH + "/{id}", draft), manager)).andExpect(status().isOk())
-                .andExpect(ReactPageAssertions.data("/onboarding/inviteEligible", false));
-        mvc.perform(auth(post("/admin/employees/{id}/invitations", employee), manager)
-                        .param("email", employee + "@example.test").param("expectedVersion", "0")
-                        .param("reason", "미래 입사 전 초대 반례").param("commandId", UUID.randomUUID().toString()))
-                .andExpect(status().isUnprocessableContent());
+                .andExpect(ReactPageAssertions.data("/onboarding/accountStatus", "최초 접속 대기"));
         mvc.perform(auth(post("/admin/employees/{id}/changes", employee), manager)
                         .param("commandId", UUID.randomUUID().toString()).param("reason", "확정일 수정 반례")
                         .param("expectedVersion", "0").param("employeeNo", number).param("displayName", "합성 입사자")
@@ -152,6 +156,15 @@ class EmployeeOnboardingIT {
                                   "employeeNo":"%s","displayName":"합성 입사자","joinedOn":"%s","active":true}]
                                 """.formatted(UUID.randomUUID(), employee, number, TODAY)))
                 .andExpect(status().isUnprocessableContent());
+    }
+
+    @Test
+    void confirmationRequiresBirthDate() throws Exception {
+        UUID planned = create(TODAY);
+        database.update("UPDATE tna.employee_onboarding SET birth_date=NULL WHERE tenant_id=? AND id=?", manager.tenantId(), planned);
+        mvc.perform(confirm(planned, UUID.randomUUID())).andExpect(status().isUnprocessableContent());
+        assertEquals("PLANNED", database.queryForObject("SELECT state FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
+                String.class, manager.tenantId(), planned));
     }
 
     @Test
@@ -191,7 +204,7 @@ class EmployeeOnboardingIT {
     }
 
     @Test
-    void firstDayUsesTheExistingInvitationAndShowsTheInitialAppointmentBeforeClockIn() throws Exception {
+    void firstDayUsesFirstLoginAndShowsTheInitialAppointmentBeforeClockIn() throws Exception {
         UUID draft = create(TODAY);
         mvc.perform(confirm(draft, UUID.randomUUID())).andExpect(status().isSeeOther());
         UUID employee = database.queryForObject("SELECT employee_id FROM tna.employee_onboarding WHERE tenant_id=? AND id=?",
@@ -202,19 +215,13 @@ class EmployeeOnboardingIT {
                 INSERT INTO tna.schedule_day(tenant_id,version_id,weekday,workday,start_time,end_time)
                 VALUES(?,?,?,true,TIME '09:00',TIME '18:00')
                 """, manager.tenantId(), schedule, TODAY.getDayOfWeek().getValue());
-        String email = employee + "@example.test";
+        String companyCode = "ONB-" + manager.tenantId().toString().toUpperCase(Locale.ROOT);
         String password = "합성 onboarding acceptance 41!";
-        mvc.perform(auth(post("/admin/employees/{id}/invitations", employee), manager)
-                        .param("email", email).param("expectedVersion", "0").param("reason", "최초 초대 테스트")
-                        .param("commandId", UUID.randomUUID().toString()))
-                .andExpect(status().isSeeOther());
-        var invitation = delivery.messages().stream().filter(message -> message.email().equals(email)).findFirst().orElseThrow();
-        mvc.perform(post("/invite/{companyCode}/accept", invitation.companyCode()).with(csrf())
-                        .param("email", email).param("token", invitation.token())
-                        .param("password", password).param("confirmation", password))
-                .andExpect(status().isSeeOther()).andExpect(redirectedUrl("/login?invited"));
+        mvc.perform(post("/first-login").with(csrf()).param("companyCode", companyCode).param("employeeNo", employeeNo)
+                        .param("birthDate", "1995-04-01").param("password", password).param("confirmation", password))
+                .andExpect(redirectedUrl("/login?activated"));
         var session = (MockHttpSession) mvc.perform(post("/login").with(csrf())
-                        .param("companyCode", invitation.companyCode()).param("email", employeeNo).param("password", password))
+                        .param("companyCode", companyCode).param("email", employeeNo).param("password", password))
                 .andExpect(redirectedUrl("/me/home")).andReturn().getRequest().getSession(false);
 
         mvc.perform(get("/me/profile").session(session)).andExpect(status().isOk())
@@ -249,6 +256,7 @@ class EmployeeOnboardingIT {
 
     private MockHttpServletRequestBuilder draft(MockHttpServletRequestBuilder request, LocalDate joinedOn) {
         return auth(request, manager).param("displayName", "합성 입사자").param("joinedOn", joinedOn.toString())
+                .param("birthDate", "1995-04-01")
                 .param("commandId", UUID.randomUUID().toString()).param("reason", "합성 예정");
     }
 

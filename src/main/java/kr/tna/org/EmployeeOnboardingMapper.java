@@ -9,7 +9,7 @@ import org.apache.ibatis.annotations.*;
 @Mapper
 public interface EmployeeOnboardingMapper {
     String ROW = """
-            SELECT o.id,o.state,o.version,o.display_name,o.joined_on,o.left_on,o.organization_id,o.schedule_version_id,
+            SELECT o.id,o.state,o.version,o.display_name,o.joined_on,o.birth_date,o.left_on,o.organization_id,o.schedule_version_id,
                 o.employee_id,e.employee_no,o.organization_assignment_id,o.schedule_assignment_id,o.decided_by,o.decided_at,
                 COALESCE(o.organization_code,org.code) AS organization_code,
                 COALESCE(o.organization_name,org.name) AS organization_name,
@@ -121,9 +121,9 @@ public interface EmployeeOnboardingMapper {
 
     @Insert("""
             INSERT INTO tna.employee_onboarding(tenant_id,id,display_name,joined_on,left_on,organization_id,
-                schedule_version_id,created_by,updated_by)
+                schedule_version_id,birth_date,created_by,updated_by)
             VALUES(#{tenantId},#{id},#{form.displayName},#{form.joinedOn},#{form.leftOn},#{form.organizationId},
-                #{form.scheduleVersionId},#{actorId},#{actorId})
+                #{form.scheduleVersionId},#{form.birthDate},#{actorId},#{actorId})
             """)
     int insert(@Param("tenantId") UUID tenantId, @Param("id") UUID id,
                @Param("form") Form form, @Param("actorId") UUID actorId);
@@ -131,6 +131,7 @@ public interface EmployeeOnboardingMapper {
     @Update("""
             UPDATE tna.employee_onboarding SET display_name=#{form.displayName},joined_on=#{form.joinedOn},
                 left_on=#{form.leftOn},organization_id=#{form.organizationId},schedule_version_id=#{form.scheduleVersionId},
+                birth_date=#{form.birthDate},
                 version=version+1,updated_by=#{actorId},updated_at=CURRENT_TIMESTAMP
             WHERE tenant_id=#{tenantId} AND id=#{id} AND version=#{form.expectedVersion} AND state='PLANNED'
             """)
