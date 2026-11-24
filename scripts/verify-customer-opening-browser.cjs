@@ -433,8 +433,8 @@ async function run(browser, device) {
       const iso = ago.toISOString().slice(0, 10);
       const joined = iso.replaceAll('-', '.');
       await open(adminPage, '/admin/employees/import');
-      const orgText = await adminPage.$eval('p.t-muted', e => e.innerText);
-      const orgCode = orgText.match(/([^\s,]+) 첫 근무팀/)?.[1];
+      const orgCode = await adminPage.$$eval('table[aria-label="조직코드"] tbody tr', rows =>
+        rows.map(r => [...r.cells].map(c => c.textContent.trim())).find(([, name]) => name === '첫 근무팀')?.[0]);
       assert.ok(orgCode, '조직코드 안내에서 첫 근무팀 코드');
       const row = (name, birth) => ['', name, joined, birth, orgCode, '사원', ''].join('\t');
       const tsv = birthB => row(imported[0].name, '19900512') + '\n' + row(imported[1].name, birthB);

@@ -103,7 +103,15 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
     <section className="w-page" data-unsaved-changes={String(drafts.length > 0 && !result)} data-modal-busy={String(busy)}>
       <PageHeader title="재직자 일괄 등록" help="엑셀에서 사번·이름·입사일·생년월일·조직코드·직급·직책 7개 열을 머리글 없이 복사해 붙여넣습니다. 사번을 비우면 입사 연도로 자동 발급합니다."
         actions={<a className="t-btn" href="/admin/employees/import/template" download>양식 내려받기</a>} />
-      <p className="t-muted">조직코드: {model.organizations.map(o => `${o.code} ${o.name}`).join(', ') || '등록된 조직 없음'}</p>
+      {model.organizations.length === 0 ? <p className="t-muted">등록된 조직이 없습니다. 조직을 먼저 등록하세요.</p> : (
+        <details className="t-muted">
+          <summary>{`조직코드 보기 (${model.organizations.length}개)`}</summary>
+          <table aria-label="조직코드">
+            <thead><tr><th scope="col">조직코드</th><th scope="col">조직명</th></tr></thead>
+            <tbody>{model.organizations.map(o => <tr key={o.id}><td>{o.code}</td><td>{o.name}</td></tr>)}</tbody>
+          </table>
+        </details>
+      )}
       <textarea aria-label="엑셀에서 복사한 행 붙여넣기" className="t-input" style={{ width: '100%' }} rows={3} placeholder="엑셀에서 복사한 행을 여기에 붙여넣으세요."
         onPaste={event => { event.preventDefault(); load(event.clipboardData.getData('text/plain')); }} />
       <WorklogSheet<ImportDraft> label="붙여넣은 재직자" count={drafts.length} rows={drafts} columns={columns}

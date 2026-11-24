@@ -16,6 +16,12 @@ function paste(text: string) {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('EmployeeImportPage', () => {
+  it('keeps the organization code list folded into a table', () => {
+    render(<EmployeeImportPage model={model} csrf={csrf} />);
+    expect(screen.getByText('조직코드 보기 (1개)')).toBeTruthy();
+    expect(screen.getByRole('table', { name: '조직코드', hidden: true }).textContent).toContain('D10개발팀');
+  });
+
   it('turns pasted rows into sheet rows and shows server errors per cell', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
       valid: false, rows: [{ clientRowId: 'x', employeeNo: '19001', errors: [{ field: 'birthDate', message: '생년월일은 입사일 이전이어야 합니다.' }] }],
