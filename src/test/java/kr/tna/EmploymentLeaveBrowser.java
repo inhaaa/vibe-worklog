@@ -15,8 +15,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import kr.tna.LeaveBrowserServer.Member;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
@@ -113,7 +111,7 @@ public final class EmploymentLeaveBrowser implements LeaveBrowserServer.Scenario
         var schedules = app.getBean(ScheduleService.class);
         var template = schedules.create(hr, new TemplateForm("NEW-HIRE","입사일부터 주 5일",HIRED,days,null,"입사 기준",UUID.randomUUID()));
         var version = schedules.versions(hr,template).getFirst();
-        app.getBean(AttendanceSettingsService.class).calendar(hr, new CalendarForm(HIRED,LAST,true,"가상 근무 달력","","합성 기간 확인",UUID.randomUUID()));
+        CalendarSeed.period(db, hr, HIRED,LAST, "가상 근무 달력", "");
         for (var person : List.of(worker, comparison)) {
             schedules.assign(hr,person.employeeId(),new AssignmentForm(version.id(),HIRED,0L,"합성 고정 근무",UUID.randomUUID()));
             long employeeVersion = db.queryForObject("SELECT version FROM tna.employee WHERE tenant_id=? AND id=?",

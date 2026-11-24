@@ -6,8 +6,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.*;
 import java.util.*;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
 import kr.tna.org.ApproverService;
@@ -35,7 +33,6 @@ class AnnualRequestsWebIT {
     @Autowired LeaveWorkflowService flow;
     @Autowired kr.tna.worktime.WorktimeService reports;
     @Autowired ScheduleService schedules;
-    @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     JdbcTemplate db;
     UUID tenant,bucket,schedule,calendar,binding;
@@ -57,7 +54,7 @@ class AnnualRequestsWebIT {
         schedule=schedules.versions(admin,template).getFirst().id();
         long employeeVersion=db.queryForObject("SELECT version FROM tna.employee WHERE tenant_id=? AND id=?",Long.class,tenant,worker.employeeId());
         schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedule,today,employeeVersion,"합성 배정",UUID.randomUUID()));
-        calendar=settings.calendar(admin,new CalendarForm(today,today.plusDays(300),true,"합성 달력","","합성 달력",UUID.randomUUID()));
+        calendar=CalendarSeed.period(db, admin, today,today.plusDays(300), "합성 달력", "");
         bucket=flow.openBucket(admin,new BucketForm(worker.employeeId(),today.minusYears(2),today.minusYears(2),today.plusDays(400),20,"합성 기초","합성 등록",UUID.randomUUID()));
     }
 

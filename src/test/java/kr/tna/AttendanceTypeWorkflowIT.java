@@ -11,8 +11,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Set;
 import java.util.UUID;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
@@ -39,7 +37,6 @@ import org.springframework.test.web.servlet.MockMvc;
 class AttendanceTypeWorkflowIT {
     @Autowired LeaveWorkflowService flow;
     @Autowired ScheduleService schedules;
-    @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     @Autowired ClockService clocks;
     @Autowired MockMvc mvc;
@@ -63,7 +60,7 @@ class AttendanceTypeWorkflowIT {
         UUID schedule=schedules.versions(admin,template).getFirst().id();
         long version=db.queryForObject("SELECT version FROM tna.employee WHERE tenant_id=? AND id=?",Long.class,tenant,worker.employeeId());
         schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedule,today,version,"합성 배정",UUID.randomUUID()));
-        settings.calendar(admin,new CalendarForm(today,today.plusDays(30),true,"합성 근거","","합성 달력",UUID.randomUUID()));
+        CalendarSeed.period(db, admin, today,today.plusDays(30), "합성 근거", "");
         bucket=flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(30),20,"합성 기초","합성 등록",UUID.randomUUID()));
     }
 

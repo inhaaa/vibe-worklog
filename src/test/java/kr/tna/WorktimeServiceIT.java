@@ -12,8 +12,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipInputStream;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
@@ -69,7 +67,6 @@ class WorktimeServiceIT {
     }
     @Autowired WorktimeService reports;
     @Autowired ClockService clocks;
-    @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     @Autowired LeaveWorkflowService workflow;
     @Autowired MonthlySqlCount monthlySqlCount;
@@ -97,7 +94,7 @@ class WorktimeServiceIT {
             db.update("INSERT INTO tna.schedule_break(tenant_id,version_id,weekday,sequence,start_time,end_time) VALUES (?,?,?,1,TIME '12:00',TIME '13:00')",tenant,version,day);
         }
         db.update("INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'합성 과거 배정',?,?)",tenant,UUID.randomUUID(),employee.employeeId(),version,date.minusDays(7),manager.accountId(),manager.accountId());
-        settings.calendar(manager,new CalendarForm(date.minusDays(7),date.plusDays(7),true,"합성 공휴일 검토","","합성 달력",UUID.randomUUID()));
+        CalendarSeed.period(db, manager, date.minusDays(7),date.plusDays(7), "합성 공휴일 검토", "");
         UUID network=UUID.randomUUID();db.update("INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by) VALUES (?,?,CAST('127.0.0.1/32' AS cidr),'합성 로컬',?,'합성 근거',?)",tenant,network,java.sql.Timestamp.from(date.minusDays(7).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant()),manager.accountId());
         for(String kind:List.of("IN","OUT")) {
             Instant at=date.atTime(kind.equals("IN")?9:18,0).atZone(ZoneId.of("Asia/Seoul")).toInstant();

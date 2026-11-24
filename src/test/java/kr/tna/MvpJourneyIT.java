@@ -17,7 +17,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.zip.ZipInputStream;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.clock.AttendanceSettingsData.NetworkForm;
 import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockData.ConfirmationForm;
@@ -141,8 +140,7 @@ class MvpJourneyIT {
                 version(manager, employeeId), "합성 일정 배정", UUID.randomUUID()));
         settings.addNetwork(manager, new NetworkForm("127.0.0.1/32", "합성 로컬 허용망", false,
                 "합성 출퇴근 검증", UUID.randomUUID()));
-        UUID calendar = settings.calendar(manager, new CalendarForm(MONDAY, MONDAY.plusDays(6), true,
-                "합성 일주일 검토", "", "합성 캘린더 등록", UUID.randomUUID()));
+        UUID calendar = CalendarSeed.period(new JdbcTemplate(DatabaseFixture.start().adminDataSource()), manager, MONDAY, MONDAY.plusDays(6), "합성 일주일 검토", "");
         UUID policy = reports.reviewPolicy(manager, new PolicyForm(MONDAY, MONDAY.plusDays(6), true,
                 "합성 월요일 주 기산점 검토", "합성 정책 검토", UUID.randomUUID()));
         UUID assessment = reports.assess(manager, new AssessmentForm(employeeId, MONDAY, MONDAY.plusDays(6),

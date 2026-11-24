@@ -13,7 +13,6 @@ import kr.tna.request.RequestData.*;
 import kr.tna.schedule.*;
 import kr.tna.schedule.ScheduleData.*;
 import kr.tna.clock.*;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,7 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest @AutoConfigureMockMvc
 class LeaveWorkflowWebIT {
     static final String PASSWORD="Synthetic workflow web 43!";
-    @Autowired MockMvc mvc;@Autowired LeaveWorkflowService flow;@Autowired ScheduleService schedules;@Autowired ApproverService approvers;@Autowired AttendanceSettingsService settings;
+    @Autowired MockMvc mvc;@Autowired LeaveWorkflowService flow;@Autowired ScheduleService schedules;@Autowired ApproverService approvers;
     JdbcTemplate db;
     @DynamicPropertySource static void database(DynamicPropertyRegistry r){var d=DatabaseFixture.start();r.add("spring.datasource.url",d::jdbcUrl);r.add("spring.datasource.username",()->DatabaseFixture.APP_USER);r.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);r.add("tna.auth.url",d::jdbcUrl);r.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);r.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);}
     @BeforeEach void seed(){var d=DatabaseFixture.start();d.seedIdentity(PasswordPolicy.passwordEncoder().encode(PASSWORD));db=new JdbcTemplate(d.adminDataSource());db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",DatabaseFixture.TENANT_A,DatabaseFixture.ACCOUNT_A);}
@@ -43,7 +42,7 @@ class LeaveWorkflowWebIT {
         var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
         UUID template=schedules.create(manager,new TemplateForm(UUID.randomUUID().toString(),"합성 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(manager,worker.employeeId(),new AssignmentForm(schedules.versions(manager,template).getFirst().id(),today,1L,"합성 배정",UUID.randomUUID()));
-        settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 근거","","합성 검토",UUID.randomUUID()));
+        CalendarSeed.period(db, manager, today,today.plusDays(30), "합성 근거", "");
         var workerSession=login(company,worker.accountId()+"@example.test");var managerSession=login(company,manager.accountId()+"@example.test");
         mvc.perform(post("/admin/leave-balances/entries").session(managerSession).with(csrf()).param("employeeId",worker.employeeId().toString())
                 .param("baseDate",today.toString()).param("usableFrom",today.toString()).param("quantityDays",opening)
@@ -97,7 +96,7 @@ class LeaveWorkflowWebIT {
         var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
         UUID template=schedules.create(manager,new TemplateForm(UUID.randomUUID().toString(),"합성 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(manager,worker.employeeId(),new AssignmentForm(schedules.versions(manager,template).getFirst().id(),today,1L,"합성 배정",UUID.randomUUID()));
-        settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 근거","","합성 검토",UUID.randomUUID()));
+        CalendarSeed.period(db, manager, today,today.plusDays(30), "합성 근거", "");
         UUID bucket=flow.openBucket(manager,new BucketForm(worker.employeeId(),today,today,today.plusDays(30),2,"합성 기초 근거","합성 기초",UUID.randomUUID()));
         UUID request=flow.submitLeave(worker,new LeaveForm(bucket,date,date,null,"합성 연차",UUID.randomUUID()));
         flow.decide(manager,request,new DecisionForm("APPROVE",0L,"합성 독립 승인",UUID.randomUUID()));

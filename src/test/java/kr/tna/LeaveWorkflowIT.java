@@ -12,8 +12,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
@@ -57,7 +55,6 @@ class LeaveWorkflowIT {
     @Autowired WorkGroupService groups;
     @Autowired WorkGroupAssignmentService memberships;
     @Autowired WorkTimeCodeService timeCodes;
-    @Autowired AttendanceSettingsService settings;
     @Autowired ApproverService approvers;
     @Autowired ClockService clocks;
     @Autowired LeaveWorkflowMapper workflowMapper;
@@ -95,7 +92,7 @@ class LeaveWorkflowIT {
         UUID template=schedules.create(manager,new TemplateForm("WF-"+UUID.randomUUID(),"가상 날짜 테스트",today,days,null,"합성 일정",UUID.randomUUID()));
         UUID version=schedules.versions(manager,template).getFirst().id();
         schedules.assign(manager,employee.employeeId(),new AssignmentForm(version,today,employeeVersion(),"합성 배정",UUID.randomUUID()));
-        settings.calendar(manager,new CalendarForm(today,today.plusDays(30),true,"합성 검토 자료","","합성 달력",UUID.randomUUID()));
+        CalendarSeed.period(db, manager, today,today.plusDays(30), "합성 검토 자료", "");
     }
 
     @Test void halfDaysShareOneDayAndOnlyOverlappingPartsAreBlocked() {

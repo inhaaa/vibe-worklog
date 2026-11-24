@@ -16,8 +16,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.zip.ZipInputStream;
 import kr.tna.clock.AttendanceHistory;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockService;
 import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.common.auth.TnaPrincipal;
@@ -70,7 +68,6 @@ class CheckoutOperationsWebIT {
     @Autowired WorktimeService worktime;
     @Autowired CheckoutFollowUpService followUps;
     @Autowired MonthEndReviewQueries monthEndQueries;
-    @Autowired AttendanceSettingsService attendanceSettings;
     @Autowired EmployeeService employees;
     private JdbcTemplate db;
     private UUID tenant, schedule, network;
@@ -355,7 +352,7 @@ class CheckoutOperationsWebIT {
         schedule(historical, schedule(true));
         String holidays = date.datesUntil(month.atEndOfMonth().plusDays(1)).filter(day -> !day.equals(date))
                 .map(day -> day + "|NON_WORKDAY|휴무일|합성 달력").collect(Collectors.joining("\n"));
-        attendanceSettings.calendar(admin, new CalendarForm(date, month.atEndOfMonth(), true, "합성 근무 달력", holidays, "마감 점검", UUID.randomUUID()));
+        CalendarSeed.period(db, admin, date, month.atEndOfMonth(), "합성 근무 달력", holidays);
         clock(historical, date, date, "IN", 9);
         clock(historical, date, date, "OUT", 18);
         var day = clocks.day(historical, date);

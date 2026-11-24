@@ -15,8 +15,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
@@ -66,7 +64,6 @@ class AttendanceMonthCloseIT {
     @Autowired MonthEndReviewQueries reviews;
     @Autowired WorktimeService worktime;
     @Autowired kr.tna.clock.ClockService clocks;
-    @Autowired AttendanceSettingsService settings;
     @Autowired LeaveWorkflowService workflow;
     @MockitoSpyBean MonthEndReviewMapper reviewMapper;
     private JdbcTemplate db;
@@ -609,7 +606,7 @@ class AttendanceMonthCloseIT {
         assertFalse(beforeClose.get("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "달력 미등록"), 409);
 
-        settings.calendar(admin, new CalendarForm(LAST, LAST, true, "근로일 확인", "", "달력 등록", UUID.randomUUID()));
+        CalendarSeed.period(db, admin, LAST, LAST, "근로일 확인", "");
         var registered = clocks.day(employee, LAST);
         clocks.confirm(employee, new ConfirmationForm(LAST, registered.inputRevision(), registered.reviewRevision(),
                 true, true, registered.sourceFingerprint(), UUID.randomUUID()));

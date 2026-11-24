@@ -16,8 +16,6 @@ import java.util.*;
 import kr.tna.codes.CodeData.TypeRow;
 import kr.tna.codes.CodeManagementService;
 import kr.tna.clock.ClockService;
-import kr.tna.clock.AttendanceSettingsService;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.OrgException;
 import kr.tna.org.BulkData;
@@ -42,7 +40,6 @@ class ApprovalRouteWorkflowIT {
     @Autowired ClockService clocks;
     @Autowired MockMvc mvc;
     @Autowired ScheduleService schedules;
-    @Autowired AttendanceSettingsService settings;
     @Autowired CodeManagementService codes;
     JdbcTemplate db;
     UUID tenant, organization, membership;
@@ -105,7 +102,7 @@ class ApprovalRouteWorkflowIT {
         UUID id=workGroups.saveGroup(admin,group.confirm(workGroups.previewGroup(admin,group).token()));
         var member=new kr.tna.schedule.WorkGroupData.AssignmentCommand(id,date,List.of(worker.employeeId()),"배정",List.of(),null,UUID.randomUUID());
         groupAssignments.saveAssignments(admin,member.confirm(groupAssignments.previewAssignments(admin,member).token()));
-        settings.calendar(admin,new CalendarForm(today,date.plusDays(10),true,"검토","","휴일 검토",UUID.randomUUID()));
+        CalendarSeed.period(db, admin, today,date.plusDays(10), "검토", "");
         return id;
     }
 
@@ -207,7 +204,7 @@ class ApprovalRouteWorkflowIT {
         var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
         UUID template=schedules.create(admin,new TemplateForm("S-"+UUID.randomUUID(),"검증 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedules.versions(admin,template).getFirst().id(),today,0L,"배정",UUID.randomUUID()));
-        settings.calendar(admin,new CalendarForm(today,today.plusDays(20),true,"달력 근거","","합성 달력",UUID.randomUUID()));
+        CalendarSeed.period(db, admin, today,today.plusDays(20), "달력 근거", "");
         double opening=charge==0?0:3;
         UUID bucket=charge==0?null:flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(20),3,"기초 근거","잔여 검증",UUID.randomUUID()));
         var date=today.plusDays(2);
@@ -489,7 +486,7 @@ class ApprovalRouteWorkflowIT {
         var days=java.util.stream.IntStream.rangeClosed(1,7).mapToObj(i->new DayForm(i,true,"09:00","18:00","12:00-13:00")).toList();
         UUID template=schedules.create(admin,new TemplateForm("S-"+UUID.randomUUID(),"합성 결재선 일정",today,days,null,"합성 일정",UUID.randomUUID()));
         schedules.assign(admin,worker.employeeId(),new AssignmentForm(schedules.versions(admin,template).getFirst().id(),today,0L,"합성 배정",UUID.randomUUID()));
-        settings.calendar(admin,new CalendarForm(today,today.plusDays(20),true,"합성 검토 근거","","합성 달력",UUID.randomUUID()));
+        CalendarSeed.period(db, admin, today,today.plusDays(20), "합성 검토 근거", "");
         UUID bucket=flow.openBucket(admin,new BucketForm(worker.employeeId(),today,today,today.plusDays(20),2,"합성 기초 근거","합성 기초",UUID.randomUUID()));
         UUID leave=flow.submitLeave(worker,new LeaveForm(bucket,today.plusDays(2),today.plusDays(2),null,"합성 연차",UUID.randomUUID()));
         flow.decide(direct,leave,new DecisionForm("APPROVE",0L,"합성 연차 승인",UUID.randomUUID()));

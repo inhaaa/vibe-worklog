@@ -9,8 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.LeaveBrowserServer.Member;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
@@ -94,7 +92,6 @@ public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenari
                 Long.class, tenant, worker.employeeId());
         schedules.assign(manager, worker.employeeId(), new AssignmentForm(version, TODAY, employeeVersion,
                 "반차 사용일 근무 배정", UUID.randomUUID()));
-        app.getBean(AttendanceSettingsService.class).calendar(manager, new CalendarForm(TODAY, TODAY.plusDays(7), true,
-                "가상 연차 검증 주간", "", "가상 평일 근무 달력", UUID.randomUUID()));
+        CalendarSeed.period(db, manager, TODAY, TODAY.plusDays(7), "가상 연차 검증 주간", "");
     }
 }

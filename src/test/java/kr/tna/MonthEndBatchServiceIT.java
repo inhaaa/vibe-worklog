@@ -12,7 +12,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
 import kr.tna.clock.AttendanceSettingsData.NetworkForm;
 import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.clock.ClockData.ConfirmationForm;
@@ -387,7 +386,7 @@ class MonthEndBatchServiceIT {
                 INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,reason,created_by,updated_by)
                 VALUES (?,?,?,?,?,'입사일 배정',?,?)
                 """, tenant, UUID.randomUUID(), worker.employeeId(), version, date, manager.accountId(), manager.accountId());
-        settings.calendar(manager, new CalendarForm(date, date, true, "합성 휴무일", "", "2월 근무일 검토", UUID.randomUUID()));
+        CalendarSeed.period(db, manager, date, date, "합성 휴무일", "");
         return worker;
     }
 
