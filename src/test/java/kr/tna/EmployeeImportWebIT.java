@@ -88,4 +88,45 @@ class EmployeeImportWebIT {
         for (String role : roles) db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)", tenant, account, role);
         return new kr.tna.common.auth.TnaPrincipal(tenant, account, id, 1, roles, java.time.Instant.now());
     }
+    @Test void saveCreatesEverythingOnceAndReplaysTheSameResult() {
+        UUID command = UUID.randomUUID();
+        var form = new EmployeeImportService.Form(command, "기존 재직자 이관", List.of(
+                row("a", "", "가", "2019-03-04", "1990-01-01", "D10"),
+                row("b", "20100", "나", "2020-01-02", "1991-02-03", "D10")));
+        var first = imports.save(manager, form);
+        var again = imports.save(manager, form);
+        assertEquals(first, again);
+        assertEquals(List.of("19001", "20100"), first.employeeNos());
+        assertEquals(2, first.accounts());
+        var seoulToday = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+        for (String number : first.employeeNos()) {
+            UUID employee = db.queryForObject("SELECT id FROM tna.employee WHERE tenant_id=? AND employee_no=?", UUID.class, tenant, number);
+            assertEquals(team, db.queryForObject("""
+                    SELECT organization_id FROM tna.employee_assignment WHERE tenant_id=? AND employee_id=? AND valid_from=?
+                    """, UUID.class, tenant, employee, seoulToday));
+            assertEquals(1, db.queryForObject("""
+                    SELECT count(*) FROM tna.employee_personnel WHERE tenant_id=? AND employee_id=? AND birth_date IS NOT NULL AND grade_name='사원'
+                    """, Integer.class, tenant, employee));
+            assertEquals(1, db.queryForObject("""
+                    SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=? AND NOT active AND email IS NULL
+                      AND activation_expires_at > now()
+                    """, Integer.class, tenant, employee));
+        }
+        String audit = db.queryForObject("""
+                SELECT string_agg(before_state::text||after_state::text,'') FROM tna.org_audit_event
+                WHERE tenant_id=? AND action='EMPLOYEE_IMPORT'
+                """, String.class, tenant);
+        for (String secret : new String[] {"1990-01-01", "1991-02-03", "19900101", "19910203"}) assertFalse(audit.contains(secret), secret);
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='EMPLOYEE_IMPORT'", Integer.class, tenant));
+    }
+
+    @Test void anyInvalidRowCancelsTheWholeBatch() {
+        var form = new EmployeeImportService.Form(UUID.randomUUID(), "이관", List.of(
+                row("a", "", "가", "2019-03-04", "1990-01-01", "D10"),
+                row("b", "", "나", "2019-03-04", "2019-03-04", "D10")));
+        var error = assertThrows(EmployeeImportService.ImportProblem.class, () -> imports.save(manager, form));
+        assertEquals(422, error.status());
+        assertEquals("birthDate", error.preview().rows().get(1).errors().getFirst().field());
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.employee WHERE tenant_id=?", Integer.class, tenant));
+    }
 }
