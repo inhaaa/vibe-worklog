@@ -398,7 +398,7 @@ async function run(browser, device) {
       await setupLink('/admin/holidays?year=' + date.slice(0, 4));
       await fill(adminPage, '#holiday-reason', why);
       await click(adminPage, '.wl-form-actions button', '저장');
-      await visible(adminPage, '[role=status]', '근태 반영');
+      await visible(adminPage, '[role=status]', '저장했습니다.');
       await setupLink('/admin/networks');
       await values(adminPage, '/admin/networks/changes', { network: '127.0.0.1/32', label: '첫 출근 업무망', reason: why });
       await submit(adminPage, '/admin/networks/changes', '허용망 저장');
