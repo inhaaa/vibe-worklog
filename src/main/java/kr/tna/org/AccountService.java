@@ -45,6 +45,9 @@ public final class AccountService {
 
     public UUID reset(TnaPrincipal actor, UUID employeeId, ResetForm form) {
         identityGuard.requireMutable(actor, employeeId);
+        if (employeeId.equals(actor.employeeId())) {
+            throw OrgException.invalid("본인 계정은 초기화할 수 없습니다. 다른 담당자에게 요청해 주세요.");
+        }
         String reason = requiredText(form.reason(), 500, "초기화 사유");
         String action = "ACCOUNT_ACTIVATION_RESET";
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
@@ -52,7 +55,7 @@ public final class AccountService {
                     var employee = requireEmployee(actor.tenantId(), employeeId, true);
                     checkVersion(form.expectedVersion(), employee.version());
                     Account before = account(actor.tenantId(), employeeId);
-                    if (before == null) throw OrgException.invalid("계정이 없는 사원입니다. 입사 확정 후 계정이 만들어집니다.");
+                    if (before == null) throw OrgException.invalid("계정이 없습니다. 입사 확정 시 계정이 만들어집니다.");
                     provisioning.reopen(actor.tenantId(), before.id());
                     changed(employees.advanceVersion(actor.tenantId(), employeeId, employee.version(), actor.accountId()));
                     return new Change(employeeId, Map.of("pending", before.activationExpiresAt() != null),
@@ -61,15 +64,14 @@ public final class AccountService {
     }
 
     /** 계정 관리 화면에 보이는 상태 이름. 생년월일 값은 읽지 않고 입력 여부만 쓴다. */
-    public String status(TnaPrincipal actor, UUID employeeId) {
+    public AccountStatus status(TnaPrincipal actor, UUID employeeId) {
         return commands.read(actor, () -> {
             requireEmployee(actor.tenantId(), employeeId, false);
             var account = account(actor.tenantId(), employeeId);
-            var stored = personnel.stored(actor.tenantId(), employeeId);
             return AccountStatus.of(account != null, account != null && account.active(),
                     account == null ? null : account.activationExpiresAt(),
                     account == null ? 0 : account.activationFailures(),
-                    stored != null && stored.birthDate() != null, clock.instant()).label();
+                    personnel.hasBirthDate(actor.tenantId(), employeeId), clock.instant());
         });
     }
 

@@ -649,10 +649,13 @@ function AccessPage({ model: m }: { model: AccessModel }) {
       <section className="wl-section" aria-labelledby="account-title">
         <h2 id="account-title">로그인 계정</h2>
         <p>{m.accountStatus}</p>
-        {m.accountStatus === '생년월일 필요' && (
+        {m.accountState === 'BIRTH_DATE_REQUIRED' && (
           <p className="hint">인사정보에 생년월일이 없어 최초 접속을 할 수 없습니다. 생년월일을 등록해 주세요.</p>
         )}
-        {account && m.eligibleEmployee && (
+        {account && m.eligibleEmployee && m.ownAccount && (
+          <p className="hint">본인 계정은 초기화할 수 없습니다. 다른 담당자에게 요청해 주세요.</p>
+        )}
+        {account && m.eligibleEmployee && !m.ownAccount && (
           <Form
             action={`${path}/account-reset`}
             method="post"
@@ -672,7 +675,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
             </div>
           </Form>
         )}
-        {!account && <p className="hint">계정은 입사 확정이나 사용자 관리에서 만듭니다.</p>}
+        {!account && <p className="hint">계정이 없습니다. 입사 확정 시 계정이 만들어집니다.</p>}
       </section>
       <section className="wl-section" aria-labelledby="roles-title">
         <h2 id="roles-title">역할</h2>
@@ -680,7 +683,13 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           공통은 기본 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여합니다. 대표는 회사
           현황을 조회하며, 지정된 승인자만 배정된 신청을 처리합니다. 역할이 바뀌면 기존 로그인이 종료됩니다.
         </p>
-        {!roleEditable && <p>계정이 있는 사원의 역할을 변경할 수 있습니다.</p>}
+        {!roleEditable && (
+          <p>
+            {m.accountState === 'PREVIOUS_INVITATION'
+              ? '이전 초대 대기 계정은 비밀번호 초기화 후 역할을 변경할 수 있습니다.'
+              : '계정이 있는 사원의 역할을 변경할 수 있습니다.'}
+          </p>
+        )}
         {m.eligibleEmployee && roleEditable && (
           <Form action={`${path}/roles`} method="post" className="wl-form">
             <CommandFields form={m.rolesForm} />

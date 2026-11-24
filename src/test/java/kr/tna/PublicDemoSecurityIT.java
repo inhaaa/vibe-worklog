@@ -189,7 +189,8 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
                 .andExpect(ReactPageAssertions.data("/onboarding/publicDemo", true));
         String draft = onboarding + "/" + UUID.randomUUID();
         for (String path : List.of(onboarding, draft + "/changes", draft + "/confirm",
-                draft + "/withdraw", "/admin/employees/exports")) {
+                draft + "/withdraw", "/admin/employees/exports",
+                "/admin/employees/" + UUID.randomUUID() + "/account-reset")) {
             publicMvc.perform(post(path).session(session).with(csrf()))
                     .andExpect(status().isForbidden());
         }

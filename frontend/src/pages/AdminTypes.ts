@@ -115,6 +115,8 @@ export interface AccessModel extends AdminModel {
     activationExpiresAt: string | null;
   } | null;
   accountStatus: string;
+  accountState: string;
+  ownAccount: boolean;
   eligibleEmployee: boolean;
   resetForm: CommandForm;
   rolesForm: CommandForm & { roles: string[] | null };

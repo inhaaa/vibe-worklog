@@ -100,8 +100,15 @@ class LocalDemoIdentityGuardIT extends DemoIdentityServiceFixture {
 
     @Test
     void localDemoStillAllowsPasswordResetOfTheExistingAccount() {
-        accounts.reset(actor, LocalDemoLogin.EMPLOYEE_ID, passwordReset());
-        assertNotNull(accounts.get(actor, LocalDemoLogin.EMPLOYEE_ID).activationExpiresAt());
+        UUID other = UUID.randomUUID();
+        UUID account = UUID.randomUUID();
+        database.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,'LOCAL-OTHER','합성 직원',DATE '2026-01-01')",
+                LocalDemoLogin.TENANT_ID, other);
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash,active) VALUES (?,?,?,'other@local.example.test','x',true)",
+                LocalDemoLogin.TENANT_ID, account, other);
+        database.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", LocalDemoLogin.TENANT_ID, account);
+        accounts.reset(actor, other, passwordReset());
+        assertNotNull(accounts.get(actor, other).activationExpiresAt());
     }
 
     @Test

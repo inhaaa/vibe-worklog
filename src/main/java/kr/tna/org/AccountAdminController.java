@@ -78,6 +78,7 @@ public class AccountAdminController {
                              AccountData.RolesForm roles, AccountData.ApproverForm approver) {
         var employee = employees.get(actor, id);
         var account = accounts.get(actor, id);
+        var status = accounts.status(actor, id);
         var history = approvers.history(actor, id);
         LocalDate today = commands.today();
         var current = history.stream().filter(a -> a.supersededAt() == null && a.validTo() == null)
@@ -86,7 +87,8 @@ public class AccountAdminController {
                 current == null ? null : current.approverEmployeeId(), today, employee.version(), "", UUID.randomUUID());
         var candidates = approvers.candidates(actor);
         return new ModelAndView("org/access").addObject("employee", employee).addObject("account", account)
-                .addObject("accountStatus", accounts.status(actor, id))
+                .addObject("accountStatus", status.label()).addObject("accountState", status.name())
+                .addObject("ownAccount", id.equals(actor.employeeId()))
                 .addObject("eligibleEmployee", employee.active() && !employee.joinedOn().isAfter(today)
                         && (employee.leftOn() == null || !employee.leftOn().isBefore(today)))
                 .addObject("resetForm", reset != null ? reset : new AccountData.ResetForm(

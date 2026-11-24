@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, fireEvent, render as renderDom, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AdminPages } from './AdminPages';
 import type { PageProps } from '../types';
 
@@ -50,6 +50,8 @@ const access = {
   employee,
   account: null,
   accountStatus: '계정 없음',
+  accountState: 'NONE',
+  ownAccount: false,
   eligibleEmployee: true,
   resetForm: command,
   rolesForm: { ...command, roles: ['EMPLOYEE', 'APPROVER'] },
@@ -212,6 +214,7 @@ describe('관리 React 페이지', () => {
       ...access,
       account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
       accountStatus: '최초 접속 대기',
+      accountState: 'PENDING',
       selectedApproverMissing: true,
       approverForm: { ...access.approverForm, approverEmployeeId: 'missing' },
     });
@@ -230,14 +233,41 @@ describe('관리 React 페이지', () => {
   it('계정이 없으면 초기화 폼을 보이지 않고 생년월일이 없으면 안내한다', async () => {
     const none = await render('org/access', access);
     expect(none).not.toContain('account-reset"');
-    expect(none).toContain('입사 확정이나 사용자 관리');
+    expect(none).toContain('입사 확정 시 계정이 만들어집니다');
     const noBirth = await render('org/access', {
       ...access,
       account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
       accountStatus: '생년월일 필요',
+      accountState: 'BIRTH_DATE_REQUIRED',
     });
     expect(noBirth).toContain('생년월일을 등록해 주세요');
     expect(noBirth).toContain('account-reset"');
+  });
+
+  it('본인 계정에는 초기화 폼 대신 안내를 보이고 이전 초대 상태는 안내 문구를 바꾼다', async () => {
+    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'], activationExpiresAt: null };
+    const own = await render('org/access', { ...access, account: active, accountState: 'ACTIVE', ownAccount: true });
+    expect(own).not.toContain('account-reset"');
+    expect(own).toContain('본인 계정은 초기화할 수 없습니다');
+    const old = await render('org/access', {
+      ...access, account: { ...active, active: false, credentialSet: false }, accountState: 'PREVIOUS_INVITATION',
+    });
+    expect(old).toContain('이전 초대 대기 계정은 비밀번호 초기화 후 역할을 변경할 수 있습니다.');
+  });
+
+  it('초기화 확인 창을 취소하면 제출하지 않는다', async () => {
+    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'], activationExpiresAt: null };
+    const props: PageProps = {
+      page: 'org/access', data: { ...access, account: active, accountState: 'ACTIVE' },
+      csrf: { token: 'csrf-token', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' }, reload: () => {},
+    };
+    const view = renderDom(<AdminPages {...props} />);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const form = view.container.querySelector('form[action$="/account-reset"]')!;
+    expect(fireEvent.submit(form)).toBe(false);
+    confirm.mockReturnValue(true);
+    expect(fireEvent.submit(form)).toBe(true);
+    confirm.mockRestore();
   });
 
   it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', async () => {

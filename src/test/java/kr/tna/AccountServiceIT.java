@@ -20,6 +20,7 @@ import javax.sql.DataSource;
 import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.CompanyAuthenticationDetails;
 import kr.tna.common.auth.CompanyAuthenticationProvider;
+import kr.tna.common.auth.FirstLoginService;
 import kr.tna.common.auth.InvitationAcceptance;
 import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.PasswordPolicy;
@@ -27,6 +28,7 @@ import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ResetForm;
 import kr.tna.org.AccountData.RolesForm;
 import kr.tna.org.AccountService;
+import kr.tna.org.AccountStatus;
 import kr.tna.org.OrgException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,7 @@ class AccountServiceIT {
     @Autowired AccountService accounts;
     @Autowired CompanyAuthenticationProvider provider;
     @Autowired InvitationAcceptance acceptance;
+    @Autowired FirstLoginService firstLogin;
     @Autowired AuthStore auth;
     private JdbcTemplate database;
     private UUID tenant;
@@ -122,18 +125,68 @@ class AccountServiceIT {
         assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(1L, " ", UUID.randomUUID())));
         assertStatus(409, () -> accounts.reset(actor, employee, new ResetForm(0L, "합성 사유", UUID.randomUUID())));
         accounts.reset(actor, employee, new ResetForm(1L, "이전 초대 재설정", UUID.randomUUID()));
-        assertEquals("생년월일 필요", accounts.status(actor, employee));
+        assertEquals(AccountStatus.BIRTH_DATE_REQUIRED, accounts.status(actor, employee));
+    }
+
+    @Test
+    void anAdminCannotResetTheirOwnAccount() {
+        long before = database.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND id=?",
+                Long.class, tenant, actor.accountId());
+        assertStatus(422, () -> accounts.reset(actor, actor.employeeId(),
+                new ResetForm(0L, "합성 본인 초기화", UUID.randomUUID())));
+        assertEquals(before, database.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND id=?",
+                Long.class, tenant, actor.accountId()));
+        assertNull(database.queryForObject("SELECT activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND id=?",
+                java.sql.Timestamp.class, tenant, actor.accountId()));
+    }
+
+    @Test
+    void anAdminResetToPendingDoesNotCountAsTheRemainingAdmin() {
+        UUID other = employee("ADMIN2");
+        UUID account = UUID.randomUUID();
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,password_hash,active) VALUES (?,?,?,?,true)",
+                tenant, account, other, HASH);
+        for (String role : Set.of("EMPLOYEE", "ATTENDANCE_ADMIN")) {
+            database.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)", tenant, account, role);
+        }
+        accounts.reset(actor, other, new ResetForm(0L, "합성 담당자 초기화", UUID.randomUUID()));
+        assertStatus(422, () -> accounts.roles(actor, actor.employeeId(),
+                new RolesForm(Set.of("EMPLOYEE"), 0L, "담당자 회수", UUID.randomUUID())));
+    }
+
+    @Test
+    void anOldInvitationLinkIsRefusedAfterAReset() {
+        invite();
+        accounts.reset(actor, employee, new ResetForm(1L, "이전 초대 재설정", UUID.randomUUID()));
+        assertStatus(422, () -> accept(message()));
+        assertEquals(0, usedTokens());
+    }
+
+    @Test
+    void resetAccountActivatesThroughFirstLoginAndThenLogsInWithTheNewPassword() {
+        String renewed = "Synthetic renewed password 77!";
+        UUID account = UUID.randomUUID();
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,password_hash,active) VALUES (?,?,?,?,true)",
+                tenant, account, employee, HASH);
+        database.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", tenant, account);
+        database.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,DATE '1990-05-12',1,?)",
+                tenant, employee, actor.accountId());
+        accounts.reset(actor, employee, new ResetForm(version(), "합성 분실 확인", UUID.randomUUID()));
+        assertThrows(AuthenticationException.class, () -> login("EMPLOYEE", PASSWORD));
+        firstLogin.activate(company, "EMPLOYEE", LocalDate.of(1990, 5, 12), renewed, "127.0.0.1");
+        assertDoesNotThrow(() -> login("EMPLOYEE", renewed));
+        assertThrows(AuthenticationException.class, () -> login("EMPLOYEE", PASSWORD));
     }
 
     @Test
     void statusNamesBirthDateRequirementWithoutReadingTheBirthDate() {
-        assertEquals("계정 없음", accounts.status(actor, employee));
+        assertEquals(AccountStatus.NONE, accounts.status(actor, employee));
         database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '7 days')",
                 tenant, UUID.randomUUID(), employee);
-        assertEquals("생년월일 필요", accounts.status(actor, employee));
+        assertEquals(AccountStatus.BIRTH_DATE_REQUIRED, accounts.status(actor, employee));
         database.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,DATE '1990-05-12',1,?)",
                 tenant, employee, actor.accountId());
-        assertEquals("최초 접속 대기", accounts.status(actor, employee));
+        assertEquals(AccountStatus.PENDING, accounts.status(actor, employee));
     }
 
     @Test

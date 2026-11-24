@@ -42,6 +42,12 @@ public interface EmployeePersonnelMapper {
             @Param("today") LocalDate today, @Param("asOf") Instant asOf, @Param("photoUrl") String photoUrl);
 
     @Select("""
+            SELECT EXISTS(SELECT 1 FROM tna.employee_personnel
+                          WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND birth_date IS NOT NULL)
+            """)
+    boolean hasBirthDate(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId);
+
+    @Select("""
             SELECT birth_date,grade_name,position_name,job_name,photo_content_type,photo_bytes,version
             FROM tna.employee_personnel WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId}
             """)
