@@ -33,7 +33,7 @@ public interface AccountDirectoryMapper {
             ) listed
             WHERE #{status}='all' OR state=#{status}
             ORDER BY employee_no, employee_id
-            LIMIT 51 OFFSET #{offset}
+            LIMIT 101 OFFSET #{offset}
             """)
     List<Row> list(@Param("tenantId") UUID tenantId, @Param("pattern") String pattern, @Param("status") String status,
                    @Param("today") LocalDate today, @Param("now") Instant now, @Param("offset") int offset);

@@ -150,6 +150,93 @@ class AccountDirectoryWebIT {
         }
     }
 
+    void noBirthPersonnel(UUID employee) {
+        db.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,NULL,1,?)",
+                tenant, employee, manager.accountId());
+    }
+
+    @Test void statusOrderMatchesAccountStatusForCombinedConditions() throws Exception {
+        java.time.Instant now = java.time.Instant.now();
+        String past = now.minusSeconds(60).toString(), future = now.plusSeconds(86_400).toString();
+        record Case(String no, String expires, int failures, int birth) { } // birth: 0 none, 1 null row, 2 known
+        var cases = java.util.List.of(
+                new Case("O1", past, 5, 0), new Case("O2", past, 5, 2), new Case("O3", future, 0, 1),
+                new Case("O4", past, 0, 2), new Case("O5", future, 5, 2), new Case("O6", future, 0, 2));
+        for (var c : cases) {
+            UUID id = employee(c.no(), "조합" + c.no());
+            account(id, false, c.expires(), c.failures());
+            if (c.birth() == 1) noBirthPersonnel(id);
+            if (c.birth() == 2) birth(id);
+        }
+        for (var c : cases) {
+            var expected = kr.tna.org.AccountStatus.of(true, false, java.time.Instant.parse(c.expires()), c.failures(),
+                    c.birth() == 2, java.time.Instant.now());
+            mvc.perform(authenticated(get("/admin/accounts").param("q", c.no()), manager))
+                    .andExpect(ReactPageAssertions.data("/accountDirectory/items/0/state", expected.name()));
+        }
+    }
+
+    @Test void futureJoinerCanGetAnAccountButDepartedAndOtherTenantCannot() throws Exception {
+        UUID future = employee("F1", "입사예정");
+        db.update("UPDATE tna.employee SET joined_on=?, left_on=NULL WHERE tenant_id=? AND id=?",
+                LocalDate.now().plusDays(10), tenant, future);
+        assertTrue(bulk("create", "개통", future).contains("\"count\":1"));
+        UUID gone = employee("F2", "퇴사");
+        db.update("UPDATE tna.employee SET left_on=DATE '2021-01-01' WHERE tenant_id=? AND id=?", tenant, gone);
+        assertTrue(bulk("create", "개통", gone).contains("현재 재직 중인 활성 사원만"));
+        UUID otherTenant = UUID.randomUUID(), foreign = UUID.randomUUID();
+        db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'다른 회사')", otherTenant, "OTH-" + otherTenant);
+        db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,'X1','타사',DATE '2020-01-01')",
+                otherTenant, foreign);
+        String body = bulk("create", "개통", foreign);
+        assertTrue(body.contains(foreign.toString()) && body.contains("errors"), body);
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE employee_id=?", Integer.class, foreign));
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE employee_id=?", Integer.class, gone));
+    }
+
+    @Test void rejectsTooManyAndDuplicateIdsAndMissingCsrf() throws Exception {
+        UUID one = employee("D1", "하나");
+        UUID[] many = new UUID[101];
+        java.util.Arrays.setAll(many, i -> UUID.randomUUID());
+        assertTrue(bulk("create", "개통", many).contains("1~100명"));
+        assertTrue(bulk("create", "개통", one, one).contains("1~100명"));
+        mvc.perform(authenticated(post("/admin/accounts/create"), manager)
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
+                        .content("{\"commandId\":\"" + UUID.randomUUID() + "\",\"reason\":\"x\",\"employeeIds\":[\"" + one + "\"]}"))
+                .andExpect(status().isForbidden());
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE employee_id=?", Integer.class, one));
+    }
+
+    @Test void sameCommandReplayReopensOnceAndAuditHasNoBirthDate() throws Exception {
+        UUID worker = employee("R1", "직원"); account(worker, true, null, 0); birth(worker);
+        UUID command = UUID.randomUUID();
+        String body = "{\"commandId\":\"" + command + "\",\"reason\":\"초기화\",\"employeeIds\":[\"" + worker + "\"]}";
+        long before = db.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE employee_id=?", Long.class, worker);
+        for (int i = 0; i < 2; i++) {
+            var response = mvc.perform(authenticated(post("/admin/accounts/reset"), manager).with(csrf())
+                    .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content(body))
+                    .andReturn().getResponse();
+            assertEquals(200, response.getStatus());
+            assertTrue(response.getContentAsString().contains("\"count\":1"));
+        }
+        assertEquals(before + 1, db.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE employee_id=?", Long.class, worker));
+        String audit = db.queryForObject("""
+                SELECT string_agg(coalesce(before_state::text,'')||coalesce(after_state::text,'')||reason, '|')
+                FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_BULK_RESET'
+                """, String.class, tenant);
+        assertFalse(audit.contains("1990"), audit);
+        assertTrue(audit.contains("pending"), audit);
+    }
+
+    @Test void percentInSearchIsLiteral() throws Exception {
+        employee("PCT-ONE", "퍼센트%이름");
+        employee("PCT-TWO", "퍼센트X이름");
+        String page = mvc.perform(authenticated(get("/admin/accounts").param("q", "%"), manager))
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(page.contains("PCT-ONE"));
+        assertFalse(page.contains("PCT-TWO"));
+    }
+
     private kr.tna.common.auth.TnaPrincipal member(String number, java.util.Set<String> roles) {
         UUID id = UUID.randomUUID(), account = UUID.randomUUID();
         db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'합성 사용자',?)",

@@ -66,4 +66,49 @@ describe('AccountsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '계정 생성' }));
     expect((await screen.findByRole('alert')).textContent).toContain('로그인 상태와 권한');
   });
+
+  it('select-all toggles every row and the status shows after success', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ count: 2 }), { status: 200, headers: JSON_HEADERS }));
+    render(<AccountsPage model={model} csrf={csrf} reload={() => undefined} />);
+    fireEvent.click(screen.getByLabelText('이 페이지 전체 선택'));
+    expect(screen.getByText('선택 2명')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('이 페이지 전체 선택'));
+    expect(screen.getByText('선택 0명')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('이 페이지 전체 선택'));
+    fireEvent.click(screen.getByLabelText('19001 가 선택'));
+    fireEvent.change(screen.getByLabelText('처리 사유'), { target: { value: '일괄' } });
+    fireEvent.click(screen.getByRole('button', { name: '비밀번호 초기화' }));
+    expect((await screen.findByRole('status')).textContent).toBe('2명 처리했습니다.');
+  });
+
+  it('disables reset when the own row is selected', () => {
+    const own = { ...model, items: [{ ...model.items[1], self: true }] };
+    render(<AccountsPage model={own} csrf={csrf} reload={() => undefined} />);
+    fireEvent.click(screen.getByLabelText('19002 나 선택'));
+    fireEvent.change(screen.getByLabelText('처리 사유'), { target: { value: '해제' } });
+    expect((screen.getByRole('button', { name: '비밀번호 초기화' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps q and status in pagination links', () => {
+    render(<AccountsPage model={{ ...model, q: '김%', status: 'LOCKED', page: 1, hasNext: true }} csrf={csrf} reload={() => undefined} />);
+    expect(screen.getByText('이전').getAttribute('href')).toBe('/admin/accounts?q=%EA%B9%80%25&status=LOCKED&page=0');
+    expect(screen.getByText('다음').getAttribute('href')).toBe('/admin/accounts?q=%EA%B9%80%25&status=LOCKED&page=2');
+  });
+
+  it('reuses the command id when retrying after an unknown result', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ count: 1 }), { status: 200, headers: JSON_HEADERS }));
+    render(<AccountsPage model={model} csrf={csrf} reload={() => undefined} />);
+    fireEvent.click(screen.getByLabelText('19001 가 선택'));
+    fireEvent.change(screen.getByLabelText('처리 사유'), { target: { value: '개통' } });
+    fireEvent.click(screen.getByRole('button', { name: '계정 생성' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: '계정 생성' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const id = (call: number) => JSON.parse(String((fetchMock.mock.calls[call][1] as RequestInit).body)).commandId;
+    expect(id(1)).toBe(id(0));
+  });
 });

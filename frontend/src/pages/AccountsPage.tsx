@@ -18,20 +18,28 @@ export function AccountsPage({ model, csrf, reload }: { model: AccountDirectory;
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState('');
   const [commandId, setCommandId] = useState(() => crypto.randomUUID());
   const chosen = model.items.filter(item => selected.includes(item.employeeId));
-  const ready = chosen.length > 0 && reason.trim() !== '' && !busy;
+  const ready = chosen.length > 0 && chosen.length <= 100 && reason.trim() !== '' && !busy;
   const canCreate = ready && chosen.every(item => item.state === 'NONE');
   const canReset = ready && chosen.every(item => item.state !== 'NONE' && !item.self);
+
+  const allSelected = model.items.length > 0 && chosen.length === model.items.length;
 
   function toggle(id: string) {
     setSelected(ids => ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id]);
     setCommandId(crypto.randomUUID());
   }
 
+  function toggleAll() {
+    setSelected(allSelected ? [] : model.items.map(item => item.employeeId));
+    setCommandId(crypto.randomUUID());
+  }
+
   async function run(action: 'create' | 'reset') {
     if (!window.confirm(CONFIRM[action])) return;
-    setBusy(true); setMessage(''); setErrors([]);
+    setBusy(true); setMessage(''); setErrors([]); setDone('');
     try {
       const response = await fetch('/admin/accounts/' + action, {
         method: 'POST', credentials: 'same-origin',
@@ -43,7 +51,7 @@ export function AccountsPage({ model, csrf, reload }: { model: AccountDirectory;
       }
       if (response.status >= 500 || !(response.headers.get('content-type') ?? '').includes('json')) { setMessage(UNKNOWN); return; }
       const data = await response.json() as BulkResponse;
-      if (response.ok) { setSelected([]); setReason(''); setCommandId(crypto.randomUUID()); reload(); return; }
+      if (response.ok) { setDone(`${data.count ?? chosen.length}명 처리했습니다.`); setSelected([]); setReason(''); setCommandId(crypto.randomUUID()); reload(); return; }
       setCommandId(crypto.randomUUID());
       setMessage(data.message ?? '처리하지 못했습니다.');
       setErrors((data.errors ?? []).map(error => {
@@ -58,7 +66,7 @@ export function AccountsPage({ model, csrf, reload }: { model: AccountDirectory;
   const pageUrl = (page: number) => `/admin/accounts?q=${encodeURIComponent(model.q)}&status=${encodeURIComponent(model.status)}&page=${page}`;
   return (
     <section className="w-page" data-modal-busy={String(busy)}>
-      <PageHeader title="사용자 관리" help="사원별 로그인 계정 상태를 보고, 여러 사원의 계정을 만들거나 비밀번호를 초기화합니다. 한 번에 100명까지 처리합니다." />
+      <PageHeader title="사용자 관리" help="사원별 로그인 계정 상태를 보고, 여러 사원의 계정을 만들거나 비밀번호를 초기화합니다. 한 페이지(최대 100명) 단위로 처리합니다." />
       <form className="wl-querybar" action="/admin/accounts" method="get" role="search" aria-label="사용자 검색">
         <label htmlFor="account-q">사번·이름 검색</label>
         <input id="account-q" className="t-input" type="search" name="q" defaultValue={model.q} maxLength={80} />
@@ -69,12 +77,13 @@ export function AccountsPage({ model, csrf, reload }: { model: AccountDirectory;
         <div className="wl-querybar-actions"><button type="submit" className="t-btn wl-query-submit">조회</button></div>
       </form>
       <table>
-        <thead><tr><th scope="col">선택</th><th scope="col">사번</th><th scope="col">이름</th><th scope="col">현재 소속</th><th scope="col">계정 상태</th></tr></thead>
+        <thead><tr><th scope="col"><input type="checkbox" aria-label="이 페이지 전체 선택" disabled={busy}
+          checked={allSelected} onChange={toggleAll} /></th><th scope="col">사번</th><th scope="col">이름</th><th scope="col">현재 소속</th><th scope="col">계정 상태</th></tr></thead>
         <tbody>
           {model.items.map(item => (
             <tr key={item.employeeId}>
               <td><input type="checkbox" aria-label={`${item.employeeNo} ${item.displayName} 선택`}
-                checked={selected.includes(item.employeeId)} onChange={() => toggle(item.employeeId)} /></td>
+                disabled={busy} checked={selected.includes(item.employeeId)} onChange={() => toggle(item.employeeId)} /></td>
               <td>{item.employeeNo}</td><td>{item.displayName}</td><td>{item.organizationName ?? '—'}</td>
               <td>{item.label}{item.self ? ' (본인)' : ''}</td>
             </tr>
@@ -88,13 +97,14 @@ export function AccountsPage({ model, csrf, reload }: { model: AccountDirectory;
       </nav>
       <div className="wl-save-reason">
         <label htmlFor="account-reason" className="wl-required">처리 사유</label>
-        <textarea id="account-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} />
+        <textarea id="account-reason" value={reason} maxLength={500} onChange={event => { setReason(event.target.value); setCommandId(crypto.randomUUID()); }} />
       </div>
       <div className="wl-form-actions" aria-busy={busy}>
         <span>{`선택 ${chosen.length}명`}</span>
         <button type="button" className="t-btn primary" disabled={!canCreate} onClick={() => run('create')}>계정 생성</button>
         <button type="button" className="t-btn" disabled={!canReset} onClick={() => run('reset')}>비밀번호 초기화</button>
       </div>
+      {done && <p role="status">{done}</p>}
       {message && <div className="notice" role="alert"><p>{message}</p>{errors.map(error => <p key={error}>{error}</p>)}</div>}
     </section>
   );
