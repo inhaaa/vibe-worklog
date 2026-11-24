@@ -40,7 +40,7 @@ class DatabaseFoundationIT {
                 "calendar_version", "checkout_follow_up", "common_code", "common_code_group", "correction_detail", "day_input_revision", "day_result",
                 "employee", "employee_assignment", "employee_employment_status", "employee_onboarding",
                 "employee_personal_details", "employee_personal_entry", "employee_personnel",
-                "employment_rule_assessment", "leave_bucket", "leave_bucket_attribution",
+                "employment_rule_assessment", "holiday", "holiday_year", "leave_bucket", "leave_bucket_attribution",
                 "leave_exit_settlement", "leave_ledger", "leave_monthly_review", "leave_request_day",
                 "org_audit_event", "organization", "organization_head_assignment",
                 "overtime_request_detail", "report_snapshot", "request_approval_step", "request_effect", "request_form", "request_form_version", "role_grant", "schedule_assignment",
