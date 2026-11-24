@@ -88,6 +88,7 @@ const titles: Record<string, string> = {
   'org/attendance-types': '근태코드 관리',
   'org/access': '계정·권한',
   'org/access-list': '권한 관리',
+  'org/accounts': '사용자 관리',
   'company/attendance': '회사 근무현황',
   'company/requests': '회사 신청 현황',
   'company/organizations': '조직도',

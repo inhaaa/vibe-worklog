@@ -81,6 +81,7 @@ const navigation: NavigationGroup[] = [
   { id: 'settings', label: '시스템 설정', children: [
     { id: 'access', label: '계정·공통코드', children: [
       item('account-access', '권한 관리', '/admin/access', admin, 'org/access-list', 'org/access'),
+      item('accounts', '사용자 관리', '/admin/accounts', admin, 'org/accounts'),
       item('common-codes', '공통코드 관리', '/admin/common-codes', admin, 'org/common-codes'),
     ] },
     { id: 'approval-settings', label: '결재 설정', children: [

@@ -6,6 +6,7 @@ import { WorklogSheet, sheetColumn } from '../components/WorklogSheet';
 import { PageHeader } from '../components/PageHeader';
 import { SectionHeader } from '../components/SectionHeader';
 import { PersonalDetailsTabs, type PersonalDetailsModel } from './PersonalDetails';
+import { AccountsPage, type AccountDirectory } from './AccountsPage';
 import { RoleManagementPage, type RoleDirectory } from './RoleManagementPage';
 import { RoleMembersSheet } from './RoleMembersSheet';
 import { requestKindName, type LeavePart } from './leavePart';
@@ -300,6 +301,8 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
       return <ProfilePage details={data.personalDetails as PersonalDetailsModel | undefined} approval={p.approvalPreview} identity={{ employeeName: p.employeeName,
         joinedOn: p.joinedOn, birthDate: (data.employeeHeader as { birthDate?: string | null } | undefined)?.birthDate }} />;
     }
+    case 'org/accounts':
+      return <AccountsPage model={data.accountDirectory as AccountDirectory} csrf={csrf} reload={reload} />;
     case 'org/access-list': {
       const model = data.roleDirectory as RoleDirectory;
       return <RoleManagementPage model={model}>

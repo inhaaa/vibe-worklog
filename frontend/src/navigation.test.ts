@@ -20,9 +20,9 @@ describe('업무 메뉴 계약', () => {
       '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/overtime', '/admin/attendance',
       '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
-      '/admin/access', '/admin/common-codes', '/admin/request-forms', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
+      '/admin/access', '/admin/accounts', '/admin/common-codes', '/admin/request-forms', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);
-    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(37);
+    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(38);
     expect(getNavigationContext('org/request-forms', '/admin/request-forms')?.breadcrumbs.at(-1)?.label).toBe('신청서코드 관리');
     expect(getNavigationContext('org/personnel-home', '/admin/employees')?.href).toBe('/admin/employees');
     expect(getNavigationContext('org/employees', '/admin/employees/bulk-edit')?.href).toBe('/admin/employees/bulk-edit');
