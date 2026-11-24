@@ -43,7 +43,12 @@ public class EmployeeImportService {
     public Preview preview(TnaPrincipal actor, List<Row> rows) {
         List<Row> input = rows == null ? List.of() : rows;
         EmployeeImportRows.checkCount(input.size());
+        requireNoNull(input);
         return commands.readShared(actor, () -> summarize(check(actor.tenantId(), input)));
+    }
+
+    private static void requireNoNull(List<Row> rows) {
+        if (rows.stream().anyMatch(java.util.Objects::isNull)) throw OrgException.invalid("빈 행이 있습니다.");
     }
 
     List<Checked> check(UUID tenant, List<Row> rows) {
@@ -57,11 +62,15 @@ public class EmployeeImportService {
         var issued = new HashSet<>(existing);
         issued.addAll(manual.keySet());
         var clientIds = new HashSet<String>();
+        // 마감 월은 한 번만 조회하고 행마다 requireOpen과 같은 규칙(입사 월 이후 마감 월이 있으면 거절)으로 판단한다.
+        var earliest = parsed.stream().map(Parsed::joinedOn).filter(java.util.Objects::nonNull).min(LocalDate::compareTo);
+        List<LocalDate> closed = earliest.isPresent() ? employees.closedMonths(tenant, earliest.get(), null) : List.of();
         var checked = new ArrayList<Checked>();
         for (var row : parsed) {
             var errors = new ArrayList<>(row.errors());
-            if (row.clientRowId() == null || row.clientRowId().isBlank() || !clientIds.add(row.clientRowId())) {
-                errors.add(new FieldError("clientRowId", "행 식별자가 없거나 겹칩니다."));
+            if (row.clientRowId() == null || row.clientRowId().isBlank()
+                    || row.clientRowId().length() > 64 || !clientIds.add(row.clientRowId())) {
+                errors.add(new FieldError("clientRowId", "행 식별자가 없거나 겹치거나 64자를 넘습니다."));
             }
             String number = row.employeeNo();
             if (number != null && existing.contains(number)) {
@@ -81,11 +90,9 @@ public class EmployeeImportService {
                 errors.add(new FieldError("organizationCode", "활성 조직 코드가 아닙니다."));
             }
             if (row.joinedOn() != null && errors.stream().noneMatch(error -> error.field().equals("joinedOn"))) {
-                try {
-                    employees.requireOpen(tenant, row.joinedOn(), null);
-                } catch (OrgException error) {
-                    errors.add(new FieldError("joinedOn", error.getMessage()));
-                }
+                var month = row.joinedOn().withDayOfMonth(1);
+                closed.stream().filter(m -> !m.isBefore(month)).findFirst().ifPresent(m ->
+                        errors.add(new FieldError("joinedOn", kr.tna.worktime.ClosedAttendanceMonths.closedMonth(m).getMessage())));
             }
             checked.add(new Checked(row, number, organization, List.copyOf(errors)));
         }
@@ -118,6 +125,7 @@ public class EmployeeImportService {
         String reason = OrgCommands.requiredText(form.reason(), 500, "등록 사유");
         List<Row> rows = form.rows() == null ? List.of() : form.rows();
         EmployeeImportRows.checkCount(rows.size());
+        requireNoNull(rows);
         // 생년월일은 날짜 SHA-256이 쉽게 역산되므로 입력 해시에서 뺀다(ADR 0008).
         String hash = OrgCommands.fingerprint(ACTION, reason, rows.stream().map(row -> String.join("\u001f",
                 String.valueOf(row.clientRowId()), String.valueOf(row.employeeNo()), String.valueOf(row.displayName()),
@@ -129,14 +137,13 @@ public class EmployeeImportService {
             var checked = check(tenant, rows);
             var preview = summarize(checked);
             if (!preview.valid()) throw new ImportProblem(preview);
-            LocalDate today = commands.today();
             var numbers = new ArrayList<String>();
             for (var row : checked) {
                 var values = row.parsed();
                 var employee = new OrgData.Employee(UUID.randomUUID(), row.employeeNo(), values.displayName(),
                         values.joinedOn(), null, true, 0);
                 employees.insert(tenant, employee, actor.accountId());
-                employees.insertAssignment(tenant, UUID.randomUUID(), employee.id(), row.organizationId(), today, reason, actor.accountId());
+                employees.insertAssignment(tenant, UUID.randomUUID(), employee.id(), row.organizationId(), values.joinedOn(), reason, actor.accountId());
                 personnel.save(tenant, employee.id(), new EmployeePersonnelData.Stored(values.birthDate(), values.gradeName(),
                         values.positionName(), null, null, null, 1), 0, actor.accountId());
                 provisioning.provision(tenant, employee.id(), values.joinedOn());

@@ -50,6 +50,19 @@ class EmployeeImportRowsTest {
         assertNull(EmployeeImportRows.check(row("", "가", "2026-11-24", "1990-01-01", "D10", "", ""), TODAY).employeeNo());
     }
 
+    @Test void employeeNumberUsesSharedTextCheckAndRejectsReservedNumber() {
+        assertNotNull(error(EmployeeImportRows.check(row("19\u000701", "가", "2019-03-04", "1990-01-01", "D10", "", ""), TODAY), "employeeNo"));
+        assertNotNull(error(EmployeeImportRows.check(row("19\ud80001", "가", "2019-03-04", "1990-01-01", "D10", "", ""), TODAY), "employeeNo"));
+        assertNotNull(error(EmployeeImportRows.check(row("1".repeat(41), "가", "2019-03-04", "1990-01-01", "D10", "", ""), TODAY), "employeeNo"));
+        assertEquals("예약 사번 99999는 사용할 수 없습니다.",
+                error(EmployeeImportRows.check(row("99999", "가", "2019-03-04", "1990-01-01", "D10", "", ""), TODAY), "employeeNo"));
+    }
+
+    @Test void mixedDateSeparatorsAreRejected() {
+        assertEquals("YYYY-MM-DD 형식으로 입력해 주세요.",
+                error(EmployeeImportRows.check(row("", "가", "2019-03.04", "1990-01-01", "D10", "", ""), TODAY), "joinedOn"));
+    }
+
     @Test void rowCountIsOneToFiveHundred() {
         assertThrows(OrgException.class, () -> EmployeeImportRows.checkCount(0));
         assertThrows(OrgException.class, () -> EmployeeImportRows.checkCount(501));

@@ -43,4 +43,34 @@ describe('EmployeeImportPage', () => {
     expect(screen.getByRole('link', { name: '근무 설정' }).getAttribute('href')).toBe('/admin/schedules');
     expect(screen.getByRole('link', { name: '연차 관리' }).getAttribute('href')).toBe('/admin/leave-balances');
   });
+
+  it('keeps the command id on retry and issues a new one when the pasted content changes', async () => {
+    const ok = () => new Response(JSON.stringify({ valid: true, rows: [{ clientRowId: 'x', employeeNo: '19001', errors: [] }] }), { status: 200 });
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(ok())
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(ok())
+      .mockRejectedValueOnce(new Error('network'));
+    render(<EmployeeImportPage model={model} csrf={csrf} />);
+    const commandIds = () => fetchMock.mock.calls.filter(([url]) => url === '/admin/employees/import/save')
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)).commandId);
+    paste('\t홍길동\t2019-03-04\t1990-05-12\tD10\t\t\r\n');
+    fireEvent.click(screen.getByRole('button', { name: '검증' }));
+    await screen.findByText('모든 행 정상');
+    fireEvent.change(screen.getByLabelText('등록 사유'), { target: { value: '이관' } });
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(commandIds()).toHaveLength(1));
+    await screen.findByText(/저장 결과를 확인하지 못했습니다/);
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(commandIds()).toHaveLength(2));
+    paste('\t홍길동\t2019-03-04\t1991-05-12\tD10\t\t\r\n');
+    fireEvent.click(screen.getByRole('button', { name: '검증' }));
+    await screen.findByText('모든 행 정상');
+    fireEvent.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(commandIds()).toHaveLength(3));
+    const [first, retry, changed] = commandIds();
+    expect(retry).toBe(first);
+    expect(changed).not.toBe(first);
+  });
 });

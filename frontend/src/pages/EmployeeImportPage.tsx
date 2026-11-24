@@ -45,11 +45,13 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
   function load(text: string) {
     const next = toImportDrafts(parseClipboardTable(text));
     if (next.length > model.maxRows) { setMessage(`한 번에 ${model.maxRows}행까지 등록할 수 있습니다.`); return; }
-    setDrafts(next); setPreview(null); setResult(null); setMessage('');
+    setDrafts(next); setPreview(null); setResult(null); setMessage(''); setCommandId(crypto.randomUUID());
   }
 
   function update(rowId: string, field: (typeof IMPORT_FIELDS)[number], value: string) {
     setDrafts(rows => rows.map(row => row.clientRowId === rowId ? { ...row, [field]: value } : row));
+    // 생년월일은 서버 입력 해시에 없으므로 내용이 바뀌면 새 명령으로 저장한다.
+    setCommandId(crypto.randomUUID());
   }
 
   const columns = useMemo<ColDef<ImportDraft>[]>(() => IMPORT_FIELDS.map(field => sheetEditorColumn<ImportDraft>(

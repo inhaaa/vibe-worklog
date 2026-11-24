@@ -28,9 +28,13 @@ public final class EmployeeImportRows {
 
     public static Parsed check(Row row, LocalDate today) {
         var errors = new ArrayList<FieldError>();
-        String number = blankToNull(row.employeeNo());
-        if (number != null && (number.length() > 40 || number.contains("@") || hasControl(number))) {
+        String number = text(row.employeeNo(), 40, "사번", "employeeNo", errors, null);
+        if (number != null && number.contains("@")) {
             errors.add(new FieldError("employeeNo", "사번은 1~40자이며 @를 쓸 수 없습니다."));
+            number = null;
+        } else if ("99999".equals(number)) {
+            errors.add(new FieldError("employeeNo", "예약 사번 99999는 사용할 수 없습니다."));
+            number = null;
         }
         String name = text(row.displayName(), 120, "이름", "displayName", errors, "이름을 입력해 주세요.");
         LocalDate joined = date(row.joinedOn(), "입사일", "joinedOn", errors);
@@ -91,9 +95,5 @@ public final class EmployeeImportRows {
         if (value == null) return null;
         String stripped = value.strip();
         return stripped.isEmpty() ? null : stripped;
-    }
-
-    private static boolean hasControl(String value) {
-        return value.chars().anyMatch(Character::isISOControl);
     }
 }
