@@ -28,10 +28,13 @@ public final class OrgBulkService {
     private final EmployeeAdminMapper employees;
     private final PublicDemoIdentityGuard identityGuard;
     private final EmployeeOnboardingMapper onboarding;
+    private final AccountProvisioning provisioning;
     private final JsonMapper json = JsonMapper.builder().build();
 
     public OrgBulkService(OrgCommands commands, OrganizationAdminMapper organizations, EmployeeAdminMapper employees,
-                          PublicDemoIdentityGuard identityGuard, EmployeeOnboardingMapper onboarding) {
+                          PublicDemoIdentityGuard identityGuard, EmployeeOnboardingMapper onboarding,
+                          AccountProvisioning provisioning) {
+        this.provisioning = provisioning;
         this.commands = commands; this.organizations = organizations; this.employees = employees;
         this.identityGuard = identityGuard;
         this.onboarding = onboarding;
@@ -149,8 +152,10 @@ public final class OrgBulkService {
                             String field = old == null || !old.joinedOn().equals(current.joinedOn()) ? "joinedOn" : "leftOn";
                             throw issue(entry.getValue(), field, conflict.status(), conflict.getMessage());
                         }
-                        if (old == null) changed(employees.insert(actor.tenantId(), current, actor.accountId()));
-                        else {
+                        if (old == null) {
+                            changed(employees.insert(actor.tenantId(), current, actor.accountId()));
+                            provisioning.provision(actor.tenantId(), current.id(), current.joinedOn());
+                        } else {
                             changed(employees.update(actor.tenantId(), current, old.version(), actor.accountId()));
                             if (employmentChanged(old, current)) employees.revokeSessions(actor.tenantId(), current.id());
                         }

@@ -49,17 +49,25 @@ public final class AccountService {
             throw OrgException.invalid("본인 계정은 초기화할 수 없습니다. 다른 담당자에게 요청해 주세요.");
         }
         String reason = requiredText(form.reason(), 500, "초기화 사유");
-        String action = "ACCOUNT_ACTIVATION_RESET";
+        boolean create = commands.read(actor, () -> {
+            requireEmployee(actor.tenantId(), employeeId, false);
+            return account(actor.tenantId(), employeeId) == null;
+        });
+        String action = create ? "ACCOUNT_PROVISIONED" : "ACCOUNT_ACTIVATION_RESET";
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
                 fingerprint(action, employeeId, form.expectedVersion(), reason), reason, () -> {
                     var employee = requireEmployee(actor.tenantId(), employeeId, true);
                     checkVersion(form.expectedVersion(), employee.version());
                     Account before = account(actor.tenantId(), employeeId);
-                    if (before == null) throw OrgException.invalid("계정이 없습니다. 입사 확정 시 계정이 만들어집니다.");
-                    provisioning.reopen(actor.tenantId(), before.id());
+                    if (create != (before == null)) {
+                        throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 내용을 확인해 주세요.");
+                    }
+                    if (create) provisioning.provision(actor.tenantId(), employeeId, employee.joinedOn());
+                    else provisioning.reopen(actor.tenantId(), before.id());
                     changed(employees.advanceVersion(actor.tenantId(), employeeId, employee.version(), actor.accountId()));
-                    return new Change(employeeId, Map.of("pending", before.activationExpiresAt() != null),
-                            Map.of("pending", true));
+                    return create ? new Change(employeeId, Map.of("account", false), Map.of("account", true, "pending", true))
+                            : new Change(employeeId, Map.of("pending", before.activationExpiresAt() != null),
+                                    Map.of("pending", true));
                 });
     }
 

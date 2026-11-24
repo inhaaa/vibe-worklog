@@ -230,10 +230,20 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('action="/admin/approver-assignments"');
   });
 
-  it('계정이 없으면 초기화 폼을 보이지 않고 생년월일이 없으면 안내한다', async () => {
-    const none = await render('org/access', access);
-    expect(none).not.toContain('account-reset"');
-    expect(none).toContain('입사 확정 시 계정이 만들어집니다');
+  it('계정이 없으면 계정 만들기 폼을 보이고 생년월일이 없으면 안내한다', async () => {
+    const none = await render('org/access', { ...access, accountState: 'NONE' });
+    const noneDoc = new DOMParser().parseFromString(none, 'text/html');
+    expect(noneDoc.querySelector('form[action="/admin/employees/e-1/account-reset"] button')?.textContent?.trim()).toBe('계정 만들기');
+    expect(none).not.toContain('입사 확정 시 계정이 만들어집니다');
+    const props: PageProps = {
+      page: 'org/access', data: { ...access, accountState: 'NONE' },
+      csrf: { token: 'csrf-token', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' }, reload: () => {},
+    };
+    const creation = renderDom(<AdminPages {...props} />);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.submit(creation.container.querySelector('form[action$="/account-reset"]')!);
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('계정을 만들면 직원은 사번으로 첫 로그인해'));
+    confirm.mockRestore();
     const noBirth = await render('org/access', {
       ...access,
       account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'] },

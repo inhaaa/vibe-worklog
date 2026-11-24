@@ -24,9 +24,11 @@ public final class EmployeeService {
     private final OrgCommands commands;
     private final PublicDemoIdentityGuard identityGuard;
     private final EmployeeOnboardingMapper onboarding;
+    private final AccountProvisioning provisioning;
 
     public EmployeeService(EmployeeAdminMapper mapper, OrgCommands commands, PublicDemoIdentityGuard identityGuard,
-            EmployeeOnboardingMapper onboarding) {
+            EmployeeOnboardingMapper onboarding, AccountProvisioning provisioning) {
+        this.provisioning = provisioning;
         this.mapper = mapper;
         this.commands = commands;
         this.identityGuard = identityGuard;
@@ -130,6 +132,7 @@ public final class EmployeeService {
                     var employee = new Employee(UUID.randomUUID(), number, values.displayName(),
                             values.joinedOn(), values.leftOn(), values.active(), 0);
                     mapper.insert(actor.tenantId(), employee, actor.accountId());
+                    provisioning.provision(actor.tenantId(), employee.id(), employee.joinedOn());
                     return new Change(employee.id(), null, employee);
                 });
     }

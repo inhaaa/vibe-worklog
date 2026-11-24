@@ -143,14 +143,27 @@ class EmployeeServiceIT {
     }
 
     @Test
-    void registrationNormalizesTextAndCreatesNoAccount() {
+    void registrationNormalizesTextAndCreatesAPendingAccount() {
         UUID id = employees.create(actor, form(" E100 ", " 합성 직원 😀 ", JOINED, null, true, null));
         var employee = employees.get(actor, id);
         assertEquals("E100", employee.employeeNo());
         assertEquals("합성 직원 😀", employee.displayName());
         assertEquals(0, employee.version());
-        assertEquals(0, count("tna.tenant_account", "employee_id", id));
+        assertEquals(1, count("tna.tenant_account", "employee_id", id));
+        var account = database.queryForMap("""
+                SELECT email, password_hash, active, activation_expires_at,
+                       (SELECT string_agg(role, ',') FROM tna.role_grant g
+                         WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id AND g.active) roles
+                FROM tna.tenant_account a WHERE tenant_id=? AND employee_id=?""", tenant, id);
+        assertNull(account.get("email"));
+        assertNull(account.get("password_hash"));
+        assertEquals(false, account.get("active"));
+        assertEquals("EMPLOYEE", account.get("roles"));
+        assertNotNull(account.get("activation_expires_at"));
         assertEquals(1, count("tna.org_audit_event", "target_id", id));
+        String audit = database.queryForObject("SELECT before_state::text || after_state::text FROM tna.org_audit_event WHERE tenant_id=? AND target_id=?",
+                String.class, tenant, id);
+        assertFalse(audit.toLowerCase().contains("birth"));
     }
 
     @Test

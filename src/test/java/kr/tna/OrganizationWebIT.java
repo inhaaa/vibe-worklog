@@ -122,7 +122,7 @@ class OrganizationWebIT {
     }
 
     @Test
-    void employeeCreateAndChangeRenderDatesWithoutCreatingAccountAndRejectStaleVersion() throws Exception {
+    void employeeCreateAndChangeRenderDatesAndCreateAPendingAccountAndRejectStaleVersion() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A);
         String employeeNo = uniqueCode();
         UUID id = createEmployee(session, employeeNo, "등록 사원");
@@ -130,7 +130,7 @@ class OrganizationWebIT {
                 .andExpect(status().isOk()).andExpect(view().name("org/employee"))
                 .andExpect(inputAttribute("employeeNo", "readonly", null))
                 .andExpect(inputAttribute("joinedOn", "value", JOINED_ON.toString()));
-        assertEquals(0, admin.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?",
+        assertEquals(1, admin.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?",
                 Integer.class, DatabaseFixture.TENANT_A, id).intValue());
         LocalDate lastDay = today().plusDays(30);
         mvc.perform(employeeChange(session, id, employeeNo, "이름 변경", 0).param("leftOn", lastDay.toString()))

@@ -276,10 +276,6 @@ class MvpJourneyIT {
         String company = company(manager.tenantId());
         String number = db.queryForObject("SELECT employee_no FROM tna.employee WHERE tenant_id=? AND id=?",
                 String.class, manager.tenantId(), employeeId);
-        UUID account = UUID.randomUUID();
-        db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '7 days')",
-                manager.tenantId(), account, employeeId);
-        db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", manager.tenantId(), account);
         db.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,DATE '1990-01-02',1,?)",
                 manager.tenantId(), employeeId, manager.accountId());
         firstLogin.activate(company, number, LocalDate.of(1990, 1, 2), PASSWORD, "127.0.0.1");

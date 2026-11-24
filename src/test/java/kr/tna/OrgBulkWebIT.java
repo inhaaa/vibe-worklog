@@ -185,6 +185,11 @@ class OrgBulkWebIT {
         assertEquals(original, result(command));
         assertEquals(5, count("tna.employee"));
         assertEquals(5, count("tna.org_audit_event"));
+        assertEquals(4, database.queryForObject("""
+                SELECT count(*) FROM tna.tenant_account a WHERE a.tenant_id=? AND a.employee_id<>? AND NOT a.active
+                  AND a.email IS NULL AND a.password_hash IS NULL AND a.activation_expires_at IS NOT NULL
+                  AND EXISTS (SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id
+                              AND g.role='EMPLOYEE' AND g.active)""", Integer.class, tenant, manager.employeeId()));
     }
 
     @Test
@@ -271,7 +276,7 @@ class OrgBulkWebIT {
         mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(deactivate, create, invalid)))
                 .andExpect(status().isSeeOther());
         assertEquals(4, count("tna.employee"));
-        assertEquals(2, count("tna.tenant_account"));
+        assertEquals(4, count("tna.tenant_account"));
         assertFalse(employeeActive(target.employeeId()));
         assertEquals(1, employeeVersion(target.employeeId()));
         assertEquals(2, authVersion(target));

@@ -634,6 +634,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
   const account = m.account;
   const reset = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('reset');
   const roleEditable = Boolean(account && m.accountState !== 'PREVIOUS_INVITATION');
+  const creating = !account && m.accountState === 'NONE';
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title={m.employee.displayName} actions={<a className="t-btn" href={path}>사원 상세로</a>} />
@@ -655,27 +656,29 @@ function AccessPage({ model: m }: { model: AccessModel }) {
         {account && m.eligibleEmployee && m.ownAccount && (
           <p className="hint">본인 계정은 초기화할 수 없습니다. 다른 담당자에게 요청해 주세요.</p>
         )}
-        {account && m.eligibleEmployee && !m.ownAccount && (
+        {(account || creating) && m.eligibleEmployee && !m.ownAccount && (
           <Form
             action={`${path}/account-reset`}
             method="post"
             className="wl-form"
             onSubmit={(event) => {
-              if (!window.confirm('비밀번호를 초기화하면 직원은 7일 안에 사번으로 다시 첫 로그인해야 합니다.')) {
+              if (!window.confirm(creating
+                ? '계정을 만들면 직원은 사번으로 첫 로그인해 생년월일을 확인하고 비밀번호를 정합니다. 생년월일이 없으면 인사정보에 먼저 입력하세요.'
+                : '비밀번호를 초기화하면 직원은 7일 안에 사번으로 다시 첫 로그인해야 합니다.')) {
                 event.preventDefault();
               }
             }}
           >
             <CommandFields form={m.resetForm} />
             <FormTable>
-              <Reason id="reset-reason" form={m.resetForm} label="초기화 사유" />
+              <Reason id="reset-reason" form={m.resetForm} label={creating ? '생성 사유' : '초기화 사유'} />
             </FormTable>
             <div className="wl-form-actions">
-              <button type="submit" className="t-btn primary">비밀번호 초기화</button>
+              <button type="submit" className="t-btn primary">{creating ? '계정 만들기' : '비밀번호 초기화'}</button>
             </div>
           </Form>
         )}
-        {!account && <p className="hint">계정이 없습니다. 입사 확정 시 계정이 만들어집니다.</p>}
+        {creating && !m.eligibleEmployee && <p className="hint">현재 재직 중인 활성 사원만 계정을 만들 수 있습니다.</p>}
       </section>
       <section className="wl-section" aria-labelledby="roles-title">
         <h2 id="roles-title">역할</h2>

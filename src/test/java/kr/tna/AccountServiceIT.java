@@ -119,13 +119,42 @@ class AccountServiceIT {
 
     @Test
     void resetIsRefusedWithoutAccountReasonOrCurrentVersion() {
-        assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(0L, "합성 사유", UUID.randomUUID())));
+        assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(0L, " ", UUID.randomUUID())));
+        assertStatus(409, () -> accounts.reset(actor, employee, new ResetForm(9L, "합성 사유", UUID.randomUUID())));
         assertStatus(404, () -> accounts.reset(actor, UUID.randomUUID(), new ResetForm(0L, "합성 사유", UUID.randomUUID())));
         invite();
         assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(1L, " ", UUID.randomUUID())));
         assertStatus(409, () -> accounts.reset(actor, employee, new ResetForm(0L, "합성 사유", UUID.randomUUID())));
         accounts.reset(actor, employee, new ResetForm(1L, "이전 초대 재설정", UUID.randomUUID()));
         assertEquals(AccountStatus.BIRTH_DATE_REQUIRED, accounts.status(actor, employee));
+    }
+
+    @Test
+    void anEmployeeWithoutAnAccountGetsAPendingOneAndThenResetsNormally() {
+        assertEquals(0, accountRows(employee));
+        accounts.reset(actor, employee, new ResetForm(version(), "합성 계정 생성", UUID.randomUUID()));
+        assertEquals(1, accountRows(employee));
+        var row = database.queryForMap("SELECT email, password_hash, active, activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", tenant, employee);
+        assertNull(row.get("email"));
+        assertNull(row.get("password_hash"));
+        assertEquals(false, row.get("active"));
+        assertNotNull(row.get("activation_expires_at"));
+        assertEquals(AccountStatus.BIRTH_DATE_REQUIRED, accounts.status(actor, employee));
+        String audit = database.queryForObject("SELECT before_state::text || after_state::text FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_PROVISIONED'",
+                String.class, tenant);
+        assertTrue(audit.contains("\"account\""));
+        assertFalse(audit.toLowerCase().contains("birth"));
+        accounts.reset(actor, employee, new ResetForm(version(), "합성 다시 초기화", UUID.randomUUID()));
+        assertEquals(1, accountRows(employee));
+        assertEquals(1, database.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_ACTIVATION_RESET'", Integer.class, tenant));
+    }
+
+    @Test
+    void anAccountIsNotCreatedForADepartedEmployee() {
+        database.update("UPDATE tna.employee SET left_on=? WHERE tenant_id=? AND id=?",
+                LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(1), tenant, employee);
+        assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(version(), "합성 퇴사자", UUID.randomUUID())));
+        assertEquals(0, accountRows(employee));
     }
 
     @Test
@@ -368,6 +397,10 @@ class AccountServiceIT {
         start.await();
         try { accept(message()); return 1; }
         catch (OrgException error) { assertEquals(422, error.status()); return 0; }
+    }
+
+    private int accountRows(UUID id) {
+        return database.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", Integer.class, tenant, id);
     }
 
     private UUID employee(String number) {

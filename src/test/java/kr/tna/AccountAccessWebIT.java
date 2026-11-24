@@ -99,7 +99,7 @@ class AccountAccessWebIT {
         }
         mvc.perform(post("/invite/{companyCode}/accept", DatabaseFixture.COMPANY_A))
                 .andExpect(status().isForbidden());
-        assertEquals(0, accountCount(employee));
+        assertEquals(1, accountCount(employee)); // 등록 때 만든 대기 계정 하나뿐
     }
 
     @Test
@@ -145,6 +145,23 @@ class AccountAccessWebIT {
         assertNotNull(audit);
         assertFalse(audit.contains(HASH));
         assertFalse(audit.contains(PASSWORD));
+    }
+
+    @Test
+    void legacyEmployeeWithoutAccountGetsOneFromTheAccessPageAndForeignTenantStaysHidden() throws Exception {
+        var manager = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
+        UUID legacy = UUID.randomUUID();
+        admin.update("INSERT INTO tna.employee (tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'계정 없는 사원',DATE '2026-01-01')",
+                DatabaseFixture.TENANT_A, legacy, UUID.randomUUID().toString());
+        var none = mvc.perform(get(access(legacy)).session(manager)).andExpect(status().isOk()).andReturn();
+        assertEquals("NONE", none.getModelAndView().getModel().get("accountState"));
+        mvc.perform(reset(manager, legacy, 0)).andExpect(status().isSeeOther());
+        assertEquals(1, accountCount(legacy));
+        assertEquals(1, admin.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND target_id=? AND action='ACCOUNT_PROVISIONED'",
+                Integer.class, DatabaseFixture.TENANT_A, legacy));
+        mvc.perform(reset(manager, legacy, 1)).andExpect(status().isSeeOther());
+        assertEquals(1, accountCount(legacy));
+        mvc.perform(reset(manager, DatabaseFixture.EMPLOYEE_B, 0)).andExpect(status().isNotFound());
     }
 
     @Test
@@ -352,6 +369,10 @@ class AccountAccessWebIT {
     }
 
     private InvitationDelivery.Envelope invite(UUID employee, String email) {
+        // 등록이 만든 대기 계정을 지워 초대 기능 제거 전의 이전 자료 상태를 재현한다.
+        admin.update("DELETE FROM tna.role_grant WHERE tenant_id=? AND account_id IN (SELECT id FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?)",
+                DatabaseFixture.TENANT_A, DatabaseFixture.TENANT_A, employee);
+        admin.update("DELETE FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", DatabaseFixture.TENANT_A, employee);
         return LegacyInvitation.seed(admin, DatabaseFixture.TENANT_A, DatabaseFixture.COMPANY_A, employee, email,
                 DatabaseFixture.ACCOUNT_A);
     }
