@@ -20,7 +20,6 @@ import {
 } from '../ui';
 import type {
   AccessModel,
-  CalendarModel,
   CommandForm,
   EmployeeForm,
   EmployeeModel,
@@ -1086,7 +1085,7 @@ function NetworksPage({ model: m }: { model: NetworksModel }) {
       <PageHeader title="허용 IP 네트워크" help={<>
         <p>시각 기준: Asia/Seoul (서울)</p>
         <p>IP 일치는 현장 근로나 본인 존재를 보증하지 않습니다. 실제 접속 주소만 검증하며 전달 헤더로 우회할 수 없습니다.</p>
-      </>} actions={<a className="t-btn" href="/admin/calendar">휴일 캘린더</a>} />
+      </>} actions={<a className="t-btn" href="/admin/holidays">휴일 관리</a>} />
       <ErrorNotice message={m.error} />
       <section className="wl-section">
         <h2>허용망 이력</h2>
@@ -1124,59 +1123,6 @@ function NetworksPage({ model: m }: { model: NetworksModel }) {
           </FormTable>
           <div className="wl-form-actions">
             <button type="submit" className="t-btn primary">허용망 저장</button>
-          </div>
-        </Form>
-      </section>
-    </div>
-  );
-}
-
-function CalendarPage({ model: m }: { model: CalendarModel }) {
-  return (
-    <div className="t-legacy-page admin-shell">
-      <PageHeader title="휴일 캘린더" help="담당자가 근거를 확인한 날짜만 명시합니다. 미등록 날짜는 미확인입니다. 요일만으로 법정 휴일을 추정하지 않습니다."
-        actions={<><SettlementBackLink href={m.settlementReturn} /><a className="t-btn" href="/admin/networks">허용 네트워크</a></>} />
-      <ErrorNotice message={m.error} />
-      <section className="wl-section">
-        <h2>불변 버전</h2>
-        {m.calendars.length === 0 && <p>등록된 캘린더 버전이 없습니다.</p>}
-        <ul>
-          {m.calendars.map((version) => (
-            <li key={version.id}>
-              v{version.revision} · {fmtDate(version.validFrom)} ~ {fmtDate(version.validTo)} (종료
-              제외) · {version.reason}
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section className="wl-section">
-        <h2>검토한 기간 등록</h2>
-        <p className="hint">
-          아래 기간 전체를 일반일로 등록하고 예외 날짜를 지정합니다. 기존 기간과 중첩할 수 없습니다.
-        </p>
-        <Form action="/admin/calendar/versions" method="post" className="wl-form">
-          {m.settlementReturn && <>
-            <Hidden name="settlementReturn" value={m.settlementReturn} />
-            <Hidden name="date" value={m.settlementWorkDate} />
-          </>}
-          <Hidden name="commandId" value={m.form.commandId} />
-          <FormTable>
-            <Field id="calendar-from" label="시작일 (포함)" name="from" type="date" value={m.form.from} required />
-            <Field id="calendar-to" label="종료일 (포함)" name="to" type="date" value={m.form.to} required />
-            <TextAreaField id="calendar-basis" label="기간 전체의 검토 근거" name="basis" value={m.form.basis} maxLength={500} required />
-            <FormRow label="검토 확인" required>
-              <Check name="reviewed" label="기간의 일반일·비근로일·휴일 근거를 모두 검토했습니다" checked={m.form.reviewed} required />
-            </FormRow>
-            <TextAreaField id="calendar-exceptions" label="예외 날짜 (한 줄에 날짜|종류|이름|근거)" name="exceptions" rows={5}
-              value={m.form.exceptions} placeholder="2026-12-25|HOLIDAY|공휴일|확인한 공식 근거" />
-            <p className="hint">
-              종류: WORKDAY(일반일), NON_WORKDAY(명시 비근로일), HOLIDAY(근거 있는 휴일). 주간
-              템플릿의 비근로일은 별도로 유지됩니다.
-            </p>
-            <Reason id="calendar-reason" form={m.form} label="등록 사유" />
-          </FormTable>
-          <div className="wl-form-actions">
-            <button type="submit" className="t-btn primary">캘린더 버전 저장</button>
           </div>
         </Form>
       </section>
@@ -1227,8 +1173,6 @@ export function AdminPages({ page, data, csrf }: PageProps): React.ReactNode | n
     }
     case 'clock/networks':
       return <NetworksPage model={data as unknown as NetworksModel} />;
-    case 'clock/calendar':
-      return <CalendarPage model={data as unknown as CalendarModel} />;
     default:
       return null;
   }

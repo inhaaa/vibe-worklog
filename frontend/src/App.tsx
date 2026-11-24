@@ -15,6 +15,8 @@ import { OrgSheetPages } from './pages/OrgSheetPages';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { EmployeeImportPage } from './pages/EmployeeImportPage';
 import type { EmployeeImportModel } from './pages/EmployeeImportPage';
+import { HolidayPage } from './pages/HolidayPage';
+import type { HolidayModel } from './pages/HolidayPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { RequestFormPage } from './pages/RequestFormPage';
 import { CodePages } from './pages/CodePages';
@@ -97,7 +99,7 @@ const titles: Record<string, string> = {
   'schedule/detail': '근무 템플릿',
   'schedule/assignment': '근무 배정',
   'clock/networks': '허용 네트워크',
-  'clock/calendar': '근무일·휴일',
+  'clock/holidays': '휴일 관리',
   'clock/day': '출퇴근 내역',
   'clock/history': '출퇴근 내역',
   'clock/period': '출퇴근 기간 조회',
@@ -297,6 +299,7 @@ function Content(props: PageProps) {
       <OrgSheetPages {...props} />
       {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
       {props.page === 'org/employee-import' && <EmployeeImportPage model={props.data.employeeImport as EmployeeImportModel} csrf={props.csrf} />}
+      {props.page === 'clock/holidays' && <HolidayPage model={props.data.holidays as HolidayModel} csrf={props.csrf} />}
       <ApprovalRoutePages {...props} />
       {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />

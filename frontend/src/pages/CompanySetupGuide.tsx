@@ -16,7 +16,7 @@ export function CompanySetupGuide({ adminSelected, selectAdmin }: { adminSelecte
       <ol>
         <li><a href="/admin/organizations">조직 관리</a>에서 사원의 소속 부서를 등록합니다.</li>
         <li><a href="/admin/schedules?tab=codes">근무시간코드</a>에 출퇴근·휴게시간을 입력한 뒤 <a href="/admin/schedules?tab=groups">근무조</a>를 요일별로 편성합니다.
-          {' '}<a href="/admin/calendar">근무일·휴일</a>에서 첫 근무일이 포함된 기간을 등록합니다.</li>
+          {' '}<a href="/admin/holidays">휴일 관리</a>에서 올해 공휴일을 불러오고 회사 휴일을 더해 저장합니다. 저장하면 그 해 근태 달력이 채워집니다.</li>
         <li><a href="/admin/networks">허용 네트워크</a>에 출퇴근을 기록할 사업장의 IP 대역을 등록합니다.</li>
         <li>이미 재직 중인 사원은 <a href="/admin/employees/import">재직자 일괄 등록</a>에서 엑셀 내용을 붙여넣어 한 번에 등록하고, <a href="/admin/accounts">사용자 관리</a>에서 계정 상태를 확인합니다.</li>
         <li><a href="/admin/employees/onboarding">입사 예정 관리</a>에서 신규 입사자와 결재자의 입사일·소속·근무를 확정합니다.

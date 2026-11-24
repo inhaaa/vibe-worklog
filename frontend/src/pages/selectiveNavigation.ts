@@ -43,7 +43,7 @@ export function settlementDayAction(view: SettlementView, day: UnconfirmedDate, 
     return link('신청 진행 확인', '/requests/' + encodeURIComponent(day.requestId), {});
   }
   if (view.admin) {
-    if (action === 'CALENDAR') return link('회사 달력 확인', '/admin/calendar', { date });
+    if (action === 'CALENDAR') return link('휴일 관리 확인', '/admin/holidays', { year: date.slice(0, 4) });
     if (action === 'RECALCULATE' || action === 'REVIEW') {
       const recalculate = action === 'RECALCULATE';
       return link(recalculate ? '대상일 재집계' : '근무일 검토', '/admin/attendance', {

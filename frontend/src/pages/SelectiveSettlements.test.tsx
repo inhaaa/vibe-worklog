@@ -200,8 +200,8 @@ it.each([false, true])('같은 날짜의 사유와 조회 권한에 맞는 처�
     expect(calculate.pathname + calculate.search + calculate.hash).toBe('/admin/attendance?' + new URLSearchParams({
       employeeId, month: '2026-12', workDate: '2026-12-28', settlementReturn: source,
     }) + '#selective-day-calculation');
-    expect(href(1, '회사 달력 확인').pathname).toBe('/admin/calendar');
-    expect(href(1, '회사 달력 확인').searchParams.get('date')).toBe('2026-12-29');
+    expect(href(1, '휴일 관리 확인').pathname).toBe('/admin/holidays');
+    expect(href(1, '휴일 관리 확인').searchParams.get('year')).toBe('2026');
     expect(href(3, '근무일 검토').hash).toBe('#selective-day-review');
     expect(href(3, '근무일 검토').searchParams.get('employeeId')).toBe(employeeId);
     expect(list.queryByRole('link', { name: /근무 확인$/ })).toBeNull();

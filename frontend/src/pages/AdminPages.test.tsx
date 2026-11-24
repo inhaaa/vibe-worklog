@@ -429,25 +429,6 @@ describe('관리 React 페이지', () => {
     expect(html).toContain('action="/admin/networks/changes"');
   });
 
-  it('휴일 캘린더는 명시 검토와 예외·기간·근거 필드를 요구한다', async () => {
-    const html = await render('clock/calendar', {
-      calendars: [],
-      form: {
-        ...command,
-        from: '2026-10-26',
-        to: '2026-11-25',
-        reviewed: false,
-        basis: '공식 근거',
-        exceptions: '2026-11-01|HOLIDAY|휴일|검토',
-      },
-    });
-    expect(html).toContain('action="/admin/calendar/versions"');
-    for (const name of ['from', 'to', 'basis', 'reviewed', 'exceptions', 'reason', 'commandId'])
-      expect(html).toContain(`name="${name}"`);
-    expect(html.match(/<input[^>]*name="reviewed"[^>]*>/)?.[0]).toContain('required');
-    expect(html).toContain('미등록 날짜는 미확인');
-  });
-
   it('사원·조직 이름과 오류를 React 텍스트로 이스케이프한다', async () => {
     const html = await render('org/organization', {
       organization: { ...organization, name: '<script>alert(1)</script>' },

@@ -18,7 +18,7 @@ describe('업무 메뉴 계약', () => {
       '/admin/employees', '/admin/employees/bulk-edit', '/admin/employees/onboarding', '/admin/employees/import',
       '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
       '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/overtime', '/admin/attendance',
-      '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
+      '/admin/schedules', '/admin/holidays', '/admin/attendance-types', '/admin/work-policies',
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
       '/admin/access', '/admin/accounts', '/admin/common-codes', '/admin/request-forms', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);

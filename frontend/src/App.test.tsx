@@ -170,7 +170,7 @@ describe('React 앱 탐색과 제출', () => {
     expect(role.value).toBe('ATTENDANCE_ADMIN');
     const guide = within(screen.getByRole('navigation', { name: '회사 초기 설정 순서' }));
     expect(guide.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual([
-      '/admin/organizations', '/admin/schedules?tab=codes', '/admin/schedules?tab=groups', '/admin/calendar',
+      '/admin/organizations', '/admin/schedules?tab=codes', '/admin/schedules?tab=groups', '/admin/holidays',
       '/admin/networks', '/admin/employees/import', '/admin/accounts', '/admin/employees/onboarding', '/admin/access?role=APPROVER',
       '/admin/approval-routes', '/admin/request-forms',
     ]);

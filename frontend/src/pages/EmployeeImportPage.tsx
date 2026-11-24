@@ -18,7 +18,7 @@ const CAPTIONS: Record<(typeof IMPORT_FIELDS)[number], string> = {
 };
 
 /** lost: 로그인·권한이 사라진 응답. 던진 오류: 서버가 처리했는지 알 수 없는 응답(5xx·JSON 아님). */
-async function postJson<T>(url: string, csrf: CsrfToken, body: object): Promise<{ status: number; data: T; lost: boolean }> {
+export async function postJson<T>(url: string, csrf: CsrfToken, body: object): Promise<{ status: number; data: T; lost: boolean }> {
   const response = await fetch(url, {
     method: 'POST', credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },

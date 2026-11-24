@@ -66,7 +66,7 @@ const navigation: NavigationGroup[] = [
     ] },
     { id: 'work-operations', label: '근무 기준', children: [
       item('schedules', '근무 설정', '/admin/schedules', admin, 'schedule/list', 'schedule/form', 'schedule/detail', 'schedule/assignment'),
-      item('calendar', '근무일·휴일', '/admin/calendar', admin, 'clock/calendar'),
+      item('holidays', '휴일 관리', '/admin/holidays', admin, 'clock/holidays'),
       item('attendance-types', '근태코드 관리', '/admin/attendance-types', admin, 'org/attendance-types'),
       item('work-policies', '계산 정책', '/admin/work-policies', admin, 'worktime/policies'),
     ] },
