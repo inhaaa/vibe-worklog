@@ -393,12 +393,12 @@ async function run(browser, device) {
       await click(adminPage, '.wg-review button', '개정 저장');
       await visible(adminPage, '[role=status]', '근무조 개정을 저장');
     });
-    await check('근무일 검토와 출퇴근 허용망 저장', async () => {
-      await setupLink('/admin/calendar');
-      await values(adminPage, '/admin/calendar/versions', { from: date, to: date, basis: why, reason: why });
-      await click(adminPage, '[name=reviewed]');
-      await submit(adminPage, '/admin/calendar/versions', '캘린더 버전 저장');
-      await visible(adminPage, 'main li', why);
+    await check('휴일 관리 저장과 출퇴근 허용망 저장', async () => {
+      // Public holidays are not imported: today stays a WORKDAY whatever the date; saving reflects the whole year.
+      await setupLink('/admin/holidays?year=' + date.slice(0, 4));
+      await fill(adminPage, '#holiday-reason', why);
+      await click(adminPage, '.wl-form-actions button', '저장');
+      await visible(adminPage, '[role=status]', '근태 반영');
       await setupLink('/admin/networks');
       await values(adminPage, '/admin/networks/changes', { network: '127.0.0.1/32', label: '첫 출근 업무망', reason: why });
       await submit(adminPage, '/admin/networks/changes', '허용망 저장');
