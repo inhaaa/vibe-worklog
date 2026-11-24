@@ -60,8 +60,9 @@ public class SecurityConfiguration {
                     }
                     authorize.requestMatchers(HttpMethod.GET, "/login", "/app.css", "/react/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/invite", "/invite/*", "/password-reset").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/invite/accept", "/invite/*/accept", "/password-reset/request", "/password-reset/complete").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/invite", "/invite/*", "/password-reset", "/first-login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/invite/accept", "/invite/*/accept", "/password-reset/request",
+                                "/password-reset/complete", "/first-login").permitAll()
                         .requestMatchers("/operator/**", "/actuator/**").denyAll()
                         .requestMatchers(HttpMethod.POST, "/admin/access/roles/*/members/bulk", "/admin/attendance/follow-ups",
                                 "/admin/calculations/month-end", "/admin/calculations/month-end/preview",
@@ -117,6 +118,18 @@ public class SecurityConfiguration {
                                 response.setContentType("text/plain;charset=UTF-8");
                                 response.getWriter().write("일시적으로 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
                             } else {
+                                String login = request.getParameter("email"), typed = request.getParameter("password");
+                                if (!localDemo.enabled() && login != null && typed != null && !login.isBlank() && !login.contains("@")
+                                        && login.strip().equals(typed)) {
+                                    var flash = new org.springframework.web.servlet.FlashMap();
+                                    flash.put("companyCode", String.valueOf(request.getParameter("companyCode")));
+                                    flash.put("employeeNo", login.strip());
+                                    flash.setTargetRequestPath(request.getContextPath() + "/first-login");
+                                    new org.springframework.web.servlet.support.SessionFlashMapManager()
+                                            .saveOutputFlashMap(flash, request, response);
+                                    response.sendRedirect(request.getContextPath() + "/first-login");
+                                    return;
+                                }
                                 if (ReactPageResponse.problem(request, response, 401, "로그인 정보를 확인해 주세요.")) return;
                                 response.sendRedirect(request.getContextPath() + "/login?error");
                             }

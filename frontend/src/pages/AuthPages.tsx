@@ -11,6 +11,7 @@ interface Flags {
   reset?: boolean;
   requested?: boolean;
   saved?: boolean;
+  activated?: boolean;
 }
 interface AuthModel {
   flags?: Flags;
@@ -18,6 +19,7 @@ interface AuthModel {
   localDemo?: boolean;
   publicDemo?: boolean;
   companyCode?: string;
+  employeeNo?: string;
   inviteByCompany?: boolean;
   demoAccounts?: DemoAccount[];
 }
@@ -171,7 +173,7 @@ function Login({ model: m }: { model: AuthModel }) {
         <p>
           {m.localDemo
             ? '사번과 비밀번호로 로그인해 주세요.'
-            : '초대 메일의 회사 코드와 계정 정보를 입력해 주세요.'}
+            : '회사 코드와 사번(또는 이메일)으로 로그인해 주세요. 처음 로그인할 때는 비밀번호에 사번을 입력하세요.'}
         </p>
         {m.flags?.error && (
           <p className="notice error" role="alert">
@@ -191,6 +193,11 @@ function Login({ model: m }: { model: AuthModel }) {
         {m.flags?.reset && (
           <p className="notice" role="status">
             비밀번호를 재설정했습니다. 새 비밀번호로 로그인해 주세요.
+          </p>
+        )}
+        {m.flags?.activated && (
+          <p className="notice" role="status">
+            비밀번호를 정했습니다. 사번과 새 비밀번호로 로그인해 주세요.
           </p>
         )}
         <ErrorNotice message={m.error} />
@@ -309,6 +316,29 @@ function Invite({ model: m }: { model: AuthModel }) {
         <p className="hint">
           코드가 만료되면 초대를 보낸 담당자에게 재발급을 요청해 주세요.
         </p>
+      </section>
+    </main>
+  );
+}
+function FirstLogin({ model: m }: { model: AuthModel }) {
+  return (
+    <main className="login-shell">
+      <section className="panel" aria-labelledby="first-login-title">
+        <h1 id="first-login-title">최초 접속</h1>
+        <p className="t-auth-context"><span>WorkLog</span><span>회사 계정</span></p>
+        <p>인사정보에 등록된 생년월일을 확인한 뒤 새 비밀번호를 정합니다. 최초 접속은 계정을 만든 날부터 7일 동안 할 수 있습니다.</p>
+        <ErrorNotice message={m.error} />
+        <Form action="/first-login" method="post">
+          <Field id="first-company" label="회사 코드" name="companyCode" value={m.companyCode ?? ''} maxLength={80} autoComplete="organization" required />
+          <Field id="first-employee" label="사번" name="employeeNo" value={m.employeeNo ?? ''} maxLength={40} autoComplete="username" required />
+          <Field id="first-birth" label="생년월일" name="birthDate" type="date" autoComplete="bday" required />
+          <Field id="first-password" label="새 비밀번호" name="password" type="password" minLength={12} maxLength={128} autoComplete="new-password" required />
+          <Field id="first-confirmation" label="새 비밀번호 확인" name="confirmation" type="password" minLength={12} maxLength={128} autoComplete="new-password" required />
+          <p className="hint">공백을 포함해 12~128자로 설정해 주세요. 사번과 같은 비밀번호는 쓸 수 없습니다.</p>
+          <button type="submit">비밀번호 정하기</button>
+        </Form>
+        <p><a href="/login">로그인으로</a></p>
+        <p className="hint">5회 틀리거나 기간이 지나면 담당자에게 비밀번호 초기화를 요청하세요.</p>
       </section>
     </main>
   );
@@ -611,6 +641,8 @@ export function AuthPages({ page, data }: PageProps): React.ReactNode | null {
       return <Login model={model} />;
     case 'invite':
       return <Invite model={model} />;
+    case 'first-login':
+      return <FirstLogin model={model} />;
     case 'password-reset':
       return <PasswordReset model={model} />;
     case 'operator/login':

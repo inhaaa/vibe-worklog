@@ -61,6 +61,7 @@ const publicPages = new Set([
   'demo',
   'invite',
   'password-reset',
+  'first-login',
   'operator/login',
   'operator/tenants',
   'org/problem',
@@ -120,6 +121,7 @@ const titles: Record<string, string> = {
   demo: 'WorkLog',
   invite: '초대 수락',
   'password-reset': '비밀번호 재설정',
+  'first-login': '최초 접속',
   'operator/login': '운영자 로그인',
   'operator/tenants': '고객사 온보딩',
 };

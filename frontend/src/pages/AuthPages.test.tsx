@@ -222,3 +222,18 @@ describe('AuthPages', () => {
     ).not.toBe(key);
   });
 });
+
+describe('first login', () => {
+  it('회사 코드와 사번을 채우고 생년월일과 새 비밀번호를 받는다', () => {
+    const view = render(page('first-login', { companyCode: 'ACME', employeeNo: '2019031', flags: {} }));
+    expect((view.getByLabelText('회사 코드') as HTMLInputElement).value).toBe('ACME');
+    expect((view.getByLabelText('사번') as HTMLInputElement).value).toBe('2019031');
+    expect(view.getByLabelText('생년월일').getAttribute('type')).toBe('date');
+    expect(view.getByLabelText('새 비밀번호')).toBeTruthy();
+    expect(view.getByRole('button', { name: '비밀번호 정하기' })).toBeTruthy();
+  });
+  it('활성화 뒤 로그인 화면이 새 비밀번호로 로그인하라고 안내한다', () => {
+    const view = render(page('login', { flags: { activated: true } }));
+    expect(view.getByText('비밀번호를 정했습니다. 사번과 새 비밀번호로 로그인해 주세요.')).toBeTruthy();
+  });
+});
