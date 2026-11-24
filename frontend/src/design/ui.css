@@ -130,6 +130,8 @@ textarea.t-input:not([class*=" t-"]) { padding: 8px 10px; line-height: 1.55; }
 .t-personnel-section fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* A data line right under a query bar (조회 기준) keeps its distance from the section below. */
 .wl-querybar + p { margin: -8px 0 20px; color: var(--g600); font-size: 12.5px; }
+.wl-save-reason { display: grid; gap: 4px; margin: 12px 0 0; }
+.wl-save-reason textarea { width: 100%; }
 .wl-form-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin: 12px 0 0; }
 
 /* Document table (spec 7.8): 2px g800 top line, 116px g50 label cell, 1px g200 row lines.

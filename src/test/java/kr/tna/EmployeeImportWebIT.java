@@ -213,6 +213,7 @@ class EmployeeImportWebIT {
                 .andExpect(ReactPageAssertions.data("/employeeImport/organizations/0/code", "D10"));
         var template = mvc.perform(authenticated(get("/admin/employees/import/template"), manager))
                 .andExpect(status().isOk()).andExpect(header().string("Content-Disposition", "attachment; filename=employee-import.csv"))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
                 .andReturn().getResponse().getContentAsByteArray();
         assertArrayEquals(new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF}, java.util.Arrays.copyOf(template, 3));
         assertTrue(new String(template, java.nio.charset.StandardCharsets.UTF_8).contains("사번,이름,입사일,생년월일,조직코드,직급,직책"));
@@ -234,6 +235,20 @@ class EmployeeImportWebIT {
         mvc.perform(authenticated(post("/admin/employees/import/preview"), manager).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"rows\":[]}"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.message").value("1~500행을 붙여넣어 주세요."));
+    }
+
+    @Test void malformedJsonIsBadRequest() throws Exception {
+        mvc.perform(authenticated(post("/admin/employees/import/preview"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content("{\"rows\":["))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test void employeeOnlyAccountCannotUseTheImport() throws Exception {
+        var plain = member("PLAIN", java.util.Set.of("EMPLOYEE"));
+        mvc.perform(authenticated(get("/admin/employees/import"), plain)).andExpect(status().isForbidden());
+        mvc.perform(authenticated(post("/admin/employees/import/preview"), plain).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"rows\":[]}"))
+                .andExpect(status().isForbidden());
     }
 
     private MockHttpServletRequestBuilder authenticated(MockHttpServletRequestBuilder request, kr.tna.common.auth.TnaPrincipal actor) {

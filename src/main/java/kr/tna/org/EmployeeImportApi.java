@@ -3,6 +3,7 @@ package kr.tna.org;
 import java.util.List;
 import java.util.Map;
 import kr.tna.common.auth.TnaPrincipal;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,12 @@ class EmployeeImportApi {
     ResponseEntity<?> rejected(OrgException error) {
         Object body = error instanceof EmployeeImportService.ImportProblem problem ? problem.preview() : Map.of("message", error.getMessage());
         return ResponseEntity.status(error.status()).cacheControl(CacheControl.noStore()).body(body);
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    ResponseEntity<Map<String, String>> unavailable() {
+        return ResponseEntity.status(503).cacheControl(CacheControl.noStore())
+                .body(Map.of("message", "일시적으로 처리할 수 없습니다. 잠시 후 다시 확인해 주세요."));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

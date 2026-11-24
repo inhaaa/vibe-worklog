@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { PageHeader } from '../components/PageHeader';
-import { WorklogSheet, sheetEditorColumn } from '../components/WorklogSheet';
+import { WorklogSheet, sheetColumn, sheetEditorColumn } from '../components/WorklogSheet';
 import type { SheetFieldError } from '../components/WorklogSheet';
 import type { CsrfToken } from '../types';
 import { IMPORT_FIELDS, parseClipboardTable, toImportDrafts } from './clipboardTable';
@@ -17,14 +17,19 @@ const CAPTIONS: Record<(typeof IMPORT_FIELDS)[number], string> = {
   organizationCode: '조직코드', gradeName: '직급', positionName: '직책',
 };
 
-async function postJson<T>(url: string, csrf: CsrfToken, body: object): Promise<{ status: number; data: T }> {
+/** lost: 로그인·권한이 사라진 응답. 던진 오류: 서버가 처리했는지 알 수 없는 응답(5xx·JSON 아님). */
+async function postJson<T>(url: string, csrf: CsrfToken, body: object): Promise<{ status: number; data: T; lost: boolean }> {
   const response = await fetch(url, {
     method: 'POST', credentials: 'same-origin',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', [csrf.headerName]: csrf.token },
     body: JSON.stringify(body),
   });
-  return { status: response.status, data: await response.json() as T };
+  if (response.redirected || response.status === 401 || response.status === 403) return { status: response.status, data: {} as T, lost: true };
+  if (response.status >= 500 || !(response.headers.get('content-type') ?? '').includes('json')) throw new Error('unknown outcome');
+  return { status: response.status, data: await response.json() as T, lost: false };
 }
+
+const rowId = (row: ImportDraft) => row.clientRowId;
 
 export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel; csrf: CsrfToken }) {
   const [drafts, setDrafts] = useState<ImportDraft[]>([]);
@@ -35,15 +40,18 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
   const [result, setResult] = useState<Result | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [accessLost, setAccessLost] = useState(false);
   const current = JSON.stringify(drafts);
   const fresh = preview !== null && reviewed === current;
-  const errors: SheetFieldError[] = fresh
+  const errors = useMemo<SheetFieldError[]>(() => fresh
     ? preview.rows.flatMap(row => row.errors.map(error => ({ clientRowId: row.clientRowId, field: error.field, message: error.message })))
-    : [];
+    : [], [fresh, preview]);
+  const results = useMemo(() => fresh ? new Map(preview.rows.map(row => [row.clientRowId, row])) : null, [fresh, preview]);
   const invalidRows = fresh ? preview.rows.filter(row => row.errors.length > 0).length : 0;
 
   function load(text: string) {
     const next = toImportDrafts(parseClipboardTable(text));
+    if (next.length === 0) return;
     if (next.length > model.maxRows) { setMessage(`한 번에 ${model.maxRows}행까지 등록할 수 있습니다.`); return; }
     setDrafts(next); setPreview(null); setResult(null); setMessage(''); setCommandId(crypto.randomUUID());
   }
@@ -54,15 +62,21 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
     setCommandId(crypto.randomUUID());
   }
 
-  const columns = useMemo<ColDef<ImportDraft>[]>(() => IMPORT_FIELDS.map(field => sheetEditorColumn<ImportDraft>(
+  const columns = useMemo<ColDef<ImportDraft>[]>(() => [...IMPORT_FIELDS.map(field => sheetEditorColumn<ImportDraft>(
     { field, headerName: CAPTIONS[field], minWidth: field === 'displayName' ? 140 : 110 },
     (row, index) => ({ label: `${CAPTIONS[field]} ${index + 1}`, value: row[field], onChange: value => update(row.clientRowId, field, value) }),
-  )), []);
+  )), sheetColumn<ImportDraft>({ colId: 'status', headerName: '검증', minWidth: 160 }, row => {
+    const found = results?.get(row.clientRowId);
+    if (!found) return '';
+    if (found.errors.length > 0) return found.errors[0].message;
+    return row.employeeNo.trim() === '' && found.employeeNo ? `정상 · 사번 ${found.employeeNo}` : '정상';
+  })], [results]);
 
   async function validate() {
     setBusy(true); setMessage('');
     try {
-      const { status, data } = await postJson<Preview & { message?: string }>('/admin/employees/import/preview', csrf, { rows: drafts });
+      const { status, data, lost } = await postJson<Preview & { message?: string }>('/admin/employees/import/preview', csrf, { rows: drafts });
+      if (lost) { setAccessLost(true); return; }
       if (status !== 200) { setMessage(data.message ?? '검증하지 못했습니다.'); return; }
       setPreview(data); setReviewed(current);
     } catch { setMessage('검증하지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
@@ -72,7 +86,8 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
   async function save() {
     setBusy(true); setMessage('');
     try {
-      const { status, data } = await postJson<Result & Preview & { message?: string }>('/admin/employees/import/save', csrf, { commandId, reason, rows: drafts });
+      const { status, data, lost } = await postJson<Result & Preview & { message?: string }>('/admin/employees/import/save', csrf, { commandId, reason, rows: drafts });
+      if (lost) { setAccessLost(true); return; }
       if (status === 200) { setResult(data); setDrafts([]); setPreview(null); setCommandId(crypto.randomUUID()); return; }
       if (status === 422 && Array.isArray(data.rows)) { setPreview(data); setReviewed(current); setCommandId(crypto.randomUUID()); return; }
       setMessage(data.message ?? '저장하지 못했습니다.');
@@ -82,17 +97,22 @@ export function EmployeeImportPage({ model, csrf }: { model: EmployeeImportModel
     } finally { setBusy(false); }
   }
 
+  if (accessLost) return <section className="w-page"><p role="alert">로그인 상태와 권한을 다시 확인하세요.</p>
+    <a href="/login" className="t-btn">다시 로그인</a></section>;
   return (
-    <section className="w-page">
+    <section className="w-page" data-unsaved-changes={String(drafts.length > 0 && !result)} data-modal-busy={String(busy)}>
       <PageHeader title="재직자 일괄 등록" help="엑셀에서 사번·이름·입사일·생년월일·조직코드·직급·직책 7개 열을 머리글 없이 복사해 붙여넣습니다. 사번을 비우면 입사 연도로 자동 발급합니다."
         actions={<a className="t-btn" href="/admin/employees/import/template" download>양식 내려받기</a>} />
       <p className="t-muted">조직코드: {model.organizations.map(o => `${o.code} ${o.name}`).join(', ') || '등록된 조직 없음'}</p>
-      <textarea aria-label="엑셀에서 복사한 행 붙여넣기" rows={3} placeholder="엑셀에서 복사한 행을 여기에 붙여넣으세요."
+      <textarea aria-label="엑셀에서 복사한 행 붙여넣기" className="t-input" style={{ width: '100%' }} rows={3} placeholder="엑셀에서 복사한 행을 여기에 붙여넣으세요."
         onPaste={event => { event.preventDefault(); load(event.clipboardData.getData('text/plain')); }} />
       <WorklogSheet<ImportDraft> label="붙여넣은 재직자" count={drafts.length} rows={drafts} columns={columns}
-        getRowId={row => row.clientRowId} errors={errors} scope="all" emptyMessage="붙여넣은 행이 없습니다." />
-      {fresh && <p role="status">{preview.valid ? '모든 행 정상' : `오류 ${invalidRows}행`}</p>}
-      <label>등록 사유<textarea value={reason} maxLength={500} onChange={event => setReason(event.target.value)} /></label>
+        getRowId={rowId} errors={errors} scope="all" emptyMessage="붙여넣은 행이 없습니다." />
+      <p role="status">{fresh ? (preview.valid ? '모든 행 정상' : `오류 ${invalidRows}행`) : ''}</p>
+      <div className="wl-save-reason">
+        <label htmlFor="import-reason" className="wl-required">등록 사유</label>
+        <textarea id="import-reason" value={reason} maxLength={500} onChange={event => setReason(event.target.value)} />
+      </div>
       <div className="wl-form-actions" aria-busy={busy}>
         <button type="button" className="t-btn" onClick={validate} disabled={busy || drafts.length === 0}>검증</button>
         <button type="button" className="t-btn primary" onClick={save} disabled={busy || !fresh || !preview.valid || reason.trim() === ''}>저장</button>

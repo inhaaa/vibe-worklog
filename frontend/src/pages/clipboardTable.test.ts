@@ -8,6 +8,9 @@ describe('parseClipboardTable', () => {
   it('keeps tabs, newlines and doubled quotes inside quoted cells', () => {
     expect(parseClipboardTable('"x\ty"\t"line1\nline2"\t"say ""hi"""\n')).toEqual([['x\ty', 'line1\nline2', 'say "hi"']]);
   });
+  it('reads a quote that never closes as plain text', () => {
+    expect(parseClipboardTable('\t"홍길동\t2019-03-04\r\n19001\t김\t2020-01-02')).toEqual([['', '"홍길동', '2019-03-04'], ['19001', '김', '2020-01-02']]);
+  });
   it('keeps empty middle cells', () => {
     expect(parseClipboardTable('1\t\t3')).toEqual([['1', '', '3']]);
   });
