@@ -93,39 +93,6 @@ class AttendanceSettingsIT {
         db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND role='ATTENDANCE_ADMIN'",tenant);
         status(403,()->settings.addNetwork(actor,network("127.0.0.1/32",false)));
     }
-    @Test void reviewedCalendarMaterializesEachDateAndKeepsExceptionsWithBasis() {
-        String exceptions=TODAY.plusDays(1)+"|HOLIDAY|회사 기념일|합성 근거";
-        UUID id=settings.calendar(actor,calendar(TODAY,TODAY.plusDays(2),true,exceptions));
-        var version=settings.calendars(actor).getFirst();assertEquals(id,version.id());assertEquals(TODAY,version.validFrom());
-        assertEquals(TODAY.plusDays(3),version.validTo());
-        assertEquals(3,db.queryForObject("SELECT count(*) FROM tna.calendar_day WHERE tenant_id=? AND version_id=?",Integer.class,tenant,id));
-        assertEquals(List.of("WORKDAY","HOLIDAY","WORKDAY"),db.queryForList("SELECT kind FROM tna.calendar_day WHERE tenant_id=? AND version_id=? ORDER BY work_date",String.class,tenant,id));
-        assertEquals("합성 근거",db.queryForObject("SELECT basis FROM tna.calendar_day WHERE tenant_id=? AND version_id=? AND kind='HOLIDAY'",String.class,tenant,id));
-    }
-    @Test void calendarRequiresReviewedBoundedPeriodAndExplicitBasis() {
-        status(422,()->settings.calendar(actor,calendar(TODAY,TODAY,false,"")));
-        status(422,()->settings.calendar(actor,calendar(TODAY.plusDays(1),TODAY,true,"")));
-        status(422,()->settings.calendar(actor,calendar(TODAY,TODAY.plusDays(366),true,"")));
-        status(422,()->settings.calendar(actor,new CalendarForm(TODAY,TODAY,true," ","","근거",UUID.randomUUID())));
-        status(422,()->settings.calendar(actor,new CalendarForm(null,TODAY,true,"근거","","근거",UUID.randomUUID())));
-        assertTrue(settings.calendars(actor).isEmpty());
-    }
-    @Test void calendarExceptionsRejectDuplicateOutOfPeriodInvalidKindsAndMissingEvidence() {
-        for(String text:List.of(TODAY+"|HOLIDAY|명칭|근거\n"+TODAY+"|WORKDAY|명칭|근거",TODAY.plusDays(1)+"|HOLIDAY|명칭|근거",
-                TODAY+"|UNKNOWN|명칭|근거",TODAY+"|HOLIDAY|명칭| ","bad-date|HOLIDAY|명칭|근거",TODAY+"|HOLIDAY|명칭")) {
-            status(422,()->settings.calendar(actor,calendar(TODAY,TODAY,true,text)));
-        }
-    }
-    @Test void calendarRangesAreImmutableAndAdjacentVersionsAreAllowed() {
-        UUID command=UUID.randomUUID();
-        var form=new CalendarForm(TODAY,TODAY.plusDays(1),true,"기초 근거","","신규 캘린더",command);
-        UUID id=settings.calendar(actor,form);assertEquals(id,settings.calendar(actor,form));
-        status(409,()->settings.calendar(actor,calendar(TODAY.plusDays(1),TODAY.plusDays(2),true,"")));
-        UUID next=settings.calendar(actor,calendar(TODAY.plusDays(2),TODAY.plusDays(3),true,""));
-        assertNotEquals(id,next);assertEquals(2,settings.calendars(actor).size());
-        assertEquals(4,db.queryForObject("SELECT count(*) FROM tna.calendar_day WHERE tenant_id=?",Integer.class,tenant));
-    }
     private NetworkForm network(String network,boolean confirmed) { return new NetworkForm(network,"합성 허용망",confirmed,"등록 근거",UUID.randomUUID()); }
-    private CalendarForm calendar(LocalDate from,LocalDate to,boolean reviewed,String exceptions) { return new CalendarForm(from,to,reviewed,"기간 전체 휴일 검토 근거",exceptions,"캘린더 등록",UUID.randomUUID()); }
     private void status(int expected,Runnable action) { assertEquals(expected,assertThrows(OrgException.class,action::run).status()); }
 }

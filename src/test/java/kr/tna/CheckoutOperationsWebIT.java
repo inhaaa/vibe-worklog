@@ -943,15 +943,6 @@ class CheckoutOperationsWebIT {
                 .param("workDate",day).param("settlementReturn",origin).accept(PAGE_JSON))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/settlementWorkDate",day))
                 .andExpect(ReactPageAssertions.data("/settlementReturn",origin));
-        mvc.perform(get("/admin/calendar").with(as(admin)).param("date",day).param("settlementReturn",origin).accept(PAGE_JSON))
-                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/form/from",day))
-                .andExpect(ReactPageAssertions.data("/form/to",day)).andExpect(ReactPageAssertions.data("/settlementReturn",origin));
-        mvc.perform(post("/admin/calendar/versions").with(as(admin)).with(csrf()).param("from","2026-09-29")
-                .param("to","2026-10-02").param("date",day).param("settlementReturn",origin).accept(PAGE_JSON)
-                .param("reviewed","false").param("basis","달력 검토 중").param("exceptions","").param("reason","기간 검토")
-                .param("commandId",UUID.randomUUID().toString()))
-                .andExpect(status().isUnprocessableEntity()).andExpect(ReactPageAssertions.data("/settlementWorkDate",day))
-                .andExpect(ReactPageAssertions.data("/settlementReturn",origin));
         mvc.perform(post("/admin/calculations").with(as(admin)).with(csrf()).param("employeeId",employee)
                 .param("from",day).param("to",day).param("reason","선택근무 미확정일 확인").param("commandId",UUID.randomUUID().toString())
                 .param("settlementReturn",origin)).andExpect(status().isSeeOther()).andExpect(redirectedUrl(origin));

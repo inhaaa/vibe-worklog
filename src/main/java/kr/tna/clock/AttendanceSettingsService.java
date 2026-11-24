@@ -5,12 +5,8 @@ import static kr.tna.org.OrgCommands.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.clock.AttendanceSettingsData.*;
@@ -20,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public final class AttendanceSettingsService {
-    private static final Set<String> KINDS=Set.of("WORKDAY","NON_WORKDAY","HOLIDAY");
     private final AttendanceSettingsMapper mapper;
     private final OrgCommands commands;
     private final Clock clock;
@@ -51,43 +46,6 @@ public final class AttendanceSettingsService {
             return new Change(id,before,mapper.network(actor.tenantId(),id));
         });
     }
-    public List<CalendarVersion> calendars(TnaPrincipal actor) { return commands.read(actor,()->mapper.calendars(actor.tenantId())); }
-    public UUID calendar(TnaPrincipal actor,CalendarForm form) {
-        if(form.from()==null||form.to()==null||form.from().isAfter(form.to())||!form.reviewed()
-                ||ChronoUnit.DAYS.between(form.from(),form.to())>=366||form.to().equals(LocalDate.MAX))
-            throw OrgException.invalid("전체 기간 검토를 확인하고 366일 이내의 올바른 날짜를 입력해 주세요.");
-        String basis=requiredText(form.basis(),500,"기간 검토 근거"),reason=requiredText(form.reason(),500,"캘린더 사유");
-        Map<LocalDate,CalendarException> exceptions=exceptions(form);
-        String action="CALENDAR_CREATE";
-        String normalized=exceptions.entrySet().stream().sorted(Map.Entry.comparingByKey())
-                .map(e->fingerprint(e.getKey(),e.getValue().kind(),e.getValue().name(),e.getValue().basis())).reduce("",String::concat);
-        return commands.execute(actor,form.commandId(),action,"CALENDAR",fingerprint(action,form.from(),form.to(),basis,normalized,reason),reason,()->{
-            mapper.requireOpen(actor.tenantId(),form.from(),form.to());
-            UUID id=UUID.randomUUID();int revision=mapper.nextRevision(actor.tenantId());
-            mapper.calendar(actor.tenantId(),id,revision,form.from(),form.to().plusDays(1),reason,actor.accountId());
-            for(LocalDate date=form.from();!date.isAfter(form.to());date=date.plusDays(1)) {
-                var day=exceptions.getOrDefault(date,new CalendarException("WORKDAY","검토한 기본 근로일",basis));
-                mapper.day(actor.tenantId(),id,date,day.kind(),day.name(),day.basis());
-            }
-            return new Change(id,null,new CalendarVersion(id,revision,form.from(),form.to().plusDays(1),reason));
-        });
-    }
-    private Map<LocalDate,CalendarException> exceptions(CalendarForm form) {
-        var result=new HashMap<LocalDate,CalendarException>();String text=form.exceptions();
-        if(text==null||text.isBlank()) return result;
-        if(text.length()>250_000) throw OrgException.invalid("휴일 예외 입력이 너무 깁니다.");
-        for(String line:text.lines().toList()) {
-            if(line.isBlank()) continue;String[] parts=line.split("\\|",-1);
-            if(parts.length!=4) throw OrgException.invalid("예외는 날짜|종류|이름|근거 형식으로 입력해 주세요.");
-            LocalDate date;
-            try { date=LocalDate.parse(parts[0].strip()); } catch(RuntimeException ex) { throw OrgException.invalid("예외 날짜를 확인해 주세요."); }
-            String kind=parts[1].strip();
-            if(date.isBefore(form.from())||date.isAfter(form.to())||!KINDS.contains(kind)||result.containsKey(date))
-                throw OrgException.invalid("예외 날짜 중복·범위·종류를 확인해 주세요.");
-            result.put(date,new CalendarException(kind,requiredText(parts[2],120,"날짜 이름"),requiredText(parts[3],500,"날짜 근거")));
-        }
-        return result;
-    }
     public static String normalizeAddress(String raw) {
         if(raw==null||raw.length()>80||!raw.matches("[0-9a-fA-F:.]+")||!raw.contains(":")&&!raw.contains("."))
             throw OrgException.invalid("숫자 IP 주소를 확인해 주세요.");
@@ -112,5 +70,4 @@ public final class AttendanceSettingsService {
         catch(UnknownHostException ex) {throw OrgException.invalid("CIDR 주소를 확인해 주세요.");}
     }
     private record NormalizedNetwork(String value,boolean broad) { }
-    private record CalendarException(String kind,String name,String basis) { }
 }

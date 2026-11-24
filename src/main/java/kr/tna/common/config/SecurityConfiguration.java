@@ -45,7 +45,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> {
                     if (localDemo.publicDemo()) {
                         authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
-                                "/admin/employees/onboarding/**", "/admin/employees/import/save", "/admin/accounts/create", "/admin/accounts/reset", "/admin/employees/exports", "/admin/employees/*/account-reset",
+                                "/admin/employees/onboarding/**", "/admin/employees/import/save", "/admin/holidays/save", "/admin/accounts/create", "/admin/accounts/reset", "/admin/employees/exports", "/admin/employees/*/account-reset",
                                 "/admin/employees/*/personnel/tabs/*/export",
                                 "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply",
                                 "/admin/leave-balances/employment/**").denyAll();
@@ -82,7 +82,7 @@ public class SecurityConfiguration {
                                 "/admin/approval-route-assignments", "/admin/approval-route-assignments/**",
                                 "/admin/common-code-groups/**", "/admin/common-codes", "/admin/common-codes/**",
                                 "/admin/attendance-types", "/admin/attendance-types/**",
-                                "/admin/overtime", "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/calendar/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
+                                "/admin/overtime", "/admin/approver-assignments", "/admin/schedules", "/admin/schedules/**", "/admin/networks", "/admin/networks/**", "/admin/calendar", "/admin/holidays", "/admin/holidays/**", "/admin/requests", "/admin/requests/**", "/admin/leave-balances", "/admin/leave-balances/**", "/admin/attendance", "/admin/calculations", "/admin/work-policies", "/admin/work-assessments", "/admin/reports/**", "/admin/audit", "/admin/audit/**").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/admin/access/roles/*/candidates").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/company/attendance", "/company/requests", "/company/organizations")
                             .hasAnyRole("ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE")

@@ -29,18 +29,13 @@ class SelectiveSettlementReturnTest {
         when(worktime.matchesSettlementDay(actor,employee,day,"ISO_WEEK")).thenReturn(false);
         assertNull(returns.employee(actor,self,day));
         assertNull(returns.admin(actor,admin,employee,day));
-        assertNull(returns.calendar(actor,admin,day));
     }
 
     @Test void keepsTheOriginalMonthForAWeekSpanningTwoMonths() {
         assertEquals(self, returns.employee(actor, self, day));
         assertEquals(admin, returns.admin(actor, admin, employee, day));
-        assertEquals(admin, returns.calendar(actor, admin, day));
-        var staff = new TnaPrincipal(actor.tenantId(), actor.accountId(), employee, 1, Set.of("EMPLOYEE"), Instant.EPOCH);
-        assertNull(returns.calendar(staff, admin, day));
         assertNull(returns.admin(actor, admin, UUID.randomUUID(), day));
         assertNull(returns.employee(actor, admin, day));
-        assertNull(returns.calendar(actor, self, day));
     }
 
     @Test void checksBothTheOriginalLookupMonthAndTheActionDate() {

@@ -19,7 +19,8 @@ class AttendanceWebIT {
     @Autowired MockMvc mvc;
     @DynamicPropertySource static void db(DynamicPropertyRegistry r) {var d=DatabaseFixture.start();r.add("spring.datasource.url",d::jdbcUrl);r.add("spring.datasource.username",()->DatabaseFixture.APP_USER);r.add("spring.datasource.password",()->DatabaseFixture.APP_PASSWORD);r.add("tna.auth.url",d::jdbcUrl);r.add("tna.auth.username",()->DatabaseFixture.AUTH_USER);r.add("tna.auth.password",()->DatabaseFixture.AUTH_PASSWORD);}
     @BeforeEach void seed() {var d=DatabaseFixture.start();d.seedIdentity(kr.tna.common.auth.PasswordPolicy.passwordEncoder().encode(PASSWORD));new JdbcTemplate(d.adminDataSource()).update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'ATTENDANCE_ADMIN')",DatabaseFixture.TENANT_A,DatabaseFixture.ACCOUNT_A);}
-    @Test void administratorCanOpenNetworkAndCalendarSettings() throws Exception {var s=login(true);for(String p:java.util.List.of("/admin/networks","/admin/calendar"))mvc.perform(get(p).session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.csrf());}
+    @Test void administratorCanOpenNetworkAndHolidaySettings() throws Exception {var s=login(true);for(String p:java.util.List.of("/admin/networks","/admin/holidays"))mvc.perform(get(p).session(s)).andExpect(status().isOk()).andExpect(ReactPageAssertions.csrf());
+        mvc.perform(get("/admin/calendar").session(s)).andExpect(status().isSeeOther()).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Location","/admin/holidays"));}
     @Test void employeeCannotManageNetworksAndAllWritesRequireCsrf() throws Exception {
         var s=login(false);mvc.perform(get("/admin/networks").session(s)).andExpect(status().isForbidden());
         mvc.perform(post("/me/attendance/events").session(s).param("eventKind","IN")).andExpect(status().isForbidden());

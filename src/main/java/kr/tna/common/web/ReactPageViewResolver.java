@@ -66,7 +66,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("schedule/detail", "template", "versions", "versionDays", "today", "form"),
             page("schedule/assignment", "employee", "assignments", "versions", "templateNames", "today", "form"),
             page("clock/networks", "pageCommand", "networks", "form"),
-            page("clock/calendar", "calendars", "form", "settlementReturn", "settlementWorkDate"),
+            page("clock/holidays", "holidays"),
             page("clock/period", "attendancePeriod"),
             page("clock/history", "day", "eventTimes", "confirmationForm", "today", "isToday", "inCommand", "outCommand", "actualWorkMillis", "canConfirm", "confirmationBreaks", "correctionSuggested", "settlementReturn"),
             page("request/mine", "requests", "buckets", "form", "annual", "compose"),

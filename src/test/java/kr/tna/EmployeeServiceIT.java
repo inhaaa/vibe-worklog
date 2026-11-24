@@ -10,8 +10,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import kr.tna.common.auth.TnaPrincipal;
-import kr.tna.clock.AttendanceSettingsData.CalendarForm;
-import kr.tna.clock.AttendanceSettingsService;
 import kr.tna.org.BulkData;
 import kr.tna.org.EmployeeService;
 import kr.tna.org.OrgBulkService;
@@ -33,7 +31,6 @@ class EmployeeServiceIT {
     private static final LocalDate TODAY = LocalDate.now(ZoneId.of("Asia/Seoul"));
     private static final LocalDate JOINED = TODAY.minusYears(1);
     @Autowired EmployeeService employees;
-    @Autowired AttendanceSettingsService attendanceSettings;
     @Autowired OrgBulkService bulk;
     private JdbcTemplate database;
     private TnaPrincipal actor;
@@ -121,7 +118,6 @@ class EmployeeServiceIT {
 
         assertStatus(409, () -> employees.create(actor, form("CLOSE-RETRO", "소급 입사", last, null, true, null)));
         assertStatus(409, () -> employees.update(actor, original, form("CLOSE-OLD", "소급 퇴직", JOINED, last.minusDays(1), true, 0L)));
-        assertStatus(409, () -> attendanceSettings.calendar(actor, new CalendarForm(last, last.plusDays(1), true, "기준", "", "달력 수정", UUID.randomUUID())));
         var mixed = List.of(
                 new BulkData.EmployeeRow(UUID.randomUUID().toString(), null, null, BulkData.Operation.CREATE, "CLOSE-NEW", "신규", TODAY, null, true),
                 new BulkData.EmployeeRow(UUID.randomUUID().toString(), original, 0L, BulkData.Operation.UPDATE, "CLOSE-OLD", "소급", JOINED, month, true));
@@ -133,7 +129,6 @@ class EmployeeServiceIT {
         assertEquals(last, employees.get(actor, original).leftOn());
         employees.update(actor, original, form("CLOSE-OLD", "이름 변경", JOINED, TODAY.plusDays(2), true, 1L));
         assertNotNull(employees.create(actor, form("CLOSE-NEXT", "다음 달 입사", last.plusDays(1), null, true, null)));
-        assertNotNull(attendanceSettings.calendar(actor, new CalendarForm(last.plusDays(1), last.plusDays(1), true, "기준", "", "새 달", UUID.randomUUID())));
         database.update("""
                 INSERT INTO tna.attendance_month_closure
                     (tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)

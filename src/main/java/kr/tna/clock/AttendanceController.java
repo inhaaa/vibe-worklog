@@ -40,23 +40,6 @@ public class AttendanceController {
     @GetMapping("/admin/networks") ModelAndView networks(@AuthenticationPrincipal TnaPrincipal actor){return networkPage(actor,null);}
     @PostMapping("/admin/networks/changes") ModelAndView addNetwork(@AuthenticationPrincipal TnaPrincipal actor,@ModelAttribute("form") NetworkForm form,BindingResult b){check(b);return submit(()->settings.addNetwork(actor,form),"/admin/networks",()->networkPage(actor,form));}
     @PostMapping("/admin/networks/{id}/close") ModelAndView closeNetwork(@AuthenticationPrincipal TnaPrincipal actor,@PathVariable UUID id,@RequestParam Long expectedVersion,@RequestParam String reason,@RequestParam UUID commandId){return submit(()->settings.closeNetwork(actor,id,expectedVersion,reason,commandId),"/admin/networks",()->networkPage(actor,null));}
-    @GetMapping("/admin/calendar")
-    ModelAndView calendar(@AuthenticationPrincipal TnaPrincipal actor,
-            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required=false) String settlementReturn) {
-        String origin = settlements.calendar(actor, settlementReturn, date);
-        var form = origin == null ? null : new CalendarForm(date, date, false, "", "", "", UUID.randomUUID());
-        return calendarPage(actor, form, date, origin);
-    }
-    @PostMapping("/admin/calendar/versions")
-    ModelAndView calendarVersion(@AuthenticationPrincipal TnaPrincipal actor, @ModelAttribute("form") CalendarForm form,
-            BindingResult binding, @RequestParam(required=false) String settlementReturn,
-            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date) {
-        check(binding);
-        String origin = settlements.calendar(actor, settlementReturn, date);
-        return submit(() -> settings.calendar(actor,form), origin != null ? origin : "/admin/calendar",
-                () -> calendarPage(actor, form, date, origin));
-    }
     @GetMapping("/me/attendance")
     ModelAndView attendance(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE) LocalDate date,
@@ -100,12 +83,6 @@ public class AttendanceController {
                 () -> SelectiveSettlementReturn.attach(dayPage(actor,form.workDate(),form), origin));
     }
     private ModelAndView networkPage(TnaPrincipal actor,NetworkForm form){return new ModelAndView("clock/networks").addObject("pageCommand",UUID.randomUUID()).addObject("networks",settings.networks(actor)).addObject("form",form!=null?form:new NetworkForm("","",false,"",UUID.randomUUID()));}
-    private ModelAndView calendarPage(TnaPrincipal actor, CalendarForm form, LocalDate date, String origin) {
-        var page = new ModelAndView("clock/calendar").addObject("calendars",settings.calendars(actor))
-                .addObject("form", form != null ? form : new CalendarForm(commands.today(),commands.today().plusDays(30),false,"","","",UUID.randomUUID()));
-        if (origin != null) page.addObject("settlementWorkDate", date);
-        return SelectiveSettlementReturn.attach(page, origin);
-    }
     private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
         var confirmationBreaks=clocks.confirmableBreaks(d);

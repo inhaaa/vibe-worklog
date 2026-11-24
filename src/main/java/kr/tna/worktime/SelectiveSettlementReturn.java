@@ -32,10 +32,6 @@ public final class SelectiveSettlementReturn {
         return validate(actor, raw, date, employee::equals);
     }
 
-    public String calendar(TnaPrincipal actor, String raw, LocalDate date) {
-        return actor.roles().contains("ATTENDANCE_ADMIN") ? validate(actor, raw, date, id -> id != null) : null;
-    }
-
     private String validate(TnaPrincipal actor, String raw, LocalDate date, Predicate<UUID> eligible) {
         if (raw == null || date == null) return null;
         var match = ORIGIN.matcher(raw);
