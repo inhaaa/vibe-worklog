@@ -40,7 +40,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
                     "clockInCommand", "clockOutCommand", "clockError", "checkoutFollowUps"),
             page("attendance/follow-ups", "checkoutFollowUps"),
             page("company/attendance", "companyAttendance", "checkoutOperations", "monthEndReview", "monthCloseBlockers", "canViewCheckout"), page("company/requests", "companyRequests"),
-            page("org/access-list", "roleDirectory"),
+            page("org/access-list", "roleDirectory"), page("org/accounts", "accountDirectory"),
             page("org/problem", "status", "message", "traceId"),
             page("org/organizations", "organizations", "hasNext", "q", "page", "form", "options", "orgNames",
                     "organizationSheet", "organizationHeadsById", "organizationCreateFailed", "createdOrganizations"),

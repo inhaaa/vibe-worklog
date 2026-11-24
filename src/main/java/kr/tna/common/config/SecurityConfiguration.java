@@ -74,7 +74,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/admin/attendance/month-close/export-options",
                                 "/admin/attendance/month-close/export").hasRole("ATTENDANCE_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/me/attendance/follow-ups", "/me/leave-ledger").hasRole("EMPLOYEE")
-                        .requestMatchers("/admin/organizations", "/admin/organizations/**",
+                        .requestMatchers("/admin/organizations", "/admin/organizations/**", "/admin/accounts", "/admin/accounts/**",
                                 "/admin/employees", "/admin/employees/**", "/admin/access",
                                 "/admin/organization-heads", "/admin/organization-heads/**",
                                 "/admin/approval-routes", "/admin/approval-routes/**",
