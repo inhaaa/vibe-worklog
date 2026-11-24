@@ -72,7 +72,32 @@ class FirstLoginIT {
         assertEquals(5, failures());
         assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_LOCKED'", Integer.class, tenant));
         String audit = db.queryForObject("SELECT string_agg(before_state::text||after_state::text||input_hash,'') FROM tna.org_audit_event WHERE tenant_id=?", String.class, tenant);
-        assertFalse(audit.contains("1990-05-1"));
+        for (String birth : new String[] {"1990-05-1", "19900512", "19900513", "900512", "900513"}) assertFalse(audit.contains(birth), birth);
+    }
+
+    @Test void parallelWrongBirthDatesStopAtFive() throws Exception {
+        pending();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(10);
+        try {
+            var attempts = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (int i = 0; i < 10; i++) {
+                String address = "203.0.113." + i;
+                attempts.add(pool.submit(() -> assertThrows(OrgException.class, () -> firstLogin.activate(
+                        company, "2019031", LocalDate.of(1990, 5, 13), NEW, address)).status()));
+            }
+            for (var attempt : attempts) assertEquals(422, attempt.get());
+        } finally { pool.shutdownNow(); }
+        assertEquals(5, failures());
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_LOCKED'", Integer.class, tenant));
+        assertEquals(4, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_ACTIVATION_FAILED'", Integer.class, tenant));
+    }
+
+    @Test void accountWithoutEmployeeRoleCannotActivate() {
+        pending();
+        db.update("UPDATE tna.role_grant SET active=false WHERE account_id=?", account);
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+        assertEquals(0, failures());
+        assertNull(db.queryForObject("SELECT password_hash FROM tna.tenant_account WHERE id=?", String.class, account));
     }
 
     @Test void expiredMissingBirthDateFormerEmployeeAndEmployeeNumberPasswordAreRejected() {

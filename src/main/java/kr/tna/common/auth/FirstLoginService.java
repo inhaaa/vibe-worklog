@@ -77,6 +77,8 @@ public final class FirstLoginService {
                 LEFT JOIN tna.employee_personnel p ON p.tenant_id=a.tenant_id AND p.employee_id=a.employee_id
                 WHERE a.tenant_id=? AND e.employee_no=? AND a.activation_expires_at>? AND e.active
                   AND e.joined_on<=? AND (e.left_on IS NULL OR e.left_on>=?)
+                  AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id
+                    AND g.account_id=a.id AND g.role='EMPLOYEE' AND g.active)
                 """, (row, index) -> new Pending(row.getObject("id", UUID.class), row.getLong("auth_version"),
                 row.getInt("activation_failures"), row.getObject("birth_date", LocalDate.class)),
                 tenant, number, Timestamp.from(now), today, today);
@@ -84,17 +86,23 @@ public final class FirstLoginService {
         Pending pending = rows.getFirst();
         if (pending.birthDate() == null || pending.failures() >= AccountStatus.MAX_FAILURES) return Outcome.REJECTED;
         if (!pending.birthDate().equals(birthDate)) {
-            int failures = pending.failures() + 1;
-            jdbc.update("UPDATE tna.tenant_account SET activation_failures=? WHERE tenant_id=? AND id=?", failures, tenant, pending.id());
+            // 고객사 잠금 아래에서 실행되지만, 증가는 SQL 안에서 하고 5회를 넘지 않게 한다.
+            var counted = jdbc.queryForList("""
+                    UPDATE tna.tenant_account SET activation_failures=activation_failures+1
+                    WHERE tenant_id=? AND id=? AND activation_failures<?
+                    RETURNING activation_failures
+                    """, Integer.class, tenant, pending.id(), AccountStatus.MAX_FAILURES);
+            if (counted.size() != 1) return Outcome.REJECTED;
+            int failures = counted.getFirst();
             audit(tenant, pending.id(), failures == AccountStatus.MAX_FAILURES ? "ACCOUNT_LOCKED" : "ACCOUNT_ACTIVATION_FAILED",
-                    "{\"failures\":" + pending.failures() + "}", "{\"failures\":" + failures + "}");
+                    "{\"failures\":" + (failures - 1) + "}", "{\"failures\":" + failures + "}");
             return Outcome.REJECTED;
         }
         int changed = jdbc.update("""
                 UPDATE tna.tenant_account
                 SET password_hash=?,active=true,activation_expires_at=NULL,activation_failures=0,auth_version=auth_version+1
-                WHERE tenant_id=? AND id=? AND auth_version=? AND activation_expires_at IS NOT NULL
-                """, hash, tenant, pending.id(), pending.authVersion());
+                WHERE tenant_id=? AND id=? AND auth_version=? AND activation_expires_at IS NOT NULL AND activation_failures<?
+                """, hash, tenant, pending.id(), pending.authVersion(), AccountStatus.MAX_FAILURES);
         if (changed != 1) return Outcome.REJECTED;
         audit(tenant, pending.id(), "ACCOUNT_ACTIVATED", "{\"pending\":true}", "{\"pending\":false,\"active\":true}");
         return Outcome.ACTIVATED;
