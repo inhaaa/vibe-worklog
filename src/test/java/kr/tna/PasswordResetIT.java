@@ -69,6 +69,12 @@ class PasswordResetIT {
         String audit=db.queryForObject("SELECT string_agg(before_state::text||after_state::text,'') FROM tna.org_audit_event WHERE tenant_id=?",String.class,tenant);
         assertNotNull(audit);assertFalse(audit.contains(message().token()));assertFalse(audit.contains(HASH));
     }
+    @Test void pendingAccountGetsNoResetLinkAndCannotCompleteAnIssuedToken() {
+        issue();String token=message().token();int sent=messages().size();
+        db.update("UPDATE tna.tenant_account SET activation_expires_at=now()+interval '7 days' WHERE tenant_id=?",tenant);
+        issue();assertEquals(sent,messages().size());
+        status(422,()->complete(token));assertEquals(0,used());assertEquals(HASH,hash());assertEquals(1L,version());
+    }
     @Test void reissueRevokesOldTokenWithoutChangingPasswordOrSessionsUntilCompletion() {
         issue();String old=message().token();issue();String next=message().token();assertNotEquals(old,next);assertTrue(auth.isCurrent(actor));
         status(422,()->complete(old));complete(next);assertFalse(auth.isCurrent(actor));assertEquals(2L,version());

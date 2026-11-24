@@ -56,7 +56,7 @@ public final class PasswordResetService {
                         SELECT a.id,a.auth_version FROM tna.tenant_account a
                         JOIN tna.employee e ON e.tenant_id=a.tenant_id AND e.id=a.employee_id
                         JOIN platform.tenant_registry r ON r.id=a.tenant_id
-                        WHERE a.tenant_id=? AND a.email=? AND a.active AND a.credential_set AND e.active AND r.active
+                        WHERE a.tenant_id=? AND a.email=? AND a.active AND a.activation_expires_at IS NULL AND a.credential_set AND e.active AND r.active
                           AND e.joined_on<=? AND(e.left_on IS NULL OR e.left_on>=?)
                           AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id
                             AND g.account_id=a.id AND g.role='EMPLOYEE' AND g.active)
@@ -100,7 +100,7 @@ public final class PasswordResetService {
                         JOIN platform.tenant_registry r ON r.id=a.tenant_id
                         WHERE t.tenant_id=? AND t.token_hash=? AND t.purpose='RESET' AND t.email=? AND a.email=t.email
                           AND t.issued_auth_version=a.auth_version AND t.used_at IS NULL AND t.revoked_at IS NULL
-                          AND t.expires_at>? AND a.active AND a.credential_set AND e.active AND r.active
+                          AND t.expires_at>? AND a.active AND a.activation_expires_at IS NULL AND a.credential_set AND e.active AND r.active
                           AND e.joined_on<=? AND(e.left_on IS NULL OR e.left_on>=?)
                           AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id
                             AND g.account_id=a.id AND g.role='EMPLOYEE' AND g.active)
@@ -113,7 +113,7 @@ public final class PasswordResetService {
                         """,at,tenant,reset.id());
                 int changed=jdbc.update("""
                         UPDATE tna.tenant_account SET password_hash=?,auth_version=auth_version+1
-                        WHERE tenant_id=? AND id=? AND auth_version=? AND active AND credential_set
+                        WHERE tenant_id=? AND id=? AND auth_version=? AND active AND activation_expires_at IS NULL AND credential_set
                         """,passwordHash,tenant,reset.account(),reset.version());
                 if(consumed!=1||changed!=1)throw rejected();
                 jdbc.update("""
