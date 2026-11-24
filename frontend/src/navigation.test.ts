@@ -15,14 +15,14 @@ describe('업무 메뉴 계약', () => {
     expect(links(allRoles).map(item => item.href)).toEqual([
       '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/attendance/follow-ups', '/me/overtime', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
       '/approvals', '/approvals/completed',
-      '/admin/employees', '/admin/employees/bulk-edit', '/admin/employees/onboarding',
+      '/admin/employees', '/admin/employees/bulk-edit', '/admin/employees/onboarding', '/admin/employees/import',
       '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
       '/company/attendance', '/admin/requests?scope=CORRECTION', '/company/requests?scope=CORRECTION', '/admin/overtime', '/admin/attendance',
       '/admin/schedules', '/admin/calendar', '/admin/attendance-types', '/admin/work-policies',
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
       '/admin/access', '/admin/common-codes', '/admin/request-forms', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);
-    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(36);
+    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(37);
     expect(getNavigationContext('org/request-forms', '/admin/request-forms')?.breadcrumbs.at(-1)?.label).toBe('신청서코드 관리');
     expect(getNavigationContext('org/personnel-home', '/admin/employees')?.href).toBe('/admin/employees');
     expect(getNavigationContext('org/employees', '/admin/employees/bulk-edit')?.href).toBe('/admin/employees/bulk-edit');

@@ -46,6 +46,7 @@ const navigation: NavigationGroup[] = [
       item('employees', '인사기본', '/admin/employees', admin, 'org/personnel-home', 'org/employee', 'org/personnel'),
       item('employee-bulk-edit', '인사정보 일괄관리', '/admin/employees/bulk-edit', admin, 'org/employees'),
       item('employee-onboarding', '입사 예정 관리', '/admin/employees/onboarding', admin, 'org/onboarding'),
+      item('employee-import', '재직자 일괄 등록', '/admin/employees/import', admin, 'org/employee-import'),
     ] },
   ] },
   { id: 'organizations', label: '조직관리', children: [

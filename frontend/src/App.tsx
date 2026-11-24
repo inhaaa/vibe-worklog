@@ -13,6 +13,8 @@ import { CompanySetupGuide } from './pages/CompanySetupGuide';
 import { formatRoles, IdentityPages } from './pages/IdentityPages';
 import { OrgSheetPages } from './pages/OrgSheetPages';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { EmployeeImportPage } from './pages/EmployeeImportPage';
+import type { EmployeeImportModel } from './pages/EmployeeImportPage';
 import { ApprovalRoutePages } from './pages/ApprovalRoutePages';
 import { RequestFormPage } from './pages/RequestFormPage';
 import { CodePages } from './pages/CodePages';
@@ -35,7 +37,7 @@ import './design/workspace.css';
 import './design/screens.css';
 
 function isTaskUrl(url: URL) {
-  if (url.pathname === '/admin/employees/onboarding' || url.pathname === '/admin/employees/bulk-edit') return false;
+  if (url.pathname === '/admin/employees/onboarding' || url.pathname === '/admin/employees/bulk-edit' || url.pathname === '/admin/employees/import') return false;
   return /^\/admin\/employees\/[^/]+(?:\/(?:access|schedule))?$/.test(url.pathname)
     || /^\/admin\/(?:organizations|schedules)\/[^/]+$/.test(url.pathname)
     || (url.pathname === '/admin/organization-heads' && url.searchParams.has('organizationId') && url.searchParams.get('chart') !== 'true')
@@ -100,6 +102,7 @@ const titles: Record<string, string> = {
   'clock/period': '출퇴근 기간 조회',
   'attendance/follow-ups': '내 근태 보완 요청',
   'org/onboarding': '입사 예정 관리',
+  'org/employee-import': '재직자 일괄 등록',
   'overtime/employee': '연장근무 신청',
   'overtime/admin': '연장근무 신청현황',
   'request/mine': '내 근태현황·신청',
@@ -292,6 +295,7 @@ function Content(props: PageProps) {
       <IdentityPages {...props} />
       <OrgSheetPages {...props} />
       {props.page === 'org/onboarding' && <OnboardingPage data={props.data} />}
+      {props.page === 'org/employee-import' && <EmployeeImportPage model={props.data.employeeImport as EmployeeImportModel} csrf={props.csrf} />}
       <ApprovalRoutePages {...props} />
       {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />
