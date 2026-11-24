@@ -74,6 +74,7 @@ public final class RoleDirectoryService {
         if (row.joinedOn().isAfter(today)) return "입사 전";
         if (row.leftOn() != null && row.leftOn().isBefore(today)) return "퇴직";
         if (!row.employeeActive()) return "사원 비활성";
+        if (row.accountPending()) return null;
         if (!row.credentialSet()) return "초대 수락 대기";
         return row.accountActive() ? null : "계정 비활성";
     }

@@ -29,7 +29,8 @@ public interface RoleDirectoryMapper {
             """;
     String EMPLOYEE_COLUMNS = """
             SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,
-                   e.version,e.active AS employee_active,e.joined_on,e.left_on,a.active AS account_active,a.credential_set
+                   e.version,e.active AS employee_active,e.joined_on,e.left_on,a.active AS account_active,a.credential_set,
+                   a.activation_expires_at IS NOT NULL AS account_pending
             """;
 
     @Select("SELECT g.role,count(*) AS member_count " + ACCOUNTS + GRANTED + " GROUP BY g.role")
@@ -45,7 +46,7 @@ public interface RoleDirectoryMapper {
 
     @Select("<script>" + EMPLOYEE_COLUMNS + ACCOUNTS + ORGANIZATION + """
             WHERE e.tenant_id=#{tenantId} AND e.active AND e.joined_on&lt;=#{today}
-              AND (e.left_on IS NULL OR e.left_on&gt;=#{today}) AND a.active AND a.credential_set
+              AND (e.left_on IS NULL OR e.left_on&gt;=#{today}) AND (a.active AND a.credential_set OR a.activation_expires_at IS NOT NULL)
               AND NOT EXISTS (
                   SELECT 1 FROM tna.role_grant g
                   WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id AND g.role=#{role} AND g.active
@@ -61,5 +62,6 @@ public interface RoleDirectoryMapper {
 
     record RoleCount(String role, long memberCount) { }
     record EmployeeRow(UUID employeeId, String employeeNo, String employeeName, String organizationName, long version,
-            boolean employeeActive, LocalDate joinedOn, LocalDate leftOn, boolean accountActive, boolean credentialSet) { }
+            boolean employeeActive, LocalDate joinedOn, LocalDate leftOn, boolean accountActive, boolean credentialSet,
+            boolean accountPending) { }
 }

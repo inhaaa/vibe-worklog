@@ -67,7 +67,7 @@ public final class RoleMembershipService {
         }
         var blocked = targets.stream().filter(target -> !target.available())
                 .map(target -> new RowError(target.row().clientRowId(),
-                        "초대를 수락한 활성 계정의 재직 사원만 권한을 변경할 수 있습니다.")).toList();
+                        "계정이 있는 재직 사원만 권한을 변경할 수 있습니다.")).toList();
         if (!blocked.isEmpty()) {
             throw new Rejected(422, "권한을 변경할 수 없는 사원이 있습니다.", blocked, List.of());
         }
@@ -89,7 +89,7 @@ public final class RoleMembershipService {
         AccountRow account = accounts.account(tenantId, employee.id());
         boolean available = employee.active() && !employee.joinedOn().isAfter(today)
                 && (employee.leftOn() == null || !employee.leftOn().isBefore(today))
-                && account != null && account.active() && account.credentialSet();
+                && account != null && (account.active() && account.credentialSet() || account.activationExpiresAt() != null);
         Set<String> roles = account == null ? Set.of() : new TreeSet<>(accounts.roles(tenantId, account.id()));
         return new Target(row, employee, account, roles, available);
     }

@@ -87,6 +87,21 @@ class RoleMembershipWebIT {
     }
 
     @Test
+    void grantsRoleToAccountPendingFirstLoginAndListsItAsCandidate() throws Exception {
+        var pending = employee(false);
+        db.update("""
+                UPDATE tna.tenant_account SET active=false,password_hash=NULL,
+                activation_expires_at=now()+interval '7 days' WHERE tenant_id=? AND id=?
+                """, TENANT, pending.account());
+        mvc.perform(get("/admin/access/roles/APPROVER/candidates").session(admin).param("q", pending.id().toString()).accept("application/json"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows[0].employeeId").value(pending.id().toString()))
+                .andExpect(jsonPath("$.rows[0].editable").value(true));
+        mvc.perform(bulk("APPROVER", body(UUID.randomUUID(), row(pending.id(), 0, "GRANT"))).with(csrf()))
+                .andExpect(status().isOk());
+        assertEquals(1L, activeGrant(pending.account(), "APPROVER"));
+    }
+
+    @Test
     void rejectsWholeBatchForIneligibleMemberAndReportsCurrentVersionForConflict() throws Exception {
         var valid = employee(true);
         var inactive = employee(false);
