@@ -2,7 +2,9 @@ package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.LocalDate;
 import java.util.UUID;
+import kr.tna.org.OrgException;
 import kr.tna.common.auth.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,45 @@ class FirstLoginIT {
         assertDoesNotThrow(() -> login("2019031", OLD));
         db.update("UPDATE tna.tenant_account SET activation_expires_at=now()+interval '7 days' WHERE id=?", account);
         assertThrows(AuthenticationException.class, () -> login("2019031", OLD));
+    }
+
+    void pending() {
+        db.update("UPDATE tna.tenant_account SET active=false,password_hash=NULL,activation_expires_at=now()+interval '7 days' WHERE id=?", account);
+    }
+    int failures() { return db.queryForObject("SELECT activation_failures FROM tna.tenant_account WHERE id=?", Integer.class, account); }
+    void rejected(Runnable action) { assertEquals(422, assertThrows(OrgException.class, action::run).status()); }
+    void activate(LocalDate birth, String password) { firstLogin.activate(company, "2019031", birth, password, "198.51.100." + failures()); }
+
+    @Test void matchingBirthDateSetsPasswordAndEndsPendingState() {
+        pending();
+        activate(LocalDate.of(1990, 5, 12), NEW);
+        assertDoesNotThrow(() -> login("2019031", NEW));
+        assertNull(db.queryForObject("SELECT activation_expires_at FROM tna.tenant_account WHERE id=?", java.sql.Timestamp.class, account));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_ACTIVATED'", Integer.class, tenant));
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+    }
+
+    @Test void wrongBirthDateCountsAndLocksAtFive() {
+        pending();
+        for (int i = 1; i <= 5; i++) { rejected(() -> activate(LocalDate.of(1990, 5, 13), NEW)); assertEquals(i, failures()); }
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+        assertEquals(5, failures());
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_LOCKED'", Integer.class, tenant));
+        String audit = db.queryForObject("SELECT string_agg(before_state::text||after_state::text||input_hash,'') FROM tna.org_audit_event WHERE tenant_id=?", String.class, tenant);
+        assertFalse(audit.contains("1990-05-1"));
+    }
+
+    @Test void expiredMissingBirthDateFormerEmployeeAndEmployeeNumberPasswordAreRejected() {
+        pending();
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), "2019031"));
+        db.update("UPDATE tna.tenant_account SET activation_expires_at=now()-interval '1 second' WHERE id=?", account);
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+        pending(); db.update("UPDATE tna.employee_personnel SET birth_date=NULL WHERE employee_id=?", employee);
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+        db.update("UPDATE tna.employee_personnel SET birth_date=DATE '1990-05-12' WHERE employee_id=?", employee);
+        db.update("UPDATE tna.employee SET left_on=DATE '2020-01-01' WHERE id=?", employee);
+        rejected(() -> activate(LocalDate.of(1990, 5, 12), NEW));
+        assertEquals(0, failures());
     }
 
     void login(String employeeNo, String password) {
