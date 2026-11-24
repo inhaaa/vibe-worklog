@@ -148,6 +148,19 @@ class AccountAccessWebIT {
     }
 
     @Test
+    void pendingAccountWithoutEmailRendersAccessPage() throws Exception {
+        var manager = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
+        Member member = member("이메일 없는 대기 계정", false);
+        admin.update("""
+                UPDATE tna.tenant_account SET email=NULL,active=false,password_hash=NULL,activation_expires_at=now()+interval '7 days'
+                WHERE tenant_id=? AND employee_id=?
+                """, DatabaseFixture.TENANT_A, member.employee());
+        var page = mvc.perform(get(access(member.employee())).session(manager))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.page()).andReturn();
+        assertEquals("생년월일 필요", page.getModelAndView().getModel().get("accountStatus"));
+    }
+
+    @Test
     void publicInvitationFormDoesNotResolveCompanyOrExposeExistingAccount() throws Exception {
         for (String company : List.of(DatabaseFixture.COMPANY_A, "UNKNOWN-COMPANY")) {
             mvc.perform(get("/invite/{companyCode}", company))

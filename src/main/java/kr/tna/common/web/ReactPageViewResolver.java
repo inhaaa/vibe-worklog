@@ -134,8 +134,17 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
     private Object safeIdentity(Object value) {
         if (value instanceof TnaPrincipal principal) return Map.of("roles", principal.roles());
         if (value instanceof EmployeeOverview employee) return Map.of("employeeName", employee.employeeName(), "companyName", employee.companyName());
-        if (value instanceof AccountData.Account account) return Map.of("id", account.id(), "employeeId", account.employeeId(),
-                "email", account.email(), "active", account.active(), "credentialSet", account.credentialSet(), "roles", account.roles());
+        if (value instanceof AccountData.Account account) {
+            // Pending accounts have no email yet, so the map must accept null.
+            var safe = new java.util.LinkedHashMap<String, Object>();
+            safe.put("id", account.id());
+            safe.put("employeeId", account.employeeId());
+            safe.put("email", account.email());
+            safe.put("active", account.active());
+            safe.put("credentialSet", account.credentialSet());
+            safe.put("roles", account.roles());
+            return safe;
+        }
         if (value instanceof RequestData.RequestDetail detail) {
             var safe = (tools.jackson.databind.node.ObjectNode) json.valueToTree(detail);
             if (detail.correction() != null) {

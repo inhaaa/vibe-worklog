@@ -108,7 +108,7 @@ export interface AccessModel extends AdminModel {
   employee: Employee;
   account: {
     id: string;
-    email: string;
+    email: string | null;
     active: boolean;
     credentialSet: boolean;
     roles: string[];
