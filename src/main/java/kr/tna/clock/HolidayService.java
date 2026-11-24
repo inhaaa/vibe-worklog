@@ -125,8 +125,10 @@ public class HolidayService {
         for (var date : existing.keySet()) if (!wanted.containsKey(date)) deleted.add(date);
         for (var date : added) closedRow(wanted.get(date), closed, errors);
         for (var date : updated) closedRow(wanted.get(date), closed, errors);
+        // 오류가 난 행의 날짜는 지워지는 것이 아니라 고칠 행이므로 삭제 검사에서 뺀다.
+        var submitted = rows.stream().map(row -> row.date() == null ? "" : row.date().strip()).collect(Collectors.toSet());
         for (var date : deleted) {
-            if (closed.contains(YearMonth.from(date))) errors.add(new RowError(null, "date", date + ": " + YearMonth.from(date) + CLOSED));
+            if (!submitted.contains(date.toString()) && closed.contains(YearMonth.from(date))) errors.add(new RowError(null, "date", date + ": " + YearMonth.from(date) + CLOSED));
         }
         if (!errors.isEmpty()) throw new HolidayProblem(errors);
 
@@ -181,7 +183,7 @@ public class HolidayService {
             LocalDate date = date(row, year, errors);
             String name = text(row.name(), 120, "휴일명", id, "name", errors, true);
             String category = row.category() == null ? null : row.category().strip();
-            if (!CATEGORIES.contains(category)) {
+            if (category == null || !CATEGORIES.contains(category)) {
                 errors.add(new RowError(id, "category", "구분을 선택해 주세요."));
                 category = null;
             }
