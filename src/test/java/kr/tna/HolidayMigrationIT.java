@@ -64,6 +64,7 @@ class HolidayMigrationIT {
                     WHERE tenant_id=? AND applied_at IS NOT NULL AND applied_by IS NULL ORDER BY year
                     """, String.class, tenant));
             assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.holiday_year WHERE tenant_id=?", Integer.class, other));
+            assertEquals(0, db.queryForObject("SELECT count(*) FROM pg_policies WHERE policyname='holiday_migration_registry_scan'", Integer.class));
             assertEquals("PERIOD", db.queryForObject("SELECT scope FROM tna.calendar_version WHERE id=?", String.class, calendar));
         } finally {
             cluster.execute("DROP DATABASE " + database + " WITH (FORCE)");

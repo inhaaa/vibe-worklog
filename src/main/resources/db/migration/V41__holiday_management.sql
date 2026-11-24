@@ -44,7 +44,8 @@ CREATE POLICY tenant_isolation ON tna.holiday_year
     USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid)
     WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid);
 REVOKE ALL ON tna.holiday,tna.holiday_year FROM PUBLIC;
-GRANT SELECT,INSERT,UPDATE,DELETE ON tna.holiday TO tna_app;
+GRANT SELECT,INSERT,DELETE ON tna.holiday TO tna_app;
+GRANT UPDATE (name,category,basis,updated_by,updated_at) ON tna.holiday TO tna_app;
 GRANT SELECT,INSERT ON tna.holiday_year TO tna_app;
 GRANT UPDATE (version,applied_at,applied_by) ON tna.holiday_year TO tna_app;
 

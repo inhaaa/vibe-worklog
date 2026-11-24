@@ -6,7 +6,6 @@ import java.util.Map;
 
 /**
  * 내장 공휴일(개통 준비 설계 §2.4). 매년 한국천문연구원 월력요항이 관보에 공고되면(보통 6월 말) 다음 해 목록을 더한다.
- * 절차는 docs/development/local.md '휴일 관리와 공휴일 연례 추가'를 따른다.
  */
 public final class KoreanPublicHolidays {
     public record Holiday(LocalDate date, String name, String basis) { }

@@ -34,7 +34,8 @@ class KoreanPublicHolidaysTest {
     @Test void basisNamesTheKindAndTheOfficialSource() {
         var labour = KoreanPublicHolidays.of(2026).stream().filter(h -> h.name().equals("노동절")).findFirst().orElseThrow();
         assertEquals("공휴일·근로자 유급휴일 · 관공서의 공휴일에 관한 규정(대통령령 제36290호)", labour.basis());
-        assertEquals("선거일 · 2026년 월력요항(우주항공청공고 제2025-0044호)", KoreanPublicHolidays.of(2026).get(10).basis());
+        var election = KoreanPublicHolidays.of(2026).stream().filter(h -> h.name().equals("제9회 전국동시지방선거")).findFirst().orElseThrow();
+        assertEquals("선거일 · 2026년 월력요항(우주항공청공고 제2025-0044호)", election.basis());
         assertTrue(KoreanPublicHolidays.of(2027).stream().allMatch(h -> h.basis().endsWith("2027년 월력요항(우주항공청공고 제2026-0078호)")));
         assertTrue(KoreanPublicHolidays.of(2027).stream().allMatch(h -> h.basis().length() <= 500 && h.name().length() <= 120));
     }

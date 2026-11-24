@@ -37,13 +37,28 @@ class HolidaySchemaIT {
         assertTrue(admin.queryForObject("SELECT has_table_privilege('tna_app','tna.holiday','DELETE')", Boolean.class));
         assertFalse(admin.queryForObject("SELECT has_table_privilege('tna_app','tna.holiday_year','DELETE')", Boolean.class));
         assertFalse(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.holiday_year','year','UPDATE')", Boolean.class));
-        assertFalse(admin.queryForObject("SELECT has_table_privilege('tna_auth','tna.holiday','SELECT')", Boolean.class));
+        for (String column : List.of("created_by", "holiday_date", "id", "tenant_id", "created_at")) {
+            assertFalse(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.holiday',?,'UPDATE')", Boolean.class, column), column);
+        }
+        for (String column : List.of("name", "category", "basis", "updated_by", "updated_at")) {
+            assertTrue(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.holiday',?,'UPDATE')", Boolean.class, column), column);
+        }
+        for (String object : List.of("holiday", "holiday_year", "calendar_effective_day")) {
+            assertFalse(admin.queryForObject("SELECT has_table_privilege('tna_auth','tna.'||?,'SELECT')", Boolean.class, object), object);
+        }
         assertFalse(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.calendar_version','scope','UPDATE')", Boolean.class));
         assertTrue(admin.queryForObject("SELECT has_table_privilege('tna_app','tna.calendar_effective_day','SELECT')", Boolean.class));
 
         tx.execute(tenant, () -> holiday("2027-01-01", "PUBLIC"));
         assertEquals(1, tx.execute(tenant, () -> app.queryForObject("SELECT count(*) FROM tna.holiday", Integer.class)));
         assertEquals(0, tx.execute(UUID.randomUUID(), () -> app.queryForObject("SELECT count(*) FROM tna.holiday", Integer.class)));
+        // WITH CHECK: 다른 고객사 id로는 넣을 수 없다.
+        assertEquals("42501", sqlState(() -> tx.execute(UUID.randomUUID(), () -> holiday("2027-02-02", "COMPANY"))));
+        tx.execute(tenant, () -> app.update("INSERT INTO tna.holiday_year(tenant_id,year,version) VALUES (?,2027,1)", tenant));
+        assertEquals(1, tx.execute(tenant, () -> app.queryForObject("SELECT count(*) FROM tna.holiday_year", Integer.class)));
+        assertEquals(0, tx.execute(UUID.randomUUID(), () -> app.queryForObject("SELECT count(*) FROM tna.holiday_year", Integer.class)));
+        assertEquals("42501", sqlState(() -> tx.execute(UUID.randomUUID(), () -> app.update(
+                "INSERT INTO tna.holiday_year(tenant_id,year,version) VALUES (?,2028,1)", tenant))));
         assertEquals("23505", sqlState(() -> tx.execute(tenant, () -> holiday("2027-01-01", "COMPANY"))));
         assertEquals("23514", sqlState(() -> tx.execute(tenant, () -> holiday("2027-01-02", "HOLIDAY"))));
         assertEquals("23514", sqlState(() -> tx.execute(tenant, () -> app.update(
@@ -69,6 +84,16 @@ class HolidaySchemaIT {
         assertEquals("23514", sqlState(() -> tx.execute(tenant, () -> version(UUID.randomUUID(), 3, "2026-05-07", "2026-05-09", "DAY"))));
         assertEquals("23514", sqlState(() -> tx.execute(tenant, () -> version(UUID.randomUUID(), 3, "2026-05-07", "2026-05-08", "WEEK"))));
         tx.execute(tenant, () -> version(UUID.randomUUID(), 3, "2026-05-06", "2026-05-07", "DAY"));
+
+        // 같은 날짜에 DAY 버전이 둘이면 revision이 높은 쪽이 이긴다.
+        UUID newer = UUID.randomUUID();
+        tx.execute(tenant, () -> {
+            version(newer, 4, "2026-05-05", "2026-05-06", "DAY");
+            day(newer, "2026-05-05", "NON_WORKDAY", "대체 휴무");
+            return null;
+        });
+        assertEquals(newer + ":NON_WORKDAY:대체 휴무", tx.execute(tenant, () -> app.queryForObject(
+                "SELECT version_id::text||':'||kind||':'||name FROM tna.calendar_effective_day WHERE work_date=DATE '2026-05-05'", String.class)));
     }
 
     private int holiday(String date, String category) {
