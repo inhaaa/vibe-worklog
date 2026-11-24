@@ -67,7 +67,9 @@
 - **로그인 화면에서 넘어오는 경우**: 로그인에 실패했고 입력한 비밀번호가 입력한 사번과 같으면 최초 접속 화면으로 보낸다.
   - 계정이 실제로 있는지와 관계없이 같은 규칙으로 동작한다.
   - 회사코드와 사번은 플래시 속성으로 넘겨 URL에 남기지 않는다.
+  - 로컬·공개 데모 모드는 데모 계정의 로그인과 비밀번호가 같으므로 이 이동을 하지 않는다.
 - **사원 상세 '계정·권한'**(`/admin/employees/{id}/access`): 초대 발급 UI를 없애고 계정 상태와 '비밀번호 초기화'를 보여 준다.
+- **대기 계정 권한 미리 부여**: 최초 접속 전 계정에도 결재자 등 역할을 부여할 수 있다. 다만 결재선 해석과 자격은 자격 증명이 있는 활성 계정만 쓰므로 최초 접속을 마치기 전에는 결재에 배정되지 않는다.
 - **로그인 화면의 메일 비밀번호 찾기**: 이메일이 있는 계정만 쓸 수 있다. 안내 문구에 "이메일이 없으면 담당자에게 초기화를 요청하세요"를 더한다.
 
 ### 1.3 사용자 관리 — `/admin/accounts`
@@ -127,10 +129,10 @@
 
 | 동작 | DB 역할 | 처리 |
 | --- | --- | --- |
-| 생성 | `tna_app` | `active=false`, `password_hash=NULL`, `email=NULL`로 만든다. 만료 시각은 `max(현재, 입사일 00:00 서울) + 7일`이다. `role_grant EMPLOYEE`를 준다. 감사 `ACCOUNT_PROVISIONED`. |
+| 생성 | `tna_app` | `active=false`, `password_hash=NULL`, `email=NULL`로 만든다. 만료 시각은 `max(현재, 입사일 00:00 서울) + 7일`이다. `role_grant EMPLOYEE`를 준다. 별도 계정 생성 감사는 없고 입사 확정(·일괄 등록) 명령 감사에 함께 기록한다. |
 | 최초 접속 성공 | `tna_auth` | 재직 중이고, 대기 중이며 만료 전이고, 실패가 5회 미만이며, 생년월일이 일치해야 한다. 비밀번호를 저장하고 `active=true`, 대기 해제, 실패 0, `auth_version+1`로 바꾼다. 감사 `ACCOUNT_ACTIVATED`. |
 | 최초 접속 실패 | `tna_auth` | 생년월일이 다르면 실패를 1 올린다. 감사 `ACCOUNT_ACTIVATION_FAILED`. 5회째는 감사 `ACCOUNT_LOCKED`. |
-| 초기화 | `tna_app` | 만료 시각을 현재+7일로, 실패를 0으로 바꾸고 `auth_version+1`(기존 세션 무효)을 한다. 감사 `ACCOUNT_RESET`. |
+| 초기화 | `tna_app` | 만료 시각을 현재+7일로, 실패를 0으로 바꾸고 `auth_version+1`(기존 세션 무효)을 한다. 감사 `ACCOUNT_ACTIVATION_RESET`(이메일 재설정 `ACCOUNT_RESET_REQUEST/COMPLETE`와 구분). 본인 계정은 초기화할 수 없다(첫 담당자는 생년월일이 없어 영구 잠긴다). 공개 데모는 403. |
 | 로그인 | `tna_auth` | 기존 조건에 `activation_expires_at IS NULL`을 더한다. 초기화한 계정은 이전 비밀번호로 로그인할 수 없다. |
 
 - 새 비밀번호는 기존 `PasswordPolicy`를 따른다. 사번이나 생년월일(`YYMMDD`, `YYYYMMDD`)과 같으면 거부한다.
@@ -334,3 +336,5 @@ TDD로 진행한다. 단위마다 실패하는 테스트를 먼저 작성한다.
 - [개발 안내](../../development/local.md): 개통 검증 절차, 공휴일 연례 추가
 - `README.md`·`docs/prd.md`의 계정 초대 서술
 - 새 문서 `docs/adr/0008-employee-account-provisioning.md`
+
+> 2026-11-24 구현 반영: 입사 예정의 생년월일은 명령 입력 해시와 감사 상태·로그에서 제외하고(날짜 SHA-256은 무차별 대입이 가능), 확정·철회 뒤 예정 행의 생년월일을 비운다. 대기 계정이 있는 초기화 대상 관리자는 마지막 관리자 보호에서 사용 가능한 관리자로 세지 않는다. 결정과 한계는 [ADR 0008](../../adr/0008-employee-account-provisioning.md)을 따른다.
