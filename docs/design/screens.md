@@ -193,7 +193,7 @@ XLSX에는 고객사·필터·기간·생성 시각·시간대·단위·결과 �
 | POST `/admin/employees/{id}/invitations` | 대상·초대 목적·commandId | 초대 발급 상태 | 부적합 계정·전송 채널 미준비 |
 | POST `/admin/schedules/versions` | 템플릿·요일·시각·예정 휴게·적용일·사유 | 불변 일정 버전 | 중첩·자정·시각 범위 |
 | POST `/admin/schedule-assignments` | 사원·버전·적용 구간·사유·commandId | 배정 이력·재집계 영향 | 구간 중첩·버전 비유효 |
-| POST `/admin/calendar/versions` | 날짜·휴일 종류·근거·적용일·사유 | 휴일 버전·재집계 영향 | 중복·근거 누락 |
+| POST `/admin/holidays/public-preview`, `/admin/holidays/save` | 연도·휴일 행(날짜·휴일명·구분·근거)·저장 사유·commandId·expectedVersion | 휴일 표 저장과 근태 달력 반영(바뀐 날짜만 새 반영분) | 행별 422·마감 월·409 |
 | POST `/admin/networks/changes` | CIDR·적용 구간·사유·version | 정규화 허용망·감사 | CIDR 오류·범위 경고 미확인 |
 | POST `/admin/leave-balances/entries` | 사원·묶음·기준/사용가능일·DAY·근거·사유 | 기초/조정 원장·잔액 | 본인 대상·음수 가용 잔여·기간/단위 오류 |
 | GET `/admin/attendance` | 조직·사원·기간·상태·page | 고객사 현황·버전·예외 | 범위 밖·422 |

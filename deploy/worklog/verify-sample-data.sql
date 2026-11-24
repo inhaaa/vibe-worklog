@@ -54,7 +54,7 @@ BEGIN
             ('organization', 2), ('employee_assignment', 4), ('org_audit_event', 2),
             ('schedule_template', 1), ('schedule_version', 1), ('schedule_day', 7),
             ('schedule_break', 5), ('schedule_assignment', 1), ('calendar_version', 1),
-            ('calendar_day', year_to - year_from), ('leave_bucket', 1), ('leave_ledger', 1)
+            ('calendar_day', year_to - year_from), ('holiday_year', 1), ('leave_bucket', 1), ('leave_ledger', 1)
         ) AS e(table_name, expected) ON e.table_name = c.relname
         WHERE n.nspname = 'tna' AND c.relkind = 'r'
     LOOP

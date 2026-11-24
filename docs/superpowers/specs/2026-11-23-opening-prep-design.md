@@ -96,6 +96,8 @@
 - 기존 '검토한 기간 등록' 폼(파이프 텍스트 입력)은 없앤다.
 - 선택근무 정산에서 '달력 미등록 날짜'를 처리하러 들어온 경우(`settlementReturn`)는 지금처럼 처리 뒤 같은 사원·정산기간으로 돌아간다.
 
+> 2026-11-24: 이 절은 [휴일 관리 설계](2026-11-24-holiday-management-design.md)로 대체됐다. §2.4 내장 공휴일 표는 그대로 쓴다.
+
 ## 2. 데이터와 규칙
 
 ### 2.1 계정 — `V40__opening_preparation.sql`
@@ -188,6 +190,8 @@
   - 일 결과와 근무 확인은 달력 버전을 입력 지문에 포함한다(`ClockService.sourceFingerprint`, `correctionConfirmation`).
   - 그래서 새 버전이 생기면 저장된 결과는 `STALE_RESULT`가 되고, 이전 근무 확인은 '확인 필요'가 된다.
   - 연장근무 신청의 `calendar_version_id` FK는 그대로 둔다.
+
+> 2026-11-24: 이 절은 [휴일 관리 설계](2026-11-24-holiday-management-design.md)로 대체됐다. §2.4 내장 공휴일 표는 그대로 쓴다.
 
 ### 2.4 내장 공휴일 — `KoreanPublicHolidays`
 

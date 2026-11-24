@@ -45,7 +45,7 @@ A를 기준으로 B의 오늘 요약과 C의 일정 구성을 조합했다. 승�
 | 내 업무 | 휴가·신청 `/me/requests`, 정정 `/me/requests/correction`, 주·월 근로시간 `/me/worktime` | 본인 |
 | 승인 업무 | 지정 승인함 `/approvals`, 신청 상세 `/requests/{id}` | 실제 APPROVER 및 상세의 허용 관계자 |
 | 인사 관리 | 조직 `/admin/organizations`, 직원 `/admin/employees`, 계정·승인자 `/admin/employees/{id}/access` | ATTENDANCE_ADMIN |
-| 근무 설정 | 템플릿 `/admin/schedules`, 사원 배정 `/admin/employees/{id}/schedule`, 휴일 `/admin/calendar`, 허용망 `/admin/networks` | ATTENDANCE_ADMIN |
+| 근무 설정 | 템플릿 `/admin/schedules`, 사원 배정 `/admin/employees/{id}/schedule`, 휴일 관리 `/admin/holidays`, 허용망 `/admin/networks` | ATTENDANCE_ADMIN |
 | 휴가 관리 | 기초 연차 `/admin/leave-balances`, 고객사 신청 `/admin/requests` | ATTENDANCE_ADMIN |
 | 현황·검토 | 근태·Excel `/admin/attendance`, 정책 검토 `/admin/work-policies`, 감사 `/admin/audit` | ATTENDANCE_ADMIN |
 | 별도 운영 콘솔 | `/operator/login`, `/operator/tenants` | 서비스 운영자 별도 인증. 고객사 업무 메뉴와 분리 |

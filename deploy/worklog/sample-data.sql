@@ -126,6 +126,8 @@ BEGIN
            CASE WHEN extract(isodow FROM day) <= 5 THEN '가상 평일 근무일' ELSE '가상 주말 비근로일' END,
            '공개 데모용 합성 요일 구분이며 실제 법정공휴일 검증 자료가 아님'
     FROM generate_series(year_from::timestamp, (year_to - 1)::timestamp, INTERVAL '1 day') AS days(day);
+    INSERT INTO tna.holiday_year (tenant_id, year, version, applied_at, applied_by)
+    VALUES (tenant, extract(year FROM year_from)::integer, 1, CURRENT_TIMESTAMP, admin_account);
 
     -- migration 초기 합성 fixture다. 일반 서비스의 본인 기초 등록 금지와 독립 승인 정책은 그대로 유지한다.
     INSERT INTO tna.leave_bucket

@@ -4,7 +4,7 @@
 
 ## 설정과 원천
 
-- 휴일은 불변 calendar_version(tenant/id,revision,valid_from,valid_to,reason,created_by)과 calendar_day(version/date,kind: WORKDAY/NON_WORKDAY/HOLIDAY,name,basis)로 명시한다. 버전 날짜 구간 중첩은 금지한다. 미등록 날짜는 미확인이다. 화면의 기간 기본 WORKDAY 입력은 담당자가 전체 기간 근거 확인을 명시한 경우에만 각 날짜 행으로 생성하며 예외 날짜를 별도로 지정한다. 기존 날짜를 덮어쓰는 기능은 이번 최초 단위에서 제공하지 않는다.
+- 휴일은 연도별 휴일 표(`tna.holiday`: 날짜·휴일명·구분 PUBLIC/COMPANY/NON_WORKDAY·근거)로 관리한다(`/admin/holidays`). 저장하면 같은 명령 안에서 근태 달력(`calendar_version`+`calendar_day`)에 반영한다. 근태 달력이 없는 구간은 기간(PERIOD) 버전, 이미 있는 날 가운데 종류나 휴일명이 달라진 날은 날짜(DAY) 반영분을 만든다. 휴일 행이 없는 날은 근로일이며, 주말의 기존 비근로일은 근로일과 같게 본다. 기간끼리는 겹칠 수 없고, 한 날짜에는 revision이 가장 큰 버전을 쓴다(뷰 `tna.calendar_effective_day`). 마감 월은 반영하지 않는다. 근태 달력 행은 바꾸거나 지우지 않는다. 미등록 날짜는 계속 미확인이다.
 - 허용망은 allowed_network(tenant/id,network cidr,label,valid_from,valid_to,reason,version,created_by)로 관리한다. 등록 즉시부터 유효하며 종료는 별도 감사 명령이다. CIDR은 숫자 IP만 파싱하고 IPv4/IPv6/mapped 비교를 정규화한다. /0과 IPv4 /8보다 넓은 범위, IPv6 /16보다 넓은 범위는 광범위 재확인이 필수다. 고객사 유효 중복 동일 CIDR은 거부한다.
 - 직접 출퇴근은 로그인한 본인만 IN/OUT과 commandId를 보낸다. 서버 Instant를 밀리초로 기록하고 서울 날짜로 분류한다. 브라우저 시각/IP/tenant/employee·전달 헤더를 신뢰하지 않는다. 로컬 검증은 remoteAddr만 사용하며 실제 프록시 경계는 배포 전 별도 검증한다.
 - attendance_event는 id,employee_id,event_kind,occurred_at/received_at,client_command_id,source,validated_ip,network_id,assigned_work_date를 추가만 한다. IP는 제한 증빙이며 화면·감사·로그·출력에 복제하지 않는다. 별도 명령의 중복·역전·자정 등도 원천 보존하고 정상값으로 선택하지 않는다.
@@ -20,6 +20,6 @@
 
 ## 화면과 검증
 
-/admin/calendar, /admin/networks는 담당자 설정, /me/today와 /me/attendance는 본인 기록·확인이다. GET에는 변경 효과가 없다. 공개 JSON API·오프라인·GPS·QR·외부 프록시 설정은 추가하지 않는다.
+/admin/holidays(옛 `/admin/calendar`는 303으로 이동), /admin/networks는 담당자 설정, /me/today와 /me/attendance는 본인 기록·확인이다. GET에는 변경 효과가 없다. 공개 JSON API·오프라인·GPS·QR·외부 프록시 설정은 추가하지 않는다.
 
 RLS·권한·CIDR/위조 헤더·재시도·서버 시각·재직 회수·중복/자정·오래된 확인·원자적 감사 롤백을 테스트한다. 정상근로 미확정과 REVIEW_REQUIRED를 구분하고 법정 적합성으로 표현하지 않는다.
