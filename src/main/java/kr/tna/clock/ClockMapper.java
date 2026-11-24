@@ -62,9 +62,8 @@ public interface ClockMapper extends ClosedAttendanceMonths {
     List<ScheduleRow> schedules(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,
                                @Param("date") LocalDate date,@Param("weekday") int weekday);
     @Select("""
-            SELECT v.id AS version_id,d.kind FROM tna.calendar_version v
-            JOIN tna.calendar_day d ON d.tenant_id=v.tenant_id AND d.version_id=v.id AND d.work_date=#{date}
-            WHERE v.tenant_id=#{tenantId} AND v.valid_from<=#{date} AND v.valid_to>#{date} ORDER BY v.id
+            SELECT version_id,kind FROM tna.calendar_effective_day
+            WHERE tenant_id=#{tenantId} AND work_date=#{date}
             """)
     List<CalendarRow> calendar(@Param("tenantId") UUID tenantId,@Param("date") LocalDate date);
     @Select("SELECT input_revision,review_revision FROM tna.day_input_revision WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date=#{date}")

@@ -59,9 +59,8 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
                   AND a.valid_from<=d.work_date AND (a.valid_to IS NULL OR a.valid_to>d.work_date) LIMIT 1
             ) s ON true
             LEFT JOIN LATERAL (
-                SELECT cd.version_id,cd.kind FROM tna.calendar_day cd JOIN tna.calendar_version v
-                  ON v.tenant_id=cd.tenant_id AND v.id=cd.version_id AND v.valid_from<=d.work_date AND v.valid_to>d.work_date
-                WHERE cd.tenant_id=#{tenantId} AND cd.work_date=d.work_date LIMIT 1
+                SELECT e.version_id,e.kind FROM tna.calendar_effective_day e
+                WHERE e.tenant_id=#{tenantId} AND e.work_date=d.work_date
             ) cal ON true
             LEFT JOIN LATERAL (
                 SELECT input_revision,review_revision FROM tna.day_input_revision
