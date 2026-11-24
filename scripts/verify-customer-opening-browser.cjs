@@ -20,11 +20,13 @@ async function run(browser, device) {
   const date = config.companyDate;
   const shift = mobile ? ['09:00', '18:00', '12:00', '13:00'] : ['09:30', '18:30', '12:30', '13:30'];
   const makePerson = (name, number) => ({
-    name, number, email: device + '-' + suffix + '-' + number + '@example.test', password: 'Invite-' + randomUUID()
+    name, number, email: device + '-' + suffix + '-' + number + '@example.test', password: 'First-' + randomUUID(),
+    birth: '1990-05-12'
   });
   const admin = makePerson('최초 담당자', '10001');
   const approver = makePerson('첫 결재자', '10002');
   const worker = makePerson('첫 근무 직원', '10003');
+  const locked = makePerson('잠금 확인 직원', '10004');
   const problems = [], passed = [];
   const clockIn = { input: mobile ? 'touch' : 'mouse', posts: 0 };
   let keyboardActivations = 0;
@@ -185,7 +187,7 @@ async function run(browser, device) {
     else await visible(page, '[role=alert]', '로그인 정보를 확인');
   }
   let mailbox;
-  async function readMail(user, expectedCount, reset = false) {
+  async function readMail(user, expectedCount) {
     const until = Date.now() + timeout;
     let id;
     while (Date.now() < until) {
@@ -202,25 +204,38 @@ async function run(browser, device) {
     const body = await mailbox.evaluate(() => document.body.innerText);
     const token = body.match(/일회용 코드:\s*([A-Za-z0-9_-]{43})(?![A-Za-z0-9_-])/);
     const expiration = body.match(/만료 시각 \(서울\):\s*(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})/);
-    const url = body.match(/http:\/\/127\.0\.0\.1:\d+\/(?:invite\/[A-Z0-9-]+|password-reset)/);
+    const url = body.match(/http:\/\/127\.0\.0\.1:\d+\/invite\/[A-Z0-9-]+/);
     assert.ok(token && expiration && url && body.includes(company), '메일 본문의 회사·코드·만료 시각·접속 주소');
     const expiresAt = Date.parse(expiration[1].replace(' ', 'T') + '+09:00');
     const minutes = (expiresAt - Date.now()) / 60000;
-    const lifetime = reset ? 30 : 24 * 60;
-    assert.ok(minutes > lifetime - 5 && minutes <= lifetime + 1, '메일의 서울 만료 시각');
+    assert.ok(minutes > 24 * 60 - 5 && minutes <= 24 * 60 + 1, '메일의 서울 만료 시각');
     const link = new URL(url[0]);
     assert.equal(link.origin, config.origin);
-    assert.equal(link.pathname, reset ? '/password-reset' : '/invite/' + company);
+    assert.equal(link.pathname, '/invite/' + company);
     assert.ok(!link.search && !link.hash && !body.includes(link.href + '?'), '코드 없이 폼을 여는 링크');
     return { link: link.href, token: token[1], expiresAt };
   }
-  async function activate(page, user, mail, valid = true) {
+  async function activate(page, user, mail) {
     await open(page, mail.link);
     const action = '/invite/' + company + '/accept';
     await values(page, action, { email: user.email, token: mail.token, password: user.password, confirmation: user.password });
-    await submit(page, action, '초대 수락·비밀번호 설정', valid ? [303] : [422]);
-    if (valid) await visible(page, '[role=status]', '초대를 수락');
-    else await visible(page, '[role=alert]', '초대를 확인');
+    await submit(page, action, '초대 수락·비밀번호 설정', [303]);
+    await visible(page, '[role=status]', '초대를 수락');
+  }
+  const rejected = '입력한 정보가 맞지 않거나 최초 접속 기간이 지났습니다';
+  async function startFirstLogin(page, user) {
+    // A pending account signs in with its employee number as the password and is sent to the first-login form.
+    await open(page, '/login');
+    await values(page, '/login', { companyCode: company, email: user.number, password: user.number });
+    await submit(page, '/login', '로그인');
+    await page.waitForSelector('form[action="/first-login"]', { visible: true });
+    assert.equal(await page.$eval('form[action="/first-login"] [name=employeeNo]', e => e.value), user.number, '사번 미리 입력');
+  }
+  async function setPassword(page, user, birth, good = true) {
+    await values(page, '/first-login', { birthDate: birth, password: user.password, confirmation: user.password });
+    await submit(page, '/first-login', '비밀번호 정하기', good ? [303] : [422, 429]);
+    if (good) await visible(page, '[role=status]', '비밀번호를 정했습니다');
+    else await visible(page, '[role=alert]', rejected);
   }
   let adminPage, employeePage;
   async function setupLink(href) {
@@ -245,7 +260,7 @@ async function run(browser, device) {
   async function hire(person) {
     const route = '/admin/employees/onboarding';
     await setupLink(route);
-    await values(adminPage, route, { displayName: person.name, joinedOn: date, reason: why });
+    await values(adminPage, route, { displayName: person.name, joinedOn: date, birthDate: person.birth, reason: why });
     await selectOption(adminPage, 'form[action="' + route + '"] select[name=organizationId]', '첫 근무팀');
     await selectOption(adminPage, 'form[action="' + route + '"] select[name=scheduleVersionId]', '기본 주간조');
     await submit(adminPage, route, '입사 예정 등록');
@@ -254,13 +269,10 @@ async function run(browser, device) {
     await values(adminPage, action, { employeeNo: person.number, reason: why });
     await click(adminPage, 'form[action="' + action + '"] input[type=checkbox]');
     await submit(adminPage, action, '입사 확정');
-    await click(adminPage, 'main a', '계정 초대');
-    const invite = await adminPage.waitForSelector('form[action$="/invitations"]');
-    const inviteAction = await invite.evaluate(e => new URL(e.action).pathname);
-    person.access = inviteAction.replace(/invitations$/, 'access');
-    await values(adminPage, inviteAction, { email: person.email, reason: why });
-    await posted(adminPage, inviteAction, () => click(adminPage, 'form[action="' + inviteAction + '"] button'));
-    return inviteAction;
+    await visible(adminPage, 'main', '최초 접속 대기');
+    await visible(adminPage, 'main', person.number);
+    const personnel = await adminPage.waitForSelector('main a[href$="/personnel"]');
+    person.access = await personnel.evaluate(e => new URL(e.href).pathname.replace(/personnel$/, 'access'));
   }
   async function editRouteCell(label, value, option) {
     stage = '결재선 시트의 ' + label + ' 입력';
@@ -373,11 +385,8 @@ async function run(browser, device) {
       await submit(adminPage, '/admin/networks/changes', '허용망 저장');
       await visible(adminPage, 'main h3', '첫 출근 업무망');
     });
-    await check('결재자 입사·최초 근무 배정과 초대·역할 부여', async () => {
+    await check('결재자 입사 확정·최초 접속 전 역할 부여와 첫 로그인', async () => {
       await hire(approver);
-      const approverPage = await newPage();
-      await activate(approverPage, approver, await readMail(approver, 1));
-      await finishPage(approverPage);
       await setupLink('/admin/access?role=APPROVER');
       await click(adminPage, '.wl-role-members button', '사원 추가');
       await click(adminPage, 'dialog[open] label:has(input[aria-label="첫 결재자 후보 선택"])');
@@ -388,18 +397,16 @@ async function run(browser, device) {
       await visible(adminPage, 'dialog[open] [role=status]', '1명의 권한 변경을 저장');
       await click(adminPage, 'dialog[open] button', '목록 확인');
       await visible(adminPage, '.wl-role-members .ag-cell', approver.name);
+      const approverPage = await newPage();
+      await startFirstLogin(approverPage, approver);
+      await setPassword(approverPage, approver, approver.birth);
+      await login(approverPage, approver, true, approver.number);
+      await finishPage(approverPage);
     });
-    await check('직원 입사·근무 배정, 초대 재발급과 이전 코드 거부', async () => {
-      const invite = await hire(worker);
-      const first = await readMail(worker, 1);
-      await values(adminPage, invite, { reason: '가상 직원의 초대 재발급' });
-      await posted(adminPage, invite, () => click(adminPage, 'form[action="' + invite + '"] button'));
-      const replacement = await readMail(worker, 2);
-      assert.ok(first.token !== replacement.token);
-      assert.ok(replacement.expiresAt > first.expiresAt, '재발급 메일에 더 늦은 만료 시각 표시');
+    await check('직원 입사 확정·근무 배정과 최초 접속 대기', async () => {
+      await hire(worker);
+      await hire(locked);
       employeePage = await newPage();
-      await activate(employeePage, worker, first, false);
-      await activate(employeePage, worker, replacement);
     });
     await check('결재선 설정과 신청서 연결·직원별 미리보기', async () => {
       stage = '결재선 시트 등록';
@@ -427,8 +434,10 @@ async function run(browser, device) {
       await screen(adminPage, 'approval-preview');
       await finishPage(adminPage);
     });
-    await check('직원 첫 로그인, 배정 일정과 첫 출근', async () => {
-      await login(employeePage, worker);
+    await check('직원 첫 로그인(사번·생년월일), 새 비밀번호 로그인과 첫 출근', async () => {
+      await startFirstLogin(employeePage, worker);
+      await setPassword(employeePage, worker, worker.birth);
+      await login(employeePage, worker, true, worker.number);
       await visible(employeePage, '.t-work-home-schedule', shift[0]);
       await visible(employeePage, '.t-work-home-schedule', shift[1]);
       await visible(employeePage, '.t-work-home-timeline li', shift[2]);
@@ -449,25 +458,28 @@ async function run(browser, device) {
       worker.clock = await employeePage.$eval(clockButton, e => e.textContent);
       await screen(employeePage, 'clock-in');
     });
-    await check('비밀번호 복구·이전 로그인 종료와 출근 기록 재조회', async () => {
-      const recovery = await newPage();
-      await open(recovery, '/login');
-      await click(recovery, 'a', '비밀번호 재설정');
-      await values(recovery, '/password-reset/request', { companyCode: company, email: worker.email });
-      await submit(recovery, '/password-reset/request', '재설정 코드 요청');
-      const reset = await readMail(worker, 3, true);
-      await open(recovery, reset.link);
-      const password = 'Recovered-' + randomUUID();
-      await values(recovery, '/password-reset/complete', { companyCode: company, email: worker.email, token: reset.token,
-        password, confirmation: password });
-      await submit(recovery, '/password-reset/complete', '비밀번호 재설정');
-      await open(employeePage, '/me/home');
-      await employeePage.waitForFunction(() => location.pathname === '/login');
-      await login(recovery, worker, false);
-      await login(recovery, { ...worker, password }, true, worker.number);
-      await visible(recovery, 'form:has([name=eventKind][value=IN]) button', worker.clock);
+    await check('최초 접속 5회 실패 잠금, 담당자 초기화와 재접속', async () => {
+      const attempt = await newPage();
+      await startFirstLogin(attempt, locked);
+      for (let i = 0; i < 5; i++) await setPassword(attempt, locked, '1990-05-13', false);
+      // After the lock even the correct birth date is rejected with the same message.
+      await setPassword(attempt, locked, locked.birth, false);
+      const operator = await newPage();
+      await login(operator, admin);
+      await open(operator, locked.access);
+      await visible(operator, 'main', '잠김(5회 실패)');
+      const action = locked.access.replace(/access$/, 'account-reset');
+      operator.on('dialog', dialog => dialog.accept());
+      await values(operator, action, { reason: '가상 직원의 잠금 해제' });
+      await submit(operator, action, '비밀번호 초기화');
+      await visible(operator, '[role=status]', '비밀번호를 초기화했습니다');
+      await visible(operator, 'main', '최초 접속 대기');
+      await finishPage(operator);
+      await startFirstLogin(attempt, locked);
+      await setPassword(attempt, locked, locked.birth);
+      await login(attempt, locked, true, locked.number);
       assert.equal(clockIn.posts, 1, '첫 출근은 한 번만 접수');
-      await screen(recovery, 'recovered');
+      await screen(attempt, 'unlocked');
     });
     async function verifySingleGrant() {
       const separateSession = await newPage();
@@ -490,7 +502,7 @@ async function run(browser, device) {
       } finally { await finishPage(separateSession); }
     }
     assert.equal(problems.length, 0, '브라우저 런타임 오류');
-    return { result: { device, viewport, company, date, shift, clockIn, keyboardActivations, mailboxMessages: 5, passed },
+    return { result: { device, viewport, company, date, shift, clockIn, keyboardActivations, mailboxMessages: 1, passed },
       verifySingleGrant: mobile ? verifySingleGrant : undefined };
   } catch (error) {
     let location = '';
@@ -528,7 +540,7 @@ async function run(browser, device) {
     }
     if (failures.length) throw new Error(failures.join('\n'));
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ chrome, result }, null, 2));
-    console.log('PASS PC and mobile / two new companies / ten received emails');
+    console.log('PASS PC and mobile / two new companies / two received emails');
     if (singleGrant) {
       await singleGrant();
       console.log('PASS mobile / separate session / direct approval role save and reload');
