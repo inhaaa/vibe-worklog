@@ -11,7 +11,7 @@ public final class AccountData {
     public record Account(UUID id, UUID employeeId, String email, boolean active,
                           boolean credentialSet, long authVersion, Set<String> roles,
                           Instant activationExpiresAt, int activationFailures) { }
-    public record InvitationForm(String email, Long expectedVersion, String reason, UUID commandId) { }
+    public record ResetForm(Long expectedVersion, String reason, UUID commandId) { }
     public record RolesForm(Set<String> roles, Long expectedVersion, String reason, UUID commandId) { }
     public record ApproverAssignment(UUID id, UUID employeeId, UUID approverEmployeeId, String approverName,
             LocalDate validFrom, LocalDate validTo, Instant supersededAt, String reason, long version,

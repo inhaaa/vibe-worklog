@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
-import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.TnaPrincipal;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -24,12 +23,11 @@ public class AccountAdminController {
     private final ApproverService approvers;
     private final EmployeeService employees;
     private final OrgCommands commands;
-    private final InvitationDelivery delivery;
 
     public AccountAdminController(AccountService accounts, ApproverService approvers, EmployeeService employees,
-                                  OrgCommands commands, InvitationDelivery delivery, RoleDirectoryService directory) {
+                                  OrgCommands commands, RoleDirectoryService directory) {
         this.accounts = accounts; this.approvers = approvers; this.employees = employees;
-        this.commands = commands; this.delivery = delivery; this.directory = directory;
+        this.commands = commands; this.directory = directory;
     }
 
     @GetMapping("/admin/access")
@@ -52,12 +50,11 @@ public class AccountAdminController {
         return page(actor, id, null, null, null);
     }
 
-    @PostMapping("/admin/employees/{id}/invitations")
-    ModelAndView invite(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
-            @ModelAttribute("invitationForm") AccountData.InvitationForm form, BindingResult binding) {
+    @PostMapping("/admin/employees/{id}/account-reset")
+    ModelAndView reset(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
+            @ModelAttribute("resetForm") AccountData.ResetForm form, BindingResult binding) {
         check(binding);
-        return submit(() -> accounts.invite(actor, id, form),
-                () -> page(actor, id, form, null, null), "?invited");
+        return submit(() -> accounts.reset(actor, id, form), () -> page(actor, id, form, null, null), "?reset");
     }
 
     @PostMapping("/admin/employees/{id}/roles")
@@ -77,7 +74,7 @@ public class AccountAdminController {
                 () -> page(actor, form.employeeId(), null, null, form), "");
     }
 
-    private ModelAndView page(TnaPrincipal actor, UUID id, AccountData.InvitationForm invitation,
+    private ModelAndView page(TnaPrincipal actor, UUID id, AccountData.ResetForm reset,
                              AccountData.RolesForm roles, AccountData.ApproverForm approver) {
         var employee = employees.get(actor, id);
         var account = accounts.get(actor, id);
@@ -89,11 +86,11 @@ public class AccountAdminController {
                 current == null ? null : current.approverEmployeeId(), today, employee.version(), "", UUID.randomUUID());
         var candidates = approvers.candidates(actor);
         return new ModelAndView("org/access").addObject("employee", employee).addObject("account", account)
-                .addObject("localDelivery", delivery.enabled())
+                .addObject("accountStatus", accounts.status(actor, id))
                 .addObject("eligibleEmployee", employee.active() && !employee.joinedOn().isAfter(today)
                         && (employee.leftOn() == null || !employee.leftOn().isBefore(today)))
-                .addObject("invitationForm", invitation != null ? invitation : new AccountData.InvitationForm(
-                        account == null ? "" : account.email(), employee.version(), "", UUID.randomUUID()))
+                .addObject("resetForm", reset != null ? reset : new AccountData.ResetForm(
+                        employee.version(), "", UUID.randomUUID()))
                 .addObject("rolesForm", roles != null ? roles : new AccountData.RolesForm(
                         account == null ? Set.of("EMPLOYEE") : account.roles(), employee.version(), "", UUID.randomUUID()))
                 .addObject("approverForm", form).addObject("assignments", history).addObject("currentAssignment", current)

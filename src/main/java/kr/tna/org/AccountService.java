@@ -1,48 +1,39 @@
 package kr.tna.org;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.Base64;
-import java.util.HexFormat;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
-import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.Account;
-import kr.tna.org.AccountData.InvitationForm;
+import kr.tna.org.AccountData.ResetForm;
 import kr.tna.org.AccountData.RolesForm;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static kr.tna.org.OrgCommands.*;
 
 @Service
 public final class AccountService {
     static final Set<String> SUPPORTED_ROLES = Set.of("EMPLOYEE", "APPROVER", "ATTENDANCE_ADMIN", "COMPANY_REPRESENTATIVE");
-    private static final SecureRandom RANDOM = new SecureRandom();
     private final AccountAdminMapper mapper;
     private final EmployeeAdminMapper employees;
     private final OrgCommands commands;
-    private final InvitationDelivery delivery;
     private final Clock clock;
     private final PublicDemoIdentityGuard identityGuard;
+    private final AccountProvisioning provisioning;
+    private final EmployeePersonnelMapper personnel;
 
     public AccountService(AccountAdminMapper mapper, EmployeeAdminMapper employees, OrgCommands commands,
-                          InvitationDelivery delivery, Clock clock, PublicDemoIdentityGuard identityGuard) {
+                          Clock clock, PublicDemoIdentityGuard identityGuard, AccountProvisioning provisioning,
+                          EmployeePersonnelMapper personnel) {
         this.mapper = mapper;
         this.employees = employees;
         this.commands = commands;
-        this.delivery = delivery;
         this.clock = clock;
         this.identityGuard = identityGuard;
+        this.provisioning = provisioning;
+        this.personnel = personnel;
     }
 
     public Account get(TnaPrincipal actor, UUID employeeId) {
@@ -52,48 +43,34 @@ public final class AccountService {
         });
     }
 
-    public UUID invite(TnaPrincipal actor, UUID employeeId, InvitationForm form) {
+    public UUID reset(TnaPrincipal actor, UUID employeeId, ResetForm form) {
         identityGuard.requireMutable(actor, employeeId);
-        String email = email(form.email());
-        String reason = requiredText(form.reason(), 500, "초대 사유");
-        String action = "ACCOUNT_INVITE";
+        String reason = requiredText(form.reason(), 500, "초기화 사유");
+        String action = "ACCOUNT_ACTIVATION_RESET";
         return commands.execute(actor, form.commandId(), action, "EMPLOYEE",
-                fingerprint(action, employeeId, email, form.expectedVersion(), reason), reason, () -> {
+                fingerprint(action, employeeId, form.expectedVersion(), reason), reason, () -> {
                     var employee = requireEmployee(actor.tenantId(), employeeId, true);
                     checkVersion(form.expectedVersion(), employee.version());
-                    if (!delivery.enabled()) {
-                        throw new OrgException(503, "초대 전달 경로가 준비되지 않았습니다.");
-                    }
                     Account before = account(actor.tenantId(), employeeId);
-                    if (before != null && (before.active() || before.credentialSet())) {
-                        throw OrgException.invalid("이미 비밀번호가 설정된 계정은 초대할 수 없습니다.");
-                    }
-                    if (before != null && !before.email().equals(email)) {
-                        throw OrgException.invalid("초대 대기 계정의 이메일은 변경할 수 없습니다.");
-                    }
-                    UUID accountId = before == null ? UUID.randomUUID() : before.id();
-                    long authVersion = before == null ? 1 : before.authVersion() + 1;
-                    if (before == null) {
-                        mapper.insertAccount(actor.tenantId(), accountId, employeeId, email);
-                        mapper.setRole(actor.tenantId(), accountId, "EMPLOYEE", true);
-                    } else {
-                        changed(mapper.revokeSessions(actor.tenantId(), accountId));
-                    }
-                    var now = clock.instant();
-                    var expiresAt = now.plus(Duration.ofHours(24)).truncatedTo(ChronoUnit.MILLIS);
-                    mapper.revokeInvitations(actor.tenantId(), accountId, now);
-                    byte[] random = new byte[32];
-                    RANDOM.nextBytes(random);
-                    String token = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
-                    mapper.insertInvitation(actor.tenantId(), UUID.randomUUID(), accountId, tokenHash(token),
-                            email, authVersion, expiresAt, actor.accountId());
+                    if (before == null) throw OrgException.invalid("계정이 없는 사원입니다. 입사 확정 후 계정이 만들어집니다.");
+                    provisioning.reopen(actor.tenantId(), before.id());
                     changed(employees.advanceVersion(actor.tenantId(), employeeId, employee.version(), actor.accountId()));
-                    var envelope = new InvitationDelivery.Envelope(mapper.companyCode(actor.tenantId()), email, token, expiresAt);
-                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                        @Override public void afterCommit() { delivery.deliver(envelope); }
-                    });
-                    return new Change(employeeId, before, account(actor.tenantId(), employeeId));
+                    return new Change(employeeId, Map.of("pending", before.activationExpiresAt() != null),
+                            Map.of("pending", true));
                 });
+    }
+
+    /** 계정 관리 화면에 보이는 상태 이름. 생년월일 값은 읽지 않고 입력 여부만 쓴다. */
+    public String status(TnaPrincipal actor, UUID employeeId) {
+        return commands.read(actor, () -> {
+            requireEmployee(actor.tenantId(), employeeId, false);
+            var account = account(actor.tenantId(), employeeId);
+            var stored = personnel.stored(actor.tenantId(), employeeId);
+            return AccountStatus.of(account != null, account != null && account.active(),
+                    account == null ? null : account.activationExpiresAt(),
+                    account == null ? 0 : account.activationFailures(),
+                    stored != null && stored.birthDate() != null, clock.instant()).label();
+        });
     }
 
     public UUID roles(TnaPrincipal actor, UUID employeeId, RolesForm form) {
@@ -110,8 +87,8 @@ public final class AccountService {
                     var employee = requireEmployee(actor.tenantId(), employeeId, true);
                     checkVersion(form.expectedVersion(), employee.version());
                     Account before = account(actor.tenantId(), employeeId);
-                    if (before == null || !before.active() || !before.credentialSet()) {
-                        throw OrgException.invalid("초대를 수락한 활성 계정의 역할만 변경할 수 있습니다.");
+                    if (before == null || !(before.active() && before.credentialSet()) && before.activationExpiresAt() == null) {
+                        throw OrgException.invalid("계정이 있는 재직 사원의 역할만 변경할 수 있습니다.");
                     }
                     if (before.roles().contains("ATTENDANCE_ADMIN") && !selected.contains("ATTENDANCE_ADMIN")
                             && employees.isEffectiveAdmin(actor.tenantId(), employeeId, commands.today())
@@ -145,21 +122,7 @@ public final class AccountService {
         return employee;
     }
 
-    private String email(String value) {
-        String normalized = requiredText(value, 254, "이메일").toLowerCase(Locale.ROOT);
-        if (!InvitationDelivery.isSingleMailbox(normalized)) {
-            throw OrgException.invalid("공백 없이 올바른 이메일을 입력해 주세요.");
-        }
-        return normalized;
-    }
-
     private void changed(int count) {
         if (count != 1) throw OrgException.conflict("다른 변경이 반영되었습니다. 최신 내용을 확인해 주세요.");
-    }
-
-    private String tokenHash(String token) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.US_ASCII)));
-        } catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
     }
 }

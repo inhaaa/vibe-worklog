@@ -49,9 +49,9 @@ const version = {
 const access = {
   employee,
   account: null,
-  localDelivery: true,
+  accountStatus: '계정 없음',
   eligibleEmployee: true,
-  invitationForm: { ...command, email: 'employee@example.test' },
+  resetForm: command,
   rolesForm: { ...command, roles: ['EMPLOYEE', 'APPROVER'] },
   approverForm: {
     ...command,
@@ -207,34 +207,37 @@ describe('관리 React 페이지', () => {
     expect(html).not.toContain('선택 불가');
   });
 
-  it('전달 채널이 없으면 초대 버튼을 막고 자기 승인자 선택을 제외한다', async () => {
+  it('초대 폼 없이 계정 상태와 초기화 폼을 보이고 자기 승인자 선택을 제외한다', async () => {
     const html = await render('org/access', {
       ...access,
-      localDelivery: false,
+      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
+      accountStatus: '최초 접속 대기',
       selectedApproverMissing: true,
       approverForm: { ...access.approverForm, approverEmployeeId: 'missing' },
     });
-    expect(html).toContain('action="/admin/employees/e-1/invitations"');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>초대 발급/);
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.body.textContent).toContain('최초 접속 대기');
+    expect(doc.querySelector('form[action="/admin/employees/e-1/account-reset"] button')?.textContent?.trim()).toBe('비밀번호 초기화');
+    expect(doc.querySelector('label[for="invitation-email"]')).toBeNull();
+    expect(html).not.toContain('/invitations"');
+    expect(html).toContain('action="/admin/employees/e-1/roles"');
     expect(html).toContain('현재 선택값 (재지정 필요)');
     expect(html).toContain('value="missing" selected=""');
     expect(html).not.toContain('<option value="e-1"');
-    expect(html).toContain('name="employeeId"');
     expect(html).toContain('action="/admin/approver-assignments"');
   });
 
-  it('미수락 계정은 처음 초대한 이메일로 재발급하고 수락한 직원에게 복구 경로를 안내한다', async () => {
-    const account = { id: 'a-1', email: 'employee@example.test', active: false, credentialSet: false };
-    const pending = await render('org/access', { ...access, account });
-    const doc = new DOMParser().parseFromString(pending, 'text/html');
-    const form = doc.querySelector<HTMLFormElement>('form[action$="/invitations"]')!;
-    expect(form.querySelector('button')?.textContent?.trim()).toBe('초대 재발급');
-    expect(doc.body.textContent).toContain('만료 시각이 가장 늦은');
-    expect(form.querySelector<HTMLInputElement>('[name="email"]')?.readOnly).toBe(true);
-    expect(form.querySelector<HTMLInputElement>('[name="email"]')?.value).toBe(account.email);
-    const active = await render('org/access', { ...access, account: { ...account, active: true, credentialSet: true, roles: ['EMPLOYEE'] } });
-    expect(active).toContain('로그인 화면의 비밀번호 재설정');
-    expect(active).not.toContain('/invitations"');
+  it('계정이 없으면 초기화 폼을 보이지 않고 생년월일이 없으면 안내한다', async () => {
+    const none = await render('org/access', access);
+    expect(none).not.toContain('account-reset"');
+    expect(none).toContain('입사 확정이나 사용자 관리');
+    const noBirth = await render('org/access', {
+      ...access,
+      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
+      accountStatus: '생년월일 필요',
+    });
+    expect(noBirth).toContain('생년월일을 등록해 주세요');
+    expect(noBirth).toContain('account-reset"');
   });
 
   it('활성 계정 역할은 EMPLOYEE와 선택 역할 값으로 제출한다', async () => {

@@ -217,7 +217,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
                         .andExpect(status().isForbidden());
             }
         }
-        for (String suffix : List.of("/changes", "/invitations")) {
+        for (String suffix : List.of("/changes", "/account-reset")) {
             publicMvc.perform(post("/admin/employees/" + id + suffix).session(session).with(csrf()))
                     .andExpect(status().isForbidden());
         }
@@ -256,7 +256,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
                 .andExpect(redirectedUrl("/me/home"))
                 .andReturn().getRequest().getSession(false);
         String employee = "/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID;
-        for (String suffix : new String[]{"/changes", "/roles", "/invitations", "/personnel"}) {
+        for (String suffix : new String[]{"/changes", "/roles", "/account-reset", "/personnel"}) {
             publicMvc.perform(post(employee + suffix).session(session).with(csrf()))
                     .andExpect(status().isForbidden());
             publicMvc.perform(post("/admin/employees/" + LocalDemoLogin.EMPLOYEE_ID.toString()

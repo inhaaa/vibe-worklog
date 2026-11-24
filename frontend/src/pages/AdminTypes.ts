@@ -112,10 +112,11 @@ export interface AccessModel extends AdminModel {
     active: boolean;
     credentialSet: boolean;
     roles: string[];
+    activationExpiresAt: string | null;
   } | null;
-  localDelivery: boolean;
+  accountStatus: string;
   eligibleEmployee: boolean;
-  invitationForm: CommandForm & { email: string };
+  resetForm: CommandForm;
   rolesForm: CommandForm & { roles: string[] | null };
   approverForm: CommandForm & {
     employeeId: string;

@@ -24,12 +24,10 @@ import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.CompanyAuthenticationDetails;
 import kr.tna.common.auth.CompanyAuthenticationProvider;
-import kr.tna.common.auth.InvitationAcceptance;
-import kr.tna.common.auth.InvitationDelivery;
+import kr.tna.common.auth.FirstLoginService;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
-import kr.tna.org.AccountData.InvitationForm;
 import kr.tna.org.AccountData.RolesForm;
 import kr.tna.org.AccountService;
 import kr.tna.org.ApproverService;
@@ -71,8 +69,7 @@ class MvpJourneyIT {
     @Autowired OrganizationService organizations;
     @Autowired EmployeeService employees;
     @Autowired AccountService accounts;
-    @Autowired InvitationDelivery delivery;
-    @Autowired InvitationAcceptance acceptance;
+    @Autowired FirstLoginService firstLogin;
     @Autowired CompanyAuthenticationProvider authentication;
     @Autowired ApproverService approvers;
     @Autowired ScheduleService schedules;
@@ -129,8 +126,8 @@ class MvpJourneyIT {
         employees.assign(manager, employeeId, new OrgData.AssignmentForm(organization, MONDAY,
                 version(manager, employeeId), "합성 소속 배정", UUID.randomUUID()));
 
-        TnaPrincipal employee = inviteAndLogin(manager, employeeId, "worker@example.test");
-        TnaPrincipal approver = inviteAndLogin(manager, approverId, "approver@example.test");
+        TnaPrincipal employee = activateAndLogin(manager, employeeId);
+        TnaPrincipal approver = activateAndLogin(manager, approverId);
         approvers.set(manager, new ApproverForm(employeeId, approverId, MONDAY,
                 version(manager, employeeId), "독립 승인자 지정", UUID.randomUUID()));
 
@@ -242,7 +239,7 @@ class MvpJourneyIT {
 
         var audits = reports.audits(manager, null, null).rows();
         Set<String> actions = Set.copyOf(audits.stream().map(row -> row.action()).toList());
-        assertTrue(actions.containsAll(Set.of("ORGANIZATION_CREATE", "EMPLOYEE_CREATE", "ACCOUNT_INVITE_ACCEPT",
+        assertTrue(actions.containsAll(Set.of("ORGANIZATION_CREATE", "EMPLOYEE_CREATE", "ACCOUNT_ACTIVATED",
                 "ACCOUNT_ROLES_CHANGE", "APPROVER_ASSIGN", "SCHEDULE_ASSIGN", "ATTENDANCE_RECORD", "WORK_CONFIRM",
                 "REQUEST_LEAVE_SUBMIT", "REQUEST_CORRECTION_SUBMIT", "REQUEST_APPROVE", "WORKTIME_RECALCULATE",
                 "REVIEW_EXPORT_PREPARE", "REVIEW_EXPORT_DOWNLOAD")));
@@ -274,18 +271,24 @@ class MvpJourneyIT {
         return employees.get(manager, employeeId).version();
     }
 
-    private TnaPrincipal inviteAndLogin(TnaPrincipal manager, UUID employeeId, String email) {
-        accounts.invite(manager, employeeId, new InvitationForm(email, version(manager, employeeId),
-                "합성 계정 초대", UUID.randomUUID()));
-        var envelope = delivery.messages().stream().filter(message -> message.companyCode().equals(company(manager.tenantId()))
-                && message.email().equals(email)).findFirst().orElseThrow();
-        acceptance.accept(envelope.companyCode(), email, envelope.token(), PASSWORD, "127.0.0.1");
+    private TnaPrincipal activateAndLogin(TnaPrincipal manager, UUID employeeId) {
+        var db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        String company = company(manager.tenantId());
+        String number = db.queryForObject("SELECT employee_no FROM tna.employee WHERE tenant_id=? AND id=?",
+                String.class, manager.tenantId(), employeeId);
+        UUID account = UUID.randomUUID();
+        db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '7 days')",
+                manager.tenantId(), account, employeeId);
+        db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", manager.tenantId(), account);
+        db.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,DATE '1990-01-02',1,?)",
+                manager.tenantId(), employeeId, manager.accountId());
+        firstLogin.activate(company, number, LocalDate.of(1990, 1, 2), PASSWORD, "127.0.0.1");
         accounts.roles(manager, employeeId, new RolesForm(Set.of("EMPLOYEE", "APPROVER"),
                 version(manager, employeeId), "합성 직원·승인자 겸임", UUID.randomUUID()));
         var request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
-        request.setParameter("companyCode", envelope.companyCode());
-        var login = UsernamePasswordAuthenticationToken.unauthenticated(email, PASSWORD);
+        request.setParameter("companyCode", company);
+        var login = UsernamePasswordAuthenticationToken.unauthenticated(number, PASSWORD);
         login.setDetails(new CompanyAuthenticationDetails(request));
         return (TnaPrincipal) authentication.authenticate(login).getPrincipal();
     }

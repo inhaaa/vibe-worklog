@@ -42,7 +42,6 @@ class AccountAccessWebIT {
     private static final AtomicInteger ADDRESS = new AtomicInteger(1);
 
     @Autowired MockMvc mvc;
-    @Autowired InvitationDelivery delivery;
     private JdbcTemplate admin;
     private String remoteAddress;
 
@@ -82,7 +81,7 @@ class AccountAccessWebIT {
         var session = login(DatabaseFixture.COMPANY_B, DatabaseFixture.EMAIL);
         mvc.perform(get("/admin/employees/{id}/access", DatabaseFixture.EMPLOYEE_B).session(session))
                 .andExpect(status().isForbidden());
-        mvc.perform(invitation(session, DatabaseFixture.EMPLOYEE_B, email(), 0))
+        mvc.perform(reset(session, DatabaseFixture.EMPLOYEE_B, 0))
                 .andExpect(status().isForbidden());
         mvc.perform(roles(session, DatabaseFixture.EMPLOYEE_B, 0, "EMPLOYEE", "APPROVER"))
                 .andExpect(status().isForbidden());
@@ -91,10 +90,10 @@ class AccountAccessWebIT {
     }
 
     @Test
-    void invitationRoleAssignmentAndPublicAcceptanceRequireCsrf() throws Exception {
+    void passwordResetRoleAssignmentAndPublicAcceptanceRequireCsrf() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
         UUID employee = employee(session);
-        for (String path : List.of("/admin/employees/" + employee + "/invitations",
+        for (String path : List.of("/admin/employees/" + employee + "/account-reset",
                 "/admin/employees/" + employee + "/roles", "/admin/approver-assignments")) {
             mvc.perform(post(path).session(session)).andExpect(status().isForbidden());
         }
@@ -107,50 +106,45 @@ class AccountAccessWebIT {
     void authenticatedTenantOverridesForgedFieldsAndForeignEmployeesStayHidden() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
         UUID employee = employee(session);
-        String email = email();
-        mvc.perform(invitation(session, employee, email, 0)
+        invite(employee, email());
+        mvc.perform(reset(session, employee, 1)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString())
                         .param("tenantId", DatabaseFixture.TENANT_B.toString())
                         .header("X-Tenant-Id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isSeeOther());
         assertEquals(DatabaseFixture.TENANT_A, admin.queryForObject(
-                "SELECT tenant_id FROM tna.tenant_account WHERE employee_id=?", UUID.class, employee));
+                "SELECT tenant_id FROM tna.tenant_account WHERE employee_id=? AND activation_expires_at IS NOT NULL", UUID.class, employee));
         mvc.perform(get("/admin/employees/{id}/access", DatabaseFixture.EMPLOYEE_B).session(session)
                         .param("tenant_id", DatabaseFixture.TENANT_B.toString()))
                 .andExpect(status().isNotFound()).andExpect(view().name("org/problem"))
                 .andExpect(content().string(not(containsString("직원 B"))));
-        mvc.perform(invitation(session, DatabaseFixture.EMPLOYEE_B, email(), 0))
+        mvc.perform(reset(session, DatabaseFixture.EMPLOYEE_B, 0))
                 .andExpect(status().isNotFound());
-        mvc.perform(approver(session, employee, DatabaseFixture.EMPLOYEE_B, 1))
+        mvc.perform(approver(session, employee, DatabaseFixture.EMPLOYEE_B, 2))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void invitationCreatesPendingAccountAndMockMessageWithoutLeakingSecrets() throws Exception {
-        var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
-        UUID employee = employee(session);
-        String email = email();
-        var message = invite(session, employee, email);
-        assertTrue(delivery.enabled());
-        assertEquals(DatabaseFixture.COMPANY_A, message.companyCode());
-        assertEquals(43, message.token().length());
-        assertFalse(message.toString().contains(message.token()));
-        var row = admin.queryForMap("SELECT active,credential_set FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?",
-                DatabaseFixture.TENANT_A, employee);
-        assertEquals(false, row.get("active"));
-        assertEquals(false, row.get("credential_set"));
-        mvc.perform(get("/admin/employees/{id}/access", employee).session(session).param("invited", ""))
+    void passwordResetReopensFirstLoginRevokesOldSessionAndLeavesNoSecrets() throws Exception {
+        var manager = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
+        Member member = member("비밀번호 초기화", false);
+        var old = login(DatabaseFixture.COMPANY_A, member.email());
+        mvc.perform(reset(manager, member.employee(), 0)).andExpect(status().isSeeOther())
+                .andExpect(redirectedUrl(access(member.employee()) + "?reset"));
+        mvc.perform(get("/me/profile").session(old)).andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+        mvc.perform(loginPost(DatabaseFixture.COMPANY_A, member.email())).andExpect(redirectedUrl("/login?error"));
+        var page = mvc.perform(get(access(member.employee())).session(manager).param("reset", ""))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())
-                .andExpect(content().string(not(containsString(message.token()))));
+                .andExpect(content().string(not(containsString(HASH)))).andReturn();
+        assertEquals("생년월일 필요", page.getModelAndView().getModel().get("accountStatus"));
         String audit = admin.queryForObject("""
                 SELECT string_agg(before_state::text || after_state::text, '') FROM tna.org_audit_event
-                WHERE tenant_id=? AND target_id=?
-                """, String.class, DatabaseFixture.TENANT_A, employee);
+                WHERE tenant_id=? AND target_id=? AND action='ACCOUNT_ACTIVATION_RESET'
+                """, String.class, DatabaseFixture.TENANT_A, member.employee());
         assertNotNull(audit);
-        assertFalse(audit.contains(message.token()));
-        String tokenHash = admin.queryForObject("SELECT token_hash FROM tna.account_token WHERE tenant_id=? AND email=?",
-                String.class, DatabaseFixture.TENANT_A, email);
-        assertFalse(audit.contains(tokenHash));
+        assertFalse(audit.contains(HASH));
+        assertFalse(audit.contains(PASSWORD));
     }
 
     @Test
@@ -170,7 +164,7 @@ class AccountAccessWebIT {
         var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
         UUID employee = employee(session);
         String email = email();
-        var message = invite(session, employee, email);
+        var message = invite(employee, email);
         mvc.perform(loginPost(DatabaseFixture.COMPANY_A, email))
                 .andExpect(redirectedUrl("/login?error"));
         mvc.perform(acceptance(message.companyCode(), email, message.token()))
@@ -188,7 +182,7 @@ class AccountAccessWebIT {
         var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
         UUID employee = employee(session);
         String email = email();
-        var message = invite(session, employee, email);
+        var message = invite(employee, email);
         for (var request : List.of(acceptance(DatabaseFixture.COMPANY_B, email, message.token()),
                 acceptance(message.companyCode(), email(), message.token()),
                 acceptance(message.companyCode(), email, message.token()).with(httpRequest -> {
@@ -255,7 +249,7 @@ class AccountAccessWebIT {
     void pendingEmployeeCanReceiveAndReplaceApproverOnTheSameDay() throws Exception {
         var session = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
         UUID employee = employee(session);
-        invite(session, employee, email());
+        invite(employee, email());
         Member first = member("첫 승인자", true);
         Member next = member("다음 승인자", true);
         mvc.perform(approver(session, employee, first.employee(), 1))
@@ -297,12 +291,11 @@ class AccountAccessWebIT {
                 .andExpect(status().is(422)).andExpect(view().name("org/access"))
                 .andExpect(selectedOption(candidate.employee()));
         UUID employee = employee(session);
-        String email = email();
-        invite(session, employee, email);
-        var stale = mvc.perform(invitation(session, employee, email, 0)).andExpect(status().isConflict())
+        invite(employee, email());
+        var stale = mvc.perform(reset(session, employee, 0)).andExpect(status().isConflict())
                 .andExpect(view().name("org/access"))
-                .andExpect(content().string(containsString(email))).andReturn();
-        assertEquals(email, ((AccountData.InvitationForm) stale.getModelAndView().getModel().get("invitationForm")).email());
+                .andExpect(content().string(containsString("웹 검증 초기화"))).andReturn();
+        assertEquals("웹 검증 초기화", ((AccountData.ResetForm) stale.getModelAndView().getModel().get("resetForm")).reason());
         mvc.perform(get("/admin/employees/not-a-uuid/access").session(session))
                 .andExpect(status().isBadRequest()).andExpect(view().name("org/problem"))
                 .andExpect(content().string(not(containsString("java.lang"))));
@@ -329,15 +322,14 @@ class AccountAccessWebIT {
         return UUID.fromString(redirect.substring(redirect.lastIndexOf('/') + 1));
     }
 
-    private InvitationDelivery.Envelope invite(MockHttpSession session, UUID employee, String email) throws Exception {
-        mvc.perform(invitation(session, employee, email, 0)).andExpect(status().isSeeOther())
-                .andExpect(redirectedUrl(access(employee) + "?invited"));
-        return delivery.messages().stream().filter(message -> message.email().equals(email)).findFirst().orElseThrow();
+    private InvitationDelivery.Envelope invite(UUID employee, String email) {
+        return LegacyInvitation.seed(admin, DatabaseFixture.TENANT_A, DatabaseFixture.COMPANY_A, employee, email,
+                DatabaseFixture.ACCOUNT_A);
     }
 
-    private MockHttpServletRequestBuilder invitation(MockHttpSession session, UUID employee, String email, long version) {
-        return post("/admin/employees/{id}/invitations", employee).session(session).with(csrf())
-                .param("email", email).param("expectedVersion", Long.toString(version)).param("reason", "웹 검증 초대")
+    private MockHttpServletRequestBuilder reset(MockHttpSession session, UUID employee, long version) {
+        return post("/admin/employees/{id}/account-reset", employee).session(session).with(csrf())
+                .param("expectedVersion", Long.toString(version)).param("reason", "웹 검증 초기화")
                 .param("commandId", UUID.randomUUID().toString());
     }
 

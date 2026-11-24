@@ -20,16 +20,6 @@ public interface AccountAdminMapper {
     @Select("SELECT role FROM tna.role_grant WHERE tenant_id=#{tenantId} AND account_id=#{accountId} AND active ORDER BY role")
     List<String> roles(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId);
 
-    @Select("SELECT company_code FROM platform.tenant_registry WHERE id=#{tenantId} AND active")
-    String companyCode(@Param("tenantId") UUID tenantId);
-
-    @Insert("""
-            INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,active)
-            VALUES (#{tenantId},#{accountId},#{employeeId},#{email},false)
-            """)
-    int insertAccount(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId,
-                      @Param("employeeId") UUID employeeId, @Param("email") String email);
-
     @Insert("""
             INSERT INTO tna.role_grant(tenant_id,account_id,role,active)
             VALUES (#{tenantId},#{accountId},#{role},#{active})
@@ -44,24 +34,6 @@ public interface AccountAdminMapper {
             WHERE tenant_id=#{tenantId} AND id=#{accountId}
             """)
     int revokeSessions(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId);
-
-    @Update("""
-            UPDATE tna.account_token SET revoked_at=#{now}
-            WHERE tenant_id=#{tenantId} AND account_id=#{accountId} AND purpose='INVITE'
-              AND used_at IS NULL AND revoked_at IS NULL
-            """)
-    int revokeInvitations(@Param("tenantId") UUID tenantId, @Param("accountId") UUID accountId,
-                          @Param("now") Instant now);
-
-    @Insert("""
-            INSERT INTO tna.account_token
-                (tenant_id,id,account_id,purpose,token_hash,email,issued_auth_version,expires_at,created_by)
-            VALUES (#{tenantId},#{id},#{accountId},'INVITE',#{tokenHash},#{email},#{authVersion},#{expiresAt},#{actorId})
-            """)
-    int insertInvitation(@Param("tenantId") UUID tenantId, @Param("id") UUID id,
-            @Param("accountId") UUID accountId, @Param("tokenHash") String tokenHash,
-            @Param("email") String email, @Param("authVersion") long authVersion,
-            @Param("expiresAt") Instant expiresAt, @Param("actorId") UUID actorId);
 
     @Insert("""
             INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at)

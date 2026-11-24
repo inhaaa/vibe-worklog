@@ -52,7 +52,7 @@ public class SecurityConfiguration {
                         for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
                             String identity = "/admin/employees/" + employeeId;
                             authorize.requestMatchers(new RegexRequestMatcher(identity
-                                    + "/(changes|roles|invitations|personnel|personal-details|personal-entries)(?:\\?.*)?", "POST", true)).denyAll();
+                                    + "/(changes|roles|account-reset|personnel|personal-details|personal-entries)(?:\\?.*)?", "POST", true)).denyAll();
                         }
                     }
                     if (localDemo.enabled()) {

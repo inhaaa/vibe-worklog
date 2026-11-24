@@ -18,19 +18,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import kr.tna.common.auth.AuthStore;
+import kr.tna.common.auth.CompanyAuthenticationDetails;
+import kr.tna.common.auth.CompanyAuthenticationProvider;
 import kr.tna.common.auth.InvitationAcceptance;
 import kr.tna.common.auth.InvitationDelivery;
 import kr.tna.common.auth.PasswordPolicy;
 import kr.tna.common.auth.TnaPrincipal;
-import kr.tna.common.tenant.TenantTransactions;
-import kr.tna.org.AccountData.InvitationForm;
+import kr.tna.org.AccountData.ResetForm;
 import kr.tna.org.AccountData.RolesForm;
 import kr.tna.org.AccountService;
-import kr.tna.org.AccountAdminMapper;
-import kr.tna.org.EmployeeAdminMapper;
-import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
-import kr.tna.org.PublicDemoIdentityGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +37,8 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.AbstractDataSource;
-import org.springframework.mock.env.MockEnvironment;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -53,19 +51,15 @@ class AccountServiceIT {
     private static final String PASSWORD = "Synthetic invited password 43!";
     private static final String HASH = PasswordPolicy.passwordEncoder().encode(PASSWORD);
     @Autowired AccountService accounts;
-    @Autowired InvitationDelivery delivery;
+    @Autowired CompanyAuthenticationProvider provider;
     @Autowired InvitationAcceptance acceptance;
     @Autowired AuthStore auth;
-    @Autowired AccountAdminMapper accountMapper;
-    @Autowired EmployeeAdminMapper employeeMapper;
-    @Autowired OrgCommands commands;
-    @Autowired TenantTransactions transactions;
-    @Autowired PublicDemoIdentityGuard identityGuard;
     private JdbcTemplate database;
     private UUID tenant;
     private String company;
     private UUID employee;
     private TnaPrincipal actor;
+    private InvitationDelivery.Envelope issued;
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry properties) {
@@ -100,102 +94,56 @@ class AccountServiceIT {
     }
 
     @Test
-    void defaultProfileRefusesIssuanceWithoutAnyDatabaseEffect() {
-        var unavailable = new InvitationDelivery(new MockEnvironment());
-        var guarded = new AccountService(accountMapper, employeeMapper, commands, unavailable, Clock.systemUTC(), identityGuard);
-        assertFalse(unavailable.enabled());
-        assertStatus(503, () -> guarded.invite(actor, employee,
-                new InvitationForm("invited@example.test", 0L, "초대", UUID.randomUUID())));
-        assertNull(accounts.get(actor, employee));
-        assertEquals(0, version());
-        assertEquals(0, database.queryForObject("SELECT count(*) FROM tna.account_token WHERE tenant_id=?", Integer.class, tenant));
-        assertTrue(unavailable.messages().isEmpty());
+    void resetReopensActivationAndRevokesSessions() {
+        UUID account = UUID.randomUUID();
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,password_hash,active) VALUES (?,?,?,?,true)",
+                tenant, account, employee, HASH);
+        database.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", tenant, account);
+        assertDoesNotThrow(() -> login("EMPLOYEE", PASSWORD));
+        long before = authVersion();
+        accounts.reset(actor, employee, new ResetForm(version(), "합성 분실 확인", UUID.randomUUID()));
+        assertNotNull(database.queryForObject("SELECT activation_expires_at FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?",
+                java.sql.Timestamp.class, tenant, employee));
+        assertEquals(before + 1, authVersion());
+        assertThrows(AuthenticationException.class, () -> login("EMPLOYEE", PASSWORD));
+        assertEquals(1, database.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_ACTIVATION_RESET'",
+                Integer.class, tenant));
+        String audit = database.queryForObject("SELECT before_state::text || after_state::text FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_ACTIVATION_RESET'",
+                String.class, tenant);
+        assertFalse(audit.contains(HASH));
+        assertFalse(audit.contains(PASSWORD));
     }
 
     @Test
-    void rolledBackInvitationDoesNotDeliverAndCanRetryTheSameCommand() {
-        UUID command = UUID.randomUUID();
-        var form = new InvitationForm("invited@example.test", 0L, "초대", command);
-        assertThrows(IllegalStateException.class, () -> transactions.execute(tenant, () -> {
-            accounts.invite(actor, employee, form);
-            throw new IllegalStateException("Synthetic outer transaction failure");
-        }));
-        assertNull(accounts.get(actor, employee));
-        assertEquals(0, version());
-        assertTrue(messages().isEmpty());
-        assertEquals(0, database.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
-                Integer.class, tenant, command));
-        accounts.invite(actor, employee, form);
-        assertEquals(1, messages().size());
-    }
-
-    @Test
-    void invitationCreatesPendingAccountAndCommitsOneRedactedLocalDelivery() {
-        assertNull(accounts.get(actor, employee));
-        UUID command = UUID.randomUUID();
-        var form = new InvitationForm(" Invited@Example.Test ", 0L, "합성 초대", command);
-        assertEquals(employee, accounts.invite(actor, employee, form));
-        var account = accounts.get(actor, employee);
-        assertEquals("invited@example.test", account.email());
-        assertFalse(account.active());
-        assertFalse(account.credentialSet());
-        assertEquals(Set.of("EMPLOYEE"), account.roles());
-        var message = message();
-        assertEquals(message.expiresAt(), database.queryForObject(
-                "SELECT expires_at FROM tna.account_token WHERE tenant_id=?", java.sql.Timestamp.class, tenant).toInstant());
-        assertTrue(message.token().matches("[A-Za-z0-9_-]{43}"));
-        assertFalse(message.toString().contains(message.token()));
-        assertEquals(1, version());
-        assertEquals(employee, accounts.invite(actor, employee, form));
-        assertEquals(1, messages().size());
-        assertEquals(1, version());
-        assertStatus(409, () -> accounts.invite(actor, employee,
-                new InvitationForm("other@example.test", 0L, "합성 초대", command)));
-        String audit = database.queryForObject("SELECT before_state::text || after_state::text FROM tna.org_audit_event WHERE tenant_id=? AND command_id=?",
-                String.class, tenant, command);
-        String tokenHash = database.queryForObject("SELECT token_hash FROM tna.account_token WHERE tenant_id=?", String.class, tenant);
-        assertFalse(audit.contains(message.token()));
-        assertFalse(audit.contains(tokenHash));
-    }
-
-    @Test
-    void authenticationMailboxCannotAddressAGroupOrAnotherRecipient() {
-        assertStatus(422, () -> accounts.invite(actor, employee,
-                new InvitationForm("group:other@example.test;", 0L, "초대", UUID.randomUUID())));
-        assertNull(accounts.get(actor, employee));
-    }
-
-    @Test
-    void unconfirmedRelayLeavesOnePendingAccountThatCanBeReissued() {
-        var failed = org.mockito.Mockito.mock(InvitationDelivery.class);
-        org.mockito.Mockito.when(failed.enabled()).thenReturn(true);
-        org.mockito.Mockito.doThrow(new OrgException(503, "초대 재발급 필요")).when(failed).deliver(org.mockito.Mockito.any());
-        var fallible = new AccountService(accountMapper, employeeMapper, commands, failed, Clock.systemUTC(), identityGuard);
-        var first = new InvitationForm("employee@example.test", 0L, "최초 초대", UUID.randomUUID());
-        assertStatus(503, () -> fallible.invite(actor, employee, first));
-        assertFalse(accounts.get(actor, employee).active());
-        assertEquals(1, version());
-        assertEquals(employee, accounts.invite(actor, employee, first));
-        assertTrue(messages().isEmpty());
-        accounts.invite(actor, employee, new InvitationForm(first.email(), version(), "메일 재발급", UUID.randomUUID()));
-        accept(message());
-        assertTrue(accounts.get(actor, employee).active());
-    }
-
-    @Test
-    void reissueRevokesOldTokenAndDoesNotChangeEmail() {
+    void resetIsRefusedWithoutAccountReasonOrCurrentVersion() {
+        assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(0L, "합성 사유", UUID.randomUUID())));
+        assertStatus(404, () -> accounts.reset(actor, UUID.randomUUID(), new ResetForm(0L, "합성 사유", UUID.randomUUID())));
         invite();
-        var first = message();
-        assertStatus(422, () -> accounts.invite(actor, employee,
-                new InvitationForm("different@example.test", 1L, "재발급", UUID.randomUUID())));
-        accounts.invite(actor, employee, new InvitationForm("invited@example.test", 1L, "재발급", UUID.randomUUID()));
-        assertEquals(2, messages().size());
-        assertStatus(422, () -> accept(first));
-        accept(message());
-        assertTrue(accounts.get(actor, employee).active());
-        assertStatus(422, () -> accounts.invite(actor, employee,
-                new InvitationForm("invited@example.test", 2L, "재발급", UUID.randomUUID())));
-        assertEquals(1, database.queryForObject("SELECT count(*) FROM tna.account_token WHERE tenant_id=? AND revoked_at IS NOT NULL", Integer.class, tenant));
+        assertStatus(422, () -> accounts.reset(actor, employee, new ResetForm(1L, " ", UUID.randomUUID())));
+        assertStatus(409, () -> accounts.reset(actor, employee, new ResetForm(0L, "합성 사유", UUID.randomUUID())));
+        accounts.reset(actor, employee, new ResetForm(1L, "이전 초대 재설정", UUID.randomUUID()));
+        assertEquals("생년월일 필요", accounts.status(actor, employee));
+    }
+
+    @Test
+    void statusNamesBirthDateRequirementWithoutReadingTheBirthDate() {
+        assertEquals("계정 없음", accounts.status(actor, employee));
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '7 days')",
+                tenant, UUID.randomUUID(), employee);
+        assertEquals("생년월일 필요", accounts.status(actor, employee));
+        database.update("INSERT INTO tna.employee_personnel(tenant_id,employee_id,birth_date,version,updated_by) VALUES (?,?,DATE '1990-05-12',1,?)",
+                tenant, employee, actor.accountId());
+        assertEquals("최초 접속 대기", accounts.status(actor, employee));
+    }
+
+    @Test
+    void rolesCanBeGrantedBeforeFirstLogin() {
+        database.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '7 days')",
+                tenant, UUID.randomUUID(), employee);
+        accounts.roles(actor, employee, new RolesForm(Set.of("EMPLOYEE", "APPROVER"), version(), "합성 결재자", UUID.randomUUID()));
+        assertTrue(database.queryForList("""
+                SELECT g.role FROM tna.role_grant g JOIN tna.tenant_account a ON a.tenant_id=g.tenant_id AND a.id=g.account_id
+                WHERE a.tenant_id=? AND a.employee_id=? AND g.active""", String.class, tenant, employee).contains("APPROVER"));
     }
 
     @Test
@@ -303,9 +251,6 @@ class AccountServiceIT {
 
     @Test
     void untrustedInputsStaleVersionAndForeignTargetsAreRejected() {
-        assertStatus(422, () -> accounts.invite(actor, employee, new InvitationForm("bad email", 0L, "초대", UUID.randomUUID())));
-        assertStatus(409, () -> accounts.invite(actor, employee, new InvitationForm("invited@example.test", 4L, "초대", UUID.randomUUID())));
-        assertStatus(404, () -> accounts.invite(actor, UUID.randomUUID(), new InvitationForm("invited@example.test", 0L, "초대", UUID.randomUUID())));
         assertStatus(404, () -> accounts.get(actor, UUID.randomUUID()));
         assertStatus(422, () -> accounts.roles(actor, actor.employeeId(), new RolesForm(Set.of("EMPLOYEE", "PLATFORM_OPERATOR"), 0L, "역할", UUID.randomUUID())));
         assertStatus(422, () -> accounts.roles(actor, actor.employeeId(), new RolesForm(Set.of("APPROVER"), 0L, "역할", UUID.randomUUID())));
@@ -346,18 +291,23 @@ class AccountServiceIT {
     }
 
     private void invite() {
-        accounts.invite(actor, employee, new InvitationForm("invited@example.test", 0L, "초대", UUID.randomUUID()));
+        issued = LegacyInvitation.seed(database, tenant, company, employee, "invited@example.test", actor.accountId());
     }
 
     private void accept(InvitationDelivery.Envelope envelope) {
         acceptance.accept(envelope.companyCode(), envelope.email(), envelope.token(), PASSWORD, "127.0.0.1");
     }
 
-    private List<InvitationDelivery.Envelope> messages() {
-        return delivery.messages().stream().filter(item -> item.companyCode().equals(company)).toList();
-    }
+    private InvitationDelivery.Envelope message() { return issued; }
+    private long authVersion() { return database.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", Long.class, tenant, employee); }
 
-    private InvitationDelivery.Envelope message() { return messages().getLast(); }
+    private void login(String employeeNo, String password) {
+        var request = new org.springframework.mock.web.MockHttpServletRequest();
+        request.setParameter("companyCode", company);
+        var token = UsernamePasswordAuthenticationToken.unauthenticated(employeeNo, password);
+        token.setDetails(new CompanyAuthenticationDetails(request));
+        provider.authenticate(token);
+    }
     private long version() { return database.queryForObject("SELECT version FROM tna.employee WHERE tenant_id=? AND id=?", Long.class, tenant, employee); }
     private int usedTokens() { return database.queryForObject("SELECT count(*) FROM tna.account_token WHERE tenant_id=? AND used_at IS NOT NULL", Integer.class, tenant); }
 

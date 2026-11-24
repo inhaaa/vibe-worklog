@@ -59,7 +59,7 @@ public final class ReactPageViewResolver implements ViewResolver, Ordered {
             page("org/employee", "employee", "assignments", "form", "assignmentForm", "options", "orgNames"),
             page("org/personnel-home"),
             page("org/personnel", "personnel", "today", "personalDetails", "adminPersonnel", "tabDraft", "tabConflict"),
-            page("org/access", "employee", "account", "localDelivery", "eligibleEmployee", "invitationForm", "rolesForm",
+            page("org/access", "employee", "account", "accountStatus", "eligibleEmployee", "resetForm", "rolesForm",
                     "approverForm", "assignments", "currentAssignment", "candidates", "selectedApproverMissing"),
             page("schedule/list", "templates", "form", "today"),
             page("schedule/detail", "template", "versions", "versionDays", "today", "form"),

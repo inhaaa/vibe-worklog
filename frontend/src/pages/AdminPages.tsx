@@ -328,7 +328,7 @@ function EmployeesPage({ model: m }: { model: EmployeesModel }) {
                 </a>
               </p>
               <p>
-                <a href={`/admin/employees/${selected.id}/access`}>계정 초대·역할·승인자 관리</a>
+                <a href={`/admin/employees/${selected.id}/access`}>계정·역할·승인자 관리</a>
               </p>
             </>
           ) : (
@@ -360,7 +360,7 @@ function EmployeePage({ model: m }: { model: EmployeeModel }) {
       <PageHeader title={m.employee.displayName} actions={<>
         <a className="t-btn" href="/admin/employees/bulk-edit">사원 목록으로</a>
         <a className="t-btn" href={`${employeePath}/personnel`}>인사정보·사원사진 등록</a>
-        <a className="t-btn" href={`${employeePath}/access`}>계정 초대·역할·승인자 관리</a>
+        <a className="t-btn" href={`${employeePath}/access`}>계정·역할·승인자 관리</a>
         <a className="t-btn" href={`${employeePath}/schedule`}>고정 근무 템플릿 배정</a>
       </>} />
       <ErrorNotice message={m.error} />
@@ -632,75 +632,47 @@ function OrganizationPage({ model: m }: { model: OrganizationModel }) {
 function AccessPage({ model: m }: { model: AccessModel }) {
   const path = `/admin/employees/${m.employee.id}`;
   const account = m.account;
-  const invited =
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('invited');
+  const reset = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('reset');
+  const roleEditable = Boolean(account && ((account.active && account.credentialSet) || account.activationExpiresAt));
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title={m.employee.displayName} actions={<a className="t-btn" href={path}>사원 상세로</a>} />
       <ErrorNotice message={m.error} />
-      {invited && (
+      {reset && (
         <p className="notice" role="status">
-          초대를 발급했습니다. 직원이 메일을 받지 못했다면 이메일 주소를 확인하고 재발급해 주세요.
+          비밀번호를 초기화했습니다. 직원은 7일 안에 사번으로 로그인해 생년월일을 확인하고 새 비밀번호를 정합니다.
         </p>
       )}
       {!m.eligibleEmployee && (
-        <p className="notice">
-          현재 재직 중인 활성 사원만 초대·역할 변경·승인자 배정을 할 수 있습니다.
-        </p>
+        <p className="notice">현재 재직 중인 활성 사원만 초기화·역할 변경·승인자 배정을 할 수 있습니다.</p>
       )}
       <section className="wl-section" aria-labelledby="account-title">
         <h2 id="account-title">로그인 계정</h2>
-        {account ? (
-          <>
-            <p>{account.email}</p>
-            <p>
-              {account.active
-                ? '활성 계정'
-                : account.credentialSet
-                  ? '비활성 계정'
-                  : '초대 대기 · 아직 로그인할 수 없음'}
-            </p>
-          </>
-        ) : (
-          <p>계정 없음 · 사원 등록과 별도로 초대해야 합니다.</p>
+        <p>{m.accountStatus}</p>
+        {m.accountStatus === '생년월일 필요' && (
+          <p className="hint">인사정보에 생년월일이 없어 최초 접속을 할 수 없습니다. 생년월일을 등록해 주세요.</p>
         )}
-        {account?.active && account.credentialSet && m.eligibleEmployee && (
-          <p className="hint">직원은 로그인 화면의 비밀번호 재설정에서 등록한 이메일로 복구 코드를 받을 수 있습니다.</p>
+        {account && m.eligibleEmployee && (
+          <Form
+            action={`${path}/account-reset`}
+            method="post"
+            className="wl-form"
+            onSubmit={(event) => {
+              if (!window.confirm('비밀번호를 초기화하면 직원은 7일 안에 사번으로 다시 첫 로그인해야 합니다.')) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <CommandFields form={m.resetForm} />
+            <FormTable>
+              <Reason id="reset-reason" form={m.resetForm} label="초기화 사유" />
+            </FormTable>
+            <div className="wl-form-actions">
+              <button type="submit" className="t-btn primary">비밀번호 초기화</button>
+            </div>
+          </Form>
         )}
-        {m.eligibleEmployee && (!account || (!account.active && !account.credentialSet)) && (
-          <>
-            <h3>{account ? '초대 재발급' : '계정 초대'}</h3>
-            <p className="hint">
-              초대는 24시간 동안 유효합니다. 재발급했다면 만료 시각이 가장 늦은 초대 메일의 코드로 수락할 수 있습니다.
-            </p>
-            {!m.localDelivery && (
-              <p className="notice">
-                초대 메일 전달 설정을 확인해 주세요.
-              </p>
-            )}
-            <Form action={`${path}/invitations`} method="post" className="wl-form">
-              <CommandFields form={m.invitationForm} />
-              <FormTable>
-                <Field
-                  id="invitation-email"
-                  label="초대 이메일"
-                  name="email"
-                  type="email"
-                  maxLength={254}
-                  value={m.invitationForm.email}
-                  readOnly={Boolean(account)}
-                  required
-                />
-                <Reason id="invitation-reason" form={m.invitationForm} label="초대 사유" />
-              </FormTable>
-              <div className="wl-form-actions">
-                <button type="submit" className="t-btn primary" disabled={!m.localDelivery}>
-                  {account ? '초대 재발급' : '초대 발급'}
-                </button>
-              </div>
-            </Form>
-          </>
-        )}
+        {!account && <p className="hint">계정은 입사 확정이나 사용자 관리에서 만듭니다.</p>}
       </section>
       <section className="wl-section" aria-labelledby="roles-title">
         <h2 id="roles-title">역할</h2>
@@ -708,10 +680,8 @@ function AccessPage({ model: m }: { model: AccessModel }) {
           공통은 기본 역할입니다. 관리자·대표와 결재 담당 기능은 각각 부여합니다. 대표는 회사
           현황을 조회하며, 지정된 승인자만 배정된 신청을 처리합니다. 역할이 바뀌면 기존 로그인이 종료됩니다.
         </p>
-        {(!account || !account.active || !account.credentialSet) && (
-          <p>초대 수락 후 활성 계정의 역할을 변경할 수 있습니다.</p>
-        )}
-        {m.eligibleEmployee && account?.active && account.credentialSet && (
+        {!roleEditable && <p>계정이 있는 사원의 역할을 변경할 수 있습니다.</p>}
+        {m.eligibleEmployee && roleEditable && (
           <Form action={`${path}/roles`} method="post" className="wl-form">
             <CommandFields form={m.rolesForm} />
             <Hidden name="roles" value="EMPLOYEE" />

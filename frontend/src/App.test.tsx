@@ -614,7 +614,7 @@ describe('React 앱 탐색과 제출', () => {
     window.history.replaceState(null, '', '/admin/employees');
     render(<App initial={employees} />);
     const first = screen.getByRole('link', { name: '사원 상세·수정' });
-    const second = screen.getByRole('link', { name: '계정 초대·역할·승인자 관리' });
+    const second = screen.getByRole('link', { name: '계정·역할·승인자 관리' });
     act(() => {
       fireEvent.click(first);
       fireEvent.click(second);
@@ -864,7 +864,7 @@ describe('React 앱 탐색과 제출', () => {
     render(<App initial={employees} />);
     act(() => window.history.back());
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('link', { name: '계정 초대·역할·승인자 관리' }));
+    fireEvent.click(screen.getByRole('link', { name: '계정·역할·승인자 관리' }));
     await screen.findByText('최신 탐색 응답');
     const replaced = vi.spyOn(window.history, 'replaceState');
     await act(async () => {

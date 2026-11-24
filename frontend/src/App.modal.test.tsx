@@ -13,7 +13,7 @@ const directory = { roles: [{ code: 'EMPLOYEE', label: '공통', editable: false
   members: [member], q: '직원', page: 0, hasNext: false, total: 1 };
 const list: PageEnvelope = { page: 'org/access-list', csrf, data: { ...shared, roleDirectory: directory } };
 const command = { commandId: 'cmd', expectedVersion: 1, reason: '' };
-const access: PageEnvelope = { page: 'org/access', csrf, data: { ...shared, employee: { id: 'e-1', displayName: '직원', active: true }, account: { email: 'test@example.test', active: true, credentialSet: true }, eligibleEmployee: true, rolesForm: { ...command, roles: ['EMPLOYEE'] }, invitationForm: command, approverForm: { ...command, validFrom: '2026-11-04' }, candidates: [], assignments: [], currentAssignment: null } };
+const access: PageEnvelope = { page: 'org/access', csrf, data: { ...shared, employee: { id: 'e-1', displayName: '직원', active: true }, account: { email: 'test@example.test', active: true, credentialSet: true }, eligibleEmployee: true, rolesForm: { ...command, roles: ['EMPLOYEE'] }, accountStatus: '사용 중', resetForm: command, approverForm: { ...command, validFrom: '2026-11-04' }, candidates: [], assignments: [], currentAssignment: null } };
 function response(envelope: PageEnvelope, path: string, status = 200) {
   const result = new Response(JSON.stringify(envelope), { status, headers: { 'Content-Type': 'application/vnd.worklog.page+json' } });
   Object.defineProperty(result, 'url', { value: new URL(path, location.href).href });

@@ -8,7 +8,7 @@ import java.util.UUID;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.console.LocalDemoBootstrap;
-import kr.tna.org.AccountData.InvitationForm;
+import kr.tna.org.AccountData.ResetForm;
 import kr.tna.org.AccountData.RolesForm;
 import kr.tna.org.AccountService;
 import kr.tna.org.BulkData;
@@ -36,7 +36,7 @@ class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
         for (UUID employee : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {
             assertRefusedWithoutChanges(403, () -> employees.update(actor, employee, changedEmployee()));
             assertRefusedWithoutChanges(403, () -> accounts.roles(actor, employee, changedRoles()));
-            assertRefusedWithoutChanges(403, () -> accounts.invite(actor, employee, invitation()));
+            assertRefusedWithoutChanges(403, () -> accounts.reset(actor, employee, passwordReset()));
             assertRefusedWithoutChanges(403, () -> bulk.employees(actor, employeeBatch(List.of(
                     employeeRow(null, "NEW-SYNTHETIC", BulkData.Operation.CREATE),
                     employeeRow(employee, "99999", BulkData.Operation.DEACTIVATE)))));
@@ -48,7 +48,7 @@ class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
         UUID employee = LocalDemoLogin.APPROVER_EMPLOYEE_ID;
         assertRefusedWithoutChanges(403, () -> employees.update(actor, employee, changedEmployee()));
         assertRefusedWithoutChanges(403, () -> accounts.roles(actor, employee, changedRoles()));
-        assertRefusedWithoutChanges(403, () -> accounts.invite(actor, employee, invitation()));
+        assertRefusedWithoutChanges(403, () -> accounts.reset(actor, employee, passwordReset()));
         assertRefusedWithoutChanges(403, () -> bulk.employees(actor,
                 employeeBatch(List.of(employeeRow(employee, "DEMO-001", BulkData.Operation.DEACTIVATE)))));
     }
@@ -64,8 +64,8 @@ class PublicDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     }
 
     @Test
-    void reinvitationIsRejectedByUuidBeforeTheNormalAccountValidation() {
-        assertRefusedWithoutChanges(403, () -> accounts.invite(actor, LocalDemoLogin.EMPLOYEE_ID, invitation()));
+    void passwordResetIsRejectedByUuidBeforeTheNormalAccountValidation() {
+        assertRefusedWithoutChanges(403, () -> accounts.reset(actor, LocalDemoLogin.EMPLOYEE_ID, passwordReset()));
     }
 
     @Test
@@ -99,8 +99,9 @@ class LocalDemoIdentityGuardIT extends DemoIdentityServiceFixture {
     }
 
     @Test
-    void localDemoKeepsTheExistingAcceptedAccountInvitationRule() {
-        assertRefusedWithoutChanges(422, () -> accounts.invite(actor, LocalDemoLogin.EMPLOYEE_ID, invitation()));
+    void localDemoStillAllowsPasswordResetOfTheExistingAccount() {
+        accounts.reset(actor, LocalDemoLogin.EMPLOYEE_ID, passwordReset());
+        assertNotNull(accounts.get(actor, LocalDemoLogin.EMPLOYEE_ID).activationExpiresAt());
     }
 
     @Test
@@ -157,8 +158,8 @@ abstract class DemoIdentityServiceFixture {
                 0L, "합성 담당자 역할 변경", UUID.randomUUID());
     }
 
-    InvitationForm invitation() {
-        return new InvitationForm(LocalDemoLogin.EMAIL, 0L, "합성 담당자 재초대", UUID.randomUUID());
+    ResetForm passwordReset() {
+        return new ResetForm(0L, "합성 담당자 비밀번호 초기화", UUID.randomUUID());
     }
 
     BulkData.Form<BulkData.EmployeeRow> employeeBatch(List<BulkData.EmployeeRow> rows) {
