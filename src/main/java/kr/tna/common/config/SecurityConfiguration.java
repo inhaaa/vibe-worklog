@@ -45,7 +45,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> {
                     if (localDemo.publicDemo()) {
                         authorize.requestMatchers(HttpMethod.POST, "/admin/employees/onboarding",
-                                "/admin/employees/onboarding/**", "/admin/employees/import/save", "/admin/employees/exports", "/admin/employees/*/account-reset",
+                                "/admin/employees/onboarding/**", "/admin/employees/import/save", "/admin/accounts/create", "/admin/accounts/reset", "/admin/employees/exports", "/admin/employees/*/account-reset",
                                 "/admin/employees/*/personnel/tabs/*/export",
                                 "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply",
                                 "/admin/leave-balances/employment/**").denyAll();

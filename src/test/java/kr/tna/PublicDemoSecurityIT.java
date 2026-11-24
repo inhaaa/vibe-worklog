@@ -190,7 +190,8 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
         String draft = onboarding + "/" + UUID.randomUUID();
         for (String path : List.of(onboarding, draft + "/changes", draft + "/confirm",
                 draft + "/withdraw", "/admin/employees/exports",
-                "/admin/employees/" + UUID.randomUUID() + "/account-reset", "/first-login", "/admin/employees/import/save")) {
+                "/admin/employees/" + UUID.randomUUID() + "/account-reset", "/first-login", "/admin/employees/import/save",
+                "/admin/accounts/create", "/admin/accounts/reset")) {
             publicMvc.perform(post(path).session(session).with(csrf()))
                     .andExpect(status().isForbidden());
         }

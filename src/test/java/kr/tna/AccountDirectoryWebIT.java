@@ -104,6 +104,52 @@ class AccountDirectoryWebIT {
         mvc.perform(authenticated(get("/admin/accounts"), plain)).andExpect(status().isForbidden());
     }
 
+    String bulk(String action, String reason, UUID... employees) throws Exception {
+        String ids = java.util.Arrays.stream(employees).map(id -> "\"" + id + "\"").collect(java.util.stream.Collectors.joining(","));
+        return mvc.perform(authenticated(post("/admin/accounts/" + action), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
+                        .content("{\"commandId\":\"" + UUID.randomUUID() + "\",\"reason\":\"" + reason + "\",\"employeeIds\":[" + ids + "]}"))
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    @Test void createsAccountsForEveryoneOrNobody() throws Exception {
+        UUID first = employee("B1", "첫째");
+        UUID second = employee("B2", "둘째");
+        UUID has = employee("B3", "이미있음"); account(has, true, null, 0);
+        String rejected = bulk("create", "개통", first, has);
+        assertTrue(rejected.contains("이미 계정이 있습니다."), rejected);
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", Integer.class, tenant, first));
+        assertTrue(bulk("create", "개통", first, second).contains("\"count\":2"));
+        assertEquals(2, db.queryForObject("""
+                SELECT count(*) FROM tna.tenant_account WHERE tenant_id=? AND employee_id IN (?,?) AND activation_expires_at IS NOT NULL
+                """, Integer.class, tenant, first, second));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ACCOUNT_BULK_PROVISIONED'", Integer.class, tenant));
+    }
+
+    @Test void resetsAccountsButNeverTheActorOrSomeoneWithoutAnAccount() throws Exception {
+        UUID worker = employee("C1", "직원"); account(worker, true, null, 0);
+        UUID none = employee("C2", "계정없음");
+        assertTrue(bulk("reset", "초기화", worker, none).contains("계정이 없습니다. 계정 생성을 사용하세요."));
+        assertTrue(bulk("reset", "초기화", worker, manager.employeeId()).contains("본인 계정은 초기화할 수 없습니다."));
+        long before = db.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", Long.class, tenant, worker);
+        assertTrue(bulk("reset", "초기화", worker).contains("\"count\":1"));
+        assertEquals(before + 1, db.queryForObject("SELECT auth_version FROM tna.tenant_account WHERE tenant_id=? AND employee_id=?", Long.class, tenant, worker));
+        assertTrue(bulk("reset", " ", worker).contains("초기화 사유"));
+    }
+
+    @Test void bulkRejectsMalformedJsonAndEmployeeOnlyAccounts() throws Exception {
+        for (String action : new String[] {"create", "reset"}) {
+            mvc.perform(authenticated(post("/admin/accounts/" + action), manager).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content("{\"employeeIds\":["))
+                    .andExpect(status().isBadRequest());
+            var plain = member("PLAIN" + action, java.util.Set.of("EMPLOYEE"));
+            mvc.perform(authenticated(post("/admin/accounts/" + action), plain).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
+                            .content("{\"commandId\":\"" + UUID.randomUUID() + "\",\"reason\":\"x\",\"employeeIds\":[]}"))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     private kr.tna.common.auth.TnaPrincipal member(String number, java.util.Set<String> roles) {
         UUID id = UUID.randomUUID(), account = UUID.randomUUID();
         db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'합성 사용자',?)",

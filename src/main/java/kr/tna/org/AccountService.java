@@ -121,7 +121,7 @@ public final class AccountService {
                 row.activationExpiresAt(), row.activationFailures());
     }
 
-    private OrgData.Employee requireEmployee(UUID tenantId, UUID employeeId, boolean current) {
+    OrgData.Employee requireEmployee(UUID tenantId, UUID employeeId, boolean current) {
         var employee = employees.get(tenantId, employeeId);
         if (employee == null) throw OrgException.notFound();
         var today = commands.today();
