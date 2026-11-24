@@ -16,6 +16,8 @@ class AccountStatusTest {
         assertEquals(AccountStatus.LOCKED, AccountStatus.of(true, false, NOW.plusSeconds(60), 5, true, NOW));
         assertEquals(AccountStatus.EXPIRED, AccountStatus.of(true, true, NOW, 0, true, NOW));
         assertEquals(AccountStatus.PENDING, AccountStatus.of(true, true, NOW.plusSeconds(1), 4, true, NOW));
+        assertEquals(AccountStatus.LOCKED, AccountStatus.of(true, false, NOW, 5, true, NOW));
+        assertEquals(AccountStatus.BIRTH_DATE_REQUIRED, AccountStatus.of(true, false, NOW, 0, false, NOW));
     }
 
     @Test void labelsAreWhatTheAdministratorReads() {

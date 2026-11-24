@@ -43,10 +43,10 @@ class AccountProvisioningSchemaIT {
         assertEquals(0, admin.queryForObject("SELECT activation_failures FROM tna.tenant_account WHERE id=?", Integer.class, account));
         as(f.appDataSource(), db -> assertEquals(1, db.update(
                 "UPDATE tna.tenant_account SET activation_expires_at=now(),activation_failures=0 WHERE tenant_id=? AND id=?", tenant, account)));
-        assertThrows(DataAccessException.class, () -> as(f.appDataSource(), db -> db.update(
-                "UPDATE tna.tenant_account SET password_hash='x' WHERE tenant_id=? AND id=?", tenant, account)));
-        assertThrows(DataAccessException.class, () -> as(f.appDataSource(), db -> db.update(
-                "UPDATE tna.tenant_account SET active=true WHERE tenant_id=? AND id=?", tenant, account)));
+        assertEquals("42501", sqlState(() -> as(f.appDataSource(), db -> db.update(
+                "UPDATE tna.tenant_account SET password_hash='x' WHERE tenant_id=? AND id=?", tenant, account))));
+        assertEquals("42501", sqlState(() -> as(f.appDataSource(), db -> db.update(
+                "UPDATE tna.tenant_account SET active=true WHERE tenant_id=? AND id=?", tenant, account))));
     }
 
     @Test void authReadsBirthDateOnlyInsideTenantAndCountsFailures() {
@@ -60,6 +60,15 @@ class AccountProvisioningSchemaIT {
         });
         assertEquals(0, asTenant(f.authDataSource(), UUID.randomUUID(), db -> db.queryForObject(
                 "SELECT count(*) FROM tna.employee_personnel", Integer.class)).intValue());
+        assertEquals("42501", sqlState(() -> as(f.authDataSource(), db -> db.queryForList(
+                "SELECT grade_name, photo_bytes FROM tna.employee_personnel"))));
+        assertEquals("42501", sqlState(() -> as(f.authDataSource(), db -> db.update(
+                "UPDATE tna.employee_personnel SET birth_date=DATE '1990-01-01' WHERE tenant_id=?", tenant))));
+        assertEquals("23514", sqlState(() -> admin.update(
+                "UPDATE tna.tenant_account SET activation_failures=-1 WHERE id=?", account)));
+        admin.update("UPDATE tna.tenant_account SET activation_expires_at=NULL WHERE id=?", account);
+        assertEquals(0, asTenant(f.authDataSource(), tenant, db -> db.queryForObject(
+                "SELECT count(*) FROM tna.employee_personnel", Integer.class)).intValue());
         assertThrows(DataAccessException.class, () -> admin.update(
                 "UPDATE tna.tenant_account SET activation_failures=6 WHERE id=?", account));
     }
@@ -70,6 +79,30 @@ class AccountProvisioningSchemaIT {
                 WHERE table_schema='tna' AND table_name='employee_onboarding' AND column_name='birth_date'""", Integer.class));
         assertTrue(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.employee_onboarding','birth_date','INSERT')", Boolean.class));
         assertTrue(admin.queryForObject("SELECT has_column_privilege('tna_app','tna.employee_onboarding','birth_date','UPDATE')", Boolean.class));
+    }
+
+    @Test void authAuditsActivationOnlyForTheAccountItself() {
+        UUID account = UUID.randomUUID();
+        admin.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,active,activation_expires_at) VALUES (?,?,?,false,now()+interval '1 day')",
+                tenant, account, employee);
+        for (String action : new String[] {"ACCOUNT_ACTIVATED", "ACCOUNT_ACTIVATION_FAILED", "ACCOUNT_LOCKED"}) {
+            as(f.authDataSource(), db -> assertEquals(1, audit(db, action, account, account)));
+        }
+        assertEquals("42501", sqlState(() -> as(f.authDataSource(), db -> audit(db, "ACCOUNT_ROLES_CHANGE", account, account))));
+        assertEquals("42501", sqlState(() -> as(f.authDataSource(), db -> audit(db, "ACCOUNT_ACTIVATED", account, UUID.randomUUID()))));
+    }
+
+    private static int audit(JdbcTemplate db, String action, UUID actor, UUID target) {
+        return db.update("""
+                INSERT INTO tna.org_audit_event(tenant_id,id,command_id,actor_account_id,action,target_kind,target_id,
+                    input_hash,reason,before_state,after_state,request_trace_id)
+                VALUES (current_setting('app.tenant_id')::uuid,?,?,?,?,'ACCOUNT',?,?,'최초 접속','{}'::jsonb,'{}'::jsonb,?)""",
+                UUID.randomUUID(), UUID.randomUUID(), actor, action, target, "a".repeat(64), UUID.randomUUID());
+    }
+
+    private static String sqlState(Runnable work) {
+        DataAccessException error = assertThrows(DataAccessException.class, work::run);
+        return ((java.sql.SQLException) error.getMostSpecificCause()).getSQLState();
     }
 
     private void as(DataSource source, Consumer<JdbcTemplate> work) { asTenant(source, tenant, db -> { work.accept(db); return 0; }); }
