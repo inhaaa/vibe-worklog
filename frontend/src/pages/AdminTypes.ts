@@ -112,7 +112,6 @@ export interface AccessModel extends AdminModel {
     active: boolean;
     credentialSet: boolean;
     roles: string[];
-    activationExpiresAt: string | null;
   } | null;
   accountStatus: string;
   accountState: string;

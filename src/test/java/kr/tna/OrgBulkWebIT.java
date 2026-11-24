@@ -278,6 +278,16 @@ class OrgBulkWebIT {
     }
 
     @Test
+    void anAdministratorResetToPendingDoesNotCountAsTheRemainingAdministratorInABatch() throws Exception {
+        TnaPrincipal reset = member("ADMIN-2", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
+        database.update("UPDATE tna.tenant_account SET activation_expires_at=now()+interval '7 days' WHERE tenant_id=? AND id=?",
+                tenant, reset.accountId());
+        var self = employeeRow(manager.employeeId(), "ADMIN", "관리자 1", "DEACTIVATE", 0L);
+        mvc.perform(bulk("employees", manager, UUID.randomUUID(), List.of(self))).andExpect(status().is(422));
+        assertTrue(employeeActive(manager.employeeId()));
+    }
+
+    @Test
     void employeeBatchCannotRemoveAllAdministratorsAndCanReactivateTheirReplacementAtomically() throws Exception {
         TnaPrincipal replacement = member("ADMIN-2", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
         var first = employeeRow(manager.employeeId(), "ADMIN", "관리자 1", "DEACTIVATE", 0L);

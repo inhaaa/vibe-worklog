@@ -20,7 +20,7 @@ export function CompanySetupGuide({ adminSelected, selectAdmin }: { adminSelecte
         <li><a href="/admin/networks">허용 네트워크</a>에 출퇴근을 기록할 사업장의 IP 대역을 등록합니다.</li>
         <li><a href="/admin/employees/onboarding">입사 예정 관리</a>에서 직원과 결재자의 입사일·소속·근무를 확정합니다.
           확정하면 계정이 자동으로 만들어지고, 직원은 입사일부터 사번으로 첫 로그인해 <strong>생년월일 확인</strong> 후 비밀번호를 정합니다.</li>
-        <li><a href="/admin/access?role=APPROVER">승인자 권한 관리</a>에서 첫 로그인을 마친 결재자에게 권한을 부여합니다.
+        <li><a href="/admin/access?role=APPROVER">승인자 권한 관리</a>에서 결재자에게 입사 확정 직후 권한을 부여할 수 있습니다. 결재 처리는 본인이 첫 로그인을 마친 뒤 가능합니다.
           {' '}<a href="/admin/approval-routes">결재선 관리</a>에서 결재선을 만들고 <a href="/admin/request-forms">신청서코드 관리</a>에서 신청서에 연결한 뒤 사원별로 미리 봅니다.</li>
       </ol>
     </nav>

@@ -212,7 +212,7 @@ describe('관리 React 페이지', () => {
   it('초대 폼 없이 계정 상태와 초기화 폼을 보이고 자기 승인자 선택을 제외한다', async () => {
     const html = await render('org/access', {
       ...access,
-      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
+      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'] },
       accountStatus: '최초 접속 대기',
       accountState: 'PENDING',
       selectedApproverMissing: true,
@@ -236,16 +236,17 @@ describe('관리 React 페이지', () => {
     expect(none).toContain('입사 확정 시 계정이 만들어집니다');
     const noBirth = await render('org/access', {
       ...access,
-      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'], activationExpiresAt: '2026-12-01T00:00:00Z' },
+      account: { id: 'a-1', email: '', active: false, credentialSet: false, roles: ['EMPLOYEE'] },
       accountStatus: '생년월일 필요',
       accountState: 'BIRTH_DATE_REQUIRED',
     });
     expect(noBirth).toContain('생년월일을 등록해 주세요');
     expect(noBirth).toContain('account-reset"');
+    expect(noBirth).toContain('action="/admin/employees/e-1/roles"');
   });
 
   it('본인 계정에는 초기화 폼 대신 안내를 보이고 이전 초대 상태는 안내 문구를 바꾼다', async () => {
-    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'], activationExpiresAt: null };
+    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'] };
     const own = await render('org/access', { ...access, account: active, accountState: 'ACTIVE', ownAccount: true });
     expect(own).not.toContain('account-reset"');
     expect(own).toContain('본인 계정은 초기화할 수 없습니다');
@@ -256,7 +257,7 @@ describe('관리 React 페이지', () => {
   });
 
   it('초기화 확인 창을 취소하면 제출하지 않는다', async () => {
-    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'], activationExpiresAt: null };
+    const active = { id: 'a-1', email: '', active: true, credentialSet: true, roles: ['EMPLOYEE'] };
     const props: PageProps = {
       page: 'org/access', data: { ...access, account: active, accountState: 'ACTIVE' },
       csrf: { token: 'csrf-token', parameterName: '_csrf', headerName: 'X-CSRF-TOKEN' }, reload: () => {},

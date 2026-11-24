@@ -633,7 +633,7 @@ function AccessPage({ model: m }: { model: AccessModel }) {
   const path = `/admin/employees/${m.employee.id}`;
   const account = m.account;
   const reset = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('reset');
-  const roleEditable = Boolean(account && ((account.active && account.credentialSet) || account.activationExpiresAt));
+  const roleEditable = Boolean(account && m.accountState !== 'PREVIOUS_INVITATION');
   return (
     <div className="t-legacy-page admin-shell">
       <PageHeader title={m.employee.displayName} actions={<a className="t-btn" href={path}>사원 상세로</a>} />

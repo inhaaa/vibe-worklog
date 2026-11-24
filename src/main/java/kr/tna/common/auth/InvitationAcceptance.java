@@ -71,7 +71,7 @@ public final class InvitationAcceptance {
                         WHERE t.tenant_id=? AND t.token_hash=? AND t.purpose='INVITE'
                           AND t.email=? AND a.email=t.email AND t.issued_auth_version=a.auth_version
                           AND t.used_at IS NULL AND t.revoked_at IS NULL AND t.expires_at>?
-                          AND NOT a.active AND NOT a.credential_set AND r.active AND e.active
+                          AND NOT a.active AND NOT a.credential_set AND a.activation_expires_at IS NULL AND r.active AND e.active
                           AND e.joined_on<=? AND (e.left_on IS NULL OR e.left_on>=?)
                         """, (row, index) -> new Token(row.getObject("id", UUID.class), row.getObject("account_id", UUID.class),
                         row.getLong("auth_version")), tenant, tokenHash, normalizedEmail, java.sql.Timestamp.from(now), today, today);
@@ -83,7 +83,7 @@ public final class InvitationAcceptance {
                         """, java.sql.Timestamp.from(now), tenant, invitation.id());
                 int activated = jdbc.update("""
                         UPDATE tna.tenant_account SET password_hash=?,active=true,auth_version=auth_version+1
-                        WHERE tenant_id=? AND id=? AND auth_version=? AND NOT active AND NOT credential_set
+                        WHERE tenant_id=? AND id=? AND auth_version=? AND NOT active AND NOT credential_set AND activation_expires_at IS NULL
                         """, passwordHash, tenant, invitation.accountId(), invitation.authVersion());
                 if (used != 1 || activated != 1) throw rejected();
                 jdbc.update("""

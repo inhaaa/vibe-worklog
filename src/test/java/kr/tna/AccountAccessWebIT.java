@@ -161,6 +161,22 @@ class AccountAccessWebIT {
     }
 
     @Test
+    void pendingAccountPageDataCarriesTheStateTheRoleFormDependsOn() throws Exception {
+        var manager = login(DatabaseFixture.COMPANY_A, DatabaseFixture.EMAIL);
+        Member member = member("역할 편집 대기 계정", false);
+        admin.update("""
+                UPDATE tna.tenant_account SET email=NULL,active=false,password_hash=NULL,activation_expires_at=now()+interval '7 days'
+                WHERE tenant_id=? AND employee_id=?
+                """, DatabaseFixture.TENANT_A, member.employee());
+        mvc.perform(get(access(member.employee())).session(manager)).andExpect(status().isOk())
+                .andExpect(ReactPageAssertions.data("/accountState", "BIRTH_DATE_REQUIRED"))
+                .andExpect(ReactPageAssertions.data("/account/active", false))
+                .andExpect(ReactPageAssertions.data("/account/credentialSet", false))
+                .andExpect(ReactPageAssertions.data("/eligibleEmployee", true))
+                .andExpect(ReactPageAssertions.dataPresent("/rolesForm/roles"));
+    }
+
+    @Test
     void publicInvitationFormDoesNotResolveCompanyOrExposeExistingAccount() throws Exception {
         for (String company : List.of(DatabaseFixture.COMPANY_A, "UNKNOWN-COMPANY")) {
             mvc.perform(get("/invite/{companyCode}", company))

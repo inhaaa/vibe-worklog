@@ -26,7 +26,7 @@ public interface EmployeeAdminMapper extends ClosedAttendanceMonths {
 
     @Select("""
             SELECT a.employee_id FROM tna.tenant_account a
-            WHERE a.tenant_id=#{tenantId} AND a.active AND a.credential_set
+            WHERE a.tenant_id=#{tenantId} AND a.active AND a.credential_set AND a.activation_expires_at IS NULL
               AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id
                   AND g.active AND g.role='ATTENDANCE_ADMIN')
               AND EXISTS(SELECT 1 FROM tna.role_grant g WHERE g.tenant_id=a.tenant_id AND g.account_id=a.id
