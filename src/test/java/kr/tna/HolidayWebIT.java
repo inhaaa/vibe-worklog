@@ -60,6 +60,17 @@ class HolidayWebIT {
         return new kr.tna.common.auth.TnaPrincipal(tenant, account, id, 1, roles, java.time.Instant.now());
     }
 
+    @Test void invalidYearAndNullBodyAreValidationErrorsNotServerErrors() throws Exception {
+        mvc.perform(authenticated(get("/admin/holidays").param("year", "1999"), manager))
+                .andExpect(status().isUnprocessableContent());
+        mvc.perform(authenticated(post("/admin/holidays/public-preview"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content("null"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(authenticated(post("/admin/holidays/public-preview"), manager).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.message").value("연도를 지정해 주세요."));
+    }
+
     @Test void pagePreviewSaveAndLegacyAddressFollowTheContract() throws Exception {
         mvc.perform(authenticated(get("/admin/holidays").param("year", "2027"), manager))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.page())

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
-class HolidayController {
+public class HolidayController {
     private final HolidayService holidays;
 
     HolidayController(HolidayService holidays) { this.holidays = holidays; }

@@ -12,7 +12,7 @@ import org.springframework.web.servlet.ModelAndView;
 @ControllerAdvice(assignableTypes = {EmployeePersonnelController.class, EmployeeOnboardingController.class,
         OrgAdminController.class, OrgBulkController.class, AccountAdminController.class, AccountDirectoryController.class, OrganizationHeadController.class,
         kr.tna.approval.ApprovalRouteController.class, kr.tna.codes.CodeController.class, InvitationController.class,
-        kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class,
+        kr.tna.schedule.ScheduleController.class, kr.tna.clock.AttendanceController.class, kr.tna.clock.HolidayController.class,
         kr.tna.common.web.TodayController.class, kr.tna.request.RequestController.class,
         kr.tna.request.LeaveOperationsController.class,
         kr.tna.request.LeaveAttributionController.class, kr.tna.request.AnnualRequestController.class,

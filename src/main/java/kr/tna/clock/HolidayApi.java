@@ -26,7 +26,12 @@ class HolidayApi {
 
     @PostMapping(value = "/public-preview", consumes = MediaType.APPLICATION_JSON_VALUE)
     ResponseEntity<HolidayService.Preview> preview(@RequestBody PreviewForm form) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(holidays.publicHolidays(form.year()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(holidays.publicHolidays(requireYear(form)));
+    }
+
+    private static Integer requireYear(PreviewForm form) {
+        if (form == null || form.year() == null) throw kr.tna.org.OrgException.invalid("연도를 지정해 주세요.");
+        return form.year();
     }
 
     @PostMapping(value = "/save", consumes = MediaType.APPLICATION_JSON_VALUE)
