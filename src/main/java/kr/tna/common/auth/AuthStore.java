@@ -44,7 +44,7 @@ public class AuthStore {
                     SELECT a.id, a.employee_id, a.auth_version, a.password_hash, e.employee_no, e.display_name
                     FROM tna.tenant_account a
                     JOIN tna.employee e ON e.tenant_id = a.tenant_id AND e.id = a.employee_id
-                    WHERE a.tenant_id = ? AND %s = ? AND a.active AND e.active
+                    WHERE a.tenant_id = ? AND %s = ? AND a.active AND a.activation_expires_at IS NULL AND e.active
                       AND e.joined_on <= ? AND (e.left_on IS NULL OR e.left_on >= ?)
                     """.formatted(login.contains("@") ? "a.email" : "e.employee_no"), (row, index) -> {
                 UUID account = row.getObject("id", UUID.class);
