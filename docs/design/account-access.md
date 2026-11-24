@@ -61,10 +61,15 @@ auth 역할은 기존 로그인 저장소의 read-only 트랜잭션을 유지한
 | --- | --- |
 | GET `/admin/employees/{id}/access` | 계정 상태·역할·승인자 현재 적격성/이력·관리 폼 |
 | POST `/admin/employees/{id}/account-reset` | 비밀번호 초기화(7일 대기 재개, 본인 제외) |
+| GET `/admin/accounts` | 사용자 관리: 사번·이름·현재 소속·계정 상태, 검색·상태 필터, 50건씩(생년월일은 싣지 않음) |
+| POST `/admin/accounts/create` | 선택한 사원(최대 100명, 계정 없는 사원만)의 대기 계정 일괄 생성. 감사 `ACCOUNT_BULK_PROVISIONED` |
+| POST `/admin/accounts/reset` | 선택한 사원(최대 100명, 계정 있는 사원만, 본인 제외) 비밀번호 일괄 초기화. 감사 `ACCOUNT_BULK_RESET`, `auth_version` 증가로 세션 종료 |
 | GET/POST `/first-login` | 사번·생년월일 최초 접속(공개) |
 | POST `/admin/employees/{id}/roles` | 기본 EMPLOYEE와 선택 역할 변경 |
 | POST `/admin/approver-assignments` | 오늘 승인자 지정/교체, 승인자 빈 값은 명시 해제 |
 | GET `/invite/{companyCode}`, POST `/invite/{companyCode}/accept` | 일반 수락 폼, 원자적 수락 후 로그인303 |
+
+사용자 관리의 일괄 생성·초기화는 한 명이라도 대상이 아니면 아무것도 바꾸지 않고 사원별 오류를 돌려준다. 공개 데모는 둘 다 403이다.
 
 관리 POST는 CSRF·commandId·사유·expectedVersion을 받고303/400/403/404/409/422의 기존 계약을 따른다. 공개 형식/초대 검증 실패는 안전한422, 과다 요청429, 저장소 장애503이다. 비밀번호·토큰 원문은 오류·모델·로그에 남기지 않는다.
 
