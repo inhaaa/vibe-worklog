@@ -163,7 +163,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         /** FULL 또는 합계 1일 이상이면 FULL, 반차 하나면 AM/PM, 없으면 null. */
         public static String part(List<LeaveEffect> effects) {
             if (effects.isEmpty()) return null;
-            if (totalDays(effects) >= 1 || effects.stream().anyMatch(e -> e.leavePart() == null || "FULL".equals(e.leavePart()))) return "FULL";
+            if (totalDays(effects) >= 1 || effects.stream().anyMatch(e -> "FULL".equals(e.leavePart()))) return "FULL";
             return effects.getFirst().leavePart();
         }
         public static double totalDays(List<LeaveEffect> effects) {

@@ -271,6 +271,8 @@ class CheckoutOperationsWebIT {
     void monthBatchBasisChangesWhenEvidenceChangesButTheVisibleReasonsStayTheSame() throws Exception {
         String month = YearMonth.from(date).toString();
         var key = new CheckoutFollowUpService.DayKey(worker.employeeId(), date);
+        // 무기록 근로일은 결근이라 '확인 필요'가 아니다. 출근만 있는 날에서 퇴근을 더해도 표시 사유는 같다.
+        clock(worker, date, date, "IN", 9);
         var before = monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0);
         var basis = before.bases().get(key);
         assertNotNull(basis);
@@ -278,7 +280,7 @@ class CheckoutOperationsWebIT {
         assertEquals(before.bases(), monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0).bases());
         var labels = targetDay(reviewRows("ALL")).required("reasons");
 
-        clock(worker, date, date, "IN", 9);
+        clock(worker, date, date, "OUT", 18);
         var after = monthEndQueries.readForBatch(admin, month, null, "CHECK-01", "ALL", 0);
         assertEquals(labels, targetDay(reviewRows("ALL")).required("reasons"));
         assertNotEquals(basis, after.bases().get(key));
@@ -457,7 +459,8 @@ class CheckoutOperationsWebIT {
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", date, tenant, worker.employeeId());
         var initial = reviewRows("ALL");
         assertEquals(1, initial.size());
-        assertEquals("[\"UNCALCULATED\",\"UNCONFIRMED\"]", initial.get(0).get("reasons").toString());
+        // 날이 지난 무기록 근로일은 결근으로 판정되므로 계산 대상이지만 '확인 필요'는 아니다.
+        assertEquals("[\"UNCALCULATED\"]", initial.get(0).get("reasons").toString());
         db.update("UPDATE tna.schedule_assignment SET schedule_version_id=? WHERE tenant_id=? AND employee_id=?",
                 schedule(false), tenant, worker.employeeId());
         assertTrue(reviewRows("ALL").isEmpty());
@@ -466,7 +469,7 @@ class CheckoutOperationsWebIT {
         approvedFullDayLeave();
         assertTrue(reviewRows("ALL").isEmpty());
         db.update("UPDATE tna.leave_request_day SET quantity_days=0.5,leave_part='AM' WHERE tenant_id=?", tenant);
-        assertEquals(1, reviewRows("UNCONFIRMED").size());
+        assertEquals("[\"UNCALCULATED\"]", reviewRows("ALL").get(0).get("reasons").toString(), "반차일 무기록은 반일 결근입니다.");
         db.update("UPDATE tna.calendar_day SET kind='HOLIDAY' WHERE tenant_id=? AND work_date=?", tenant, date);
         assertTrue(reviewRows("ALL").isEmpty());
         clock(worker, date, date, "IN", 9);
@@ -847,6 +850,9 @@ class CheckoutOperationsWebIT {
         assertEquals(zeroConfirmed ? "AWAITING_CALCULATION" : "REQUESTED", followUps.mine(worker, 0, 1).rows().getFirst().status());
         worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "무근로일 확인");
         assertEquals(zeroConfirmed, followUps.mine(worker, 0, 1).rows().isEmpty());
+        if (!zeroConfirmed) assertEquals(basis.equals("HALF") ? "HALF" : "FULL", db.queryForObject("""
+                SELECT absence FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=? ORDER BY result_revision DESC LIMIT 1
+                """, String.class, tenant, worker.employeeId(), date), "결근 판정(실근로 0)만으로는 퇴근 보완을 해소하지 않습니다.");
         assertEquals(zeroConfirmed ? 1 : 0, db.queryForObject("""
                 SELECT count(*) FROM tna.checkout_follow_up f JOIN tna.day_result r ON r.tenant_id=f.tenant_id AND r.id=f.resolved_result_id
                 WHERE f.tenant_id=? AND f.last_request_id=? AND f.resolved_at IS NOT NULL AND r.actual_work_millis=0

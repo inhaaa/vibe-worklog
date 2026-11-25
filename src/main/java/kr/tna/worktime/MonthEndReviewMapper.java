@@ -36,7 +36,7 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
 
     record Candidate(UUID employeeId, String employeeNo, String employeeName, String organizationName, UUID organizationId,
             LocalDate joinedOn, LocalDate leftOn, LocalDate workDate, UUID resultId, String storedSource,
-            Long storedInput, Long storedReview, long inputRevision, long reviewRevision,
+            Long storedInput, Long storedReview, Long storedActualWorkMillis, long inputRevision, long reviewRevision,
             UUID scheduleVersionId, Boolean workday, LocalTime startTime, LocalTime endTime, String breaks,
             String workMode, LocalTime coreStart, LocalTime coreEnd, Integer standardMinutes, String settlementPeriod,
             UUID calendarVersionId, String dayKind, UUID policyId, UUID assessmentId, boolean reviewed,
@@ -122,13 +122,14 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
             ), selected AS MATERIALIZED (
                 SELECT e.id AS employee_id,e.employee_no,e.display_name AS employee_name,o.name AS organization_name,o.id AS organization_id,
                        e.joined_on,e.left_on,d.work_date,r.id AS result_id,r.source_fingerprint AS stored_source,
-                       r.input_revision AS stored_input,r.review_revision AS stored_review,p.id AS pending_request_id,fu.id IS NOT NULL AS open_checkout_follow_up
+                       r.input_revision AS stored_input,r.review_revision AS stored_review,
+                       r.actual_work_millis AS stored_actual_work_millis,p.id AS pending_request_id,fu.id IS NOT NULL AS open_checkout_follow_up
                 FROM tna.employee e JOIN dates d ON d.work_date>=e.joined_on AND (e.left_on IS NULL OR d.work_date<=e.left_on)
                 LEFT JOIN tna.employee_assignment a ON a.tenant_id=e.tenant_id AND a.employee_id=e.id
                     AND a.valid_from<=d.work_date AND (a.valid_to IS NULL OR a.valid_to>d.work_date)
                 LEFT JOIN tna.organization o ON o.tenant_id=a.tenant_id AND o.id=a.organization_id
                 LEFT JOIN LATERAL (
-                    SELECT id,source_fingerprint,input_revision,review_revision FROM tna.day_result
+                    SELECT id,source_fingerprint,input_revision,review_revision,actual_work_millis FROM tna.day_result
                     WHERE tenant_id=e.tenant_id AND employee_id=e.id AND work_date=d.work_date ORDER BY result_revision DESC LIMIT 1
                 ) r ON true
                 LEFT JOIN tna.approval_request p ON p.tenant_id=e.tenant_id AND p.target_employee_id=e.id
@@ -142,7 +143,7 @@ public interface MonthEndReviewMapper extends ClosedAttendanceMonths {
                 ORDER BY d.work_date DESC,e.employee_no,e.id
             )
             SELECT d.employee_id,d.employee_no,d.employee_name,d.organization_name,d.organization_id,d.joined_on,d.left_on,
-                d.work_date,d.result_id,d.stored_source,d.stored_input,d.stored_review,
+                d.work_date,d.result_id,d.stored_source,d.stored_input,d.stored_review,d.stored_actual_work_millis,
                 coalesce(rev.input_revision,0) AS input_revision,coalesce(rev.review_revision,0) AS review_revision,
                 s.version_id AS schedule_version_id,s.workday,s.start_time,s.end_time,s.breaks,
                 s.work_mode,s.core_start,s.core_end,s.standard_minutes,s.settlement_period,

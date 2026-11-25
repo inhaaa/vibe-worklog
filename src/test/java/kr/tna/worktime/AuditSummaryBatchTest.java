@@ -20,6 +20,14 @@ class AuditSummaryBatchTest {
     }
 
     @Test
+    void calculationRunShowsBothRuleVersions() {
+        assertEquals("CALC-2", AuditSummary.project("{\"engineVersion\":\"CALC-2\"}").get("engineVersion"));
+        assertEquals("CALC-1", AuditSummary.project("{\"engineVersion\":\"CALC-1\"}").get("engineVersion"));
+        assertEquals("CALC-2", AuditSummary.project("{\"ruleVersion\":\"CALC-2\",\"dayCount\":7}").get("ruleVersion"));
+        assertTrue(AuditSummary.project("{\"engineVersion\":\"CALC-3\"}").isEmpty());
+    }
+
+    @Test
     void showsFractionalLeaveBalancesInTheAuditDetail() {
         var summary = AuditSummary.project("""
                 {"balanceDays":7.5,"availableDays":7.0,"quantityDays":0.5,"signedQuantityDays":-0.5,"version":1.25}

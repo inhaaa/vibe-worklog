@@ -12,6 +12,8 @@ import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.org.AccountData.ApproverForm;
 import kr.tna.org.ApproverService;
+import kr.tna.worktime.MonthEndReviewQueries;
+import kr.tna.worktime.WorktimeCalculator;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,12 +27,13 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 class DailyAttendanceResultIT {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    // 과거 날짜라 실제 시계 기준으로 '날이 지났다'.
+    // 고정 날짜는 실행일(2026-11-25 이후) 기준 항상 과거라 실제 시계로 '날이 지났다'. 월말 점검은 2026-11을 조회한다.
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 23), TUESDAY = MONDAY.plusDays(1);
 
     @Autowired WorktimeService worktime;
     @Autowired ClockService clocks;
     @Autowired ApproverService approvers;
+    @Autowired MonthEndReviewQueries monthEnd;
     private JdbcTemplate db;
     private UUID tenant, schedule, calendar, network;
     private TnaPrincipal manager, employee, approver;
@@ -114,6 +117,70 @@ class DailyAttendanceResultIT {
         assertEquals(300_000L, row.get("late_millis"), "오전 반차의 출근 기준은 휴게 종료 13:00입니다.");
         assertEquals(0L, row.get("early_leave_millis"));
         assertNull(row.get("absence"));
+    }
+
+    @Test void halfDayLeaveWithoutRecordsIsAHalfAbsence() {
+        approvedHalfDayLeave(TUESDAY, "AM");
+
+        worktime.recalculate(manager, employee.employeeId(), TUESDAY, TUESDAY, UUID.randomUUID(), "합성 반차 결근");
+
+        var row = latestRow(TUESDAY);
+        assertEquals("HALF", row.get("absence"));
+        assertEquals(0L, row.get("actual_work_millis"));
+        assertNull(row.get("late_millis"));
+    }
+
+    @Test void afternoonHalfDayEndsAtTheBreakStart() {
+        approvedHalfDayLeave(MONDAY, "PM");
+        record(MONDAY, 8, 0, 11, 50);
+
+        worktime.recalculate(manager, employee.employeeId(), MONDAY, MONDAY, UUID.randomUUID(), "합성 오후 반차");
+
+        var row = latestRow(MONDAY);
+        assertEquals(0L, row.get("late_millis"));
+        assertEquals(600_000L, row.get("early_leave_millis"), "오후 반차의 퇴근 기준은 휴게 시작 12:00입니다.");
+        assertNull(row.get("absence"));
+    }
+
+    @Test void monthEndReviewListsOnlyAbsencesThatStillNeedCalculation() {
+        LocalDate uncalculated = MONDAY.minusWeeks(1);
+        // 11-23이 속한 주만 계산한다. 앞 주 월요일(11-16)은 저장 결과가 없다.
+        worktime.recalculate(manager, employee.employeeId(), MONDAY, MONDAY, UUID.randomUUID(), "합성 결근 계산");
+        assertEquals("FULL", latestRow(MONDAY).get("absence"));
+
+        var rows = reviewRows();
+        assertFalse(rows.containsKey(MONDAY), "저장된 현재 결근 결과는 월말 점검 대상이 아닙니다.");
+        assertEquals(List.of("UNCALCULATED"), rows.get(uncalculated), "저장 결과 없는 결근일은 계산 대상으로 나와야 합니다.");
+
+        // 결근 판정 전에 저장된 CALC-1 무기록 결과: 입력은 같아도 다시 계산해야 한다.
+        db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                  source_fingerprint,policy_version_id,assessment_id,rule_version,status,scheduled_millis,leave_days,reason_codes,input_refs)
+                SELECT tenant_id,gen_random_uuid(),run_id,employee_id,work_date,result_revision+1,input_revision,review_revision,
+                  source_fingerprint,policy_version_id,assessment_id,'CALC-1','REVIEW_REQUIRED',scheduled_millis,leave_days,
+                  '["MISSING_CLOCK_IN","MISSING_CLOCK_OUT"]',input_refs
+                FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=? ORDER BY result_revision DESC LIMIT 1
+                """, tenant, employee.employeeId(), MONDAY);
+        assertEquals(List.of("STALE"), reviewRows().get(MONDAY));
+        var old = worktime.days(manager, employee.employeeId(), MONDAY, MONDAY).getFirst();
+        assertEquals("CALC-1", old.ruleVersion());
+        assertEquals(WorktimeCalculator.Attendance.NONE, old.result().attendance(), "판정 열이 NULL인 옛 결과는 판정 없음입니다.");
+    }
+
+    private java.util.Map<LocalDate, List<String>> reviewRows() {
+        String employeeNo = db.queryForObject("SELECT employee_no FROM tna.employee WHERE tenant_id=? AND id=?", String.class, tenant, employee.employeeId());
+        var page = monthEnd.read(manager, "2026-11", null, employeeNo, "ALL", 0);
+        assertNull(page.error());
+        var rows = new java.util.HashMap<LocalDate, List<String>>();
+        for (var row : page.rows()) if (row.employeeId().equals(employee.employeeId())) rows.put(row.workDate(), row.reasons());
+        return rows;
+    }
+
+    private java.util.Map<String, Object> latestRow(LocalDate date) {
+        return db.queryForMap("""
+                SELECT late_millis, early_leave_millis, absence, actual_work_millis FROM tna.day_result
+                WHERE tenant_id=? AND employee_id=? AND work_date=? ORDER BY result_revision DESC LIMIT 1""",
+                tenant, employee.employeeId(), date);
     }
 
     private void record(LocalDate date, int inHour, int inMinute, int outHour, int outMinute) {

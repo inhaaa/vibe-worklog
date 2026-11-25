@@ -172,7 +172,9 @@ public final class MonthEndReviewQueries {
         boolean pending = candidate.pendingRequestId() != null;
         double leaveDays = WorktimeMapper.LeaveEffect.totalDays(leave);
         var input = WorktimeService.dayInput(snapshot, candidate.reviewed(), pending, leaveDays, WorktimeMapper.LeaveEffect.paidDays(leave));
-        var calculated = calculator.day(input);
+        // 후보는 항상 어제(today-1) 이전 날짜라 날이 지났다. 이 JSON 경로에는 leave_part가 없어 반차 구분은 넘기지 않는다.
+        var calculated = calculator.day(input, new WorktimeCalculator.AttendanceContext(true, null));
+        boolean absent = calculated.attendance().absence() != null;
         boolean selective = "SELECTIVE".equals(candidate.workMode());
         boolean unconfirmed = calculated.actualWorkMillis() == null
                 || selective && (snapshot.calendarVersionId() == null || calculated.reasons().contains("LEAVE_WORK_CONFLICT"));
@@ -186,10 +188,12 @@ public final class MonthEndReviewQueries {
         if (candidate.resultId() == null) {
             boolean selectiveWorkday = selective && Boolean.TRUE.equals(candidate.workday())
                     && "WORKDAY".equals(candidate.dayKind());
-            if (selectiveWorkday || unconfirmed || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) {
+            if (selectiveWorkday || unconfirmed || absent || !snapshot.effectiveEvents().isEmpty() || candidate.openCheckoutFollowUp()) {
                 reasons.add("UNCALCULATED");
             }
-        } else if (!WorktimeService.current(snapshot, source, candidate.storedInput(), candidate.storedReview(), candidate.storedSource())) {
+        } else if (!WorktimeService.current(snapshot, source, candidate.storedInput(), candidate.storedReview(), candidate.storedSource())
+                // 결근 판정 전(오늘 계산·CALC-1)에 저장된 무기록 결과는 입력이 같아도 다시 계산해야 결근이 된다.
+                || absent && candidate.storedActualWorkMillis() == null) {
             reasons.add("STALE");
         }
         if (unconfirmed) reasons.add("UNCONFIRMED");
