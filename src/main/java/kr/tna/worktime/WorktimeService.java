@@ -440,7 +440,7 @@ public final class WorktimeService {
                     "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 휴가(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
                     "소속","일정 버전 ID","휴일 버전 ID","정책 버전 ID","적용 검토 ID","유효 출근","유효 퇴근","확인 휴게 구간",
                     "소정(HH:mm:ss.SSS)","체류(HH:mm:ss.SSS)","확인 실근로(HH:mm:ss.SSS)","확인 휴게(HH:mm:ss.SSS)",
-                    "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)","유급휴가 인정(ms)"));
+                    "일정 밖(HH:mm:ss.SSS)","일 8시간 초과 참고(HH:mm:ss.SSS)","야간(HH:mm:ss.SSS)","휴일(HH:mm:ss.SSS)","법정 최종 연장(HH:mm:ss.SSS)","유급휴가 인정(ms)","지각(분)","조퇴(분)","결근"));
             rows.add(row("일자별 입력 근거는 저장된 결과 당시 값입니다. 소속은 출력 시점에 확인한 근무일별 적용 소속입니다."));
             for(var day:days) {
                 var evidence=day.id()==null?null:mapper.exportEvidence(actor.tenantId(),day.id());
@@ -456,7 +456,10 @@ public final class WorktimeService {
                         saved==null||saved.calendarVersionId()==null?null:saved.calendarVersionId().toString(),evidence==null?null:evidence.policyVersionId(),evidence==null?null:evidence.assessmentId(),
                         exportedEvents(saved,"IN"),exportedEvents(saved,"OUT"),exportedBreaks(saved),
                         humanDuration(r.scheduledMillis()),humanDuration(r.presenceMillis()),humanDuration(r.actualWorkMillis()),humanDuration(r.confirmedBreakMillis()),
-                        humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis()),r.paidLeaveMillis()));
+                        humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis()),r.paidLeaveMillis(),
+                        attendanceMinutes(day.current()?r.attendance().lateMillis():null),
+                        attendanceMinutes(day.current()?r.attendance().earlyLeaveMillis():null),
+                        day.current()&&r.attendance().absence()!=null?("FULL".equals(r.attendance().absence())?"결근":"결근(반일)"):null));
             }
             long sum=days.stream().filter(DayView::current).map(DayView::result).filter(r->r.actualWorkMillis()!=null).mapToLong(DayResult::actualWorkMillis).sum();
             long unresolved=days.stream().filter(d->!d.current()||d.result().actualWorkMillis()==null).count();
@@ -521,6 +524,7 @@ public final class WorktimeService {
             rows.set(List.copyOf(mapper.audits(actor.tenantId())));return new Change(actor.tenantId(),null,Map.of("returnedCount",rows.get().size()));
         });return rows.get();
     }
+    private static Long attendanceMinutes(Long millis) {return millis==null?null:(millis+59_999L)/60_000L;}
     private static String humanDuration(Long millis) {
         if(millis==null)return null;
         return String.format(Locale.ROOT,"%02d:%02d:%02d.%03d",millis/3_600_000,millis/60_000%60,millis/1_000%60,millis%1_000);

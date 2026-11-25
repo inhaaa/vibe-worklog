@@ -104,6 +104,39 @@ class DailyAttendanceResultIT {
         assertEquals("CALC-2", days.get(0).ruleVersion());
     }
 
+    @Test void reviewWorkbookAppendsLatenessEarlyLeaveAndAbsenceColumns() throws Exception {
+        record(MONDAY, 8, 7, 17, 0);
+        var before = clocks.day(employee, MONDAY);
+        clocks.confirm(employee, new ConfirmationForm(MONDAY, 2L, 0L, true, true, before.sourceFingerprint(), UUID.randomUUID()));
+        worktime.recalculate(manager, employee.employeeId(), MONDAY, TUESDAY, UUID.randomUUID(), "합성 재집계");
+
+        UUID snapshot = worktime.prepareExport(manager, employee.employeeId(), MONDAY, TUESDAY.plusDays(1), UUID.randomUUID(), "합성 판정 열");
+        String sheet = null;
+        try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(worktime.download(manager, snapshot)), java.nio.charset.StandardCharsets.UTF_8)) {
+            for (var e = zip.getNextEntry(); e != null; e = zip.getNextEntry())
+                if (e.getName().equals("xl/worksheets/sheet1.xml")) sheet = new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        assertNotNull(sheet);
+        var cell = java.util.regex.Pattern.compile("<c r=\"[A-Z]+\\d+\" t=\"(?:n|inlineStr)\"><(?:v|is><t[^>]*)>(.*?)</(?:v|t></is)></c>");
+        var rows = new java.util.ArrayList<List<String>>();
+        for (String row : sheet.split("<row ")) {
+            var cells = new java.util.ArrayList<String>();
+            var m = cell.matcher(row);
+            while (m.find()) cells.add(m.group(1));
+            rows.add(cells);
+        }
+        var header = rows.stream().filter(r -> r.contains("유급휴가 인정(ms)")).findFirst().orElseThrow();
+        assertEquals(List.of("지각(분)", "조퇴(분)", "결근"), header.subList(header.size() - 3, header.size()));
+        assertEquals(List.of("7", "0", "미확정"), lastThree(rows, MONDAY));
+        assertEquals("결근", lastThree(rows, TUESDAY).get(2));
+        assertEquals(List.of("미확정", "미확정", "미확정"), lastThree(rows, TUESDAY.plusDays(1)));
+    }
+
+    private static List<String> lastThree(List<List<String>> rows, LocalDate date) {
+        var row = rows.stream().filter(r -> r.size() > 40 && r.get(2).equals(date.toString())).findFirst().orElseThrow();
+        return row.subList(row.size() - 3, row.size());
+    }
+
     @Test void halfDayLeavePartReachesTheCalculator() {
         approvedHalfDayLeave(MONDAY, "AM");
         record(MONDAY, 13, 5, 17, 0);
