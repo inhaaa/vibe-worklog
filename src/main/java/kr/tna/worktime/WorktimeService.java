@@ -40,6 +40,7 @@ import kr.tna.worktime.SelectiveSettlement.Action;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
@@ -357,23 +358,38 @@ public final class WorktimeService {
         }
         if(todo.isEmpty())return 0;
         UUID runId=UUID.randomUUID();
+        // 실행 기록의 from/to는 계산한 날짜의 처음과 끝일 뿐이며, 그 사이 날짜가 모두 계산된 것은 아니다(연속하지 않을 수 있음).
         changed(mapper.insertRun(tenant,runId,employee.id(),requestedBy,todo.getFirst(),todo.getLast(),todo.getFirst(),todo.getLast()));
         for(LocalDate d:todo) storeResult(tenant,runId,employee,d);
         changed(mapper.completeRun(tenant,runId));
         return todo.size();
     }
-    /** 결재 처리 직후 대상 사원의 재집계 필요 날짜를 계산한다. 실패해도 결재는 유지되고 그날은 '재집계 필요'로 남는다. */
+    /**
+     * 결재 처리 직후 신청 기간 안의 대상 사원 재집계 필요 날짜를 계산한다. 실패해도 결재는 유지되고 그날은 '재집계 필요'로 남는다.
+     * 결재 트랜잭션이 커밋된 뒤에만 부른다. 진행 중인 트랜잭션 안에서 부르면 아무것도 하지 않는다.
+     */
     public void recalculateAfterDecision(TnaPrincipal actor,UUID requestId) {
         if(actor==null||requestId==null)return;
+        if(TransactionSynchronizationManager.isActualTransactionActive()) {
+            LOG.warn("event=worktime_decision_recalculate outcome=skipped cause=active_transaction requestId={}",requestId);
+            return;
+        }
         try {
             transactions.execute(actor.tenantId(),()->{
-                UUID target=mapper.requestTarget(actor.tenantId(),requestId);
-                if(target==null)return 0;
-                return calculateDatesAsSystem(actor.tenantId(),actor.accountId(),target,
-                        mapper.recalculationDates(actor.tenantId(),target,LocalDate.now(clock.withZone(SEOUL))));
+                UUID tenant=actor.tenantId();
+                // 재집계 필요 표시를 읽기 전에 다른 쓰기와 직렬화한다(calculateDatesAsSystem의 재잠금은 같은 트랜잭션이라 즉시 통과).
+                mapper.lockForWrite(tenant);
+                var request=mapper.requestTarget(tenant,requestId);
+                if(request==null||request.fromDate()==null)return 0;
+                LocalDate today=LocalDate.now(clock.withZone(SEOUL));
+                LocalDate to=request.toDate()==null?request.fromDate():request.toDate();
+                if(to.isAfter(today))to=today;
+                if(to.isBefore(request.fromDate()))return 0;
+                return calculateDatesAsSystem(tenant,actor.accountId(),request.targetEmployeeId(),
+                        mapper.recalculationDates(tenant,request.targetEmployeeId(),request.fromDate(),to));
             });
         } catch(RuntimeException failed) {
-            LOG.warn("event=worktime_decision_recalculate outcome=failed cause={}",failed.getClass().getSimpleName());
+            LOG.warn("event=worktime_decision_recalculate outcome=failed requestId={} cause={}",requestId,failed.getClass().getSimpleName());
         }
     }
     public UUID reviewPolicy(TnaPrincipal actor,PolicyForm form) {

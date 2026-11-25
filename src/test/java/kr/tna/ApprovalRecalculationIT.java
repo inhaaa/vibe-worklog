@@ -5,6 +5,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -43,6 +44,7 @@ class ApprovalRecalculationIT {
     @Autowired LeaveWorkflowService flow;
     @Autowired ClockService clocks;
     @Autowired ApproverService approvers;
+    @Autowired Clock clock;
     private JdbcTemplate db;
     private UUID tenant;
     private LocalDate today, past;
@@ -61,7 +63,7 @@ class ApprovalRecalculationIT {
 
     @BeforeEach void absentPastWorkday() {
         db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
-        today = LocalDate.now(SEOUL);
+        today = LocalDate.now(clock.withZone(SEOUL));
         past = today.minusDays(2);
         tenant = UUID.randomUUID();
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 결재 재집계 고객사')", tenant, "RECALC-" + tenant);
@@ -101,6 +103,29 @@ class ApprovalRecalculationIT {
         var row = latest();
         assertNull(row.get("absence"));
         assertTrue(row.get("reason_codes").toString().contains("APPROVED_LEAVE_NO_ATTENDANCE"), row.get("reason_codes").toString());
+        assertEquals(approver.accountId(), db.queryForObject("""
+                SELECT r.requested_by FROM tna.calculation_run r JOIN tna.day_result d ON d.tenant_id=r.tenant_id AND d.run_id=r.id
+                WHERE d.tenant_id=? AND d.employee_id=? AND d.work_date=? ORDER BY d.result_revision DESC LIMIT 1""",
+                UUID.class, tenant, employee.employeeId(), past));
+        assertFalse(flagged(past), "계산한 날은 재집계 필요 표시가 풀립니다.");
+    }
+
+    @Test void onlyFlaggedDaysInsideTheRequestRangeAreRecalculated() throws Exception {
+        LocalDate older = past.minusDays(3);
+        db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required) VALUES (?,?,?,0,1,true)",
+                tenant, employee.employeeId(), older);
+
+        submitCorrection();
+
+        assertNull(latest().get("absence"), "신청일은 다시 계산됩니다.");
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                Integer.class, tenant, employee.employeeId(), older), "신청 기간 밖의 재집계 필요 날짜는 계산하지 않습니다.");
+        assertTrue(flagged(older));
+    }
+
+    private boolean flagged(LocalDate date) {
+        return db.queryForObject("SELECT recalculation_required FROM tna.day_input_revision WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                Boolean.class, tenant, employee.employeeId(), date);
     }
 
     @Test void correctionSubmissionRejectionAndWithdrawalRecalculateTheDay() throws Exception {

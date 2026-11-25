@@ -115,14 +115,15 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     Object lock(@Param("tenantId") UUID tenantId);
     @Select("SELECT pg_advisory_xact_lock(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lockForWrite(@Param("tenantId") UUID tenantId);
-    @Select("SELECT target_employee_id FROM tna.approval_request WHERE tenant_id=#{tenantId} AND id=#{id}")
-    UUID requestTarget(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    @Select("SELECT target_employee_id,from_date,to_date FROM tna.approval_request WHERE tenant_id=#{tenantId} AND id=#{id}")
+    RequestTarget requestTarget(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     @Select("""
         SELECT work_date FROM tna.day_input_revision
-        WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND recalculation_required AND work_date<=#{today}
+        WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND recalculation_required AND work_date BETWEEN #{from} AND #{to}
         ORDER BY work_date
         """)
-    List<LocalDate> recalculationDates(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
+    List<LocalDate> recalculationDates(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,
+            @Param("from") LocalDate from,@Param("to") LocalDate to);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
     String companyName(@Param("tenantId") UUID tenantId);
     @Select("""
@@ -277,6 +278,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     AuditDetailRow auditDetailRow(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
     record AuditDetailRow(UUID id,UUID commandId,UUID requestTraceId,UUID actorAccountId,String action,
             String targetKind,UUID targetId,String reason,Instant at,String beforeJson,String afterJson) { }
+    record RequestTarget(UUID targetEmployeeId,LocalDate fromDate,LocalDate toDate) { }
     record ExportEvidence(String clockJson,String policyVersionId,String assessmentId) { }
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
