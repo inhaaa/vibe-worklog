@@ -625,7 +625,9 @@ git commit -m "feat: add attendance judgement columns and automatic confirmation
         for(LocalDate d:targets) {
             var in=input(tenant,employee,d);var saved=stored.get(d);
             Instant dayEnd=d.plusDays(1).atStartOfDay(SEOUL).toInstant();
-            boolean fresh=saved!=null&&current(in.clock(),in.source(),saved.inputRevision(),saved.reviewRevision(),saved.sourceFingerprint())
+            // CALC-1 결과나 날이 끝나기 전에 계산된 결과는 결근 판정이 빠져 있으므로 다시 계산한다.
+            boolean fresh=saved!=null&&"CALC-2".equals(saved.ruleVersion())
+                    &&current(in.clock(),in.source(),saved.inputRevision(),saved.reviewRevision(),saved.sourceFingerprint())
                     &&(d.equals(today)||!saved.calculatedAt().isBefore(dayEnd));
             if(!fresh)todo.add(d);
         }
