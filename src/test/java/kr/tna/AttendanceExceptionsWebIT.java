@@ -33,7 +33,7 @@ class AttendanceExceptionsWebIT {
     @Autowired MockMvc mvc;
     private JdbcTemplate db;
     private UUID tenant;
-    private TnaPrincipal admin, worker, other;
+    private TnaPrincipal admin, worker, other, third;
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry props) {
@@ -60,6 +60,12 @@ class AttendanceExceptionsWebIT {
         result(other, "2026-10-06", 1, null, null, "FULL");          // 결근
         result(other, "2026-10-07", 1, 300_000L, 0L, null);          // 지각이었으나
         result(other, "2026-10-07", 2, 0L, 0L, null);                // 최신 결과는 정상
+        third = member(tenant, "E03", null);
+        result(third, "2026-10-12", 1, null, null, "FULL");          // 결근이었으나 입력이 바뀌어 오래됨
+        db.update("UPDATE tna.day_input_revision SET input_revision=2 WHERE tenant_id=? AND employee_id=? AND work_date=DATE '2026-10-12'",
+                tenant, third.employeeId());
+        result(third, "2026-10-13", 1, null, null, "HALF");          // 결근(반일)
+        result(third, "2026-10-14", 1, 180_000L, 600_000L, null);    // 지각 3분 · 조퇴 10분
         UUID foreign = company();
         result(member(foreign, "E01", "ATTENDANCE_ADMIN"), "2026-10-05", 1, 600_000L, 0L, null);
     }
@@ -71,32 +77,81 @@ class AttendanceExceptionsWebIT {
                 .andExpect(ReactPageAssertions.data("/canViewCheckout", true))
                 .andExpect(ReactPageAssertions.data("/attendanceExceptions/month", MONTH))
                 .andExpect(ReactPageAssertions.data("/attendanceExceptions/kind", "ALL"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/late", 1))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/earlyLeave", 1))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/absent", 1))
-                .andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(3))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/workDate", "2026-10-09"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/label", "조퇴 30분"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/employeeId", other.employeeId()))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/employeeNo", "E02"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/employeeName", "합성 E02"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/workDate", "2026-10-06"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/label", "결근"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/2/employeeId", worker.employeeId()))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/2/label", "지각 7분"))
+                // 지각·조퇴가 함께인 날은 한 행이고 두 건수에 모두 들어간다. 오래된 결근은 세지 않는다.
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/late", 2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/earlyLeave", 2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/absent", 2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/truncated", false))
+                .andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(5))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/workDate", "2026-10-14"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/label", "지각 3분 · 조퇴 10분"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/workDate", "2026-10-13"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/label", "결근(반일)"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/2/workDate", "2026-10-09"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/2/label", "조퇴 30분"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/3/employeeId", other.employeeId()))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/3/employeeNo", "E02"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/3/employeeName", "합성 E02"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/3/workDate", "2026-10-06"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/3/label", "결근"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/4/employeeId", worker.employeeId()))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/4/label", "지각 7분"))
                 .andExpect(jsonPath("$.data.attendanceExceptions.error").doesNotExist());
         mvc.perform(exceptions(admin).param("kind", "ABSENT"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(1))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/label", "결근"))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/late", 1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/label", "결근(반일)"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/label", "결근"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/late", 2));
         mvc.perform(exceptions(admin).param("kind", "LATE"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(1))
-                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/workDate", "2026-10-05"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/workDate", "2026-10-14"))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/workDate", "2026-10-05"));
+        mvc.perform(exceptions(admin).param("kind", "EARLY_LEAVE"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(2))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/1/workDate", "2026-10-09"));
         // 날짜 링크가 가리키는 월별 근무현황도 그 사원·월을 연다.
         mvc.perform(get("/company/attendance").with(as(admin)).accept(PAGE_JSON)
                         .param("employeeId", other.employeeId().toString()).param("month", MONTH))
                 .andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.data("/companyAttendance/employeeId", other.employeeId()));
+    }
+
+    @Test
+    void countsCoverTheWholeMonthAndTheKindFilterRunsBeforeTheRowCap() throws Exception {
+        UUID big = company();
+        var bigAdmin = member(big, "ADMIN", "ATTENDANCE_ADMIN");
+        db.update("""
+                INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on)
+                SELECT ?, gen_random_uuid(), 'T' || lpad(g::text, 3, '0'), '합성 다수', DATE '2025-01-01' FROM generate_series(1, 34) g""", big);
+        db.update("""
+                INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version)
+                SELECT tenant_id, gen_random_uuid(), id, NULL, DATE '2026-10-01', DATE '2026-10-31', DATE '2026-10-01', DATE '2026-10-31', 'CALC-2'
+                FROM tna.employee WHERE tenant_id=? AND employee_no LIKE 'T%'""", big);
+        db.update("""
+                INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
+                SELECT run.tenant_id, run.employee_id, d::date, 1, 0, false
+                FROM tna.calculation_run run CROSS JOIN generate_series(DATE '2026-10-01', DATE '2026-10-31', INTERVAL '1 day') d
+                WHERE run.tenant_id=?""", big);
+        db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                  source_fingerprint,rule_version,status,leave_days,reason_codes,input_refs,late_millis,early_leave_millis,absence)
+                SELECT run.tenant_id, gen_random_uuid(), run.id, run.employee_id, d::date, 1, 1, 0, repeat('b', 64), 'CALC-2', 'CALCULATED', 0,
+                  '[]'::jsonb, '[]'::jsonb, 60000, 0, NULL
+                FROM tna.calculation_run run CROSS JOIN generate_series(DATE '2026-10-01', DATE '2026-10-31', INTERVAL '1 day') d
+                WHERE run.tenant_id=?""", big);
+        var single = member(big, "ABSENT-1", null);
+        result(single, "2026-10-01", 1, null, null, "FULL");
+
+        mvc.perform(exceptions(bigAdmin).param("kind", "ALL"))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/late", 34 * 31))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/counts/absent", 1))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/truncated", true))
+                .andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(1000));
+        // 결근 한 건은 지각 1000행 뒤로 밀리지 않는다.
+        mvc.perform(exceptions(bigAdmin).param("kind", "ABSENT"))
+                .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/attendanceExceptions/truncated", false))
+                .andExpect(jsonPath("$.data.attendanceExceptions.rows.length()").value(1))
+                .andExpect(ReactPageAssertions.data("/attendanceExceptions/rows/0/employeeId", single.employeeId()));
     }
 
     @Test
@@ -119,6 +174,9 @@ class AttendanceExceptionsWebIT {
     private void result(TnaPrincipal person, String date, int revision, Long late, Long early, String absence) {
         UUID run = UUID.randomUUID();
         LocalDate day = LocalDate.parse(date);
+        db.update("""
+                INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
+                VALUES (?,?,?,1,0,false) ON CONFLICT DO NOTHING""", person.tenantId(), person.employeeId(), day);
         db.update("""
                 INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version)
                 VALUES (?,?,?,NULL,?,?,?,?,'CALC-2')""", person.tenantId(), run, person.employeeId(), day, day, day, day);

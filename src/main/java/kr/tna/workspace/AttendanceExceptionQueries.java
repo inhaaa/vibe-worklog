@@ -20,13 +20,10 @@ public final class AttendanceExceptionQueries {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     public record Row(UUID employeeId, String employeeNo, String employeeName, LocalDate workDate, String label) { }
     public record Counts(int late, int earlyLeave, int absent) { }
-    public record View(String month, String kind, Counts counts, List<Row> rows, String error) { }
+    public record View(String month, String kind, Counts counts, List<Row> rows, boolean truncated, String error) { }
     public record Result(UUID employeeId, String employeeNo, String employeeName, LocalDate workDate,
-            Long lateMillis, Long earlyLeaveMillis, String absence) {
-        boolean late() { return lateMillis != null && lateMillis > 0; }
-        boolean earlyLeave() { return earlyLeaveMillis != null && earlyLeaveMillis > 0; }
-        boolean absent() { return absence != null; }
-    }
+            Long lateMillis, Long earlyLeaveMillis, String absence) { }
+    private static final int LIMIT = 1000;
 
     private final CompanyReadAccess company;
     private final OrgCommands administration;
@@ -53,20 +50,15 @@ public final class AttendanceExceptionQueries {
         if (requestedMonth != null) {
             if (!requestedMonth.matches("[0-9]{4}-(0[1-9]|1[0-2])") || YearMonth.parse(requestedMonth).getYear() == 0
                     || YearMonth.parse(requestedMonth).isAfter(latest))
-                return new View(requestedMonth, KINDS.contains(kind) ? kind : "ALL", none, List.of(), "조회 월을 확인해 주세요.");
+                return new View(requestedMonth, KINDS.contains(kind) ? kind : "ALL", none, List.of(), false, "조회 월을 확인해 주세요.");
             month = YearMonth.parse(requestedMonth);
         }
-        if (!KINDS.contains(kind)) return new View(month.toString(), "ALL", none, List.of(), "올바른 구분을 선택해 주세요.");
-        var results = mapper.attendanceExceptions(tenantId, month.atDay(1), month.plusMonths(1).atDay(1));
-        var counts = new Counts((int) results.stream().filter(Result::late).count(),
-                (int) results.stream().filter(Result::earlyLeave).count(), (int) results.stream().filter(Result::absent).count());
-        var rows = results.stream().filter(r -> switch (kind) {
-            case "LATE" -> r.late();
-            case "EARLY_LEAVE" -> r.earlyLeave();
-            case "ABSENT" -> r.absent();
-            default -> true;
-        }).map(r -> new Row(r.employeeId(), r.employeeNo(), r.employeeName(), r.workDate(),
+        if (!KINDS.contains(kind)) return new View(month.toString(), "ALL", none, List.of(), false, "올바른 구분을 선택해 주세요.");
+        LocalDate from = month.atDay(1), to = month.plusMonths(1).atDay(1);
+        var results = mapper.attendanceExceptions(tenantId, from, to, kind);
+        var rows = results.stream().limit(LIMIT).map(r -> new Row(r.employeeId(), r.employeeNo(), r.employeeName(), r.workDate(),
                 AttendanceLabel.of(r.lateMillis(), r.earlyLeaveMillis(), r.absence()))).toList();
-        return new View(month.toString(), kind, counts, rows, null);
+        return new View(month.toString(), kind, mapper.attendanceExceptionCounts(tenantId, from, to), rows,
+                results.size() > LIMIT, null);
     }
 }

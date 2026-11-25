@@ -183,6 +183,21 @@ class AutoBreakConfirmationIT {
         page(period).andExpect(jsonPath("$.data.attendancePeriod.rows[0].attendanceLabel").value("지각 7분"));
         page("/me/schedule?month=2026-11").andExpect(jsonPath("$.data.workspaceCalendar.days[?(@.snapshot.workDate == '" + DAY + "')].attendanceLabel")
                 .value(org.hamcrest.Matchers.contains("지각 7분")));
+        page(manager, "/company/attendance?employeeId=" + employee.employeeId() + "&month=2026-11")
+                .andExpect(jsonPath("$.data.companyAttendance.days[?(@.workDate == '" + DAY + "')].attendanceLabel")
+                        .value(org.hamcrest.Matchers.contains("지각 7분")));
+    }
+
+    @Test void homeAndCompanyDrillDownDropTheStoredLatenessOnceTheResultIsStale() throws Exception {
+        clockIn(8, 7);
+        clockOut(17, 0, UUID.randomUUID());
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("지각 7분"));
+        db.update("UPDATE tna.day_input_revision SET input_revision=input_revision+1 WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                tenant, employee.employeeId(), DAY);
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value(org.hamcrest.Matchers.nullValue()));
+        page(manager, "/company/attendance?employeeId=" + employee.employeeId() + "&month=2026-11")
+                .andExpect(jsonPath("$.data.companyAttendance.days[?(@.workDate == '" + DAY + "')].attendanceLabel")
+                        .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
     }
 
     @Test void homeShowsMissingClockInEvenWhenTodayHasAStoredResultWithoutJudgement() throws Exception {
@@ -193,8 +208,9 @@ class AutoBreakConfirmationIT {
         page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("미출근"));
     }
 
-    private ResultActions page(String url) throws Exception {
-        var actor = new TnaPrincipal(tenant, employee.accountId(), employee.employeeId(), 1, employee.roles(), clock.instant());
+    private ResultActions page(String url) throws Exception { return page(employee, url); }
+    private ResultActions page(TnaPrincipal who, String url) throws Exception {
+        var actor = new TnaPrincipal(tenant, who.accountId(), who.employeeId(), 1, who.roles(), clock.instant());
         var authorities = actor.roles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList();
         return mvc.perform(get(url).with(authentication(new UsernamePasswordAuthenticationToken(actor, null, authorities)))
                 .accept(ReactPageViewResolver.MEDIA_TYPE)).andExpect(status().isOk());

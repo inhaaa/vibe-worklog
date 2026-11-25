@@ -81,7 +81,7 @@ public final class WorkspaceQueries {
         var snapshots = dates.stream().map(date -> clocks.snapshot(actor.tenantId(), actor.employeeId(), date)).toList();
         var requests = leave.mine(actor).stream().filter(row -> actor.employeeId().equals(row.targetEmployeeId())).toList();
         Map<UUID, List<RequestDay>> evidence = new HashMap<>();
-        // ponytail: 홈은 최신 저장 결과를 그대로 쓴다(최신성 검사 생략). 새벽 일괄·즉시 계산이 결과를 갱신한다.
+        // ponytail: 홈은 입력·검토 개정만 비교한다(원천 지문 비교 생략). 새벽 일괄·즉시 계산이 결과를 갱신한다.
         Map<LocalDate, String> marks = new HashMap<>();
         for (var mark : schedules.attendanceMarks(actor.tenantId(), actor.employeeId(), dates.getFirst(), dates.getLast()))
             marks.put(mark.workDate(), AttendanceLabel.of(mark.lateMillis(), mark.earlyLeaveMillis(), mark.absence()));

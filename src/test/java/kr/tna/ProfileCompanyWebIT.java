@@ -148,7 +148,8 @@ class ProfileCompanyWebIT {
             assertTrue(day.get("scheduledMillis").isNull());
             assertEquals(0.0, day.required("leaveDays").doubleValue());
             assertEquals(0L, day.required("paidLeaveMillis").longValue());
-            assertEquals(7, day.size());
+            assertTrue(day.get("attendanceLabel").isNull());
+            assertEquals(8, day.size());
         }
         String body = result.getResponse().getContentAsString();
         for (String secret : new String[]{PRIVATE_REASON, "sourceFingerprint", "validatedIp", "reasonCodes", "inputRefs", "@example.test"}) {

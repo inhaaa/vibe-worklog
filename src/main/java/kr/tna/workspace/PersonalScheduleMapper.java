@@ -32,10 +32,15 @@ public interface PersonalScheduleMapper {
             """)
     List<Break> breaks(UUID tenant, UUID version);
 
+    // 최신 결과가 오래되면(입력·검토 개정이 바뀌면) 표시하지 않는다. 홈은 기록 규칙으로 돌아간다.
     @Select("""
-            SELECT DISTINCT ON(work_date) work_date,late_millis,early_leave_millis,absence FROM tna.day_result
-            WHERE tenant_id=#{tenant} AND employee_id=#{employee} AND work_date BETWEEN #{from} AND #{to}
-            ORDER BY work_date,result_revision DESC
+            SELECT r.work_date,r.late_millis,r.early_leave_millis,r.absence
+            FROM (SELECT DISTINCT ON(work_date) work_date,input_revision,review_revision,late_millis,early_leave_millis,absence
+                  FROM tna.day_result
+                  WHERE tenant_id=#{tenant} AND employee_id=#{employee} AND work_date BETWEEN #{from} AND #{to}
+                  ORDER BY work_date,result_revision DESC) r
+            LEFT JOIN tna.day_input_revision rev ON rev.tenant_id=#{tenant} AND rev.employee_id=#{employee} AND rev.work_date=r.work_date
+            WHERE r.input_revision=COALESCE(rev.input_revision,0) AND r.review_revision=COALESCE(rev.review_revision,0)
             """)
     List<AttendanceMark> attendanceMarks(UUID tenant, UUID employee, LocalDate from, LocalDate to);
 

@@ -141,18 +141,39 @@ public interface ProfileCompanyMapper {
             @Param("organizationId") UUID organizationId, @Param("status") String status,
             @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset, @Param("scope") String scope);
 
-    // ponytail: 한 달 최대 1000행, 페이지 없음. 넘으면 페이지를 추가한다.
-    @Select("""
-            SELECT r.employee_id, e.employee_no, e.display_name AS employee_name, r.work_date,
-              r.late_millis, r.early_leave_millis, r.absence
-            FROM (SELECT DISTINCT ON (employee_id, work_date) employee_id, work_date, late_millis, early_leave_millis, absence
-                  FROM tna.day_result WHERE tenant_id=#{tenantId} AND work_date>=#{from} AND work_date<#{to}
-                  ORDER BY employee_id, work_date, result_revision DESC) r
-            JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=r.employee_id
-            WHERE r.late_millis>0 OR r.early_leave_millis>0 OR r.absence IS NOT NULL
-            ORDER BY r.work_date DESC, e.employee_no
-            LIMIT 1000
+    /** 직원·날짜별 최신 결과 중 입력·검토 개정이 현재인 지각·조퇴·결근. 오래된 결과는 세지 않는다. */
+    String CURRENT_EXCEPTIONS = """
+            WITH latest AS (
+              SELECT r.employee_id, r.work_date, r.late_millis, r.early_leave_millis, r.absence
+              FROM (SELECT DISTINCT ON (employee_id, work_date) employee_id, work_date, input_revision, review_revision,
+                      late_millis, early_leave_millis, absence
+                    FROM tna.day_result WHERE tenant_id=#{tenantId} AND work_date>=#{from} AND work_date<#{to}
+                    ORDER BY employee_id, work_date, result_revision DESC) r
+              LEFT JOIN tna.day_input_revision rev ON rev.tenant_id=#{tenantId} AND rev.employee_id=r.employee_id
+                AND rev.work_date=r.work_date
+              WHERE r.input_revision=COALESCE(rev.input_revision,0) AND r.review_revision=COALESCE(rev.review_revision,0)
+                AND (r.late_millis>0 OR r.early_leave_millis>0 OR r.absence IS NOT NULL))
+            """;
+
+    @Select(CURRENT_EXCEPTIONS + """
+            SELECT count(*) FILTER (WHERE late_millis>0)::int AS late,
+              count(*) FILTER (WHERE early_leave_millis>0)::int AS early_leave,
+              count(*) FILTER (WHERE absence IS NOT NULL)::int AS absent
+            FROM latest
+            """)
+    AttendanceExceptionQueries.Counts attendanceExceptionCounts(@Param("tenantId") UUID tenantId,
+            @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    // ponytail: 한 달 최대 1000행(1001행째로 잘림 여부만 판단), 페이지 없음. 넘으면 페이지를 추가한다.
+    @Select(CURRENT_EXCEPTIONS + """
+            SELECT l.employee_id, e.employee_no, e.display_name AS employee_name, l.work_date,
+              l.late_millis, l.early_leave_millis, l.absence
+            FROM latest l JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=l.employee_id
+            WHERE #{kind}='ALL' OR (#{kind}='LATE' AND l.late_millis>0)
+              OR (#{kind}='EARLY_LEAVE' AND l.early_leave_millis>0) OR (#{kind}='ABSENT' AND l.absence IS NOT NULL)
+            ORDER BY l.work_date DESC, e.employee_no
+            LIMIT 1001
             """)
     List<AttendanceExceptionQueries.Result> attendanceExceptions(@Param("tenantId") UUID tenantId,
-            @Param("from") LocalDate from, @Param("to") LocalDate to);
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("kind") String kind);
 }

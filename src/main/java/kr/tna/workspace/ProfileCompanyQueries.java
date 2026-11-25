@@ -14,6 +14,7 @@ import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.common.tenant.CompanyReadAccess;
 import kr.tna.org.OrgException;
 import kr.tna.request.LeaveWorkflowService;
+import kr.tna.worktime.AttendanceLabel;
 import kr.tna.worktime.WorktimeService;
 import kr.tna.workspace.ProfileCompanyData.*;
 import org.springframework.stereotype.Service;
@@ -73,7 +74,8 @@ public final class ProfileCompanyQueries {
                             day.workDate(), day.current() ? day.result().scheduledMillis() : null,
                             day.current() ? day.result().actualWorkMillis() : null,
                             day.employed() ? day.approvedLeaveDays() : null, day.employed() ? day.approvedPaidLeaveMillis() : null,
-                            day.current() ? day.result().status().name() : "REVIEW_REQUIRED", day.current())).toList();
+                            day.current() ? day.result().status().name() : "REVIEW_REQUIRED", day.current(),
+                            day.current() ? AttendanceLabel.of(day.result().attendance()) : null)).toList();
             var attendance = new CompanyAttendance(month, clock.instant(), organizationId, selected == null ? null : selected.id(),
                     query, page, found.size() > 50, List.copyOf(mapper.organizations(actor.tenantId())), employees, selected, days);
             boolean canViewCheckout = actor.roles().contains("ATTENDANCE_ADMIN")
