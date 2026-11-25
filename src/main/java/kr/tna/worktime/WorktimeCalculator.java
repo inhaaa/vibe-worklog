@@ -205,8 +205,10 @@ public final class WorktimeCalculator {
         if (judged && !reasons.contains("DUPLICATE_CLOCK_EVENT") && !reasons.contains("INVALID_CLOCK_ORDER")
                 && !reasons.contains("CROSS_MIDNIGHT_UNSUPPORTED")) {
             Instant expectedStart = schedule.start(), expectedEnd = schedule.end();
-            Interval first = schedule.plannedBreaks().stream().min(Comparator.comparing(Interval::start)).orElse(null);
             Instant middle = schedule.start().plus(Duration.between(schedule.start(), schedule.end()).dividedBy(2));
+            // 반차 기준 휴게: 가운데 시각 전에 시작하는 첫 휴게. 없으면 가운데 시각.
+            Interval first = schedule.plannedBreaks().stream().filter(b -> b.start().isBefore(middle))
+                    .min(Comparator.comparing(Interval::start)).orElse(null);
             if ("AM".equals(context.leavePart())) expectedStart = first == null ? middle : first.end();
             if ("PM".equals(context.leavePart())) expectedEnd = first == null ? middle : first.start();
             if (ins.size() == 1 && sameDay(ins.getFirst().occurredAt(), ins.getFirst().occurredAt(), input.workDate())) {

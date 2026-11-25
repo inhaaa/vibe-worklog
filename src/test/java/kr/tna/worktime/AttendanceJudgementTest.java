@@ -34,6 +34,11 @@ class AttendanceJudgementTest {
         return calculator.day(new DayInput(DATE, events, List.of(schedule), DayKind.WORKDAY, true, 0, 0, c, pending, leave, leave),
                 new AttendanceContext(ended, part));
     }
+    private DayResult judge(List<ClockEvent> events, List<Schedule> schedules, DayKind kind) {
+        return calculator.day(new DayInput(DATE, events, schedules, kind, true, 0, 0, breaks(), false, 0, 0),
+                new AttendanceContext(true, null));
+    }
+    private static ClockEvent event(EventKind kind, Instant at) { return new ClockEvent(UUID.randomUUID(), kind, at); }
 
     @Test void onTimeDayIsNormal() {
         var r = run(events("08:00", "17:00"), fixed("08:00", "17:00", "12:00", "13:00"), breaks("12:00", "13:00"), 0, null, true, false);
@@ -41,6 +46,9 @@ class AttendanceJudgementTest {
         assertEquals(0L, r.attendance().earlyLeaveMillis());
         assertNull(r.attendance().absence());
         assertEquals("정상", AttendanceLabel.of(r.attendance()));
+        assertEquals(WorktimeCalculator.Status.CALCULATED, r.status());
+        assertFalse(r.reasons().contains("LATE"));
+        assertFalse(r.reasons().contains("EARLY_LEAVE"));
     }
     @Test void oneSecondAfterStartIsLateAndRoundsUpToOneMinute() {
         var r = run(List.of(new ClockEvent(UUID.randomUUID(), EventKind.IN, at("08:00").plusSeconds(1)),
@@ -121,5 +129,58 @@ class AttendanceJudgementTest {
                 DayKind.WORKDAY, true, 0, 0, breaks("12:00", "13:00"), false, 0, 0));
         assertEquals(8 * 3_600_000L, r.actualWorkMillis());
         assertNotNull(r.attendance());
+        var late = calculator.day(new DayInput(DATE, events("08:07", "17:00"), List.of(fixed("08:00", "17:00", "12:00", "13:00")),
+                DayKind.WORKDAY, true, 0, 0, breaks("12:00", "13:00"), false, 0, 0));
+        assertEquals(7 * MIN, late.attendance().lateMillis());
+        assertTrue(late.reasons().contains("LATE"));
+        var empty = calculator.day(new DayInput(DATE, List.of(), List.of(fixed("08:00", "17:00", "12:00", "13:00")),
+                DayKind.WORKDAY, true, 0, 0, null, false, 0, 0));
+        assertNull(empty.attendance().absence());
+        assertTrue(empty.reasons().contains("MISSING_CLOCK_IN"));
+        assertTrue(empty.reasons().contains("MISSING_CLOCK_OUT"));
+        assertFalse(empty.reasons().contains("ABSENT"));
+    }
+    @Test void brokenClockRecordsLeaveLatenessAndEarlyLeaveUnjudged() {
+        var code = List.of(fixed("08:00", "17:00", "12:00", "13:00"));
+        var duplicate = judge(List.of(event(EventKind.IN, at("08:05")), event(EventKind.IN, at("08:10")),
+                event(EventKind.OUT, at("16:00"))), code, DayKind.WORKDAY);
+        assertTrue(duplicate.reasons().contains("DUPLICATE_CLOCK_EVENT"));
+        var reversed = judge(List.of(event(EventKind.IN, at("17:00")), event(EventKind.OUT, at("08:30"))), code, DayKind.WORKDAY);
+        assertTrue(reversed.reasons().contains("INVALID_CLOCK_ORDER"));
+        var crossMidnight = judge(List.of(event(EventKind.IN, at("08:30")),
+                event(EventKind.OUT, at("01:00").plus(Duration.ofDays(1)))), code, DayKind.WORKDAY);
+        assertTrue(crossMidnight.reasons().contains("CROSS_MIDNIGHT_UNSUPPORTED"));
+        for (var r : List.of(duplicate, reversed, crossMidnight)) {
+            assertNull(r.attendance().lateMillis());
+            assertNull(r.attendance().earlyLeaveMillis());
+            assertFalse(r.reasons().contains("LATE"));
+            assertFalse(r.reasons().contains("EARLY_LEAVE"));
+        }
+    }
+    @Test void onlyClockOutJudgesEarlyLeave() {
+        var r = judge(events(null, "16:30"), List.of(fixed("08:00", "17:00")), DayKind.WORKDAY);
+        assertNull(r.attendance().lateMillis());
+        assertEquals(30 * MIN, r.attendance().earlyLeaveMillis());
+        assertTrue(r.reasons().contains("MISSING_CLOCK_IN"));
+    }
+    @Test void loneClockInOnAnotherDateIsNotJudged() {
+        var r = judge(List.of(event(EventKind.IN, at("08:30").plus(Duration.ofDays(1)))), List.of(fixed("08:00", "17:00")), DayKind.WORKDAY);
+        assertNull(r.attendance().lateMillis());
+        assertEquals(Attendance.NONE, r.attendance());
+    }
+    @Test void notJudgedOnNonWorkdayUnconfirmedCalendarOrMissingSchedule() {
+        var code = List.of(fixed("08:00", "17:00"));
+        assertEquals(Attendance.NONE, judge(events("09:00", "16:00"), code, DayKind.NON_WORKDAY).attendance());
+        assertEquals(Attendance.NONE, judge(events("09:00", "16:00"), code, DayKind.UNCONFIRMED).attendance());
+        assertEquals(Attendance.NONE, judge(List.of(), code, DayKind.UNCONFIRMED).attendance());
+        assertEquals(Attendance.NONE, judge(events("09:00", "16:00"), List.of(), DayKind.WORKDAY).attendance());
+        assertEquals(Attendance.NONE, judge(List.of(), List.of(), DayKind.WORKDAY).attendance());
+    }
+    @Test void halfDayIgnoresBreaksStartingAfterMidpoint() {
+        var code = fixed("08:00", "17:00", "15:00", "15:30"); // 가운데 12:30
+        var am = run(events("13:00", "17:00"), code, breaks(), 0.5, "AM", true, false);
+        assertEquals(30 * MIN, am.attendance().lateMillis());
+        var pm = run(events("08:00", "12:30"), code, breaks(), 0.5, "PM", true, false);
+        assertEquals(0L, pm.attendance().earlyLeaveMillis());
     }
 }
