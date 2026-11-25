@@ -205,6 +205,62 @@ class CodeMigrationUpgradeIT {
         } finally {cluster.execute("DROP DATABASE "+database+" WITH (FORCE)");}
     }
 
+    @Test void v41ResultsAndConfirmationsSurviveTheV42AttendanceJudgementUpgrade() {
+        var fixture = DatabaseFixture.start(); var cluster = new JdbcTemplate(fixture.adminDataSource());
+        String database = "tna_daily_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        String url = fixture.jdbcUrl().replace("/" + DatabaseFixture.DATABASE_NAME, "/" + database);
+        assertNotEquals(url, fixture.jdbcUrl());
+        var original = (DriverManagerDataSource) fixture.adminDataSource();
+        var adminSource = new DriverManagerDataSource(url, original.getUsername(), original.getPassword());
+        var migrationSource = new DriverManagerDataSource(url, DatabaseFixture.MIGRATION_USER, DatabaseFixture.MIGRATION_PASSWORD);
+        cluster.execute("CREATE DATABASE " + database);
+        try {
+            var db = new JdbcTemplate(adminSource);
+            cluster.execute("REVOKE ALL ON DATABASE " + database + " FROM PUBLIC");
+            cluster.execute("GRANT CONNECT ON DATABASE " + database + " TO tna_migration,tna_app,tna_auth,tna_operator");
+            cluster.execute("GRANT CREATE ON DATABASE " + database + " TO tna_migration");
+            db.execute("GRANT USAGE,CREATE ON SCHEMA public TO tna_migration");
+            assertTrue(Flyway.configure().dataSource(migrationSource).target("41").load().migrate().success);
+            UUID tenant = UUID.randomUUID(), employee = UUID.randomUUID(), account = UUID.randomUUID(), run = UUID.randomUUID();
+            db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 업그레이드')", tenant, "UPG-" + tenant);
+            db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,'U1','합성 사원',DATE '2026-01-01')", tenant, employee);
+            db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,'synthetic-hash')", tenant, account, employee, account + "@example.test");
+            db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required) VALUES (?,?,DATE '2026-11-20',1,1,false)", tenant, employee);
+            db.update("""
+                INSERT INTO tna.work_confirmation(tenant_id,id,employee_id,work_date,confirmed_input_revision,review_revision,
+                  source_fingerprint,presence_as_work,breaks_match,confirmed_by,break_snapshot,client_command_id)
+                VALUES (?,?,?,DATE '2026-11-20',1,1,?,true,true,?,'[]'::jsonb,?)
+                """, tenant, UUID.randomUUID(), employee, "a".repeat(64), account, UUID.randomUUID());
+            db.update("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES (?,?,?,?,DATE '2026-11-20',DATE '2026-11-20',DATE '2026-11-20',DATE '2026-11-20','CALC-1')",
+                    tenant, run, employee, account);
+            db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                  source_fingerprint,rule_version,status,actual_work_millis,leave_days,reason_codes,input_refs)
+                VALUES (?,?,?,?,DATE '2026-11-20',1,1,1,?,'CALC-1','CALCULATED',28800000,0,'[]'::jsonb,'[]'::jsonb)
+                """, tenant, UUID.randomUUID(), run, employee, "b".repeat(64));
+
+            var upgrade = Flyway.configure().dataSource(migrationSource).target("42").load().migrate();
+            assertTrue(upgrade.success); assertEquals(1, upgrade.migrationsExecuted);
+
+            assertEquals(List.of(Map.of("method", "EMPLOYEE", "confirmed_by", account)),
+                    db.queryForList("SELECT method,confirmed_by FROM tna.work_confirmation WHERE tenant_id=?", tenant));
+            assertEquals(List.of(Map.of("engine_version", "CALC-1", "requested_by", account)),
+                    db.queryForList("SELECT engine_version,requested_by FROM tna.calculation_run WHERE tenant_id=?", tenant));
+            var result = db.queryForMap("SELECT rule_version,actual_work_millis,late_millis,early_leave_millis,absence FROM tna.day_result WHERE tenant_id=?", tenant);
+            assertEquals("CALC-1", result.get("rule_version")); assertEquals(28_800_000L, result.get("actual_work_millis"));
+            assertNull(result.get("late_millis")); assertNull(result.get("early_leave_millis")); assertNull(result.get("absence"));
+            // 다시 만든 검사 조건이 기존 CALC-1 행에 대해 검증된 상태여야 한다.
+            assertEquals(2, db.queryForObject("""
+                SELECT count(*) FROM pg_catalog.pg_constraint WHERE convalidated AND contype='c'
+                  AND conname IN ('calculation_run_engine_status_valid','day_result_fingerprint_rule_valid')""", Integer.class));
+            assertEquals(1, db.update("UPDATE tna.day_result SET rule_version=rule_version WHERE tenant_id=?", tenant));
+            assertEquals(1, db.update("UPDATE tna.calculation_run SET engine_version=engine_version WHERE tenant_id=?", tenant));
+            assertEquals(3, db.queryForObject("""
+                SELECT count(*) FROM pg_catalog.pg_class WHERE relrowsecurity AND relforcerowsecurity
+                  AND oid IN ('tna.work_confirmation'::regclass,'tna.day_result'::regclass,'tna.calculation_run'::regclass)""", Integer.class));
+        } finally { cluster.execute("DROP DATABASE " + database + " WITH (FORCE)"); }
+    }
+
     private static void verifySelectiveWorkUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {
         assertEquals(2,db.update("""
                 INSERT INTO tna.work_time_code(tenant_id,id,code)
