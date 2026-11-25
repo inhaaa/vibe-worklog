@@ -32,6 +32,8 @@ public interface ClockMapper extends ClosedAttendanceMonths {
               AND assigned_work_date=#{date} AND event_kind=#{kind})
             """)
     boolean recorded(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date,@Param("kind") String kind);
+    @Select("SELECT assigned_work_date FROM tna.attendance_event WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND id=#{id}")
+    LocalDate eventWorkDate(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("id") UUID id);
     String SELECTIVE_POLICY_COLUMNS = """
             COALESCE(time_code.work_mode, rest_policy.work_mode, 'FIXED') AS work_mode,
             time_code.core_start,time_code.core_end,time_code.standard_minutes,

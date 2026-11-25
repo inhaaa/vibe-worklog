@@ -285,8 +285,8 @@ public final class WorktimeService {
                 calculate(actor,employee(actor.tenantId(),target),from,to));
     }
     /**
-     * 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
-     * 같은 확인 명령을 다시 보내도 계산은 한 번이다. 확인 트랜잭션이 커밋된 뒤 별도로 호출한다.
+     * 퇴근 기록(자동 확인) 또는 본인 근무 확인 직후 그날이 속한 주(월~일)를 계산한다. 주 40시간 초과는 7일이 모두 현재 결과여야 나오므로 기록 없는 휴무일도 함께 계산한다.
+     * 같은 퇴근·확인 명령을 다시 보내도 계산은 한 번이다. 퇴근·확인 트랜잭션이 커밋된 뒤 별도로 호출한다.
      */
     public UUID calculateConfirmedDay(TnaPrincipal actor,LocalDate workDate,UUID confirmationCommandId) {
         if(actor==null)throw OrgException.forbidden();

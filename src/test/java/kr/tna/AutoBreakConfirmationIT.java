@@ -1,6 +1,11 @@
 package kr.tna;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,6 +23,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import kr.tna.clock.ClockData.Interval;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.org.OrgCommands;
+import kr.tna.org.OrgException;
+import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +40,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** 퇴근 기록이 예정 휴게를 자동 확인하고 같은 요청에서 근무시간을 계산하는지 확인한다. */
@@ -45,9 +54,12 @@ class AutoBreakConfirmationIT {
     @Autowired MockMvc mvc;
     @Autowired ClockService clocks;
     @Autowired TestClock clock;
+    // 스텁하지 않은 테스트에서는 실제 동작 그대로다. 스텁은 테스트마다 초기화된다.
+    @MockitoSpyBean WorktimeService worktime;
+    @MockitoSpyBean OrgCommands orgCommands;
     private JdbcTemplate db;
     private UUID tenant;
-    private TnaPrincipal employee;
+    private TnaPrincipal manager, employee;
 
     @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
         var f = DatabaseFixture.start();
@@ -63,7 +75,7 @@ class AutoBreakConfirmationIT {
         db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
         tenant = UUID.randomUUID();
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 자동확인 고객사')", tenant, "AUTO-" + tenant);
-        var manager = member("합성 담당자", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
+        manager = member("합성 담당자", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
         employee = member("합성 직원", Set.of("EMPLOYEE"));
         UUID template = UUID.randomUUID(), schedule = UUID.randomUUID();
         db.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,?,'합성 고정 일정',?,?)",
@@ -112,8 +124,7 @@ class AutoBreakConfirmationIT {
     @Test void autoConfirmationIsSkippedWhenRecordsAreIncomplete() throws Exception {
         clockOut(17, 0, UUID.randomUUID());
         assertEquals(0, confirmations());
-        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=? AND event_kind='OUT'",
-                Integer.class, tenant, employee.employeeId()));
+        assertEquals(1, outEvents());
     }
 
     @Test void replayingTheSameClockOutDoesNotDuplicate() throws Exception {
@@ -122,14 +133,47 @@ class AutoBreakConfirmationIT {
         clockOut(17, 0, command);
         clockOut(17, 1, command);
         assertEquals(1, confirmations());
+        assertEquals(1, outEvents());
         assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='WORKTIME_AUTO_CALCULATE'",
                 Integer.class, tenant));
+    }
+
+    @Test void failedCalculationKeepsTheClockOutAndItsAutoConfirmation() throws Exception {
+        doThrow(new OrgException(503, "합성 계산 실패")).when(worktime).calculateConfirmedDay(any(), any(), any());
+        clockIn(8, 0);
+        clockOut(17, 0, UUID.randomUUID());
+        assertEquals(1, outEvents());
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=? AND method='AUTO_SCHEDULE'",
+                Integer.class, tenant, employee.employeeId()));
+    }
+
+    @Test void clockOutJustBeforeMidnightIsCalculatedForTheRecordedWorkDate() throws Exception {
+        clockIn(8, 0);
+        // 기록 직후 계산 시점에는 이미 다음 날이 된 경우.
+        doReturn(DAY.plusDays(1)).when(orgCommands).today();
+        UUID command = UUID.randomUUID();
+        clock.now.set(DAY.atTime(23, 59, 59, 900_000_000).atZone(SEOUL).toInstant());
+        send("OUT", command);
+        verify(worktime).calculateConfirmedDay(any(), eq(DAY), eq(command));
+    }
+
+    @Test void closedMonthIsNotAutoConfirmed() throws Exception {
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,?,?,1,'CLOSED','합성 마감',?,'합성 담당자')""", tenant, UUID.randomUUID(), DAY.withDayOfMonth(1), manager.accountId());
+        clockIn(8, 0);
+        clockOut(17, 0, UUID.randomUUID());
+        assertEquals(0, confirmations());
+        assertEquals(1, outEvents());
     }
 
     private void clockIn(int hour, int minute) throws Exception { event("IN", hour, minute, UUID.randomUUID()); }
     private void clockOut(int hour, int minute, UUID command) throws Exception { event("OUT", hour, minute, command); }
     private void event(String kind, int hour, int minute, UUID command) throws Exception {
         clock.now.set(DAY.atTime(hour, minute).atZone(SEOUL).toInstant());
+        send(kind, command);
+    }
+    private void send(String kind, UUID command) throws Exception {
         // 세션 검증은 로그인 시각이 (시험) 시계보다 앞서고 12시간 안이어야 한다.
         var actor = new TnaPrincipal(tenant, employee.accountId(), employee.employeeId(), 1, employee.roles(), clock.instant());
         var authorities = actor.roles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList();
@@ -139,6 +183,10 @@ class AutoBreakConfirmationIT {
                 .andExpect(status().isSeeOther());
     }
     private List<Interval> breaks() { return clocks.day(employee, DAY).confirmation().breaks(); }
+    private int outEvents() {
+        return db.queryForObject("SELECT count(*) FROM tna.attendance_event WHERE tenant_id=? AND employee_id=? AND event_kind='OUT'",
+                Integer.class, tenant, employee.employeeId());
+    }
     private int confirmations() {
         return db.queryForObject("SELECT count(*) FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=?",
                 Integer.class, tenant, employee.employeeId());

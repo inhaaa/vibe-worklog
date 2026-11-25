@@ -121,6 +121,10 @@ public final class ClockService {
             return new Change(event.id(),null,event);
         });
     }
+    /** 본인 출퇴근 기록이 배정된 근무일. 자정 직전 퇴근도 기록 시점의 날짜로 계산하기 위해 쓴다. */
+    public LocalDate eventWorkDate(TnaPrincipal actor,UUID eventId) {
+        return commands.read(actor,()->mapper.eventWorkDate(actor.tenantId(),actor.employeeId(),eventId));
+    }
     public UUID confirm(TnaPrincipal actor,ConfirmationForm form) {
         if(form==null||form.workDate()==null)throw OrgException.invalid("확인할 근무일을 입력해 주세요.");
         String action="WORK_CONFIRM";
@@ -164,8 +168,9 @@ public final class ClockService {
         var check=confirmationCheck(day,now,true);
         if(check.error()!=null)return false;
         if(mapper.advanceReview(tenantId,employeeId,date,day.inputRevision(),day.reviewRevision())!=1)return false;
-        // 같은 입력 개정의 자동 확인은 한 번뿐이므로 명령 식별자도 그로부터 정한다.
-        UUID command=UUID.nameUUIDFromBytes(("AUTO_SCHEDULE:"+tenantId+":"+employeeId+":"+date+":"+day.inputRevision()).getBytes(StandardCharsets.UTF_8));
+        // 일정·휴일 변경은 입력 개정 없이 확인을 무효로 만들 수 있으므로 검토 개정까지 넣어 다시 확인할 때 겹치지 않게 한다.
+        UUID command=UUID.nameUUIDFromBytes(("AUTO_SCHEDULE:"+tenantId+":"+employeeId+":"+date+":"+day.inputRevision()+":"+day.reviewRevision())
+                .getBytes(StandardCharsets.UTF_8));
         changed(mapper.insertConfirmation(tenantId,UUID.randomUUID(),employeeId,date,day.inputRevision(),day.reviewRevision()+1,
                 day.sourceFingerprint(),now.truncatedTo(ChronoUnit.MILLIS),confirmedBy,json.writeValueAsString(check.breaks()),command,"AUTO_SCHEDULE"));
         return true;
