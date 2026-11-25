@@ -53,6 +53,13 @@ public interface HolidayMapper extends ClosedAttendanceMonths {
     int updateHoliday(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date, @Param("name") String name,
             @Param("category") String category, @Param("basis") String basis, @Param("actorId") UUID actorId);
 
+    /** 달력이 바뀐 날의 저장 결과를 오래됨으로 만든다. 검토 개정을 올리면 개정만 비교하는 조회(홈 표시·예외 탭)도 그 결과를 쓰지 않는다. */
+    @Update("""
+            UPDATE tna.day_input_revision SET review_revision=review_revision+1,recalculation_required=true
+            WHERE tenant_id=#{tenantId} AND work_date=#{date}
+            """)
+    int flagRecalculation(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date);
+
     @Delete("DELETE FROM tna.holiday WHERE tenant_id=#{tenantId} AND holiday_date=#{date}")
     int deleteHoliday(@Param("tenantId") UUID tenantId, @Param("date") LocalDate date);
 

@@ -150,6 +150,8 @@ public class HolidayService {
         int revision = mapper.nextRevision(tenant);
         for (var run : plan.periods()) write(actor, revision++, "PERIOD", run, reason);
         for (var day : plan.days()) write(actor, revision++, "DAY", List.of(day), reason);
+        // 달력 출처가 바뀌어도 사실 개정은 그대로라 새벽 작업(지난 7일·재집계 필요)이 오래된 날을 놓친다. 마감 월은 plan이 이미 뺐다.
+        for (var date : plan.dates()) mapper.flagRecalculation(tenant, date);
         mapper.saveYear(tenant, year, clock.instant().truncatedTo(ChronoUnit.MILLIS), actor.accountId());
 
         var changed = new TreeSet<LocalDate>(added);

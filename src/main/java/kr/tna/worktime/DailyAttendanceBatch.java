@@ -97,7 +97,8 @@ public class DailyAttendanceBatch {
         LocalDate from = today.minusDays(LOOKBACK_DAYS), yesterday = today.minusDays(1);
         List<UUID> employees;
         try {
-            employees = transactions.execute(tenant, () -> mapper.employedBetween(tenant, from, yesterday));
+            // 재집계 창(62일) 안에 재직한 사원 모두: 최근 퇴사자의 재집계 필요 날짜도 계산한다(재직 밖 날짜는 계산이 건너뛴다).
+            employees = transactions.execute(tenant, () -> mapper.employedBetween(tenant, today.minusDays(RECALCULATION_DAYS), yesterday));
         } catch (RuntimeException e) {
             if (connectionLost(e)) throw e;
             LOG.warn("event=daily_attendance_batch outcome=tenant_failed tenant={} cause={}", tenant, e.getClass().getSimpleName());

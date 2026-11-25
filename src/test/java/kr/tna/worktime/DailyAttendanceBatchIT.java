@@ -13,6 +13,9 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.DatabaseFixture;
+import kr.tna.clock.HolidayService;
+import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.workspace.AttendanceExceptionQueries;
 import kr.tna.common.tenant.TenantTransactions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,12 +33,15 @@ class DailyAttendanceBatchIT {
 
     @Autowired DailyAttendanceBatch batch;
     @Autowired Clock clock;
+    @Autowired HolidayService holidays;
+    @Autowired AttendanceExceptionQueries exceptions;
     // 스텁하지 않은 시험에서는 실제 동작 그대로다.
     @MockitoSpyBean WorktimeService worktime;
     @MockitoSpyBean TenantTransactions transactions;
     private JdbcTemplate db;
     private LocalDate today, yesterday;
     private UUID tenantA, tenantB, employee1, employee2, employee3;
+    private UUID[] companyA;
 
     @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
         var f = DatabaseFixture.start();
@@ -53,7 +59,7 @@ class DailyAttendanceBatchIT {
         yesterday = today.minusDays(1);
         tenantA = UUID.randomUUID();
         tenantB = UUID.randomUUID();
-        var a = company(tenantA);
+        var a = companyA = company(tenantA);
         var b = company(tenantB);
         employee1 = employee(tenantA, a);
         employee2 = employee(tenantA, a);
@@ -86,6 +92,47 @@ class DailyAttendanceBatchIT {
 
         assertEquals("FULL", latest(employee3, yesterday).get("absence"));
         assertEquals(tenantB, latest(employee3, yesterday).get("tenant_id"));
+    }
+
+    @Test void holidaySaveFlagsAStoredAbsenceOutsideTheSevenDayWindow() {
+        LocalDate old = today.minusDays(10);
+        flag(tenantA, employee1, old);
+        assertTrue(batch.runOnce(List.of(tenantA)));
+        assertEquals("FULL", latest(employee1, old).get("absence"));
+        var admin = admin(tenantA, companyA);
+        assertTrue(absences(admin, old).contains(old));
+
+        holidays.save(admin, new HolidayService.Form(UUID.randomUUID(), "합성 휴일 지정", old.getYear(), 0L,
+                List.of(new HolidayService.RowInput("a", old.toString(), "합성 휴일", "COMPANY", null))));
+
+        assertTrue(db.queryForObject("SELECT recalculation_required FROM tna.day_input_revision WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                Boolean.class, tenantA, employee1, old), "휴일로 바뀐 날은 재집계 필요로 표시합니다.");
+        assertFalse(absences(admin, old).contains(old), "오래된 결근은 예외 탭에서 빠집니다.");
+        assertTrue(batch.runOnce(List.of(tenantA)));
+        assertNull(latest(employee1, old).get("absence"), "새벽 작업이 7일보다 오래된 휴일도 다시 계산합니다.");
+    }
+
+    private List<LocalDate> absences(TnaPrincipal admin, LocalDate date) {
+        return exceptions.read(admin, java.time.YearMonth.from(date).toString(), "ABSENT").rows().stream()
+                .filter(row -> row.employeeId().equals(employee1)).map(AttendanceExceptionQueries.Row::workDate).toList();
+    }
+
+    private TnaPrincipal admin(UUID tenant, UUID[] company) {
+        for (String role : List.of("EMPLOYEE", "ATTENDANCE_ADMIN"))
+            db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,?)", tenant, company[0], role);
+        UUID employee = db.queryForObject("SELECT employee_id FROM tna.tenant_account WHERE tenant_id=? AND id=?", UUID.class, tenant, company[0]);
+        return new TnaPrincipal(tenant, company[0], employee, 1, java.util.Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"), Instant.now());
+    }
+
+    @Test void recentlyDepartedEmployeeStillGetsFlaggedDaysCalculated() {
+        LocalDate left = today.minusDays(10), flagged = today.minusDays(12);
+        db.update("UPDATE tna.employee SET left_on=? WHERE tenant_id=? AND id=?", left, tenantA, employee1);
+        flag(tenantA, employee1, flagged);
+
+        assertTrue(batch.runOnce(List.of(tenantA)));
+
+        assertEquals("FULL", latest(employee1, flagged).get("absence"), "지난 7일 전에 퇴사했어도 재직 중의 재집계 필요 날짜는 계산합니다.");
+        assertNull(latest(employee1, yesterday), "퇴사 뒤 날짜는 계산하지 않습니다.");
     }
 
     @Test void runningTwiceWritesNothingNew() {
