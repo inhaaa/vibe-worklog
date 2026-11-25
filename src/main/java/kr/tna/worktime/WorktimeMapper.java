@@ -113,6 +113,16 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
 
     @Select("SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(#{tenantId} AS text),0))")
     Object lock(@Param("tenantId") UUID tenantId);
+    @Select("SELECT pg_advisory_xact_lock(hashtextextended(CAST(#{tenantId} AS text),0))")
+    Object lockForWrite(@Param("tenantId") UUID tenantId);
+    @Select("SELECT target_employee_id FROM tna.approval_request WHERE tenant_id=#{tenantId} AND id=#{id}")
+    UUID requestTarget(@Param("tenantId") UUID tenantId,@Param("id") UUID id);
+    @Select("""
+        SELECT work_date FROM tna.day_input_revision
+        WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND recalculation_required AND work_date<=#{today}
+        ORDER BY work_date
+        """)
+    List<LocalDate> recalculationDates(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
     String companyName(@Param("tenantId") UUID tenantId);
     @Select("""

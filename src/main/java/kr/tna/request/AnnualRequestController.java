@@ -10,6 +10,7 @@ import kr.tna.org.OrgException;
 import kr.tna.request.AnnualRequestData.*;
 import kr.tna.request.AnnualRequestService.Draft;
 import kr.tna.request.RequestData.*;
+import kr.tna.worktime.WorktimeService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -29,7 +30,8 @@ public final class AnnualRequestController {
     private static final Set<String> CORRECTION=Set.of("routeToken","workDate","baseInputRevision","sourceFingerprint","inAction","requestedInAt","outAction","requestedOutAt","presenceAsWork","breaksConfirmed","_presenceAsWork","_breaksConfirmed","actualBreaks","replacesRequestId","predecessorRequestId","reason","commandId");
     private final AnnualRequestService service;
     private final LeaveWorkflowService flow;
-    public AnnualRequestController(AnnualRequestService service,LeaveWorkflowService flow){this.service=service;this.flow=flow;}
+    private final WorktimeService worktime;
+    public AnnualRequestController(AnnualRequestService service,LeaveWorkflowService flow,WorktimeService worktime){this.service=service;this.flow=flow;this.worktime=worktime;}
 
     @GetMapping(path="/me/requests/leave-types",produces="application/json")
     @ResponseBody LeaveTypeOptions leaveTypes(@AuthenticationPrincipal TnaPrincipal actor,
@@ -75,7 +77,7 @@ public final class AnnualRequestController {
             @RequestParam Integer year,@RequestParam(defaultValue="MODAL") String mode,HttpServletRequest request){
         parameters(request,union(CONTEXT,CORRECTION));expectedKind(request,"ATTENDANCE_CORRECTION");binding(binding);var filter=filter(request,year);var safe=normal(form);
         var draft=new Draft(mode,"ATTENDANCE_CORRECTION",null,safe.predecessorRequestId(),null,safe,false,false);
-        return submit(actor,filter,draft,()->{service.requireResubmission(actor,safe.predecessorRequestId(),"ATTENDANCE_CORRECTION");return flow.submitCorrection(actor,safe,request.getParameter("routeToken"));});
+        return submit(actor,filter,draft,()->{service.requireResubmission(actor,safe.predecessorRequestId(),"ATTENDANCE_CORRECTION");UUID id=flow.submitCorrection(actor,safe,request.getParameter("routeToken"));worktime.recalculateAfterDecision(actor,id);return id;});
     }
     private ModelAndView submit(TnaPrincipal actor,Filter filter,Draft draft,java.util.function.Supplier<UUID> mutation){
         // An invalid navigation context must fail before an otherwise valid request is committed.

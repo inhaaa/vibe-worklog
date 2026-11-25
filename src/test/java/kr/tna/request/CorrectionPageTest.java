@@ -27,7 +27,7 @@ class CorrectionPageTest {
     private final ClockService clocks = mock(ClockService.class);
     private final OrgCommands commands = mock(OrgCommands.class);
     private final WorktimeService worktime = mock(WorktimeService.class);
-    private final RequestController controller = new RequestController(flow, clocks, null, null, commands, null, null, null, new SelectiveSettlementReturn(worktime));
+    private final RequestController controller = new RequestController(flow, clocks, null, null, commands, null, null, null, new SelectiveSettlementReturn(worktime), worktime);
     private final TnaPrincipal actor = new TnaPrincipal(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1, Set.of("EMPLOYEE"), Instant.EPOCH);
 
     @Test void correctionPageFillsTheCurrentApprovedCorrectionInsteadOfAskingForAnId() {

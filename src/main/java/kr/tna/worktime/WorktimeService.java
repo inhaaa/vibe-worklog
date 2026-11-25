@@ -28,6 +28,7 @@ import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.common.tenant.CompanyReadAccess;
+import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.EmployeeAdminMapper;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgCommands.Change;
@@ -36,11 +37,14 @@ import kr.tna.org.OrgException;
 import kr.tna.worktime.WorktimeData.*;
 import kr.tna.worktime.WorktimeCalculator.*;
 import kr.tna.worktime.SelectiveSettlement.Action;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public final class WorktimeService {
+    private static final Logger LOG=LoggerFactory.getLogger(WorktimeService.class);
     private static final ZoneId SEOUL=ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter EXPORT_INSTANT=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX",Locale.ROOT).withZone(SEOUL);
     private final WorktimeMapper mapper;
@@ -50,11 +54,13 @@ public final class WorktimeService {
     private final CompanyReadAccess companyAccess;
     private final OrgCommands administration;
     private final Clock clock;
+    private final TenantTransactions transactions;
     private final WorktimeCalculator calculator=new WorktimeCalculator();
     private final JsonMapper json=JsonMapper.builder().build();
     public WorktimeService(WorktimeMapper mapper,EmployeeAdminMapper employees,ClockService clocks,
-            BusinessCommands commands,CompanyReadAccess companyAccess,OrgCommands administration,Clock clock) {
+            BusinessCommands commands,CompanyReadAccess companyAccess,OrgCommands administration,Clock clock,TenantTransactions transactions) {
         this.mapper=mapper;this.employees=employees;this.clocks=clocks;this.commands=commands;this.companyAccess=companyAccess;this.administration=administration;this.clock=clock;
+        this.transactions=transactions;
     }
     public ResultDetail detail(TnaPrincipal actor,UUID resultId) {
         if(actor==null)throw OrgException.forbidden();if(resultId==null)throw OrgException.notFound();
@@ -297,27 +303,78 @@ public final class WorktimeService {
         UUID target=employee.id(),runId=UUID.randomUUID();
         changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
         for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
-            Input input=input(actor.tenantId(),employee,date);DayResult result=calculator.day(input.day(),input.context());
-            UUID resultId=UUID.randomUUID();long revision=mapper.nextResult(actor.tenantId(),target,date);
-            var refs=new LinkedHashMap<String,Object>();refs.put("clock",input.clock());refs.put("policy",input.policy());
-            refs.put("assessment",input.assessment());refs.put("leaveEffects",input.leave());refs.put("pendingCorrections",input.pending());
-            refs.put("paidLeaveDays",input.day().paidLeaveDays());
-            var employment=new LinkedHashMap<String,Object>();employment.put("joinedOn",employee.joinedOn().toString());
-            employment.put("leftOn",employee.leftOn()==null?null:employee.leftOn().toString());refs.put("employment",employment);
-            changed(mapper.insertResult(actor.tenantId(),resultId,runId,target,revision,result,input.source(),
-                    input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
-                    json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
-            changed(mapper.calculated(actor.tenantId(),target,date,result.inputRevision(),result.reviewRevision()));
-            var day = input.clock();
-            // 결근 판정의 실근로 0은 퇴근 보완을 해소하지 않는다(무근로 해소는 휴일·종일 휴가 근거가 있을 때만).
-            if (result.actualWorkMillis() != null && result.attendance().absence() == null && !input.day().pendingCorrection()
-                    && !day.events().equals(day.effectiveEvents())) {
-                mapper.settleCheckoutFollowUp(actor.tenantId(),target,date,resultId);
-            }
+            storeResult(actor.tenantId(),runId,employee,date);
             count++;
         }
         changed(mapper.completeRun(actor.tenantId(),runId));
         return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-2"));
+    }
+    private void storeResult(UUID tenant,UUID runId,Employee employee,LocalDate date) {
+        UUID target=employee.id();
+        Input input=input(tenant,employee,date);DayResult result=calculator.day(input.day(),input.context());
+        UUID resultId=UUID.randomUUID();long revision=mapper.nextResult(tenant,target,date);
+        var refs=new LinkedHashMap<String,Object>();refs.put("clock",input.clock());refs.put("policy",input.policy());
+        refs.put("assessment",input.assessment());refs.put("leaveEffects",input.leave());refs.put("pendingCorrections",input.pending());
+        refs.put("paidLeaveDays",input.day().paidLeaveDays());
+        var employment=new LinkedHashMap<String,Object>();employment.put("joinedOn",employee.joinedOn().toString());
+        employment.put("leftOn",employee.leftOn()==null?null:employee.leftOn().toString());refs.put("employment",employment);
+        changed(mapper.insertResult(tenant,resultId,runId,target,revision,result,input.source(),
+                input.policy()==null?null:input.policy().id(),input.assessment()==null?null:input.assessment().id(),
+                json.writeValueAsString(result.reasons().stream().sorted().toList()),json.writeValueAsString(List.of(refs))));
+        changed(mapper.calculated(tenant,target,date,result.inputRevision(),result.reviewRevision()));
+        var day = input.clock();
+        // 결근 판정의 실근로 0은 퇴근 보완을 해소하지 않는다(무근로 해소는 휴일·종일 휴가 근거가 있을 때만).
+        if (result.actualWorkMillis() != null && result.attendance().absence() == null && !input.day().pendingCorrection()
+                && !day.events().equals(day.effectiveEvents())) {
+            mapper.settleCheckoutFollowUp(tenant,target,date,resultId);
+        }
+    }
+    /**
+     * 사람 감사 없이 지정 날짜만 계산한다(주 확장 없음, 마감 월 제외). 호출하는 쪽이 회사 트랜잭션을 연다.
+     * requestedBy가 null이면 시스템 실행. 이미 현재이고 그날이 끝난 뒤 계산된 CALC-2 결과는 건너뛴다.
+     */
+    public int calculateDatesAsSystem(UUID tenant,UUID requestedBy,UUID employeeId,java.util.Collection<LocalDate> dates) {
+        // 결과 개정 번호를 같은 회사의 다른 쓰기와 겹치지 않게 배타 잠금으로 직렬화한다.
+        mapper.lockForWrite(tenant);
+        Employee employee=employee(tenant,employeeId);
+        LocalDate today=LocalDate.now(clock.withZone(SEOUL));
+        var targets=new java.util.TreeSet<LocalDate>();
+        for(LocalDate d:dates) if(d!=null&&!d.isAfter(today)&&employed(employee,d)) targets.add(d);
+        if(targets.isEmpty())return 0;
+        var closed=Set.copyOf(mapper.closedMonths(tenant,targets.first(),targets.last()));
+        targets.removeIf(d->closed.contains(d.withDayOfMonth(1)));
+        if(targets.isEmpty())return 0;
+        var stored=latestDays(tenant,employee,targets.first(),targets.last());
+        var todo=new ArrayList<LocalDate>();
+        for(LocalDate d:targets) {
+            var in=input(tenant,employee,d);var saved=stored.get(d);
+            Instant dayEnd=d.plusDays(1).atStartOfDay(SEOUL).toInstant();
+            // CALC-1 결과나 날이 끝나기 전에 계산된 결과는 결근 판정이 빠져 있으므로 다시 계산한다.
+            boolean fresh=saved!=null&&"CALC-2".equals(saved.ruleVersion())
+                    &&current(in.clock(),in.source(),saved.inputRevision(),saved.reviewRevision(),saved.sourceFingerprint())
+                    &&(d.equals(today)||!saved.calculatedAt().isBefore(dayEnd));
+            if(!fresh)todo.add(d);
+        }
+        if(todo.isEmpty())return 0;
+        UUID runId=UUID.randomUUID();
+        changed(mapper.insertRun(tenant,runId,employee.id(),requestedBy,todo.getFirst(),todo.getLast(),todo.getFirst(),todo.getLast()));
+        for(LocalDate d:todo) storeResult(tenant,runId,employee,d);
+        changed(mapper.completeRun(tenant,runId));
+        return todo.size();
+    }
+    /** 결재 처리 직후 대상 사원의 재집계 필요 날짜를 계산한다. 실패해도 결재는 유지되고 그날은 '재집계 필요'로 남는다. */
+    public void recalculateAfterDecision(TnaPrincipal actor,UUID requestId) {
+        if(actor==null||requestId==null)return;
+        try {
+            transactions.execute(actor.tenantId(),()->{
+                UUID target=mapper.requestTarget(actor.tenantId(),requestId);
+                if(target==null)return 0;
+                return calculateDatesAsSystem(actor.tenantId(),actor.accountId(),target,
+                        mapper.recalculationDates(actor.tenantId(),target,LocalDate.now(clock.withZone(SEOUL))));
+            });
+        } catch(RuntimeException failed) {
+            LOG.warn("event=worktime_decision_recalculate outcome=failed cause={}",failed.getClass().getSimpleName());
+        }
     }
     public UUID reviewPolicy(TnaPrincipal actor,PolicyForm form) {
         if(form==null)throw OrgException.invalid("회사 검토 정보를 입력해 주세요.");period(form.from(),form.to());
