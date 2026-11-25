@@ -15,6 +15,7 @@ import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
 import { canManageMonthEnd, MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
 import { MonthCloseBlockersPage, type MonthCloseBlockers } from './MonthCloseBlockers';
 import { AttendanceExceptionsPage, type AttendanceExceptions } from './AttendanceExceptionsPage';
+import { AttendanceTag } from './AttendancePeriodPage';
 import { MyCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 
 interface Profile {
@@ -52,6 +53,7 @@ interface CompanyAttendance {
     paidLeaveMillis?: number | null;
     status: string;
     current: boolean;
+    attendanceLabel?: string | null;
   }[];
 }
 interface CompanyRequests {
@@ -222,6 +224,10 @@ function CompanyAttendancePage({ model: m, canViewCheckout }: { model: CompanyAt
             emptyMessage="조회된 일별 현황이 없습니다."
             columns={[
               { colId: 'workDate', headerName: '근무일', valueGetter: ({ data }) => data && fmtDate(data.workDate), minWidth: 140, pinned: 'left' },
+              sheetColumn<CompanyAttendance['days'][number]>(
+                { colId: 'attendanceLabel', headerName: '근태', valueGetter: ({ data }) => data?.attendanceLabel ?? '', minWidth: 140 },
+                (day) => day.attendanceLabel ? <AttendanceTag label={day.attendanceLabel} /> : null,
+              ),
               { colId: 'status', headerName: '상태·최신성', valueGetter: ({ data }) => data && `${statuses[data.status] ?? data.status} · ${data.current ? '최신' : '미산정·재집계 필요'}`, minWidth: 250 },
               {
                 colId: 'scheduledMillis', headerName: '예정 근무',
