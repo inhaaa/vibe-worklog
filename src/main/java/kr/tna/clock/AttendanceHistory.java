@@ -8,6 +8,8 @@ import java.util.List;
 import kr.tna.clock.ClockData.DaySnapshot;
 import kr.tna.clock.ClockData.Event;
 import kr.tna.org.OrgException;
+import kr.tna.worktime.AttendanceLabel;
+import kr.tna.worktime.WorktimeCalculator.Attendance;
 
 public final class AttendanceHistory {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -38,14 +40,16 @@ public final class AttendanceHistory {
     public record Period(LocalDate today, LocalDate from, LocalDate to, boolean missingOnly, List<Row> rows) { }
     public record Row(LocalDate workDate, ScheduleKind scheduleKind, LocalTime startTime, LocalTime endTime,
             Instant inAt, Instant outAt, RecordStatus recordStatus, boolean corrected, boolean pendingCorrection,
-            WorkStatus workStatus, Long actualWorkMillis, boolean correctionSuggested, String workMode) { }
+            WorkStatus workStatus, Long actualWorkMillis, boolean correctionSuggested, String workMode,
+            String attendanceLabel) { }
 
     public static Row row(DaySnapshot day, LocalDate today, boolean employed, boolean approvedLeave,
-            boolean pendingCorrection, boolean pendingWork, boolean staleWork, Long actualWorkMillis, boolean correctionSuggested) {
+            boolean pendingCorrection, boolean pendingWork, boolean staleWork, Long actualWorkMillis, boolean correctionSuggested,
+            Attendance attendance, Instant now) {
         LocalDate date = day.workDate();
         if (!employed) {
             return new Row(date, ScheduleKind.OUTSIDE_EMPLOYMENT, null, null, null, null,
-                    RecordStatus.NONE, false, false, WorkStatus.ABSENT, null, false, null);
+                    RecordStatus.NONE, false, false, WorkStatus.ABSENT, null, false, null, null);
         }
         var schedule = day.schedule();
         var scheduleKind = scheduleKind(day, approvedLeave);
@@ -65,9 +69,21 @@ public final class AttendanceHistory {
         else recordStatus = RecordStatus.NONE;
         var workStatus = actualWorkMillis != null ? WorkStatus.AVAILABLE : pendingWork ? WorkStatus.PENDING
                 : staleWork ? WorkStatus.STALE : WorkStatus.ABSENT;
+        String label = AttendanceLabel.of(attendance);
+        if (label == null) label = missingClockIn(day, today, approvedLeave, now);
         return new Row(date, scheduleKind, schedule == null ? null : schedule.startTime(), schedule == null ? null : schedule.endTime(),
                 invalid ? null : in, invalid ? null : out, recordStatus, !events.equals(day.events()), pendingCorrection,
-                workStatus, actualWorkMillis, correctionSuggested, schedule == null ? null : schedule.workMode());
+                workStatus, actualWorkMillis, correctionSuggested, schedule == null ? null : schedule.workMode(), label);
+    }
+
+    /** 오늘 근로일에 예정 출근 시각이 지났는데 출근이 없으면 '미출근'이다. 선택근무는 출근 시각이 정해져 있지 않아 제외한다. */
+    public static String missingClockIn(DaySnapshot day, LocalDate today, boolean approvedLeave, Instant now) {
+        var schedule = day.schedule();
+        boolean missing = day.workDate().equals(today) && scheduleKind(day, approvedLeave) == ScheduleKind.WORKDAY
+                && !schedule.selective() && schedule.startTime() != null
+                && day.effectiveEvents().stream().noneMatch(event -> event.kind().equals("IN"))
+                && now.isAfter(today.atTime(schedule.startTime()).atZone(SEOUL).toInstant());
+        return missing ? "미출근" : null;
     }
 
     private static Instant uniqueTime(List<Event> events) {

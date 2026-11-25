@@ -27,6 +27,7 @@ interface Row {
   workStatus: 'AVAILABLE' | 'PENDING' | 'STALE' | 'ABSENT';
   actualWorkMillis: number | null;
   correctionSuggested: boolean;
+  attendanceLabel?: string | null;
 }
 
 export interface AttendancePeriod {
@@ -48,6 +49,11 @@ function previousMonth(currentStart: string) {
   end.setUTCDate(0);
   const lastDay = end.toISOString().slice(0, 10);
   return { from: `${lastDay.slice(0, 7)}-01`, to: lastDay };
+}
+
+/** 서버가 정한 근태 문구(정상·지각·조퇴·결근·미출근)를 기존 상태 태그 색으로 보인다. */
+export function AttendanceTag({ label }: { label: string }) {
+  return <span className={`t-tag ${label === '정상' ? 'green' : label.startsWith('결근') ? 'red' : 'amber'}`}>{label}</span>;
 }
 
 const clock = (value: string | null) => value ? fmtDateTime(value).slice(11) : '-';
@@ -84,7 +90,7 @@ export function AttendancePeriodPage({ model, error }: { model: AttendancePeriod
         : <table className="attendance-period-results" role="table" aria-label="기간별 출퇴근 기록">
           <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">날짜</th><th scope="col" role="columnheader">예정</th>
             <th scope="col" role="columnheader">출근</th><th scope="col" role="columnheader">퇴근</th><th scope="col" role="columnheader">상태</th>
-            <th scope="col" role="columnheader">실근로</th></tr></thead>
+            <th scope="col" role="columnheader">실근로</th><th scope="col" role="columnheader">근태</th></tr></thead>
           <tbody role="rowgroup">{rows.map(row => <tr key={row.workDate} role="row">
             <th scope="row" role="rowheader"><a href={`${attendance}?date=${row.workDate}`}>{row.workDate}</a></th>
             <td role="cell" data-label="예정">{row.scheduleKind === 'WORKDAY' && row.startTime && row.endTime
@@ -96,6 +102,7 @@ export function AttendancePeriodPage({ model, error }: { model: AttendancePeriod
               {row.correctionSuggested && <a href={`/me/requests/correction?date=${row.workDate}`} aria-label={`${row.workDate} 정정 신청`}>정정 신청</a>}</td>
             <td role="cell" data-label="실근로">{row.workStatus === 'PENDING' ? '확인 전'
               : row.workStatus === 'STALE' ? '- (재집계 필요)' : duration(row.actualWorkMillis)}</td>
+            <td role="cell" data-label="근태">{row.attendanceLabel ? <AttendanceTag label={row.attendanceLabel} /> : '-'}</td>
           </tr>)}</tbody>
         </table>}
   </section>;

@@ -37,14 +37,15 @@ class SelectiveClockProjectionTest {
                  "workMode":"SELECTIVE","coreStart":"10:00","coreEnd":"15:00","standardMinutes":480,"settlementPeriod":"ISO_WEEK"}
                 """.formatted(version), ClockMapper.ScheduleRow.class);
         var day = project(row);
-        var view = new DayView(day, List.of(), true, true);
+        var view = new DayView(day, List.of(), true, true, null);
         assertEquals("선택 가능 07:00 ~ 21:00", view.scheduleText());
         assertTrue(view.timeline().stream().anyMatch(entry -> "선택 가능 시작".equals(entry.title())));
         assertTrue(view.timeline().stream().anyMatch(entry -> "코어타임 시작".equals(entry.title())));
         var json = JsonMapper.builder().build().valueToTree(day.schedule());
         assertEquals("ISO_WEEK", json.path("settlementPeriod").asString());
         assertEquals(480, json.path("standardMinutes").asInt());
-        var history = AttendanceHistory.row(day,date,true,false,false,false,false,null,false);
+        var history = AttendanceHistory.row(day,date,true,false,false,false,false,null,false,
+                kr.tna.worktime.WorktimeCalculator.Attendance.NONE,java.time.Instant.EPOCH);
         assertEquals("SELECTIVE", history.workMode());
     }
 

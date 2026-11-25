@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import kr.tna.clock.AttendanceHistory;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
@@ -19,6 +20,7 @@ import kr.tna.org.OrgException;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.RequestDay;
 import kr.tna.request.RequestData.RequestView;
+import kr.tna.worktime.AttendanceLabel;
 import kr.tna.workspace.WorkspaceData.*;
 import org.springframework.stereotype.Service;
 
@@ -79,6 +81,11 @@ public final class WorkspaceQueries {
         var snapshots = dates.stream().map(date -> clocks.snapshot(actor.tenantId(), actor.employeeId(), date)).toList();
         var requests = leave.mine(actor).stream().filter(row -> actor.employeeId().equals(row.targetEmployeeId())).toList();
         Map<UUID, List<RequestDay>> evidence = new HashMap<>();
+        // ponytail: 홈은 최신 저장 결과를 그대로 쓴다(최신성 검사 생략). 새벽 일괄·즉시 계산이 결과를 갱신한다.
+        Map<LocalDate, String> marks = new HashMap<>();
+        for (var mark : schedules.attendanceMarks(actor.tenantId(), actor.employeeId(), dates.getFirst(), dates.getLast()))
+            marks.put(mark.workDate(), AttendanceLabel.of(mark.lateMillis(), mark.earlyLeaveMillis(), mark.absence()));
+        var now = clock.instant();
         var days = snapshots.stream().map(snapshot -> {
             var items = requests.stream().filter(row -> !snapshot.workDate().isBefore(row.fromDate())
                     && !snapshot.workDate().isAfter(row.toDate())).map(row -> {
@@ -90,7 +97,9 @@ public final class WorkspaceQueries {
                         .findFirst().map(RequestDay::quantityDays).orElse(null);
                 return item(row, quantity, true);
             }).toList();
-            return new DayView(snapshot, items, snapshot.workDate().equals(today), snapshot.workDate().equals(selected));
+            String label = marks.containsKey(snapshot.workDate()) ? marks.get(snapshot.workDate())
+                    : AttendanceHistory.missingClockIn(snapshot, today, items.stream().anyMatch(RequestItem::effectiveLeave), now);
+            return new DayView(snapshot, items, snapshot.workDate().equals(today), snapshot.workDate().equals(selected), label);
         }).toList();
         return new ReadResult(days, requests);
     }

@@ -63,3 +63,19 @@ it('이번 달과 지난달은 조회 버튼을 누르기 전 바꾼 누락 조�
   expect(thisMonth.getAttribute('href')).toBe('/me/attendance?view=period&from=2026-11-01&to=2026-11-17');
   expect(lastMonth.getAttribute('href')).toBe('/me/attendance?view=period&from=2026-10-01&to=2026-10-31');
 });
+
+it('근태 열에 서버가 정한 문구를 보이고 판정이 없으면 대시를 보인다', () => {
+  render(<WorkflowPages page="clock/period" csrf={csrf} reload={() => {}} data={{ attendancePeriod: {
+    today: '2026-11-17', from: '2026-11-16', to: '2026-11-17', missingOnly: false,
+    rows: [
+      { workDate: '2026-11-17', scheduleKind: 'WORKDAY', startTime: '09:00', endTime: '18:00', inAt: null, outAt: null,
+        recordStatus: 'NONE', workStatus: 'ABSENT', actualWorkMillis: null, attendanceLabel: null },
+      { workDate: '2026-11-16', scheduleKind: 'WORKDAY', startTime: '09:00', endTime: '18:00', inAt: null, outAt: null,
+        recordStatus: 'PRESENT', workStatus: 'AVAILABLE', actualWorkMillis: 0, attendanceLabel: '지각 7분' },
+    ],
+  } }} />);
+  expect(screen.getByRole('columnheader', { name: '근태' })).toBeTruthy();
+  expect(screen.getByText('지각 7분').className).toContain('t-tag amber');
+  expect(screen.getAllByRole('cell').filter(cell => cell.getAttribute('data-label') === '근태').map(cell => cell.textContent))
+    .toEqual(['-', '지각 7분']);
+});

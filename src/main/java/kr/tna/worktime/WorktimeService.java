@@ -123,7 +123,8 @@ public final class WorktimeService {
                         && !clocks.canConfirm(day);
                 rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
                         in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
-                        view.current() ? view.result().actualWorkMillis() : null, suggest));
+                        view.current() ? view.result().actualWorkMillis() : null, suggest,
+                        view.current() ? view.result().attendance() : WorktimeCalculator.Attendance.NONE, clock.instant()));
             }
             return List.copyOf(rows);
         });

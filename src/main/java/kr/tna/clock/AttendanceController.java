@@ -93,11 +93,9 @@ public class AttendanceController {
     private ModelAndView networkPage(TnaPrincipal actor,NetworkForm form){return new ModelAndView("clock/networks").addObject("pageCommand",UUID.randomUUID()).addObject("networks",settings.networks(actor)).addObject("form",form!=null?form:new NetworkForm("","",false,"",UUID.randomUUID()));}
     private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
-        var confirmationBreaks=clocks.confirmableBreaks(d);
-        boolean canConfirm=confirmationBreaks.isPresent();
+        boolean canConfirm=clocks.canConfirm(d);
         var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
-                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday)
-                .addObject("canConfirm",canConfirm).addObject("confirmationBreaks",confirmationBreaks.orElse(List.of()));
+                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
         page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
                 .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
         var effective=d.effectiveEvents()!=null?d.effectiveEvents():d.events();

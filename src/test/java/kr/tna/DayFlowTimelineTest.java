@@ -115,6 +115,6 @@ class DayFlowTimelineTest {
 
     private static DayView day(ScheduleData.Day schedule, List<Event> raw, List<Event> effective) {
         return new DayView(new DaySnapshot(UUID.randomUUID(), DAY, raw, schedule, null, null,
-                "UNCONFIRMED", 0, 0, null, "synthetic-timeline", effective), List.of(), false, false);
+                "UNCONFIRMED", 0, 0, null, "synthetic-timeline", effective), List.of(), false, false, null);
     }
 }

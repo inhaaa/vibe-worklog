@@ -4,6 +4,7 @@ import { dayClass, formatMinutes, pendingRequests, tally, weekOf } from './sched
 import { coreHours, hoursAndMinutes, periodNames } from './selectiveSchedule';
 import { useEffect, useId, useRef, useState } from 'react';
 import { AttendanceRecord } from './WorkflowPages';
+import { AttendanceTag } from './AttendancePeriodPage';
 import type { DaySnapshot } from './WorkflowTypes';
 import type { LeavePart } from './leavePart';
 import { Form, fmtDate, fmtTime, fmtDateTime } from '../ui';
@@ -29,6 +30,7 @@ interface WorkspaceDay {
   confirmationText: string;
   inTime: string;
   outTime: string;
+  attendanceLabel?: string | null;
 }
 interface Home {
   employee: { employeeName: string; companyName: string };
@@ -220,6 +222,7 @@ function Today({ data, reload }: PageProps) {
               {entry.today && <span>오늘</span>}
               <strong>{entry.scheduleText}</strong>
               <small>{entry.calendarText}</small>
+              {entry.attendanceLabel && <AttendanceTag label={entry.attendanceLabel} />}
               {entry.requests.map((item) => (
                 <small key={item.request.id}>
                   {item.kindLabel} · {item.statusLabel}
@@ -500,6 +503,7 @@ function Schedule({ data }: PageProps) {
                     </Bar>
                     {entry.snapshot.dayKind === 'UNCONFIRMED' && <Bar kind="unknown" className="warning">미확인</Bar>}
                     {entry.snapshot.dayKind === 'HOLIDAY' && <Bar kind="off">확인된 휴일</Bar>}
+                    {entry.attendanceLabel && <Bar kind={entry.attendanceLabel === '정상' ? 'work' : 'wait'}>{entry.attendanceLabel}</Bar>}
                     {entry.requests.slice(0, 2).map(item => (
                       <Bar key={item.request.id} kind={item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'wait' : 'other'}
                         className={item.effectiveLeave ? 'leave' : item.tone === 'amber' ? 'warning' : ''}>

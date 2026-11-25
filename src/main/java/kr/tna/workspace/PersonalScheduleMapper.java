@@ -1,5 +1,6 @@
 package kr.tna.workspace;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +31,15 @@ public interface PersonalScheduleMapper {
             WHERE tenant_id=#{tenant} AND version_id=#{version} ORDER BY start_time,end_time
             """)
     List<Break> breaks(UUID tenant, UUID version);
+
+    @Select("""
+            SELECT DISTINCT ON(work_date) work_date,late_millis,early_leave_millis,absence FROM tna.day_result
+            WHERE tenant_id=#{tenant} AND employee_id=#{employee} AND work_date BETWEEN #{from} AND #{to}
+            ORDER BY work_date,result_revision DESC
+            """)
+    List<AttendanceMark> attendanceMarks(UUID tenant, UUID employee, LocalDate from, LocalDate to);
+
+    record AttendanceMark(LocalDate workDate, Long lateMillis, Long earlyLeaveMillis, String absence) { }
 
     record Policy(boolean group, String name, String code, String workCode, String workName, UUID codeVersionId,
                   LocalTime startTime, LocalTime endTime, LocalTime beforeStart, LocalTime beforeEnd,

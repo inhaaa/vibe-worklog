@@ -8,7 +8,9 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Clock;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import kr.tna.clock.ClockData.Interval;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.common.web.ReactPageViewResolver;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
 import kr.tna.worktime.WorktimeService;
@@ -42,6 +45,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 /** 퇴근 기록이 예정 휴게를 자동 확인하고 같은 요청에서 근무시간을 계산하는지 확인한다. */
 @SpringBootTest
@@ -165,6 +169,25 @@ class AutoBreakConfirmationIT {
         clockOut(17, 0, UUID.randomUUID());
         assertEquals(0, confirmations());
         assertEquals(1, outEvents());
+    }
+
+    @Test void employeeScreensShowMissingClockInAndThenLateness() throws Exception {
+        String period = "/me/attendance?view=period&from=" + DAY + "&to=" + DAY;
+        clock.now.set(DAY.atTime(9, 0).atZone(SEOUL).toInstant());
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("미출근"));
+        page(period).andExpect(jsonPath("$.data.attendancePeriod.rows[0].attendanceLabel").value("미출근"));
+        clockIn(8, 7);
+        clockOut(17, 0, UUID.randomUUID());
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("지각 7분"));
+        page(period).andExpect(jsonPath("$.data.attendancePeriod.rows[0].attendanceLabel").value("지각 7분"));
+        page("/me/schedule?month=2026-11").andExpect(jsonPath("$.data.workspaceCalendar.days[22].attendanceLabel").value("지각 7분"));
+    }
+
+    private ResultActions page(String url) throws Exception {
+        var actor = new TnaPrincipal(tenant, employee.accountId(), employee.employeeId(), 1, employee.roles(), clock.instant());
+        var authorities = actor.roles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList();
+        return mvc.perform(get(url).with(authentication(new UsernamePasswordAuthenticationToken(actor, null, authorities)))
+                .accept(ReactPageViewResolver.MEDIA_TYPE)).andExpect(status().isOk());
     }
 
     private void clockIn(int hour, int minute) throws Exception { event("IN", hour, minute, UUID.randomUUID()); }

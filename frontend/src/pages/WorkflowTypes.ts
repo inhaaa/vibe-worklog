@@ -177,8 +177,6 @@ export interface ClockModel {
   settlementReturn?: string;
   today?: string;
   isToday?: boolean;
-  canConfirm?: boolean;
-  confirmationBreaks?: ClockInterval[];
   correctionSuggested?: boolean;
   inCommand?: string;
   outCommand?: string;

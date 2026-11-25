@@ -20,7 +20,7 @@ public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> we
     public record Today(DateLabel snapshot, String scheduleText, String calendarText, String confirmationText,
             Instant inRecordedAt, Instant outRecordedAt, List<TimelineEntry> timeline, List<LeaveStatus> requests) { }
     public record WeekDay(DateLabel snapshot, boolean today, String scheduleText, String calendarText,
-            List<LeaveStatus> requests) { }
+            List<LeaveStatus> requests, String attendanceLabel) { }
     public record RequestPeriod(UUID id, LocalDate fromDate, LocalDate toDate) { }
     public record RecentRequest(RequestPeriod request, String kindLabel, String statusLabel, String tone) { }
 
@@ -30,7 +30,7 @@ public record WorkspaceHomeData(Employee employee, Today today, List<WeekDay> we
         var today = new Today(new DateLabel(day.snapshot().workDate()), day.scheduleText(), day.calendarText(),
                 day.confirmationText(), recordedAt(day, "IN"), recordedAt(day, "OUT"), timeline, effectiveLeave(day));
         var week = view.week().stream().map(item -> new WeekDay(new DateLabel(item.snapshot().workDate()), item.today(),
-                item.scheduleText(), item.calendarText(), effectiveLeave(item))).toList();
+                item.scheduleText(), item.calendarText(), effectiveLeave(item), item.attendanceLabel())).toList();
         var recent = view.recentRequests().stream().map(item -> {
             var request = item.request();
             return new RecentRequest(new RequestPeriod(request.id(), request.fromDate(), request.toDate()),

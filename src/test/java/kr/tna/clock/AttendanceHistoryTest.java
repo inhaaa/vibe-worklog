@@ -15,6 +15,7 @@ import kr.tna.worktime.SelectiveSettlementReturn;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgException;
 import kr.tna.schedule.ScheduleData;
+import kr.tna.worktime.WorktimeCalculator.Attendance;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +56,7 @@ class AttendanceHistoryTest {
         var schedule = new ScheduleData.Day(TODAY.getDayOfWeek().getValue(), true, LocalTime.of(9, 0), LocalTime.of(18, 0), List.of());
         var day = new ClockData.DaySnapshot(UUID.randomUUID(), TODAY, events, schedule, UUID.randomUUID(), UUID.randomUUID(),
                 "WORKDAY", 0, 0, null, "fingerprint", events);
-        var row = AttendanceHistory.row(day, TODAY, false, false, true, true, false, 5L, true);
+        var row = AttendanceHistory.row(day, TODAY, false, false, true, true, false, 5L, true, Attendance.NONE, time);
         assertEquals(AttendanceHistory.ScheduleKind.OUTSIDE_EMPLOYMENT, row.scheduleKind());
         assertEquals(AttendanceHistory.RecordStatus.NONE, row.recordStatus());
         assertNull(row.inAt());
@@ -86,13 +87,32 @@ class AttendanceHistoryTest {
         verifyNoMoreInteractions(worktime);
     }
 
+    @Test void attendanceLabelShowsTheStoredJudgementAndTodaysMissingClockIn() {
+        var nine = TODAY.atTime(9, 0).atZone(SEOUL).toInstant();
+        var late = row(TODAY.minusDays(1), "WORKDAY", new Attendance(420_000L, 0L, null), nine, "IN", "OUT");
+        assertEquals("지각 7분", late.attendanceLabel());
+        assertEquals("미출근", row(TODAY, "WORKDAY", Attendance.NONE, nine.plusSeconds(60)).attendanceLabel());
+        assertNull(row(TODAY, "WORKDAY", Attendance.NONE, nine.minusSeconds(60)).attendanceLabel());
+        assertNull(row(TODAY, "HOLIDAY", Attendance.NONE, nine.plusSeconds(60)).attendanceLabel());
+        assertNull(row(TODAY, "WORKDAY", Attendance.NONE, nine.plusSeconds(60), "IN").attendanceLabel());
+    }
+
     private static AttendanceHistory.Row row(LocalDate date, String dayKind, boolean leave, boolean pending, String... kinds) {
+        return row(date, dayKind, leave, pending, Attendance.NONE, TODAY.atTime(12, 0).atZone(SEOUL).toInstant(), kinds);
+    }
+
+    private static AttendanceHistory.Row row(LocalDate date, String dayKind, Attendance attendance, Instant now, String... kinds) {
+        return row(date, dayKind, false, false, attendance, now, kinds);
+    }
+
+    private static AttendanceHistory.Row row(LocalDate date, String dayKind, boolean leave, boolean pending,
+            Attendance attendance, Instant now, String... kinds) {
         var time = date.atTime(9, 0).atZone(SEOUL).toInstant();
         var events = new java.util.ArrayList<ClockData.Event>();
         for (int i = 0; i < kinds.length; i++) events.add(new ClockData.Event(UUID.randomUUID(), kinds[i], time.plusSeconds(i), date));
         var schedule = new ScheduleData.Day(date.getDayOfWeek().getValue(), true, LocalTime.of(9, 0), LocalTime.of(18, 0), List.of());
         var day = new ClockData.DaySnapshot(UUID.randomUUID(), date, events, schedule, UUID.randomUUID(), UUID.randomUUID(), dayKind,
                 0, 0, null, "fingerprint", events);
-        return AttendanceHistory.row(day, TODAY, true, leave, pending, false, false, null, false);
+        return AttendanceHistory.row(day, TODAY, true, leave, pending, false, false, null, false, attendance, now);
     }
 }

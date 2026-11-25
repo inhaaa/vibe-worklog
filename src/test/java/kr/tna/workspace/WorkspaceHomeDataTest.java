@@ -35,7 +35,7 @@ class WorkspaceHomeDataTest {
                 UUID.randomUUID(), "가상 승인자", null, null, now, "민감 신청 사유", null, null, null,
                 date, date, false, 1L, "EFFECTIVE", 1, null, null);
         var item = new RequestItem(request, "종일 연차", "승인 유효", "green", true);
-        var today = new DayView(day, List.of(item), true, true);
+        var today = new DayView(day, List.of(item), true, true, null);
         var view = new HomeView(new EmployeeOverview("가상 직원", "가상 회사"), today, List.of(today), 0.0, 1L, List.of(item));
 
         var json = JsonMapper.builder().build().valueToTree(WorkspaceHomeData.from(view));
@@ -58,6 +58,6 @@ class WorkspaceHomeDataTest {
         var schedule = new ScheduleData.Day(5, true, LocalTime.of(9, 30), LocalTime.of(15, 30), List.of());
         var day = new DaySnapshot(UUID.randomUUID(), date, List.of(), schedule, null, null, "WORKDAY",
                 0L, 0L, null, "fixture", List.of());
-        assertEquals("09:30 ~ 15:30", new DayView(day, List.of(), true, true).scheduleText());
+        assertEquals("09:30 ~ 15:30", new DayView(day, List.of(), true, true, null).scheduleText());
     }
 }

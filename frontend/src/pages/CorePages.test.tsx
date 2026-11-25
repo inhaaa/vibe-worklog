@@ -294,6 +294,25 @@ describe('개인 홈과 일정', () => {
     checkMenu();
   });
 
+  it('이번 주 일정과 달력에 저장된 근태 문구를 보인다', () => {
+    const absent = { ...day, attendanceLabel: '결근' };
+    const home = render(<CorePages {...props('today', {
+      day: snapshot,
+      workspaceHome: {
+        employee: { employeeName: '직원', companyName: '회사' }, today: day, week: [absent],
+        availableLeaveDays: null, pendingRequests: 0, recentRequests: [],
+      }, inCommand: 'in', outCommand: 'out', confirmationForm: {},
+    })} />);
+    const week = within(home.container.querySelector('.t-flow-week') as HTMLElement);
+    expect(week.getByText('결근').className).toContain('red');
+    cleanup();
+    const late = { ...day, attendanceLabel: '지각 7분' };
+    const calendar = render(<CorePages {...props('workspace/schedule', { workspaceCalendar: {
+      month: '2026-10', selectedDate: '2026-10-26', days: [late], selectedDay: late, leadingBlanks: [],
+    } })} />);
+    expect(calendar.container.querySelector('.t-month-grid')?.textContent).toContain('지각 7분');
+  });
+
   it('최근 신청을 안정된 신청 ID의 조회 시트에 표시하고 상세 링크와 상태를 보존한다', async () => {
     const view = render(<CorePages {...props('today', {
       day: snapshot,

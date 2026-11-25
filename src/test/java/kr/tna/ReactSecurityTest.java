@@ -61,7 +61,7 @@ class ReactSecurityTest {
         when(auth.isCurrent(principal)).thenReturn(true);
         var day = new DayView(new DaySnapshot(principal.employeeId(), LocalDate.of(2026, 11, 6),
                 List.of(), null, null, null, "UNCONFIRMED", 0, 0, null, "internal-fingerprint", List.of()),
-                List.of(), true, true);
+                List.of(), true, true, null);
         when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
                 day, List.of(day), null, 2, List.of()));
         when(followUps.mine(principal, 0, 3)).thenReturn(new CheckoutFollowUpService.Inbox(List.of(), 0, false));
@@ -88,7 +88,7 @@ class ReactSecurityTest {
         var date = LocalDate.of(2026, 11, 6);
         var in = new kr.tna.clock.ClockData.Event(UUID.randomUUID(), "IN", Instant.parse("2026-11-06T00:28:14Z"), date);
         var empty = new DayView(new DaySnapshot(principal.employeeId(), date, List.of(), null, null, null, "UNCONFIRMED",
-                0, 0, null, "fixture", List.of()), List.of(), true, true);
+                0, 0, null, "fixture", List.of()), List.of(), true, true, null);
         when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
                 empty, List.of(empty), null, 0, List.of()));
         mvc.perform(get("/me/home").param("clockError", "403").with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
@@ -97,7 +97,7 @@ class ReactSecurityTest {
                 .andExpect(jsonPath("$.data.clockError").value(403))
                 .andExpect(jsonPath("$.data.workspaceHome.today.inRecordedAt").value(org.hamcrest.Matchers.nullValue()));
         var recorded = new DayView(new DaySnapshot(principal.employeeId(), date, List.of(in), null, null, null, "UNCONFIRMED",
-                1, 0, null, "fixture", List.of()), List.of(), true, true);
+                1, 0, null, "fixture", List.of()), List.of(), true, true, null);
         when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
                 recorded, List.of(recorded), null, 0, List.of()));
         mvc.perform(get("/me/home").with(authentication(authentication)).accept(ReactPageViewResolver.MEDIA_TYPE))
@@ -132,7 +132,7 @@ class ReactSecurityTest {
         when(auth.isCurrent(principal)).thenReturn(true);
         var day = new DayView(new DaySnapshot(principal.employeeId(), LocalDate.of(2026, 11, 6),
                 List.of(), null, null, null, "UNCONFIRMED", 0, 0, null, "fixture", List.of()),
-                List.of(), true, true);
+                List.of(), true, true, null);
         when(workspaceQueries.home(principal)).thenReturn(new HomeView(new EmployeeOverview("김직원", "합성회사"),
                 day, List.of(day), null, 0, List.of()));
         var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null,

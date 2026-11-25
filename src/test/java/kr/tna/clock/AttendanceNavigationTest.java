@@ -172,7 +172,7 @@ class AttendanceNavigationTest {
         doReturn(early).when(realValidation).day(actor, past);
 
         var model = attendance.history(actor, past).getModel();
-        assertEquals(false, model.get("canConfirm"));
+        assertFalse(model.containsKey("canConfirm"));
         assertEquals(true, model.get("correctionSuggested"));
 
         var out = new ClockData.Event(UUID.randomUUID(), "OUT", past.atTime(13, 0).atZone(seoul).toInstant(), past);
@@ -181,7 +181,7 @@ class AttendanceNavigationTest {
                 "WORKDAY", 2, 0, null, "snapshot-fingerprint", coveredEvents);
         doReturn(covered).when(realValidation).day(actor, past);
         var coveredModel = attendance.history(actor, past).getModel();
-        assertEquals(true, coveredModel.get("canConfirm"));
+        assertFalse(coveredModel.containsKey("confirmationBreaks"));
         assertEquals(false, coveredModel.get("correctionSuggested"));
     }
 

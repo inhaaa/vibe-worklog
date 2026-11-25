@@ -20,7 +20,7 @@ public final class WorkspaceData {
 
     public record TimelineEntry(LocalTime time, String title, String detail, String kind) { }
 
-    public record DayView(DaySnapshot snapshot, List<RequestItem> requests, boolean today, boolean selected) {
+    public record DayView(DaySnapshot snapshot, List<RequestItem> requests, boolean today, boolean selected, String attendanceLabel) {
         public List<TimelineEntry> timeline() {
             var entries = new ArrayList<TimelineEntry>();
             var schedule = snapshot.schedule();

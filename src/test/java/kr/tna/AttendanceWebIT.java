@@ -31,7 +31,7 @@ class AttendanceWebIT {
         mvc.perform(get("/me/today").session(s)).andExpect(redirectedUrl("/me/attendance"));
         mvc.perform(get("/me/attendance").session(s)).andExpect(status().isOk())
                 .andExpect(ReactPageAssertions.page()).andExpect(ReactPageAssertions.data("/isToday",true))
-                .andExpect(ReactPageAssertions.data("/canConfirm",false))
+                .andExpect(r->assertTrue(ReactPageAssertions.envelope(r).at("/data/canConfirm").isMissingNode(),"수동 근무 확인 값은 화면에 보내지 않습니다."))
                 .andExpect(ReactPageAssertions.dataPresent("/inCommand")).andExpect(ReactPageAssertions.dataPresent("/outCommand"))
                 .andExpect(r->assertTrue(ReactPageAssertions.envelope(r).at("/data/actualWorkMillis").isNull(),"화면별 허용 키에 실근로가 있어야 합니다."));
         mvc.perform(get("/me/attendance").session(s).param("date","2026-01-01"))

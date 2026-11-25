@@ -1181,11 +1181,6 @@ function AuditDetailPage({ audit: a }: { audit: AuditDetail }) {
 }
 
 const eventName = (kind: string) => (kind === 'IN' ? '출근' : kind === 'OUT' ? '퇴근' : kind);
-function confirmationTime(value: string) {
-  const seoul = fmtDateTime(value).slice(11);
-  const millis = new Date(value).getUTCMilliseconds();
-  return millis ? seoul + '.' + String(millis).padStart(3, '0') : fmtTime(seoul);
-}
 function scheduleLine(day: DaySnapshot) {
   if (day.schedule == null) return null;
   const head = day.dayKind === 'HOLIDAY' ? '휴일' : day.dayKind === 'NON_WORKDAY' || !day.schedule.workday ? '비근무일'
@@ -1197,10 +1192,7 @@ function scheduleLine(day: DaySnapshot) {
 }
 export function AttendanceRecord({ data, showSchedule = true }: { data: Record<string, unknown>; showSchedule?: boolean }): React.ReactNode {
   const m = data as unknown as ClockModel,
-    d = m.day,
-    f = m.confirmationForm;
-  const selective = d.schedule?.workMode === 'SELECTIVE';
-  const breaksId = useId();
+    d = m.day;
   const correctionHref = m.settlementReturn ? '/me/requests/correction?' + new URLSearchParams({
     date: d.workDate, mode: 'full', settlementReturn: m.settlementReturn,
   }) : `/me/requests/new?year=${d.workDate.slice(0, 4)}&kind=ATTENDANCE_CORRECTION&date=${d.workDate}`;
@@ -1217,12 +1209,8 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
         const after = d.effectiveEvents?.[i];
         return e.id !== after?.id || e.kind !== after?.kind || e.occurredAt !== after?.occurredAt;
       }));
-  const ins = effective.filter(e => e.kind === 'IN'), outs = effective.filter(e => e.kind === 'OUT');
-  const canConfirm = d.schedule != null && d.calendarVersionId != null && d.confirmation == null
-    && (m.canConfirm ?? (ins.length === 1 && outs.length === 1
-      && Date.parse(ins[0].occurredAt) < Date.parse(outs[0].occurredAt)
-      && [ins[0], outs[0]].every(e => fmtDateTime(e.occurredAt).startsWith(d.workDate))));
-  const needsCorrection = m.correctionSuggested === true && !canConfirm && d.confirmation == null && d.schedule != null && d.calendarVersionId != null;
+  // 확인할 수 있는 날(자동 확인 대상)인지는 서버가 correctionSuggested에 이미 반영한다.
+  const needsCorrection = m.correctionSuggested === true && d.confirmation == null && d.schedule != null && d.calendarVersionId != null;
   return (
     <section className="wl-section">
       {d.schedule == null ? <p className="notice">근무 일정 미배정</p> : showSchedule && <p className="t-muted">{scheduleLine(d)}</p>}
@@ -1240,40 +1228,9 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
           {m.actualWorkMillis != null ? `근무 확인 완료 · 실근로 ${duration(m.actualWorkMillis)}` : '근무 확인 완료 · 실근로는 담당자 재집계 후 표시됩니다.'}
         </p>
       )}
+      {d.confirmation && <p className="t-subtle">예정 휴게가 자동 적용되었습니다. 다르면 정정을 신청해 주세요.</p>}
       {needsCorrection && (
         <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={correctionHref}>정정 신청</a></p>
-      )}
-      {canConfirm && (
-        <Form action="/me/work-confirmations" method="post" className="wl-form">
-          {m.settlementReturn && hidden('settlementReturn', m.settlementReturn)}
-          {hidden('workDate', f.workDate)}
-          {hidden('baseInputRevision', f.baseInputRevision)}
-          {hidden('expectedReviewRevision', f.expectedReviewRevision)}
-          {hidden('sourceFingerprint', f.sourceFingerprint)}
-          {hidden('commandId', f.commandId)}
-          <h3>근무 확인</h3>
-          <FormTable>
-            <FormRow label="근무 확인" required>
-              <label className="checkbox-label">
-                <input type="checkbox" name="presenceAsWork" value="true" defaultChecked={f.presenceAsWork} required />
-                휴게를 뺀 실제 근로가 맞습니다
-              </label>
-              <label className="checkbox-label">
-                <input type="checkbox" name="breaksMatch" value="true" defaultChecked={f.breaksMatch} required
-                  aria-describedby={selective ? breaksId : undefined} />
-                {selective ? '표시된 휴게가 실제와 같습니다' : '휴게가 예정과 같습니다'}
-              </label>
-              {selective && <div className="t-subtle" id={breaksId}>
-                <p>확인할 휴게 {m.confirmationBreaks == null ? '미확인' : m.confirmationBreaks.length
-                  ? m.confirmationBreaks.map(b => confirmationTime(b.startAt) + ' ~ ' + confirmationTime(b.endAt)).join(', ') : '없음'}</p>
-                <p>실제 휴게가 다르면 <a href={correctionHref}>정정 신청</a></p>
-              </div>}
-            </FormRow>
-          </FormTable>
-          <div className="wl-form-actions">
-            <button type="submit" className="t-btn primary" disabled={selective && m.confirmationBreaks == null}>근무 확인</button>
-          </div>
-        </Form>
       )}
     </section>
   );

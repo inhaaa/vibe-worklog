@@ -779,56 +779,25 @@ describe('WorkflowPages', () => {
     expect(within(grid).getByRole('columnheader', { name: /시각/ })).toBeTruthy();
     expect(grid.querySelector('[row-id="in-1"]')?.textContent).toContain('2026-10-26 09:00:00');
   });
-  it('선택근무에서 연 날짜의 확인 양식과 복귀 링크는 조회한 정산기간을 유지한다', async () => {
+  it('선택근무에서 연 날짜의 복귀 링크는 조회한 정산기간을 유지한다', async () => {
     const origin = '/me/worktime?month=2026-11&settlementPeriod=ISO_WEEK&settlementFrom=2026-10-26';
     const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm, settlementReturn: origin });
     expect(view.getByRole('link', { name: '선택근무 정산으로' }).getAttribute('href')).toBe(origin);
-    expect(body(view, '/me/work-confirmations').get('settlementReturn')).toBe(origin);
   });
-  it('근무 확인은 출근·퇴근이 하나씩 있고 미확인일 때만 보이며 개정·지문·명령을 제출한다', async () => {
+  it('근무 확인 양식 없이 정정 반영 기록과 자동 적용 안내를 보인다', async () => {
     const view = await render('clock/history', { day: confirmable, eventTimes: {}, confirmationForm });
-    const posted = body(view, '/me/work-confirmations');
-    expect(posted.get('expectedReviewRevision')).toBe('3');
-    expect(posted.get('sourceFingerprint')).toBe('clock-fingerprint');
-    expect(posted.get('commandId')).toBe('confirm-command');
-    expect(view.getByRole('button', { name: '근무 확인' })).toBeTruthy();
-    expect(view.container.textContent).not.toContain('원천 한 쌍');
+    expect(view.queryByRole('button', { name: '근무 확인' })).toBeNull();
+    expect(view.container.querySelector('form[action="/me/work-confirmations"]')).toBeNull();
+    expect(view.queryByText('예정 휴게가 자동 적용되었습니다. 다르면 정정을 신청해 주세요.')).toBeNull();
     const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };
-    const withEffective = (effectiveEvents: unknown[]) => ({ ...confirmable, effectiveEvents });
-    for (const blocked of [{ ...confirmable, schedule: null }, { ...day, schedule: confirmable.schedule, calendarVersionId: 'calendar-1' },
-      { ...confirmable, confirmation: { id: 'c-1' } }, { ...confirmable, calendarVersionId: null },
-      withEffective([IN, { ...IN, id: 'in-2' }, OUT]), withEffective([IN]),
-      withEffective([{ ...IN, occurredAt: '2026-10-26T09:00:00.000Z' }, { ...OUT, occurredAt: '2026-10-26T00:00:00.000Z' }]),
-      withEffective([IN, { ...OUT, occurredAt: '2026-10-26T15:30:00.000Z' }])])
-      expect((await render('clock/history', { day: blocked, eventTimes: {}, confirmationForm })).container.querySelector('form[action="/me/work-confirmations"]')).toBeNull();
-    const corrected = { ...confirmable, events: [IN, { ...IN, id: 'in-2' }, OUT], effectiveEvents: [IN, OUT] };
+    const corrected = { ...confirmable, events: [IN, { ...IN, id: 'in-2' }, OUT], effectiveEvents: [IN, OUT], confirmation: { id: 'c-1' } };
     const view2 = await render('clock/history', { day: corrected, eventTimes: {}, confirmationForm });
-    expect(view2.container.querySelector('form[action="/me/work-confirmations"]')).toBeTruthy();
+    expect(view2.getByText('예정 휴게가 자동 적용되었습니다. 다르면 정정을 신청해 주세요.')).toBeTruthy();
+    expect(view2.queryByRole('button', { name: '근무 확인' })).toBeNull();
     expect(view2.container.textContent).toContain('정정 반영 기록');
     expect(view2.container.textContent).toMatch(/출근 · .*퇴근 · /);
   });
-  it('선택근무의 근무 확인에는 실제 체류 안에 남은 휴게만 보여주고 차이가 있으면 해당 날짜로 정정을 연다', async () => {
-    const schedule = { ...confirmable.schedule, workMode: 'SELECTIVE', startTime: '07:00', endTime: '22:00',
-      coreStart: null, coreEnd: null, standardMinutes: 480, settlementPeriod: 'CALENDAR_MONTH' };
-    const out = { id: 'out', kind: 'OUT', occurredAt: '2026-10-26T11:00:00Z' };
-    const clock = (start: string) => {
-      const events = [{ id: 'in', kind: 'IN', occurredAt: '2026-10-26T' + start + 'Z' }, out];
-      return { ...confirmable, events, effectiveEvents: events, schedule };
-    };
-    const partial = await render('clock/history', { day: clock('03:30:00'), confirmationForm, confirmationBreaks: [
-      { startAt: '2026-10-26T03:30:00Z', endAt: '2026-10-26T04:00:00Z' },
-    ] });
-    const form = partial.container.querySelector('form[action="/me/work-confirmations"]')!;
-    expect(form.textContent).toContain('확인할 휴게 12:30 ~ 13:00');
-    expect(form.textContent).not.toContain('12:00');
-    expect(form.textContent).toContain('실제 휴게가 다르면 정정 신청');
-    expect(partial.getByRole('link', { name: '정정 신청' }).getAttribute('href')).toContain('date=2026-10-26');
-    partial.unmount();
-    const none = await render('clock/history', { day: clock('04:00:00'), confirmationForm, confirmationBreaks: [] });
-    expect(none.container.querySelector('form[action="/me/work-confirmations"]')?.textContent).toContain('확인할 휴게 없음');
-    expect(none.getByRole('button', { name: '근무 확인' })).toBeTruthy();
-  });
-  it('정정 신청 링크는 서버의 정정 안내 값을 따르고 확인할 수 있는 날에는 보이지 않는다', async () => {
+  it('정정 신청 링크는 서버의 정정 안내 값을 따른다', async () => {
     const IN = { id: 'in-1', kind: 'IN', occurredAt: '2026-10-26T00:00:00.000Z' }, OUT = { id: 'out-1', kind: 'OUT', occurredAt: '2026-10-26T09:00:00.000Z' };
     const linkOf = async (d: unknown, correctionSuggested: boolean | null = true) =>
       (await render('clock/history', { day: d, correctionSuggested, eventTimes: {}, confirmationForm })).container.querySelector('a[href^="/me/requests/new"]');
@@ -839,7 +808,6 @@ describe('WorkflowPages', () => {
     expect(await linkOf(withEvents([]))).toBeTruthy();
     expect(await linkOf(broken, false)).toBeNull();
     expect(await linkOf(broken, null)).toBeNull();
-    expect(await linkOf(confirmable)).toBeNull();
     expect(await linkOf({ ...broken, confirmation: { id: 'c-1' } })).toBeNull();
     expect(await linkOf({ ...broken, schedule: null })).toBeNull();
     expect(await linkOf({ ...broken, calendarVersionId: null })).toBeNull();
@@ -851,7 +819,7 @@ describe('WorkflowPages', () => {
     ];
     const view = await render('clock/history', {
       day: { ...confirmable, events, effectiveEvents: events },
-      eventTimes: {}, confirmationForm, canConfirm: false, correctionSuggested: true,
+      eventTimes: {}, confirmationForm, correctionSuggested: true,
     });
     expect(view.queryByRole('button', { name: '근무 확인' })).toBeNull();
     expect(view.getByRole('link', { name: '정정 신청' }).getAttribute('href'))
