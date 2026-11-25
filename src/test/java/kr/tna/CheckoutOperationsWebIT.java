@@ -723,19 +723,16 @@ class CheckoutOperationsWebIT {
     }
 
     @Test
-    void incompleteApprovedCorrectionWaitsForConfirmationAndTheAutomaticCalculation() throws Exception {
+    void incompleteApprovedCorrectionIsConfirmedAutomaticallyByTheRecalculation() throws Exception {
         clock(worker, date, date, "IN", 9);
         mvc.perform(followUpCommand(admin, worker.employeeId(), date, UUID.randomUUID(), "퇴근 확인")).andExpect(status().isOk());
         var request = correction("18:00", null, false);
         decide(request, "APPROVE");
         assertEquals("NEEDS_CONFIRMATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
+        // 직원 확인 버튼 대신 재집계가 지난 미확인일을 일정 휴게로 자동 확인하고 계산한다.
         worktime.recalculate(admin, worker.employeeId(), date, date, UUID.randomUUID(), "확인 전 집계");
-        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.checkout_follow_up WHERE tenant_id=? AND resolved_at IS NOT NULL", Integer.class, tenant));
-        var unconfirmed = clocks.day(worker, date);
-        UUID command = UUID.randomUUID();
-        clocks.confirm(worker, new ConfirmationForm(date, unconfirmed.inputRevision(), unconfirmed.reviewRevision(), true, true, unconfirmed.sourceFingerprint(), command));
-        assertEquals("AWAITING_CALCULATION", targetDay(reviewRows("ALL")).at("/checkoutFollowUp/status").asString());
-        worktime.calculateConfirmedDay(worker, date, command);
+        assertEquals("AUTO_SCHEDULE", db.queryForObject("SELECT method FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                String.class, tenant, worker.employeeId(), date));
         assertEquals(1, db.queryForObject("""
                 SELECT count(*) FROM tna.checkout_follow_up f JOIN tna.day_result r
                   ON r.tenant_id=f.tenant_id AND r.id=f.resolved_result_id AND r.employee_id=f.employee_id AND r.work_date=f.work_date

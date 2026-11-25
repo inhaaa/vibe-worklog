@@ -305,6 +305,8 @@ public final class WorktimeService {
         UUID target=employee.id(),runId=UUID.randomUUID();
         changed(mapper.insertRun(actor.tenantId(),runId,target,actor.accountId(),from,to,start,end));int count=0;
         for(LocalDate date=start;!date.isAfter(end);date=date.plusDays(1)) {
+            // 직원 확인 버튼이 없으므로 재집계가 지난 미확인일을 자동 확인한다(미래·마감·조건 미달은 그대로). 호출하는 명령이 이미 쓰기 잠금을 잡았다.
+            clocks.autoConfirm(actor.tenantId(),target,date,null);
             storeResult(actor.tenantId(),runId,employee,date);
             count++;
         }
@@ -386,8 +388,10 @@ public final class WorktimeService {
                 LocalDate to=request.toDate()==null?request.fromDate():request.toDate();
                 if(to.isAfter(today))to=today;
                 if(to.isBefore(request.fromDate()))return 0;
-                return calculateDatesAsSystem(tenant,actor.accountId(),request.targetEmployeeId(),
-                        mapper.recalculationDates(tenant,request.targetEmployeeId(),request.fromDate(),to));
+                var dates=mapper.recalculationDates(tenant,request.targetEmployeeId(),request.fromDate(),to);
+                // 계산하면 재집계 표시가 풀려 배치가 다시 보지 않으므로, 7일보다 오래된 날도 여기서 자동 확인한다.
+                for(LocalDate d:dates)clocks.autoConfirm(tenant,request.targetEmployeeId(),d,null);
+                return calculateDatesAsSystem(tenant,actor.accountId(),request.targetEmployeeId(),dates);
             });
         } catch(RuntimeException failed) {
             LOG.warn("event=worktime_decision_recalculate outcome=failed requestId={} cause={}",requestId,failed.getClass().getSimpleName());

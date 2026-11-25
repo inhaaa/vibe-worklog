@@ -147,15 +147,34 @@ class ApprovalRecalculationIT {
         assertEquals("FULL", latest().get("absence"));
     }
 
+    @Test void approvedCorrectionWithoutConfirmationIsConfirmedAutomatically() throws Exception {
+        // 배치의 7일 창 밖이라 결재 재집계가 확인까지 해야 그날이 미확정으로 남지 않는다.
+        LocalDate old = today.minusDays(10);
+        UUID request = submitCorrection(old, false);
+
+        decide(approver, request, "approve");
+
+        assertEquals("AUTO_SCHEDULE", db.queryForObject("SELECT method FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                String.class, tenant, employee.employeeId(), old));
+        assertEquals(28_800_000L, db.queryForObject("""
+                SELECT actual_work_millis FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=?
+                ORDER BY result_revision DESC LIMIT 1""", Long.class, tenant, employee.employeeId(), old));
+        assertFalse(flagged(old));
+    }
+
     private UUID submitCorrection() throws Exception {
-        var day = clocks.day(employee, past);
+        return submitCorrection(past, true);
+    }
+
+    private UUID submitCorrection(LocalDate date, boolean confirmed) throws Exception {
+        var day = clocks.day(employee, date);
         var response = mvc.perform(post("/me/requests/correction").with(as(employee)).with(csrf())
-                        .param("workDate", past.toString()).param("baseInputRevision", Long.toString(day.inputRevision()))
+                        .param("workDate", date.toString()).param("baseInputRevision", Long.toString(day.inputRevision()))
                         .param("sourceFingerprint", day.sourceFingerprint())
-                        .param("inAction", "SET").param("requestedInAt", past + "T08:00")
-                        .param("outAction", "SET").param("requestedOutAt", past + "T17:00")
-                        .param("presenceAsWork", "true").param("breaksConfirmed", "true")
-                        .param("actualBreaks", past + "T12:00/" + past + "T13:00")
+                        .param("inAction", "SET").param("requestedInAt", date + "T08:00")
+                        .param("outAction", "SET").param("requestedOutAt", date + "T17:00")
+                        .param("presenceAsWork", Boolean.toString(confirmed)).param("breaksConfirmed", Boolean.toString(confirmed))
+                        .param("actualBreaks", confirmed ? date + "T12:00/" + date + "T13:00" : "")
                         .param("exceptional", "false").param("reason", "합성 정정").param("commandId", UUID.randomUUID().toString()))
                 .andExpect(status().isSeeOther()).andReturn().getResponse();
         String url = response.getRedirectedUrl();

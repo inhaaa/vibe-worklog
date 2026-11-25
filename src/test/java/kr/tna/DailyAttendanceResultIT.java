@@ -137,6 +137,18 @@ class DailyAttendanceResultIT {
         return row.subList(row.size() - 3, row.size());
     }
 
+    @Test void adminRecalculationConfirmsAnUnconfirmedPastDay() {
+        record(MONDAY, 8, 0, 17, 0);
+
+        worktime.recalculate(manager, employee.employeeId(), MONDAY, MONDAY, UUID.randomUUID(), "합성 미확인 재집계");
+
+        var confirmation = db.queryForMap("SELECT method, confirmed_by FROM tna.work_confirmation WHERE tenant_id=? AND employee_id=? AND work_date=?",
+                tenant, employee.employeeId(), MONDAY);
+        assertEquals("AUTO_SCHEDULE", confirmation.get("method"));
+        assertNull(confirmation.get("confirmed_by"));
+        assertEquals(28_800_000L, latestRow(MONDAY).get("actual_work_millis"));
+    }
+
     @Test void halfDayLeavePartReachesTheCalculator() {
         approvedHalfDayLeave(MONDAY, "AM");
         record(MONDAY, 13, 5, 17, 0);
