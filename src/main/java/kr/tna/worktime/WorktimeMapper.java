@@ -124,6 +124,12 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         """)
     List<LocalDate> recalculationDates(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,
             @Param("from") LocalDate from,@Param("to") LocalDate to);
+    @Select("""
+        SELECT e.id FROM tna.employee e
+        WHERE e.tenant_id=#{tenantId} AND e.active AND e.joined_on<=#{to} AND (e.left_on IS NULL OR e.left_on>=#{from})
+        ORDER BY e.id
+        """)
+    List<UUID> employedBetween(@Param("tenantId") UUID tenantId,@Param("from") LocalDate from,@Param("to") LocalDate to);
     @Select("SELECT display_name FROM platform.tenant_registry WHERE id=#{tenantId}")
     String companyName(@Param("tenantId") UUID tenantId);
     @Select("""

@@ -22,6 +22,8 @@ spring:
   thymeleaf:
     cache: true
 tna:
+  daily-batch:
+    enabled: true
   operator:
     enabled: ${TNA_OPERATOR_ENABLED:false}
     url: ${TNA_JDBC_URL}

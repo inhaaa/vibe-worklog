@@ -1,0 +1,4 @@
+# 시험 중에는 새벽 일괄 작업 빈을 만들지 않는다. DailyAttendanceBatchIT만 켠다.
+tna:
+  daily-batch:
+    enabled: false
