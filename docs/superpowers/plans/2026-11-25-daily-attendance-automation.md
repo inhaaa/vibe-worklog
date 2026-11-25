@@ -294,7 +294,7 @@ public final class AttendanceLabel {
 }
 ```
 
-- [ ] **Step 4: 통과 확인** — `mvn-test.ps1 -q test -Dtest=AttendanceJudgementTest+WorktimeCalculatorTest+SelectiveWorktimeTest` → 모두 PASS. 기존 테스트가 깨지면 계산기 변경이 기존 사유·상태를 바꾼 것이므로 고친다(테스트를 고치지 않는다).
+- [ ] **Step 4: 통과 확인** — `mvn-test.ps1 -q test -Dtest=AttendanceJudgementTest,WorktimeCalculatorTest,SelectiveWorktimeTest` → 모두 PASS. 기존 테스트가 깨지면 계산기 변경이 기존 사유·상태를 바꾼 것이므로 고친다(테스트를 고치지 않는다).
 
 - [ ] **Step 5: 커밋**
 ```bash
@@ -403,7 +403,7 @@ ALTER TABLE tna.calculation_run ALTER COLUMN requested_by DROP NOT NULL;
 ```
 기존 `tna_app`의 `work_confirmation`·`day_result`·`calculation_run` 권한이 열 단위 GRANT라면(`grep -n "GRANT" src/main/resources/db/migration/V5__attendance_recording.sql V7__worktime_results.sql`로 확인), 새 열에 대한 같은 권한(INSERT/SELECT)을 이 파일에 추가한다. 테이블 단위 GRANT면 추가하지 않는다.
 
-- [ ] **Step 4: 통과 확인** — 같은 명령 + `-Dit.test=DailyAttendanceSchemaIT+MigrationRunnerIT` → PASS.
+- [ ] **Step 4: 통과 확인** — 같은 명령 + `-Dit.test=DailyAttendanceSchemaIT,MigrationRunnerIT` → PASS.
 
 - [ ] **Step 5: 커밋**
 ```bash
@@ -482,7 +482,7 @@ git commit -m "feat: add attendance judgement columns and automatic confirmation
 4. `calculate`의 `"ruleVersion","CALC-1"` → `"CALC-2"`, 검토용 Excel의 `"규칙","CALC-1"` → `"CALC-2"`. 결과가 없는 `DayView`의 `"CALC-1"` 기본값(526·533행 부근)은 `"CALC-2"`로 바꾼다.
 5. `currentResult`가 만드는 오래된 결과는 판정값을 버린다(`Attendance.NONE`, 기존 16인자 생성자 그대로라 변경 불필요).
 
-- [ ] **Step 4: 통과 확인** — `-Dit.test=DailyAttendanceResultIT+WorktimeServiceIT+MonthEndReviewIT` (존재하는 것만) 및 `-Dtest=WorktimeCalculatorTest+AuditSummaryBatchTest` → PASS. `"CALC-1"`을 기대하던 기존 테스트가 새로 계산한 결과에 대해 실패하면 기대값을 `CALC-2`로 바꾼다(과거 저장 결과를 읽는 테스트는 그대로).
+- [ ] **Step 4: 통과 확인** — `-Dit.test=DailyAttendanceResultIT,WorktimeServiceIT,MonthEndReviewIT` (존재하는 것만) 및 `-Dtest=WorktimeCalculatorTest,AuditSummaryBatchTest` → PASS. `"CALC-1"`을 기대하던 기존 테스트가 새로 계산한 결과에 대해 실패하면 기대값을 `CALC-2`로 바꾼다(과거 저장 결과를 읽는 테스트는 그대로).
 
 - [ ] **Step 5: 커밋** — `git commit -m "feat: store attendance judgement with CALC-2 results"`
 
@@ -573,7 +573,7 @@ git commit -m "feat: add attendance judgement columns and automatic confirmation
 ```
 `clocks.record(...)` 호출 바로 뒤에 `afterRecord(actor,eventKind,commandId);`를 넣는다(예외가 난 기록에는 호출하지 않는다). `calculateConfirmedDay`의 감사 사유 문구를 `"퇴근·근무 확인 후 자동 계산"`으로 바꾼다.
 
-- [ ] **Step 4: 통과 확인** — `-Dit.test=AutoBreakConfirmationIT+AttendanceWebIT+ClockServiceIT`(존재하는 것만) → PASS. 기존 테스트가 "퇴근 후 확인 전" 상태를 기대하면, 그 테스트가 직원 확인 흐름을 검증하려는 것인지 확인하고 퇴근 전에 확인하도록 옮기지 말고 **기대값을 자동 확인 상태로** 바꾼다. 변경한 테스트 목록을 보고서에 적는다.
+- [ ] **Step 4: 통과 확인** — `-Dit.test=AutoBreakConfirmationIT,AttendanceWebIT,ClockServiceIT`(존재하는 것만) → PASS. 기존 테스트가 "퇴근 후 확인 전" 상태를 기대하면, 그 테스트가 직원 확인 흐름을 검증하려는 것인지 확인하고 퇴근 전에 확인하도록 옮기지 말고 **기대값을 자동 확인 상태로** 바꾼다. 변경한 테스트 목록을 보고서에 적는다.
 
 - [ ] **Step 5: 커밋** — `git commit -m "feat: apply scheduled breaks on clock-out and calculate immediately"`
 
@@ -659,7 +659,7 @@ git commit -m "feat: add attendance judgement columns and automatic confirmation
 
 `RequestController`: `submitDecision`을 호출하는 approve/reject/withdraw와 `cancellation`, `exceptionalCancellation`에서 서비스 호출이 성공한 뒤 `worktime.recalculateAfterDecision(actor,id)`를 부른다. 예: `() -> { var result = flow.decide(actor, id, decision); worktime.recalculateAfterDecision(actor, id); return result; }`. 취소 신청은 원신청 id(`id`)를 넘긴다. 정정 신청 제출(`/requests/corrections` 류, `flow.submitCorrection`)에도 제출된 신청 id로 호출한다(대기 정정이 생기면 결근이 '정정 대기'로 바뀌어야 함). `RequestController` 생성자에 `WorktimeService worktime`을 추가한다.
 
-- [ ] **Step 4: 통과 확인** — `-Dit.test=ApprovalRecalculationIT+LeaveWorkflowIT+CorrectionWorkflowIT`(존재하는 것만) → PASS(이미 알려진 날짜 의존 실패 `monthlyLeaveMustCoverEachUsageDateAtSubmissionAndAtDelayedApproval`는 예외).
+- [ ] **Step 4: 통과 확인** — `-Dit.test=ApprovalRecalculationIT,LeaveWorkflowIT,CorrectionWorkflowIT`(존재하는 것만) → PASS(이미 알려진 날짜 의존 실패 `monthlyLeaveMustCoverEachUsageDateAtSubmissionAndAtDelayedApproval`는 예외).
 
 - [ ] **Step 5: 커밋** — `git commit -m "feat: recalculate affected days right after approval decisions"`
 
