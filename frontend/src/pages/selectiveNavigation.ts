@@ -51,9 +51,9 @@ export function settlementDayAction(view: SettlementView, day: UnconfirmedDate, 
       }, recalculate ? '#selective-day-calculation' : '#selective-day-review');
     }
   } else {
-    if (action === 'CONFIRM' || action === 'REVIEW') {
-      return link(action === 'CONFIRM' ? '근무 확인' : '근무 기록 보기', '/me/attendance', { date });
-    }
+    // 직원 확인 버튼은 없다. 조건을 갖춘 날은 새벽 일괄 작업이 자동 확인한다.
+    if (action === 'CONFIRM') return { label: '자동 확인 대기(새벽 집계)' };
+    if (action === 'REVIEW') return link('근무 기록 보기', '/me/attendance', { date });
     if (action === 'CORRECT') return link('정정 신청', '/me/requests/correction', { date, mode: 'full' });
   }
   if (day.reasons.includes('MONTH_CLOSED')) return { label: '조회 전용' };

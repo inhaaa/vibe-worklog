@@ -68,7 +68,7 @@ public class AttendanceController {
         if (missing) rows = rows.stream().filter(row -> row.recordStatus() == AttendanceHistory.RecordStatus.MISSING).toList();
         return page.addObject("attendancePeriod", new AttendanceHistory.Period(today, range.from(), range.to(), missing, rows));
     }
-    ModelAndView history(TnaPrincipal actor, LocalDate date) {return dayPage(actor,date==null?commands.today():date,null);}
+    ModelAndView history(TnaPrincipal actor, LocalDate date) {return dayPage(actor,date==null?commands.today():date);}
     @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,@RequestParam(required=false) String returnTo,HttpServletRequest request){
         if(!"home".equals(returnTo)){UUID event=clocks.record(actor,eventKind,commandId,request.getRemoteAddr());afterRecord(actor,eventKind,commandId,event);return redirect("/me/attendance");}
         UUID event;
@@ -88,14 +88,14 @@ public class AttendanceController {
         String origin = settlements.employee(actor, settlementReturn, form.workDate());
         return submit(() -> { UUID id = clocks.confirm(actor,form); calculate(actor,form); return id; },
                 origin != null ? origin : "/me/attendance?date=" + form.workDate(),
-                () -> SelectiveSettlementReturn.attach(dayPage(actor,form.workDate(),form), origin));
+                () -> SelectiveSettlementReturn.attach(dayPage(actor,form.workDate()), origin));
     }
     private ModelAndView networkPage(TnaPrincipal actor,NetworkForm form){return new ModelAndView("clock/networks").addObject("pageCommand",UUID.randomUUID()).addObject("networks",settings.networks(actor)).addObject("form",form!=null?form:new NetworkForm("","",false,"",UUID.randomUUID()));}
-    private ModelAndView dayPage(TnaPrincipal actor,LocalDate date,ConfirmationForm form){
+    private ModelAndView dayPage(TnaPrincipal actor,LocalDate date){
         var d=clocks.day(actor,date);LocalDate today=commands.today();boolean isToday=today.equals(d.workDate());
         boolean canConfirm=clocks.canConfirm(d);
         var page=new ModelAndView("clock/history").addObject("day",d).addObject("eventTimes",times(d))
-                .addObject("confirmationForm",form!=null?form:confirmation(d)).addObject("today",today).addObject("isToday",isToday);
+                .addObject("today",today).addObject("isToday",isToday);
         page.addObject("actualWorkMillis",d.confirmation()==null?null:worktime.days(actor,actor.employeeId(),d.workDate(),d.workDate()).stream()
                 .filter(DayView::current).findFirst().map(view->view.result().actualWorkMillis()).orElse(null));
         var effective=d.effectiveEvents()!=null?d.effectiveEvents():d.events();
@@ -110,7 +110,6 @@ public class AttendanceController {
         try{worktime.calculateConfirmedDay(actor,form.workDate(),form.commandId());}
         catch(RuntimeException failed){LOG.warn("event=worktime_auto_calculate outcome=failed status={} cause={}",failed instanceof OrgException e?e.status():500,failed.getClass().getSimpleName());}
     }
-    public static ConfirmationForm confirmation(DaySnapshot d){return new ConfirmationForm(d.workDate(),d.inputRevision(),d.reviewRevision(),false,false,d.sourceFingerprint(),UUID.randomUUID());}
     public static Map<UUID,String> times(DaySnapshot d){Map<UUID,String> values=new HashMap<>();for(var e:d.events())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));for(var e:d.effectiveEvents())values.put(e.id(),TIME_DISPLAY.instant(e.occurredAt()));return values;}
     private ModelAndView submit(Supplier<UUID> fn,String target,Supplier<ModelAndView> page){try{fn.get();return redirect(target);}catch(OrgException e){if(e.status()!=409&&e.status()!=422)throw e;var v=page.get().addObject("error",e.getMessage());v.setStatus(HttpStatusCode.valueOf(e.status()));return v;}}
     private ModelAndView redirect(String path){var r=new RedirectView(path,true);r.setStatusCode(HttpStatus.SEE_OTHER);return new ModelAndView(r);}

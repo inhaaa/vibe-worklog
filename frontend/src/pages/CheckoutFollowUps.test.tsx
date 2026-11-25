@@ -105,7 +105,8 @@ it('직원 목록에서 상태별로 해당 근무일과 원신청을 연결하�
   expect(within(items[1]).getByText('정정 결재 대기')).toBeTruthy();
   expect(within(items[1]).getByRole('link',{name:'정정 상세'}).getAttribute('href')).toBe('/requests/pending-request');
   expect(within(items[1]).queryByRole('link',{name:'정정 신청'})).toBeNull();
-  expect(within(items[2]).getByRole('link',{name:'근무 확인'}).getAttribute('href')).toBe('/me/attendance?date=2026-11-04');
+  expect(within(items[2]).getByText('자동 확인 대기(새벽 집계)')).toBeTruthy();
+  expect(within(items[2]).queryByRole('link',{name:'근무 확인'})).toBeNull();
   expect(within(items[3]).getByText('재집계 대기')).toBeTruthy();
   expect(within(items[3]).queryByRole('link',{name:'정정 신청'})).toBeNull();
   expect(screen.getByRole('link',{name:'이전'}).getAttribute('href')).toBe('/me/attendance/follow-ups?page=0');
@@ -118,11 +119,12 @@ it('직원 목록에서 상태별로 해당 근무일과 원신청을 연결하�
 it.each([
   { page: '홈', View: HomeCheckoutFollowUps },
   { page: '전체 목록', View: MyCheckoutFollowUps },
-])('$page에서 근무 확인이 필요한 직원은 같은 날짜의 근무 확인과 정정 신청 중 선택할 수 있다', ({ View }) => {
+])('$page에서 자동 확인을 기다리는 날은 근무 확인 버튼 없이 같은 날짜 정정 신청만 연결한다', ({ View }) => {
   const task = { ...summary, status: 'NEEDS_CONFIRMATION' as const, workDate: '2026-11-04', approvalRequestId: 'approved' };
   render(<View model={{ rows: [task], page: 0, hasNext: false }} />);
   const row = within(screen.getByRole('listitem'));
-  expect(row.getByRole('link', { name: '근무 확인' }).getAttribute('href')).toBe('/me/attendance?date=2026-11-04');
+  expect(row.getByText('자동 확인 대기(새벽 집계)')).toBeTruthy();
+  expect(row.queryByRole('link', { name: '근무 확인' })).toBeNull();
   expect(row.getByRole('link', { name: '정정 신청' }).getAttribute('href')).toBe('/me/requests/correction?date=2026-11-04');
   expect(row.getByRole('link', { name: '정정 상세' }).getAttribute('href')).toBe('/requests/approved');
 });

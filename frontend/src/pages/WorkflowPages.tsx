@@ -1005,7 +1005,7 @@ function Result({ model: m }: { model: ResultModel }) {
               {fmtDate(run.expandedFrom)} ~ {fmtDate(run.expandedTo)}
             </dd>
             <dt>요청 계정 ID</dt>
-            <dd>{run.requestedBy}</dd>
+            <dd>{run.requestedBy ?? '시스템'}</dd>
             <dt>실행 시작·종료 시각</dt>
             <dd>
               {fmtDateTime(run.startedAt)} / {fmtDateTime(run.finishedAt)}

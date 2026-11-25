@@ -151,7 +151,7 @@ public final class ClockService {
     public boolean canConfirm(DaySnapshot day) {
         return confirmableBreaks(day).isPresent();
     }
-    public Optional<List<Interval>> confirmableBreaks(DaySnapshot day) {
+    Optional<List<Interval>> confirmableBreaks(DaySnapshot day) {
         Instant now=clock.instant();
         if (day.confirmation()!=null || day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())) return Optional.empty();
         var check = confirmationCheck(day,now,false);

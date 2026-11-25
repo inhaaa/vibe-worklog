@@ -672,6 +672,17 @@ describe('WorkflowPages', () => {
     expect(changed.textContent).toContain('2026-10-26 09:01:00');
   });
 
+  it('시스템이 실행한 계산은 요청 계정을 시스템으로 표시한다', async () => {
+    const run = { id: 'run-1', requestedBy: null, fromDate: '2026-10-26', toDate: '2026-10-26', expandedFrom: '2026-10-26',
+      expandedTo: '2026-10-26', engineVersion: 'CALC-2', status: 'COMPLETED', startedAt: '2026-10-27T15:10:00Z', finishedAt: null };
+    const view = await render('worktime/result', { month: '2026-10', admin: false, times: {}, detail: {
+      day: { ...day, id: 'result-1', result, resultRevision: 1, ruleVersion: 'CALC-2', current: true },
+      completeEvidence: true, latestVersion: true, latestResultId: 'result-1',
+      clock: day, run, policy: null, assessment: null, employment: null, leaveEffects: [], pendingCorrections: [],
+    } });
+    expect(view.getByText('요청 계정 ID').nextElementSibling?.textContent).toBe('시스템');
+  });
+
   it('재직 기간 밖 날짜는 값 칸을 비워 둔다', async () => {
     const days = [
       { id: null, workDate: '2026-10-19', current: false, pending: false, approvedLeaveDays: 0, employed: false, result },

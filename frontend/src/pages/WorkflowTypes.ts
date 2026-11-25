@@ -164,15 +164,6 @@ export interface DaySnapshot {
   effectiveEvents: ClockEvent[] | null;
   confirmation: Confirmation | null;
 }
-export interface ConfirmationForm {
-  workDate: string;
-  baseInputRevision: number;
-  expectedReviewRevision: number;
-  sourceFingerprint: string;
-  commandId: string;
-  presenceAsWork: boolean;
-  breaksMatch: boolean;
-}
 export interface ClockModel {
   settlementReturn?: string;
   today?: string;
@@ -182,7 +173,6 @@ export interface ClockModel {
   outCommand?: string;
   day: DaySnapshot;
   eventTimes: Record<string, string>;
-  confirmationForm: ConfirmationForm;
   actualWorkMillis?: number | null;
 }
 export interface CorrectionForm {
@@ -346,7 +336,7 @@ export interface PoliciesModel {
 }
 export interface RunEvidence {
   id: string;
-  requestedBy: string;
+  requestedBy: string | null;
   fromDate: string;
   toDate: string;
   expandedFrom: string;

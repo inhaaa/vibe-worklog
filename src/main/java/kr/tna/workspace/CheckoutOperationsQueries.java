@@ -131,7 +131,7 @@ public final class CheckoutOperationsQueries {
         var day = entry.day();
         if (day.confirmation() == null) {
             String reason = entry.effectiveOut() == null ? "유효한 퇴근 기록이 필요합니다."
-                    : clocks.canConfirm(day) ? "직원의 실제 근로·휴게 확인이 필요합니다."
+                    : clocks.canConfirm(day) ? "자동 확인 대기(새벽 집계)"
                     : "유효 기록과 일정·휴게 조건을 확인해 주세요.";
             return new Result("WORK_CONFIRMATION_REQUIRED", null, null, reason);
         }

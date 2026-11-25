@@ -76,13 +76,12 @@ class WorkspaceWebIT {
     void attendanceUsesWorkspaceShellAndKeepsExistingAttendanceForms() throws Exception {
         mvc.perform(get("/me/attendance").session(login()))
                 .andExpect(status().isOk()).andExpect(view().name("clock/history"))
-                .andExpect(model().attributeExists("day", "eventTimes", "confirmationForm",
-                        "inCommand", "outCommand", "today", "isToday"))
+                .andExpect(model().attributeExists("day", "eventTimes", "inCommand", "outCommand", "today", "isToday"))
+                .andExpect(model().attributeDoesNotExist("confirmationForm"))
                 .andExpect(ReactPageAssertions.page())
                 .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
                 .andExpect(ReactPageAssertions.dataPresent("/inCommand"))
                 .andExpect(ReactPageAssertions.dataPresent("/outCommand"))
-                .andExpect(ReactPageAssertions.dataPresent("/confirmationForm"))
                 .andExpect(ReactPageAssertions.csrf())
                 .andExpect(ReactPageAssertions.page());
     }

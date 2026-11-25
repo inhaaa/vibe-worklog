@@ -37,10 +37,7 @@ class AttendanceNavigationTest {
         assertInstanceOf(UUID.class, model.get("inCommand"));
         assertInstanceOf(UUID.class, model.get("outCommand"));
         assertNotEquals(model.get("inCommand"), model.get("outCommand"));
-        var form = (ClockData.ConfirmationForm) model.get("confirmationForm");
-        assertEquals(today, form.workDate());
-        assertEquals(4L, form.baseInputRevision());
-        assertEquals("snapshot-fingerprint", form.sourceFingerprint());
+        assertFalse(model.containsKey("confirmationForm"), "직원 확인 양식은 더 이상 화면에 보내지 않습니다.");
     }
 
     @Test void historicalAndFutureDaysDoNotOfferServerTimeClockCommands() {
@@ -51,7 +48,7 @@ class AttendanceNavigationTest {
             assertEquals(false, model.get("isToday"));
             assertFalse(model.containsKey("inCommand"));
             assertFalse(model.containsKey("outCommand"));
-            assertEquals(selected, ((ClockData.ConfirmationForm) model.get("confirmationForm")).workDate());
+            assertFalse(model.containsKey("confirmationForm"));
         }
     }
 

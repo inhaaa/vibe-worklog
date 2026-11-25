@@ -5,7 +5,7 @@ import './CheckoutFollowUps.css';
 export const followUpStatusNames = {
   REQUESTED: '직원 확인 대기',
   PENDING_APPROVAL: '정정 결재 대기',
-  NEEDS_CONFIRMATION: '근무 확인 필요',
+  NEEDS_CONFIRMATION: '자동 확인 대기(새벽 집계)',
   AWAITING_CALCULATION: '재집계 대기',
   RESOLVED: '해소',
 } as const;
@@ -33,7 +33,6 @@ function FollowUpRows({ rows }: { rows: CheckoutFollowUp[] }) {
       <div><time dateTime={row.workDate}>{row.workDate}</time><span className="checkout-follow-up-state">{followUpStatusNames[row.status]}</span></div>
       <p className="checkout-follow-up-note">{row.reason}</p>
       <div className="actions">
-        {row.status === 'NEEDS_CONFIRMATION' && <a className="t-btn" href={'/me/attendance?date=' + row.workDate}>근무 확인</a>}
         {(row.status === 'REQUESTED' || row.status === 'NEEDS_CONFIRMATION') &&
           <a className="t-btn" href={'/me/requests/correction?date=' + row.workDate}>정정 신청</a>}
         {row.approvalRequestId && <a className="t-btn" href={'/requests/' + encodeURIComponent(row.approvalRequestId)}>

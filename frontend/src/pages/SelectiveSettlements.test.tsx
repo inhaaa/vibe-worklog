@@ -15,7 +15,7 @@ const requestId = 'a04c0654-fd50-4268-9caf-8a6f86efa713';
 function day(workDate: string, reasons: string[], employeeAction: string, adminAction: string, requestId: string | null = null) {
   return { workDate, reasons, employeeAction, adminAction, requestId };
 }
-const confirmation = day('2026-12-29', ['WORK_UNCONFIRMED', 'BREAK_UNCONFIRMED'], 'CONFIRM', 'REVIEW');
+const confirmation = day('2026-12-29', ['WORK_UNCONFIRMED', 'BREAK_UNCONFIRMED'], 'REVIEW', 'REVIEW');
 const correction = day('2026-12-30', ['MISSING_CLOCK_OUT'], 'CORRECT', 'REVIEW');
 const period = { settlementPeriod: 'ISO_WEEK', fromDate: '2026-12-28', toDate: '2027-01-03', appliedDays: 3,
   targetMinutes: 1350, confirmedWorkMillis: 39_600_000, paidLeaveMillis: 13_500_000,
@@ -108,7 +108,7 @@ const employeeId = '37dbe5e6-0a40-475e-9764-a4c5eb9702cd';
 const adminSource = '/admin/attendance?employeeId=' + employeeId
   + '&month=2027-01&settlementPeriod=ISO_WEEK&settlementFrom=2026-12-28';
 
-it('월경계 주의 오늘까지 미확정 일수를 열고 근무 확인에서 뒤로 가면 같은 기간을 다시 조회한다', async () => {
+it('월경계 주의 오늘까지 미확정 일수를 열고 근무 기록에서 뒤로 가면 같은 기간을 다시 조회한다', async () => {
   history.replaceState(null, '', '/me/worktime?month=2027-01');
   const overview = { page: 'worktime/month', data: monthModel(), csrf };
   let remainingDates = [confirmation, correction];
@@ -138,7 +138,7 @@ it('월경계 주의 오늘까지 미확정 일수를 열고 근무 확인에서
   const row = within(list.getAllByRole('listitem')[0]);
   expect(row.getByText(/실제 근로시간/)).toBeTruthy();
   expect(row.getByText(/실제 휴게시간/)).toBeTruthy();
-  const confirm = row.getByRole('link', { name: confirmation.workDate + ' 근무 확인' });
+  const confirm = row.getByRole('link', { name: confirmation.workDate + ' 근무 기록 보기' });
   expect(confirm.getAttribute('href')).toBe('/me/attendance?' + new URLSearchParams({ date: confirmation.workDate, settlementReturn: weeklySource }));
   expect(row.getByText(confirmation.workDate).closest('a')).toBe(confirm);
   await act(async () => { fireEvent.click(row.getByText(confirmation.workDate)); });
@@ -175,6 +175,7 @@ it.each([false, true])('같은 날짜의 사유와 조회 권한에 맞는 처�
     day('2026-12-31', ['INVALID_CLOCK_ORDER'], 'REVIEW', 'REVIEW'),
     day('2027-01-01', ['MISSING_CLOCK_OUT', 'DAY_IN_PROGRESS'], 'NONE', 'REVIEW'),
     day('2027-01-02', ['MONTH_CLOSED', 'MISSING_CLOCK_OUT'], 'NONE', 'NONE'),
+    day('2027-01-03', ['WORK_UNCONFIRMED'], 'CONFIRM', 'REVIEW'),
   ];
   vi.stubGlobal('fetch', vi.fn<typeof fetch>(async input => {
     const url = new URL(String(input), location.href);
@@ -212,6 +213,8 @@ it.each([false, true])('같은 날짜의 사유와 조회 권한에 맞는 처�
     expect(href(3, '근무 기록 보기').searchParams.get('date')).toBe('2026-12-31');
     expect(rows[4].getByText(/퇴근 후/)).toBeTruthy();
     expect(rows[4].queryByRole('link')).toBeNull();
+    expect(rows[6].getByText('자동 확인 대기(새벽 집계)')).toBeTruthy();
+    expect(rows[6].queryByRole('link')).toBeNull();
   }
   expect(rows[5].getByText('조회 전용')).toBeTruthy();
   expect(rows[5].queryByRole('link')).toBeNull();
