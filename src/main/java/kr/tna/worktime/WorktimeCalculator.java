@@ -16,13 +16,14 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-/** Pure CALC-1 arithmetic. Persistence, authorization and approval effects belong to the calling service. */
+/** Pure CALC-2 arithmetic. Persistence, authorization and approval effects belong to the calling service. */
 public final class WorktimeCalculator {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final long HOUR = 3_600_000L;
     private static final String SELECTIVE_SETTLEMENT = "SELECTIVE_SETTLEMENT_APPLIES";
     private static final Set<String> INFORMATIONAL = Set.of("LEGAL_OVERTIME_UNDETERMINED",
-            "APPROVED_LEAVE_NO_ATTENDANCE", "NO_CLOCK_ON_CONFIRMED_NON_WORKDAY", SELECTIVE_SETTLEMENT);
+            "APPROVED_LEAVE_NO_ATTENDANCE", "NO_CLOCK_ON_CONFIRMED_NON_WORKDAY", SELECTIVE_SETTLEMENT,
+            "ABSENT", "LATE", "EARLY_LEAVE");
 
     public enum Status { CALCULATED, REVIEW_REQUIRED, NO_SCHEDULED_WORK }
     public enum DayKind { WORKDAY, NON_WORKDAY, HOLIDAY, UNCONFIRMED }
@@ -47,16 +48,38 @@ public final class WorktimeCalculator {
                     confirmation, pendingCorrection, approvedLeaveDays, approvedLeaveDays);
         }
     }
+    public record AttendanceContext(boolean dayEnded, String leavePart) {
+        public static final AttendanceContext NONE = new AttendanceContext(false, null);
+    }
+    /** 지각·조퇴는 판정하지 않으면 null, 판정했으면 0 이상. absence는 FULL/HALF/null. */
+    public record Attendance(Long lateMillis, Long earlyLeaveMillis, String absence) {
+        public static final Attendance NONE = new Attendance(null, null, null);
+    }
     public record DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
                             Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
                             Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
-                            double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons) { }
+                            double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons,
+                            Attendance attendance) {
+        public DayResult {
+            if (attendance == null) attendance = Attendance.NONE;
+        }
+        public DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
+                         Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
+                         Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
+                         double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons) {
+            this(workDate, status, scheduledMillis, presenceMillis, actualWorkMillis, confirmedBreakMillis, outsideScheduleMillis,
+                    over8hMillis, nightWorkMillis, holidayWorkMillis, legalOvertimeMillis, leaveDays, paidLeaveMillis,
+                    inputRevision, reviewRevision, reasons, Attendance.NONE);
+        }
+    }
     public record PeriodResult(LocalDate start, LocalDate end, Status status, long confirmedWorkMillis,
                                int unconfirmedDays, Long over40hMillis, Long over8hMillis, List<DayResult> days,
                                Set<String> reasons, Long paidLeaveMillis) { }
 
-    public DayResult day(DayInput input) {
-        Objects.requireNonNull(input); Objects.requireNonNull(input.workDate());
+    public DayResult day(DayInput input) { return day(input, AttendanceContext.NONE); }
+
+    public DayResult day(DayInput input, AttendanceContext context) {
+        Objects.requireNonNull(input); Objects.requireNonNull(context); Objects.requireNonNull(input.workDate());
         Objects.requireNonNull(input.events()); Objects.requireNonNull(input.schedules());
         Objects.requireNonNull(input.dayKind());
         if (input.inputRevision()<0 || input.reviewRevision()<0 || (input.approvedLeaveDays()!=0
@@ -112,12 +135,19 @@ public final class WorktimeCalculator {
         boolean noEvents=uniqueEvents.isEmpty();
         boolean nonWorkday=scheduled!=null && (scheduled==0 || input.dayKind()==DayKind.NON_WORKDAY
                 || input.dayKind()==DayKind.HOLIDAY) && input.dayKind()!=DayKind.UNCONFIRMED;
+        boolean judged = scheduledWork != null && !selective && schedule.workday() && scheduled != null && scheduled > 0
+                && input.dayKind() == DayKind.WORKDAY && input.approvedLeaveDays() < 1;
+        String absence = null;
         Long presence=null, actual=null, confirmedBreak=null, outside=null, overEight=null, night=null, holiday=null;
         if (noEvents) {
             if (scheduled!=null && input.dayKind()!=DayKind.UNCONFIRMED && !input.pendingCorrection()
                     && (nonWorkday || input.approvedLeaveDays()==1)) {
                 actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L;
                 reasons.add(input.approvedLeaveDays()==1?"APPROVED_LEAVE_NO_ATTENDANCE":"NO_CLOCK_ON_CONFIRMED_NON_WORKDAY");
+            } else if (judged && context.dayEnded() && !input.pendingCorrection()) {
+                actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L;
+                absence = input.approvedLeaveDays() == 0.5 ? "HALF" : "FULL";
+                reasons.add("ABSENT");
             } else if (!input.pendingCorrection()) {
                 reasons.add("MISSING_CLOCK_IN"); reasons.add("MISSING_CLOCK_OUT");
             }
@@ -171,12 +201,31 @@ public final class WorktimeCalculator {
             }
         }
         if (!selective && actual!=null && input.generalRuleReviewed()) overEight=Math.max(0L,actual-8*HOUR);
+        Long late = null, early = null;
+        if (judged && !reasons.contains("DUPLICATE_CLOCK_EVENT") && !reasons.contains("INVALID_CLOCK_ORDER")
+                && !reasons.contains("CROSS_MIDNIGHT_UNSUPPORTED")) {
+            Instant expectedStart = schedule.start(), expectedEnd = schedule.end();
+            Interval first = schedule.plannedBreaks().stream().min(Comparator.comparing(Interval::start)).orElse(null);
+            Instant middle = schedule.start().plus(Duration.between(schedule.start(), schedule.end()).dividedBy(2));
+            if ("AM".equals(context.leavePart())) expectedStart = first == null ? middle : first.end();
+            if ("PM".equals(context.leavePart())) expectedEnd = first == null ? middle : first.start();
+            if (ins.size() == 1 && sameDay(ins.getFirst().occurredAt(), ins.getFirst().occurredAt(), input.workDate())) {
+                late = Math.max(0L, Duration.between(expectedStart, ins.getFirst().occurredAt()).toMillis());
+                if (late > 0) reasons.add("LATE");
+            }
+            if (outs.size() == 1 && sameDay(outs.getFirst().occurredAt(), outs.getFirst().occurredAt(), input.workDate())) {
+                early = Math.max(0L, Duration.between(outs.getFirst().occurredAt(), expectedEnd).toMillis());
+                if (early > 0) reasons.add("EARLY_LEAVE");
+            }
+        }
+        Attendance attendance = absence != null ? new Attendance(null, null, absence)
+                : late == null && early == null ? Attendance.NONE : new Attendance(late, early, null);
         boolean review=reasons.stream().anyMatch(reason->!INFORMATIONAL.contains(reason));
         Status status=review || actual==null?Status.REVIEW_REQUIRED
                 :noEvents && nonWorkday && input.approvedLeaveDays()==0?Status.NO_SCHEDULED_WORK:Status.CALCULATED;
         return new DayResult(input.workDate(),status,scheduled,presence,actual,confirmedBreak,outside,overEight,night,holiday,
                 null,input.approvedLeaveDays(),paidLeaveMillis(input.dayKind(),scheduled,input.paidLeaveDays()),
-                input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons));
+                input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons),attendance);
     }
 
     static Long paidLeaveMillis(DayKind dayKind, Long scheduledMillis, double paidDays) {
