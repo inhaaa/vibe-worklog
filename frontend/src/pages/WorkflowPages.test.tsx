@@ -822,6 +822,7 @@ describe('WorkflowPages', () => {
       eventTimes: {}, confirmationForm, correctionSuggested: true,
     });
     expect(view.queryByRole('button', { name: '근무 확인' })).toBeNull();
+    expect(view.container.textContent).toContain('출퇴근 기록이 맞지 않습니다. 실제와 다르면 정정 신청해 주세요.');
     expect(view.getByRole('link', { name: '정정 신청' }).getAttribute('href'))
       .toBe('/me/requests/new?year=2026&kind=ATTENDANCE_CORRECTION&date=2026-10-26');
   });

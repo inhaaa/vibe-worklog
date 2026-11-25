@@ -1230,7 +1230,7 @@ export function AttendanceRecord({ data, showSchedule = true }: { data: Record<s
       )}
       {d.confirmation && <p className="t-subtle">예정 휴게가 자동 적용되었습니다. 다르면 정정을 신청해 주세요.</p>}
       {needsCorrection && (
-        <p className="notice">출퇴근 기록이 맞지 않아 근무 확인을 할 수 없습니다. <a href={correctionHref}>정정 신청</a></p>
+        <p className="notice">출퇴근 기록이 맞지 않습니다. 실제와 다르면 <a href={correctionHref}>정정 신청</a>해 주세요.</p>
       )}
     </section>
   );

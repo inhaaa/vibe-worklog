@@ -93,7 +93,7 @@ const today = {
         timeline: [],
         scheduleText: '근무 일정 미배정',
         calendarText: '캘린더 미확인',
-        confirmationText: '실제 근로 미확인',
+        confirmationText: '근로·휴게 자동 확인 전',
         inTime: '미기록',
         outTime: '미기록',
       },

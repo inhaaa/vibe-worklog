@@ -58,6 +58,7 @@ class AutoBreakConfirmationIT {
     @Autowired MockMvc mvc;
     @Autowired ClockService clocks;
     @Autowired TestClock clock;
+    @Autowired kr.tna.common.tenant.TenantTransactions transactions;
     // 스텁하지 않은 테스트에서는 실제 동작 그대로다. 스텁은 테스트마다 초기화된다.
     @MockitoSpyBean WorktimeService worktime;
     @MockitoSpyBean OrgCommands orgCommands;
@@ -180,7 +181,16 @@ class AutoBreakConfirmationIT {
         clockOut(17, 0, UUID.randomUUID());
         page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("지각 7분"));
         page(period).andExpect(jsonPath("$.data.attendancePeriod.rows[0].attendanceLabel").value("지각 7분"));
-        page("/me/schedule?month=2026-11").andExpect(jsonPath("$.data.workspaceCalendar.days[22].attendanceLabel").value("지각 7분"));
+        page("/me/schedule?month=2026-11").andExpect(jsonPath("$.data.workspaceCalendar.days[?(@.snapshot.workDate == '" + DAY + "')].attendanceLabel")
+                .value(org.hamcrest.Matchers.contains("지각 7분")));
+    }
+
+    @Test void homeShowsMissingClockInEvenWhenTodayHasAStoredResultWithoutJudgement() throws Exception {
+        clock.now.set(DAY.atTime(9, 0).atZone(SEOUL).toInstant());
+        assertEquals(1, transactions.execute(tenant, () -> worktime.calculateDatesAsSystem(tenant, null, employee.employeeId(), List.of(DAY))));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=? AND employee_id=? AND work_date=? AND late_millis IS NULL AND early_leave_millis IS NULL AND absence IS NULL",
+                Integer.class, tenant, employee.employeeId(), DAY));
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("미출근"));
     }
 
     private ResultActions page(String url) throws Exception {

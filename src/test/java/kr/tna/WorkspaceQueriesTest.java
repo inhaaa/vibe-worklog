@@ -88,7 +88,7 @@ class WorkspaceQueriesTest {
         assertEquals(LocalDate.of(2027, 1, 1), home.today().snapshot().workDate());
         assertNull(home.availableLeaveDays(), "no opening record must not become a zero-day balance");
         assertEquals("근무 일정 미배정", home.today().scheduleText());
-        assertEquals("실제 근로 미확인", home.today().confirmationText());
+        assertEquals("근로·휴게 자동 확인 전", home.today().confirmationText());
     }
 
     @Test

@@ -97,8 +97,8 @@ public final class WorkspaceQueries {
                         .findFirst().map(RequestDay::quantityDays).orElse(null);
                 return item(row, quantity, true);
             }).toList();
-            String label = marks.containsKey(snapshot.workDate()) ? marks.get(snapshot.workDate())
-                    : AttendanceHistory.missingClockIn(snapshot, today, items.stream().anyMatch(RequestItem::effectiveLeave), now);
+            String label = marks.get(snapshot.workDate());
+            if (label == null) label = AttendanceHistory.missingClockIn(snapshot, today, items.stream().anyMatch(RequestItem::effectiveLeave), now);
             return new DayView(snapshot, items, snapshot.workDate().equals(today), snapshot.workDate().equals(selected), label);
         }).toList();
         return new ReadResult(days, requests);

@@ -31,7 +31,7 @@ function home(workDate: string): PageEnvelope {
         employee: shared.workspaceEmployee, week: [], availableLeaveDays: 0, pendingRequests: 0, recentRequests: [],
         today: {
           snapshot: { workDate }, scheduleText: '근무 일정 미배정', calendarText: '캘린더 미확인',
-          confirmationText: '실제 근로 미확인', timeline: [], requests: [],
+          confirmationText: '근로·휴게 자동 확인 전', timeline: [], requests: [],
         },
       },
     },

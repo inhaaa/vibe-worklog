@@ -8,7 +8,7 @@ const day = {
   today: true,
   scheduleText: '09:30 ~ 15:30',
   calendarText: '확인된 근로일',
-  confirmationText: '실제 근로 미확인',
+  confirmationText: '근로·휴게 자동 확인 전',
   inRecordedAt: '2026-11-06T00:28:14Z',
   outRecordedAt: null,
   timeline: [
@@ -66,7 +66,7 @@ describe('업무 홈', () => {
     expect(screen.getByRole('link', { name: '출퇴근 기록' }).getAttribute('href')).toBe('/me/attendance');
     expect(screen.getByText('0일')).toBeTruthy();
     expect(screen.getByText('1건')).toBeTruthy();
-    expect(screen.getByText('실제 근로 미확인')).toBeTruthy();
+    expect(screen.getByText('근로·휴게 자동 확인 전')).toBeTruthy();
     const today = screen.getByRole('region', { name: '오늘 근무' });
     const timeline = within(today).getByRole('list');
     expect(within(timeline).getByText('현재 반영 출근')).toBeTruthy();

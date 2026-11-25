@@ -71,7 +71,7 @@ public final class WorkspaceData {
             };
         }
         public String confirmationText() {
-            return snapshot.confirmation() == null ? "실제 근로 미확인" : "현재 사실의 근로·휴게 확인됨";
+            return snapshot.confirmation() == null ? "근로·휴게 자동 확인 전" : "현재 사실의 근로·휴게 확인됨";
         }
         public String inTime() { return eventTime("IN"); }
         public String outTime() { return eventTime("OUT"); }

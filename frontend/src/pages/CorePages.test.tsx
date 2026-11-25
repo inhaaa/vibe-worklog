@@ -24,7 +24,7 @@ const day = {
   timeline: [],
   scheduleText: '근무 일정 미배정',
   calendarText: '캘린더 미확인',
-  confirmationText: '실제 근로 미확인',
+  confirmationText: '근로·휴게 자동 확인 전',
   inTime: '미기록',
   outTime: '미기록',
 };
@@ -103,7 +103,7 @@ describe('개인 홈과 일정', () => {
     );
     expect(html).toContain('근무 일정 미배정');
     expect(html).toContain('미등록');
-    expect(html).toContain('실제 근로 미확인');
+    expect(html).toContain('근로·휴게 자동 확인 전');
     const doc = new DOMParser().parseFromString(html, 'text/html');
     expect(doc.querySelector('input[name="eventKind"][value="IN"]')).not.toBeNull();
     expect(doc.querySelector('input[name="commandId"][value="out"]')).not.toBeNull();
