@@ -150,7 +150,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         @Param("revision") int revision,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("reviewed") boolean reviewed,@Param("basis") String basis,@Param("actorId") UUID actorId);
     @Select("""
-        SELECT f.id::text AS id,d.quantity_days,v.recognition_rule,v.pay_kind
+        SELECT f.id::text AS id,d.quantity_days,v.recognition_rule,v.pay_kind,d.leave_part
         FROM tna.request_effect f
         JOIN tna.approval_request r ON r.tenant_id=f.tenant_id AND r.id=f.request_id
         JOIN tna.leave_request_day d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
@@ -159,7 +159,13 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
           AND r.status='APPROVED' AND d.leave_date=#{date} AND d.quantity_days>0 ORDER BY f.id
         """)
     List<LeaveEffect> leaveEffects(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
-    record LeaveEffect(String id, double quantityDays, String recognitionRule, String payKind) {
+    record LeaveEffect(String id, double quantityDays, String recognitionRule, String payKind, String leavePart) {
+        /** FULL 또는 합계 1일 이상이면 FULL, 반차 하나면 AM/PM, 없으면 null. */
+        public static String part(List<LeaveEffect> effects) {
+            if (effects.isEmpty()) return null;
+            if (totalDays(effects) >= 1 || effects.stream().anyMatch(e -> e.leavePart() == null || "FULL".equals(e.leavePart()))) return "FULL";
+            return effects.getFirst().leavePart();
+        }
         public static double totalDays(List<LeaveEffect> effects) {
             return effects.stream().mapToDouble(LeaveEffect::quantityDays).sum();
         }
@@ -171,7 +177,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     }
     @Select("SELECT id::text FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND status='PENDING' AND from_date=#{date} ORDER BY id")
     List<String> pendingCorrections(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
-    @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-1')")
+    @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-2')")
     int insertRun(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("employeeId") UUID employeeId,
         @Param("actorId") UUID actorId,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("expandedFrom") LocalDate expandedFrom,@Param("expandedTo") LocalDate expandedTo);
@@ -183,11 +189,12 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,policy_version_id,assessment_id,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,
           confirmed_break_millis,outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
-          leave_days,reason_codes,input_refs)
+          leave_days,reason_codes,input_refs,late_millis,early_leave_millis,absence)
         VALUES(#{tenantId},#{id},#{runId},#{employeeId},#{r.workDate},#{revision},#{r.inputRevision},#{r.reviewRevision},
-          #{source},#{policyId},#{assessmentId},'CALC-1',#{r.status},#{r.scheduledMillis},#{r.presenceMillis},#{r.actualWorkMillis},
+          #{source},#{policyId},#{assessmentId},'CALC-2',#{r.status},#{r.scheduledMillis},#{r.presenceMillis},#{r.actualWorkMillis},
           #{r.confirmedBreakMillis},#{r.outsideScheduleMillis},#{r.over8hMillis},#{r.nightWorkMillis},#{r.holidayWorkMillis},NULL,
-          #{r.leaveDays},CAST(#{reasons} AS jsonb),CAST(#{refs} AS jsonb))
+          #{r.leaveDays},CAST(#{reasons} AS jsonb),CAST(#{refs} AS jsonb),
+          #{r.attendance.lateMillis},#{r.attendance.earlyLeaveMillis},#{r.attendance.absence})
         """)
     int insertResult(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("runId") UUID runId,
         @Param("employeeId") UUID employeeId,@Param("revision") long revision,@Param("r") WorktimeCalculator.DayResult result,
@@ -196,7 +203,8 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     @Select("""
         SELECT DISTINCT ON(work_date) id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
-          outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,leave_days,
+          outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
+          late_millis,early_leave_millis,absence,leave_days,
           coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
           input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date>=#{from} AND work_date<=#{to}
@@ -206,7 +214,8 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     @Select("""
         SELECT id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
-          outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,leave_days,
+          outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
+          late_millis,early_leave_millis,absence,leave_days,
           coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
           input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{id}
@@ -262,6 +271,6 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,
-        Long holidayWorkMillis,Long legalOvertimeMillis,double leaveDays,double paidLeaveDays,String savedDayKind,String reasonCodes,Instant calculatedAt) { }
+        Long holidayWorkMillis,Long legalOvertimeMillis,Long lateMillis,Long earlyLeaveMillis,String absence,double leaveDays,double paidLeaveDays,String savedDayKind,String reasonCodes,Instant calculatedAt) { }
     record SnapshotRow(UUID id,UUID requestedBy,UUID employeeId,LocalDate fromDate,LocalDate toDate,Instant asOf,byte[] workbook) { }
 }
