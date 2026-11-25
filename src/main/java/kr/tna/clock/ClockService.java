@@ -117,6 +117,7 @@ public final class ClockService {
             Event event=new Event(UUID.randomUUID(),kind,now,date);
             changed(mapper.event(actor.tenantId(),actor.employeeId(),event,commandId,address,network));
             changed(mapper.advanceInput(actor.tenantId(),actor.employeeId(),date));
+            if(kind.equals("OUT"))autoConfirm(actor.tenantId(),actor.employeeId(),date,actor.accountId());
             return new Change(event.id(),null,event);
         });
     }
@@ -133,13 +134,13 @@ public final class ClockService {
             Instant now=clock.instant();
             if(day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())||!form.presenceAsWork()||!form.breaksMatch())
                 throw OrgException.invalid("실제 근로·예정 휴게가 일치하는지 확인하고 차이가 있으면 정정을 신청해 주세요.");
-            var check=confirmationCheck(day,now);
+            var check=confirmationCheck(day,now,false);
             if(check.error()!=null)throw OrgException.invalid(check.error());
             var breaks=check.breaks();
             changed(mapper.advanceReview(actor.tenantId(),actor.employeeId(),day.workDate(),day.inputRevision(),day.reviewRevision()));
             UUID id=UUID.randomUUID();Instant at=clock.instant().truncatedTo(ChronoUnit.MILLIS);
             changed(mapper.insertConfirmation(actor.tenantId(),id,actor.employeeId(),day.workDate(),day.inputRevision(),day.reviewRevision()+1,
-                    day.sourceFingerprint(),at,actor.accountId(),json.writeValueAsString(breaks),form.commandId()));
+                    day.sourceFingerprint(),at,actor.accountId(),json.writeValueAsString(breaks),form.commandId(),"EMPLOYEE"));
             return new Change(id,null,new Confirmation(id,day.inputRevision(),day.reviewRevision()+1,true,true,day.sourceFingerprint(),breaks,at));
         });
     }
@@ -149,10 +150,28 @@ public final class ClockService {
     public Optional<List<Interval>> confirmableBreaks(DaySnapshot day) {
         Instant now=clock.instant();
         if (day.confirmation()!=null || day.workDate().isAfter(now.atZone(SEOUL).toLocalDate())) return Optional.empty();
-        var check = confirmationCheck(day,now);
+        var check = confirmationCheck(day,now,false);
         return check.error()==null ? Optional.of(check.breaks()) : Optional.empty();
     }
-    private static ConfirmationCheck confirmationCheck(DaySnapshot day,Instant now) {
+    /**
+     * 예정 휴게 중 출퇴근 구간 안의 부분을 실제 휴게로 자동 확인한다. 조건을 못 갖추거나 마감한 달이면 아무것도 하지 않고 false.
+     * 호출하는 쪽의 트랜잭션·회사 컨텍스트 안에서 실행된다. confirmedBy가 null이면 시스템이다.
+     */
+    public boolean autoConfirm(UUID tenantId,UUID employeeId,LocalDate date,UUID confirmedBy) {
+        DaySnapshot day=snapshot(tenantId,employeeId,date);
+        Instant now=clock.instant();
+        if(day.confirmation()!=null||date.isAfter(now.atZone(SEOUL).toLocalDate())||!mapper.closedMonths(tenantId,date,date).isEmpty())return false;
+        var check=confirmationCheck(day,now,true);
+        if(check.error()!=null)return false;
+        if(mapper.advanceReview(tenantId,employeeId,date,day.inputRevision(),day.reviewRevision())!=1)return false;
+        // 같은 입력 개정의 자동 확인은 한 번뿐이므로 명령 식별자도 그로부터 정한다.
+        UUID command=UUID.nameUUIDFromBytes(("AUTO_SCHEDULE:"+tenantId+":"+employeeId+":"+date+":"+day.inputRevision()).getBytes(StandardCharsets.UTF_8));
+        changed(mapper.insertConfirmation(tenantId,UUID.randomUUID(),employeeId,date,day.inputRevision(),day.reviewRevision()+1,
+                day.sourceFingerprint(),now.truncatedTo(ChronoUnit.MILLIS),confirmedBy,json.writeValueAsString(check.breaks()),command,"AUTO_SCHEDULE"));
+        return true;
+    }
+    /** 직원 확인과 자동 확인의 출퇴근 조건. 선택근무와 자동 확인(clipAll)은 휴게를 출퇴근 구간으로 자른다. */
+    private static ConfirmationCheck confirmationCheck(DaySnapshot day,Instant now,boolean clipAll) {
         var ins=day.effectiveEvents().stream().filter(e->e.kind().equals("IN")).toList();
         var outs=day.effectiveEvents().stream().filter(e->e.kind().equals("OUT")).toList();
         if(ins.size()!=1||outs.size()!=1||day.schedule()==null||day.calendarVersionId()==null)
@@ -163,7 +182,7 @@ public final class ClockService {
             return new ConfirmationCheck(List.of(),"확인할 수 없는 출퇴근 구간입니다. 정정을 신청해 주세요.");
         List<Interval> breaks=day.schedule().breaks().stream().map(b->new Interval(
                 day.workDate().atTime(b.startTime()).atZone(SEOUL).toInstant(),day.workDate().atTime(b.endTime()).atZone(SEOUL).toInstant())).toList();
-        if (day.schedule().selective()) {
+        if (clipAll || day.schedule().selective()) {
             var overlapping = breaks.stream().map(b -> new Interval(b.startAt().isBefore(start) ? start : b.startAt(),
                     b.endAt().isAfter(end) ? end : b.endAt())).filter(b -> b.startAt().isBefore(b.endAt())).toList();
             return new ConfirmationCheck(overlapping,null);

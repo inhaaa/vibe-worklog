@@ -70,8 +70,15 @@ public class AttendanceController {
     }
     ModelAndView history(TnaPrincipal actor, LocalDate date) {return dayPage(actor,date==null?commands.today():date,null);}
     @PostMapping("/me/attendance/events") ModelAndView event(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String eventKind,@RequestParam UUID commandId,@RequestParam(required=false) String returnTo,HttpServletRequest request){
-        if(!"home".equals(returnTo)){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/attendance");}
-        try{clocks.record(actor,eventKind,commandId,request.getRemoteAddr());return redirect("/me/home");}catch(OrgException e){return redirect("/me/home?clockError="+e.status());}
+        if(!"home".equals(returnTo)){clocks.record(actor,eventKind,commandId,request.getRemoteAddr());afterRecord(actor,eventKind,commandId);return redirect("/me/attendance");}
+        try{clocks.record(actor,eventKind,commandId,request.getRemoteAddr());}catch(OrgException e){return redirect("/me/home?clockError="+e.status());}
+        afterRecord(actor,eventKind,commandId);return redirect("/me/home");
+    }
+    /** 퇴근 기록과 자동 확인은 이미 저장됐다. 계산 실패는 그날을 재집계 대상으로 남긴다. */
+    private void afterRecord(TnaPrincipal actor,String eventKind,UUID commandId){
+        if(!"OUT".equals(eventKind))return;
+        try{worktime.calculateConfirmedDay(actor,commands.today(),commandId);}
+        catch(RuntimeException failed){LOG.warn("event=worktime_auto_calculate outcome=failed status={} cause={}",failed instanceof OrgException e?e.status():500,failed.getClass().getSimpleName());}
     }
     @PostMapping("/me/work-confirmations")
     ModelAndView confirm(@AuthenticationPrincipal TnaPrincipal actor, @ModelAttribute("confirmationForm") ConfirmationForm form,

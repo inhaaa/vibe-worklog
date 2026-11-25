@@ -287,7 +287,7 @@ public final class WorktimeService {
         if(workDate==null||confirmationCommandId==null)throw OrgException.invalid("계산할 근무일을 확인해 주세요.");
         String action="WORKTIME_AUTO_CALCULATE";
         UUID commandId=UUID.nameUUIDFromBytes((action+":"+confirmationCommandId).getBytes(StandardCharsets.UTF_8));
-        return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"근무 확인 후 자동 계산","EMPLOYEE",
+        return commands.execute(actor,commandId,action,"CALCULATION_RUN",fingerprint(action,actor.employeeId(),workDate),"퇴근·근무 확인 후 자동 계산","EMPLOYEE",
                 ()->calculate(actor,employee(actor.tenantId(),actor.employeeId()),workDate,workDate));
     }
     private Change calculate(TnaPrincipal actor,Employee employee,LocalDate from,LocalDate to) {

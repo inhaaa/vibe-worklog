@@ -19,7 +19,6 @@ import java.util.stream.IntStream;
 import java.util.zip.ZipInputStream;
 import kr.tna.clock.AttendanceSettingsData.NetworkForm;
 import kr.tna.clock.AttendanceSettingsService;
-import kr.tna.clock.ClockData.ConfirmationForm;
 import kr.tna.clock.ClockService;
 import kr.tna.common.auth.CompanyAuthenticationDetails;
 import kr.tna.common.auth.CompanyAuthenticationProvider;
@@ -155,8 +154,7 @@ class MvpJourneyIT {
         assertEquals(2, recorded.events().size());
         assertEquals(scheduleVersion, recorded.scheduleVersionId());
         assertEquals(calendar, recorded.calendarVersionId());
-        clocks.confirm(employee, new ConfirmationForm(MONDAY, recorded.inputRevision(), recorded.reviewRevision(),
-                true, true, recorded.sourceFingerprint(), UUID.randomUUID()));
+        assertNotNull(recorded.confirmation(), "퇴근 기록이 예정 휴게를 자동 확인합니다.");
 
         UUID bucket = workflow.openBucket(manager, new BucketForm(employeeId, MONDAY, MONDAY,
                 MONDAY.plusDays(30), 5, "합성 기초 잔여 근거", "합성 기초 등록", UUID.randomUUID()));
@@ -238,7 +236,7 @@ class MvpJourneyIT {
         var audits = reports.audits(manager, null, null).rows();
         Set<String> actions = Set.copyOf(audits.stream().map(row -> row.action()).toList());
         assertTrue(actions.containsAll(Set.of("ORGANIZATION_CREATE", "EMPLOYEE_CREATE", "ACCOUNT_ACTIVATED",
-                "ACCOUNT_ROLES_CHANGE", "APPROVER_ASSIGN", "SCHEDULE_ASSIGN", "ATTENDANCE_RECORD", "WORK_CONFIRM",
+                "ACCOUNT_ROLES_CHANGE", "APPROVER_ASSIGN", "SCHEDULE_ASSIGN", "ATTENDANCE_RECORD",
                 "REQUEST_LEAVE_SUBMIT", "REQUEST_CORRECTION_SUBMIT", "REQUEST_APPROVE", "WORKTIME_RECALCULATE",
                 "REVIEW_EXPORT_PREPARE", "REVIEW_EXPORT_DOWNLOAD")));
         UUID approvalAudit = audits.stream().filter(row -> row.action().equals("REQUEST_APPROVE")

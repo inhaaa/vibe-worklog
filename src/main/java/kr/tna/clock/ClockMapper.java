@@ -107,14 +107,14 @@ public interface ClockMapper extends ClosedAttendanceMonths {
                       @Param("inputRevision") long inputRevision,@Param("reviewRevision") long reviewRevision);
     @Insert("""
             INSERT INTO tna.work_confirmation(tenant_id,id,employee_id,work_date,confirmed_input_revision,review_revision,
-                source_fingerprint,presence_as_work,breaks_match,confirmed_at,confirmed_by,break_snapshot,client_command_id)
+                source_fingerprint,presence_as_work,breaks_match,confirmed_at,confirmed_by,break_snapshot,client_command_id,method)
             VALUES (#{tenantId},#{id},#{employeeId},#{date},#{inputRevision},#{reviewRevision},#{fingerprint},true,true,
-                    #{at},#{actorId},CAST(#{breaks} AS jsonb),#{commandId})
+                    #{at},#{actorId},CAST(#{breaks} AS jsonb),#{commandId},#{method})
             """)
     int insertConfirmation(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("employeeId") UUID employeeId,
                      @Param("date") LocalDate date,@Param("inputRevision") long inputRevision,@Param("reviewRevision") long reviewRevision,
                      @Param("fingerprint") String fingerprint,@Param("at") Instant at,@Param("actorId") UUID actorId,
-                     @Param("breaks") String breaks,@Param("commandId") UUID commandId);
+                     @Param("breaks") String breaks,@Param("commandId") UUID commandId,@Param("method") String method);
     @Select("""
             SELECT f.id AS effect_id,f.request_id,d.in_action,d.out_action,d.requested_in_at,d.requested_out_at,
                    d.before_snapshot::text AS before_snapshot,f.validated_input_refs::text AS validated_input_refs,f.effective_at
