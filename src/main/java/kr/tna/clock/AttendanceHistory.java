@@ -54,35 +54,60 @@ public final class AttendanceHistory {
         var schedule = day.schedule();
         var scheduleKind = scheduleKind(day, approvedLeaveDays >= 1);
         var events = day.effectiveEvents();
-        var ins = events.stream().filter(event -> event.kind().equals("IN")).toList();
-        var outs = events.stream().filter(event -> event.kind().equals("OUT")).toList();
-        Instant in = uniqueTime(ins);
-        Instant out = uniqueTime(outs);
-        boolean invalid = ins.size() > 1 || outs.size() > 1 || (in != null && out != null && !in.isBefore(out))
-                || events.stream().anyMatch(event -> !event.occurredAt().atZone(SEOUL).toLocalDate().equals(date));
-        RecordStatus recordStatus;
-        if (invalid) recordStatus = RecordStatus.INVALID;
-        else if (in != null && out != null) recordStatus = RecordStatus.PRESENT;
-        else if (date.equals(today) && in != null) recordStatus = RecordStatus.IN_PROGRESS;
-        else if (scheduleKind == ScheduleKind.WORKDAY && !pendingCorrection && (date.isBefore(today) || out != null)) recordStatus = RecordStatus.MISSING;
-        else if (out != null) recordStatus = RecordStatus.INVALID;
-        else recordStatus = RecordStatus.NONE;
+        Instant in = uniqueTime(events.stream().filter(event -> event.kind().equals("IN")).toList());
+        Instant out = uniqueTime(events.stream().filter(event -> event.kind().equals("OUT")).toList());
+        boolean invalid = invalid(day);
+        RecordStatus recordStatus = recordStatus(day, today, scheduleKind, pendingCorrection);
         var workStatus = actualWorkMillis != null ? WorkStatus.AVAILABLE : pendingWork ? WorkStatus.PENDING
                 : staleWork ? WorkStatus.STALE : WorkStatus.ABSENT;
-        String label = AttendanceLabel.of(attendance);
-        if (label == null && scheduleKind == ScheduleKind.WORKDAY
-                && (recordStatus == RecordStatus.MISSING || recordStatus == RecordStatus.INVALID)) label = "확인 필요";
-        // 오늘 퇴근 전에는 기록이 아직 끝나지 않았으므로 '확인 필요' 대신 미출근/표시 없음으로 둔다.
-        if ("확인 필요".equals(label) && date.equals(today) && outs.isEmpty()) label = null;
-        // ponytail: 반차일(오전·오후 모두)은 미출근을 숨긴다. 반차 기준 출근 시각을 쓰려면 이 경로에 leavePart가 필요하다.
-        if (label == null) label = missingClockIn(day, today, approvedLeaveDays > 0, now);
+        String label = label(day, today, approvedLeaveDays, pendingCorrection, attendance, now);
         return new Row(date, scheduleKind, schedule == null ? null : schedule.startTime(), schedule == null ? null : schedule.endTime(),
                 invalid ? null : in, invalid ? null : out, recordStatus, !events.equals(day.events()), pendingCorrection,
                 workStatus, actualWorkMillis, correctionSuggested, schedule == null ? null : schedule.workMode(), label);
     }
 
+    /**
+     * 판정 문구. 판정이 없으면 근로일의 누락·이상 기록은 '확인 필요', 오늘 예정 출근 시각이 지났으면 '미출근'이다.
+     * 근태 내역과 홈·근무 일정이 같이 쓴다.
+     */
+    public static String label(DaySnapshot day, LocalDate today, double approvedLeaveDays, boolean pendingCorrection,
+            Attendance attendance, Instant now) {
+        var scheduleKind = scheduleKind(day, approvedLeaveDays >= 1);
+        var recordStatus = recordStatus(day, today, scheduleKind, pendingCorrection);
+        String label = AttendanceLabel.of(attendance);
+        if (label == null && scheduleKind == ScheduleKind.WORKDAY
+                && (recordStatus == RecordStatus.MISSING || recordStatus == RecordStatus.INVALID)) label = "확인 필요";
+        // 오늘 퇴근 전에는 기록이 아직 끝나지 않았으므로 '확인 필요' 대신 미출근/표시 없음으로 둔다.
+        if ("확인 필요".equals(label) && day.workDate().equals(today)
+                && day.effectiveEvents().stream().noneMatch(event -> event.kind().equals("OUT"))) label = null;
+        // ponytail: 반차일(오전·오후 모두)은 미출근을 숨긴다. 반차 기준 출근 시각을 쓰려면 이 경로에 leavePart가 필요하다.
+        if (label == null) label = missingClockIn(day, today, approvedLeaveDays > 0, now);
+        return label;
+    }
+
+    private static boolean invalid(DaySnapshot day) {
+        var events = day.effectiveEvents();
+        var ins = events.stream().filter(event -> event.kind().equals("IN")).toList();
+        var outs = events.stream().filter(event -> event.kind().equals("OUT")).toList();
+        Instant in = uniqueTime(ins), out = uniqueTime(outs);
+        return ins.size() > 1 || outs.size() > 1 || (in != null && out != null && !in.isBefore(out))
+                || events.stream().anyMatch(event -> !event.occurredAt().atZone(SEOUL).toLocalDate().equals(day.workDate()));
+    }
+
+    private static RecordStatus recordStatus(DaySnapshot day, LocalDate today, ScheduleKind scheduleKind, boolean pendingCorrection) {
+        LocalDate date = day.workDate();
+        Instant in = uniqueTime(day.effectiveEvents().stream().filter(event -> event.kind().equals("IN")).toList());
+        Instant out = uniqueTime(day.effectiveEvents().stream().filter(event -> event.kind().equals("OUT")).toList());
+        if (invalid(day)) return RecordStatus.INVALID;
+        if (in != null && out != null) return RecordStatus.PRESENT;
+        if (date.equals(today) && in != null) return RecordStatus.IN_PROGRESS;
+        if (scheduleKind == ScheduleKind.WORKDAY && !pendingCorrection && (date.isBefore(today) || out != null)) return RecordStatus.MISSING;
+        if (out != null) return RecordStatus.INVALID;
+        return RecordStatus.NONE;
+    }
+
     /** 오늘 근로일에 예정 출근 시각이 지났는데 출근이 없으면 '미출근'이다. 선택근무는 출근 시각이 정해져 있지 않아 제외한다. */
-    public static String missingClockIn(DaySnapshot day, LocalDate today, boolean approvedLeave, Instant now) {
+    private static String missingClockIn(DaySnapshot day, LocalDate today, boolean approvedLeave, Instant now) {
         var schedule = day.schedule();
         boolean missing = day.workDate().equals(today) && scheduleKind(day, approvedLeave) == ScheduleKind.WORKDAY
                 && !schedule.selective() && schedule.startTime() != null

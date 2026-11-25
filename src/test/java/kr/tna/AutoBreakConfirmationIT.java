@@ -200,6 +200,14 @@ class AutoBreakConfirmationIT {
                         .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
     }
 
+    @Test void homeAndScheduleAskToCheckAPastWorkdayWithAMissingClockOut() throws Exception {
+        clockIn(8, 0);
+        clock.now.set(DAY.plusDays(1).atTime(7, 0).atZone(SEOUL).toInstant());
+        page("/me/home").andExpect(jsonPath("$.data.workspaceHome.week[0].attendanceLabel").value("확인 필요"));
+        page("/me/schedule?month=2026-11").andExpect(jsonPath("$.data.workspaceCalendar.days[?(@.snapshot.workDate == '" + DAY + "')].attendanceLabel")
+                .value(org.hamcrest.Matchers.contains("확인 필요")));
+    }
+
     @Test void homeShowsMissingClockInEvenWhenTodayHasAStoredResultWithoutJudgement() throws Exception {
         clock.now.set(DAY.atTime(9, 0).atZone(SEOUL).toInstant());
         assertEquals(1, transactions.execute(tenant, () -> worktime.calculateDatesAsSystem(tenant, null, employee.employeeId(), List.of(DAY))));

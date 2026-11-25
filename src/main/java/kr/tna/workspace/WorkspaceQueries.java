@@ -20,7 +20,7 @@ import kr.tna.org.OrgException;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.RequestDay;
 import kr.tna.request.RequestData.RequestView;
-import kr.tna.worktime.AttendanceLabel;
+import kr.tna.worktime.WorktimeCalculator.Attendance;
 import kr.tna.workspace.WorkspaceData.*;
 import org.springframework.stereotype.Service;
 
@@ -82,9 +82,9 @@ public final class WorkspaceQueries {
         var requests = leave.mine(actor).stream().filter(row -> actor.employeeId().equals(row.targetEmployeeId())).toList();
         Map<UUID, List<RequestDay>> evidence = new HashMap<>();
         // ponytail: 홈은 입력·검토 개정만 비교한다(원천 지문 비교 생략). 새벽 일괄·즉시 계산이 결과를 갱신한다.
-        Map<LocalDate, String> marks = new HashMap<>();
+        Map<LocalDate, Attendance> marks = new HashMap<>();
         for (var mark : schedules.attendanceMarks(actor.tenantId(), actor.employeeId(), dates.getFirst(), dates.getLast()))
-            marks.put(mark.workDate(), AttendanceLabel.of(mark.lateMillis(), mark.earlyLeaveMillis(), mark.absence()));
+            marks.put(mark.workDate(), new Attendance(mark.lateMillis(), mark.earlyLeaveMillis(), mark.absence()));
         var now = clock.instant();
         var days = snapshots.stream().map(snapshot -> {
             var items = requests.stream().filter(row -> !snapshot.workDate().isBefore(row.fromDate())
@@ -97,8 +97,12 @@ public final class WorkspaceQueries {
                         .findFirst().map(RequestDay::quantityDays).orElse(null);
                 return item(row, quantity, true);
             }).toList();
-            String label = marks.get(snapshot.workDate());
-            if (label == null) label = AttendanceHistory.missingClockIn(snapshot, today, items.stream().anyMatch(RequestItem::effectiveLeave), now);
+            // ponytail: 승인 휴가가 있으면 반차도 종일처럼 '확인 필요'를 숨긴다(이 경로는 휴가 일수를 모은다면 정확해진다).
+            boolean leaveDay = items.stream().anyMatch(RequestItem::effectiveLeave);
+            boolean pendingCorrection = items.stream().anyMatch(item -> "ATTENDANCE_CORRECTION".equals(item.request().kind())
+                    && "PENDING".equals(item.request().status()));
+            String label = AttendanceHistory.label(snapshot, today, leaveDay ? 1 : 0, pendingCorrection,
+                    marks.getOrDefault(snapshot.workDate(), Attendance.NONE), now);
             return new DayView(snapshot, items, snapshot.workDate().equals(today), snapshot.workDate().equals(selected), label);
         }).toList();
         return new ReadResult(days, requests);
