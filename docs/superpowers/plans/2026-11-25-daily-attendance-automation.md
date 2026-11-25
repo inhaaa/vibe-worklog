@@ -19,6 +19,7 @@
   `powershell -File C:\Users\ihpark\AppData\Local\Temp\claude\c6d09512e35b8bb6\ff996283-e18f-4a51-b946-d1e31871cf61\scratchpad\mvn-test.ps1 <maven args>`
   예: `... mvn-test.ps1 -q test -Dtest=AttendanceJudgementTest`, 통합: `... mvn-test.ps1 -q verify -Dit.test=DailyAttendanceBatchIT -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false`
   (스크립트가 없으면 컨트롤러 세션에 알린다. 직접 만들지 않는다.)
+  백엔드만 확인할 때는 `-Dfrontend.skip=true`(npm ci 생략), jar가 잠겨 있으면 `-Dspring-boot.repackage.skip=true`를 붙인다. 여러 테스트 클래스는 쉼표로 구분한다.
 - 프런트엔드: `cd frontend; npx vitest run <파일>`; 빌드 `npm run build`.
 - 커밋 메시지 끝에 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`를 넣는다.
 - 비밀번호·실제 생년월일·개인정보를 로그·감사·지문·페이지 모델에 넣지 않는다. 회사(테넌트) 격리, RLS, 권한을 약화하지 않는다.
