@@ -799,7 +799,8 @@ public class DailyAttendanceBatch {
             transactions.execute(tenant, () -> {
                 var dates = new ArrayList<LocalDate>();
                 for (LocalDate d = from; !d.isAfter(yesterday); d = d.plusDays(1)) dates.add(d);
-                dates.addAll(mapper.recalculationDates(tenant, employee, yesterday));
+                mapper.lockForWrite(tenant); // 자동 확인(공유 잠금)보다 먼저 쓰기 잠금을 잡아 잠금 승격을 피한다
+                dates.addAll(mapper.recalculationDates(tenant, employee, today.minusDays(62), yesterday));
                 for (LocalDate d : dates) clocks.autoConfirm(tenant, employee, d, null);
                 return worktime.calculateDatesAsSystem(tenant, null, employee, dates);
             });
