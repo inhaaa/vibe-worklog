@@ -123,6 +123,10 @@ class AttendanceJudgementTest {
         assertNull(r.attendance().earlyLeaveMillis());
         assertTrue(r.reasons().contains("MISSING_CLOCK_OUT"));
         assertEquals(WorktimeCalculator.Status.REVIEW_REQUIRED, r.status());
+        assertEquals("지각 5분", AttendanceLabel.of(r.attendance()));
+        var onTime = run(events("08:00", null), fixed("08:00", "17:00"), null, 0, null, true, false);
+        assertEquals("확인 필요", AttendanceLabel.of(onTime.attendance()));
+        assertEquals("확인 필요", AttendanceLabel.of(null, 0L, null));
     }
     @Test void legacyDayOverloadStillWorks() {
         var r = calculator.day(new DayInput(DATE, events("08:00", "17:00"), List.of(fixed("08:00", "17:00", "12:00", "13:00")),

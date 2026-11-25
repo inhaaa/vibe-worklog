@@ -56,7 +56,7 @@ class AttendanceHistoryTest {
         var schedule = new ScheduleData.Day(TODAY.getDayOfWeek().getValue(), true, LocalTime.of(9, 0), LocalTime.of(18, 0), List.of());
         var day = new ClockData.DaySnapshot(UUID.randomUUID(), TODAY, events, schedule, UUID.randomUUID(), UUID.randomUUID(),
                 "WORKDAY", 0, 0, null, "fingerprint", events);
-        var row = AttendanceHistory.row(day, TODAY, false, false, true, true, false, 5L, true, Attendance.NONE, time);
+        var row = AttendanceHistory.row(day, TODAY, false, 0, true, true, false, 5L, true, Attendance.NONE, time);
         assertEquals(AttendanceHistory.ScheduleKind.OUTSIDE_EMPLOYMENT, row.scheduleKind());
         assertEquals(AttendanceHistory.RecordStatus.NONE, row.recordStatus());
         assertNull(row.inAt());
@@ -95,17 +95,30 @@ class AttendanceHistoryTest {
         assertNull(row(TODAY, "WORKDAY", Attendance.NONE, nine.minusSeconds(60)).attendanceLabel());
         assertNull(row(TODAY, "HOLIDAY", Attendance.NONE, nine.plusSeconds(60)).attendanceLabel());
         assertNull(row(TODAY, "WORKDAY", Attendance.NONE, nine.plusSeconds(60), "IN").attendanceLabel());
+        assertNull(row(TODAY, "WORKDAY", 0.5, false, Attendance.NONE, nine.plusSeconds(60)).attendanceLabel(), "반차일은 미출근으로 보지 않는다");
+    }
+
+    @Test void attendanceLabelAsksForReviewOnBrokenRecordsButNotWhileTodayIsOpen() {
+        var noon = TODAY.atTime(12, 0).atZone(SEOUL).toInstant();
+        var past = TODAY.minusDays(1);
+        assertEquals("확인 필요", row(past, "WORKDAY", Attendance.NONE, noon, "IN").attendanceLabel());
+        assertEquals("확인 필요", row(past, "WORKDAY", new Attendance(0L, null, null), noon, "IN").attendanceLabel());
+        assertEquals("확인 필요", row(past, "WORKDAY", Attendance.NONE, noon, "OUT", "IN").attendanceLabel());
+        assertEquals("확인 필요", row(TODAY, "WORKDAY", Attendance.NONE, noon, "OUT").attendanceLabel());
+        assertNull(row(TODAY, "WORKDAY", new Attendance(0L, null, null), noon, "IN").attendanceLabel());
+        assertNull(row(TODAY, "WORKDAY", Attendance.NONE, noon, "IN", "IN").attendanceLabel());
+        assertNull(row(past, "HOLIDAY", Attendance.NONE, noon, "IN").attendanceLabel());
     }
 
     private static AttendanceHistory.Row row(LocalDate date, String dayKind, boolean leave, boolean pending, String... kinds) {
-        return row(date, dayKind, leave, pending, Attendance.NONE, TODAY.atTime(12, 0).atZone(SEOUL).toInstant(), kinds);
+        return row(date, dayKind, leave ? 1 : 0, pending, Attendance.NONE, TODAY.atTime(12, 0).atZone(SEOUL).toInstant(), kinds);
     }
 
     private static AttendanceHistory.Row row(LocalDate date, String dayKind, Attendance attendance, Instant now, String... kinds) {
-        return row(date, dayKind, false, false, attendance, now, kinds);
+        return row(date, dayKind, 0, false, attendance, now, kinds);
     }
 
-    private static AttendanceHistory.Row row(LocalDate date, String dayKind, boolean leave, boolean pending,
+    private static AttendanceHistory.Row row(LocalDate date, String dayKind, double leaveDays, boolean pending,
             Attendance attendance, Instant now, String... kinds) {
         var time = date.atTime(9, 0).atZone(SEOUL).toInstant();
         var events = new java.util.ArrayList<ClockData.Event>();
@@ -113,6 +126,6 @@ class AttendanceHistoryTest {
         var schedule = new ScheduleData.Day(date.getDayOfWeek().getValue(), true, LocalTime.of(9, 0), LocalTime.of(18, 0), List.of());
         var day = new ClockData.DaySnapshot(UUID.randomUUID(), date, events, schedule, UUID.randomUUID(), UUID.randomUUID(), dayKind,
                 0, 0, null, "fingerprint", events);
-        return AttendanceHistory.row(day, TODAY, true, leave, pending, false, false, null, false, attendance, now);
+        return AttendanceHistory.row(day, TODAY, true, leaveDays, pending, false, false, null, false, attendance, now);
     }
 }

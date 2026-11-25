@@ -13,7 +13,9 @@ public final class AttendanceLabel {
         var parts = new java.util.ArrayList<String>();
         if (a.lateMillis() != null && a.lateMillis() > 0) parts.add("지각 " + minutes(a.lateMillis()) + "분");
         if (a.earlyLeaveMillis() != null && a.earlyLeaveMillis() > 0) parts.add("조퇴 " + minutes(a.earlyLeaveMillis()) + "분");
-        return parts.isEmpty() ? "정상" : String.join(" · ", parts);
+        if (!parts.isEmpty()) return String.join(" · ", parts);
+        // 한쪽 기록만 판정된 날은 정상으로 단정하지 않는다.
+        return a.lateMillis() != null && a.earlyLeaveMillis() != null ? "정상" : "확인 필요";
     }
 
     public static String of(Long lateMillis, Long earlyLeaveMillis, String absence) {

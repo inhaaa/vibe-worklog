@@ -44,7 +44,7 @@ class SelectiveClockProjectionTest {
         var json = JsonMapper.builder().build().valueToTree(day.schedule());
         assertEquals("ISO_WEEK", json.path("settlementPeriod").asString());
         assertEquals(480, json.path("standardMinutes").asInt());
-        var history = AttendanceHistory.row(day,date,true,false,false,false,false,null,false,
+        var history = AttendanceHistory.row(day,date,true,0,false,false,false,null,false,
                 kr.tna.worktime.WorktimeCalculator.Attendance.NONE,java.time.Instant.EPOCH);
         assertEquals("SELECTIVE", history.workMode());
     }

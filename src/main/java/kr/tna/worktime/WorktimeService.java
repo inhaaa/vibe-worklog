@@ -121,7 +121,7 @@ public final class WorktimeService {
                 boolean past = date.isBefore(range.today()) || day.effectiveEvents().stream().anyMatch(event -> event.kind().equals("OUT"));
                 boolean suggest = !closed && past && day.confirmation() == null && correctionEligible(day, in.day(), view.employed(), range.today())
                         && !clocks.canConfirm(day);
-                rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays() == 1,
+                rows.add(AttendanceHistory.row(day, range.today(), view.employed(), view.approvedLeaveDays(),
                         in.day().pendingCorrection(), view.pending(), saved != null && !view.current(),
                         view.current() ? view.result().actualWorkMillis() : null, suggest,
                         view.current() ? view.result().attendance() : WorktimeCalculator.Attendance.NONE, clock.instant()));

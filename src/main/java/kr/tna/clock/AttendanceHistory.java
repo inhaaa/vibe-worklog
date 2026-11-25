@@ -43,7 +43,7 @@ public final class AttendanceHistory {
             WorkStatus workStatus, Long actualWorkMillis, boolean correctionSuggested, String workMode,
             String attendanceLabel) { }
 
-    public static Row row(DaySnapshot day, LocalDate today, boolean employed, boolean approvedLeave,
+    public static Row row(DaySnapshot day, LocalDate today, boolean employed, double approvedLeaveDays,
             boolean pendingCorrection, boolean pendingWork, boolean staleWork, Long actualWorkMillis, boolean correctionSuggested,
             Attendance attendance, Instant now) {
         LocalDate date = day.workDate();
@@ -52,7 +52,7 @@ public final class AttendanceHistory {
                     RecordStatus.NONE, false, false, WorkStatus.ABSENT, null, false, null, null);
         }
         var schedule = day.schedule();
-        var scheduleKind = scheduleKind(day, approvedLeave);
+        var scheduleKind = scheduleKind(day, approvedLeaveDays >= 1);
         var events = day.effectiveEvents();
         var ins = events.stream().filter(event -> event.kind().equals("IN")).toList();
         var outs = events.stream().filter(event -> event.kind().equals("OUT")).toList();
@@ -70,7 +70,12 @@ public final class AttendanceHistory {
         var workStatus = actualWorkMillis != null ? WorkStatus.AVAILABLE : pendingWork ? WorkStatus.PENDING
                 : staleWork ? WorkStatus.STALE : WorkStatus.ABSENT;
         String label = AttendanceLabel.of(attendance);
-        if (label == null) label = missingClockIn(day, today, approvedLeave, now);
+        if (label == null && scheduleKind == ScheduleKind.WORKDAY
+                && (recordStatus == RecordStatus.MISSING || recordStatus == RecordStatus.INVALID)) label = "확인 필요";
+        // 오늘 퇴근 전에는 기록이 아직 끝나지 않았으므로 '확인 필요' 대신 미출근/표시 없음으로 둔다.
+        if ("확인 필요".equals(label) && date.equals(today) && outs.isEmpty()) label = null;
+        // ponytail: 반차일(오전·오후 모두)은 미출근을 숨긴다. 반차 기준 출근 시각을 쓰려면 이 경로에 leavePart가 필요하다.
+        if (label == null) label = missingClockIn(day, today, approvedLeaveDays > 0, now);
         return new Row(date, scheduleKind, schedule == null ? null : schedule.startTime(), schedule == null ? null : schedule.endTime(),
                 invalid ? null : in, invalid ? null : out, recordStatus, !events.equals(day.events()), pendingCorrection,
                 workStatus, actualWorkMillis, correctionSuggested, schedule == null ? null : schedule.workMode(), label);
