@@ -15,10 +15,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 /** 매일 00:10 서울: 지난 7일과 재집계 필요 날짜를 회사별로 자동 확인·계산한다. 여러 서버에서도 세션 잠금으로 한 번만 실행된다. */
 @Component
@@ -62,16 +65,25 @@ public class DailyAttendanceBatch {
             try {
                 LocalDate today = LocalDate.now(clock.withZone(SEOUL));
                 int failed = 0;
-                for (UUID tenant : tenants == null ? activeTenants() : tenants) {
-                    failed += runTenant(tenant, today);
+                try {
+                    for (UUID tenant : tenants == null ? activeTenants() : tenants) {
+                        if (Thread.currentThread().isInterrupted()) break;
+                        failed += runTenant(tenant, today);
+                    }
+                } catch (RuntimeException e) {
+                    if (!connectionLost(e)) throw e;
+                    // 연결을 얻지 못하면(종료 중·DB 장애) 사원마다 실패를 남기지 않고 이번 실행을 멈춘다. 다음 실행이 이어서 계산한다.
+                    LOG.warn("event=daily_attendance_batch outcome=stopped cause={} failures={}", e.getClass().getSimpleName(), failed);
+                    return true;
                 }
-                LOG.info("event=daily_attendance_batch outcome=completed failures={}", failed);
+                LOG.info("event=daily_attendance_batch outcome={} failures={}",
+                        Thread.currentThread().isInterrupted() ? "interrupted" : "completed", failed);
                 return true;
             } finally {
                 lock.queryForObject("SELECT pg_advisory_unlock(?)", Boolean.class, LOCK_KEY);
             }
-        } catch (java.sql.SQLException e) {
-            LOG.warn("event=daily_attendance_batch outcome=storage_unavailable");
+        } catch (java.sql.SQLException | DataAccessException e) {
+            LOG.warn("event=daily_attendance_batch outcome=storage_unavailable cause={}", e.getClass().getSimpleName());
             return false;
         }
     }
@@ -87,11 +99,13 @@ public class DailyAttendanceBatch {
         try {
             employees = transactions.execute(tenant, () -> mapper.employedBetween(tenant, from, yesterday));
         } catch (RuntimeException e) {
-            LOG.warn("event=daily_attendance_batch outcome=tenant_failed cause={}", e.getClass().getSimpleName());
+            if (connectionLost(e)) throw e;
+            LOG.warn("event=daily_attendance_batch outcome=tenant_failed tenant={} cause={}", tenant, e.getClass().getSimpleName());
             return 1;
         }
         int failed = 0;
         for (UUID employee : employees) {
+            if (Thread.currentThread().isInterrupted()) break;
             try {
                 // 사원마다 짧은 트랜잭션: 회사 잠금을 오래 잡지 않는다.
                 transactions.execute(tenant, () -> {
@@ -105,10 +119,19 @@ public class DailyAttendanceBatch {
                     return worktime.calculateDatesAsSystem(tenant, null, employee, dates);
                 });
             } catch (RuntimeException e) {
+                if (connectionLost(e)) throw e;
                 failed++;
-                LOG.warn("event=daily_attendance_batch outcome=employee_failed cause={}", e.getClass().getSimpleName());
+                LOG.warn("event=daily_attendance_batch outcome=employee_failed tenant={} cause={}", tenant, e.getClass().getSimpleName());
             }
         }
         return failed;
+    }
+
+    /** 트랜잭션 시작(CannotCreateTransactionException)이나 쿼리(CannotGetJdbcConnectionException)에서 연결을 얻지 못했는지. */
+    private static boolean connectionLost(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof CannotGetJdbcConnectionException || t instanceof CannotCreateTransactionException) return true;
+        }
+        return false;
     }
 }

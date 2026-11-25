@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import kr.tna.DatabaseFixture;
+import kr.tna.common.tenant.TenantTransactions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,7 @@ class DailyAttendanceBatchIT {
     @Autowired Clock clock;
     // 스텁하지 않은 시험에서는 실제 동작 그대로다.
     @MockitoSpyBean WorktimeService worktime;
+    @MockitoSpyBean TenantTransactions transactions;
     private JdbcTemplate db;
     private LocalDate today, yesterday;
     private UUID tenantA, tenantB, employee1, employee2, employee3;
@@ -58,7 +60,7 @@ class DailyAttendanceBatchIT {
         employee3 = employee(tenantB, b);
         UUID network = UUID.randomUUID();
         db.update("INSERT INTO tna.allowed_network(tenant_id,id,network,label,valid_from,reason,created_by) VALUES (?,?,CAST('127.0.0.1/32' AS cidr),'합성 로컬',?,'합성 근거',?)",
-                tenantA, network, java.sql.Timestamp.from(today.minusDays(45).atStartOfDay(SEOUL).toInstant()), a[0]);
+                tenantA, network, java.sql.Timestamp.from(today.minusDays(70).atStartOfDay(SEOUL).toInstant()), a[0]);
         record(tenantA, employee2, network, yesterday);
     }
 
@@ -88,15 +90,18 @@ class DailyAttendanceBatchIT {
 
     @Test void runningTwiceWritesNothingNew() {
         assertTrue(batch.runOnce(List.of(tenantA, tenantB)));
-        long results = results(), runs = runs();
+        long results = results(), runs = runs(), confirmations = confirmations();
         assertTrue(results > 0);
+        assertEquals(1L, confirmations);
         assertTrue(batch.runOnce(List.of(tenantA, tenantB)));
         assertEquals(results, results());
         assertEquals(runs, runs());
+        assertEquals(confirmations, confirmations());
     }
 
     @Test void closedMonthIsSkipped() {
-        LocalDate closedDay = today.withDayOfMonth(1).minusDays(10);
+        // 지지난달 말일: 지난 7일에는 들어가지 않고(매달 1일에도) 재집계 창(62일) 안에 있다.
+        LocalDate closedDay = today.withDayOfMonth(1).minusMonths(1).minusDays(1);
         db.update("""
                 INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
                 SELECT ?,?,?,1,'CLOSED','합성 마감',id,'합성 담당자' FROM tna.tenant_account WHERE tenant_id=? LIMIT 1""",
@@ -110,6 +115,7 @@ class DailyAttendanceBatchIT {
         assertNotNull(latest(employee1, yesterday), "마감하지 않은 날짜는 계속 계산합니다.");
     }
 
+    // LOCK_KEY는 DB 전체에 하나라서 같은 DB로 이 시험을 동시에 두 번 돌리면 서로 간섭한다.
     @Test void anotherRunHoldingTheLockSkipsThisRun() throws Exception {
         try (var holder = DatabaseFixture.start().adminDataSource().getConnection();
              var lock = holder.prepareStatement("SELECT pg_advisory_lock(?)")) {
@@ -135,6 +141,15 @@ class DailyAttendanceBatchIT {
         assertEquals("FULL", latest(employee3, yesterday).get("absence"));
     }
 
+    @Test void oneFailingTenantDoesNotStopTheNext() {
+        doThrow(new IllegalStateException("합성 회사 실패")).when(transactions).execute(eq(tenantA), any());
+
+        assertTrue(batch.runOnce(List.of(tenantA, tenantB)));
+
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.day_result WHERE tenant_id=?", Integer.class, tenantA));
+        assertEquals("FULL", latest(employee3, yesterday).get("absence"));
+    }
+
     private java.util.Map<String, Object> latest(UUID employee, LocalDate date) {
         var rows = db.queryForList("""
                 SELECT tenant_id, absence, actual_work_millis FROM tna.day_result WHERE employee_id=? AND work_date=?
@@ -147,12 +162,15 @@ class DailyAttendanceBatchIT {
     private long runs() {
         return db.queryForObject("SELECT count(*) FROM tna.calculation_run WHERE tenant_id IN (?,?)", Long.class, tenantA, tenantB);
     }
+    private long confirmations() {
+        return db.queryForObject("SELECT count(*) FROM tna.work_confirmation WHERE tenant_id IN (?,?)", Long.class, tenantA, tenantB);
+    }
     private void flag(UUID tenant, UUID employee, LocalDate date) {
         db.update("INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required) VALUES (?,?,?,0,0,true)",
                 tenant, employee, date);
     }
 
-    /** 회사와 담당자 계정, 고정 일정(08~17시, 12~13시 휴게), 45일 전부터 내일까지의 근로일 달력. {담당자 계정, 일정 버전}을 돌려준다. */
+    /** 회사와 담당자 계정, 고정 일정(08~17시, 12~13시 휴게), 70일 전부터 내일까지의 근로일 달력. {담당자 계정, 일정 버전}을 돌려준다. */
     private UUID[] company(UUID tenant) {
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 일괄 고객사')", tenant, "BATCH-" + tenant);
         UUID managerEmployee = UUID.randomUUID(), manager = UUID.randomUUID();
@@ -160,7 +178,7 @@ class DailyAttendanceBatchIT {
                 tenant, managerEmployee, "E-" + managerEmployee, today.minusYears(1));
         db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?, 'synthetic-unused-password-hash')",
                 tenant, manager, managerEmployee, manager + "@example.test");
-        LocalDate from = today.minusDays(45);
+        LocalDate from = today.minusDays(70);
         UUID template = UUID.randomUUID(), schedule = UUID.randomUUID();
         db.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,?,'합성 고정 일정',?,?)",
                 tenant, template, template.toString(), manager, manager);
@@ -185,7 +203,7 @@ class DailyAttendanceBatchIT {
         db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,'합성 직원',?)",
                 tenant, id, "E-" + id, today.minusYears(1));
         db.update("INSERT INTO tna.schedule_assignment(tenant_id,id,employee_id,schedule_version_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'합성 배정',?,?)",
-                tenant, UUID.randomUUID(), id, company[1], today.minusDays(45), company[0], company[0]);
+                tenant, UUID.randomUUID(), id, company[1], today.minusDays(70), company[0], company[0]);
         return id;
     }
 
