@@ -451,7 +451,10 @@ public final class WorktimeService {
                 var saved=evidence==null||evidence.clockJson()==null?null:json.readValue(evidence.clockJson(),ClockData.DaySnapshot.class);
                 String freshness = day.current() ? "작성 시점 현재" : "오래됨 · 재집계 필요";
                 if (day.id() == null) freshness = day.current() ? "월 마감 근거로 확인" : "미산정";
-                var r=day.result();rows.add(row(day.employeeNo(),day.employeeName(),day.workDate().toString(),r.status().name(),
+                var r=day.result();var a=r.attendance();
+                // 판정한 날의 빈 칸은 해당 없음(""), 판정하지 않은 날(오래됨·옛 결과)만 미확정(null)이다. 결근일은 지각·조퇴를 따지지 않는다.
+                boolean judged=day.current()&&!a.equals(Attendance.NONE),absent=judged&&a.absence()!=null;
+                rows.add(row(day.employeeNo(),day.employeeName(),day.workDate().toString(),r.status().name(),
                         freshness,r.scheduledMillis(),r.presenceMillis(),r.actualWorkMillis(),
                         r.confirmedBreakMillis(),r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                         String.join(";",r.reasons().stream().sorted().toList()),day.id()==null?null:day.id().toString(),day.runId()==null?null:day.runId().toString(),
@@ -461,9 +464,9 @@ public final class WorktimeService {
                         exportedEvents(saved,"IN"),exportedEvents(saved,"OUT"),exportedBreaks(saved),
                         humanDuration(r.scheduledMillis()),humanDuration(r.presenceMillis()),humanDuration(r.actualWorkMillis()),humanDuration(r.confirmedBreakMillis()),
                         humanDuration(r.outsideScheduleMillis()),humanDuration(r.over8hMillis()),humanDuration(r.nightWorkMillis()),humanDuration(r.holidayWorkMillis()),humanDuration(r.legalOvertimeMillis()),r.paidLeaveMillis(),
-                        attendanceMinutes(day.current()?r.attendance().lateMillis():null),
-                        attendanceMinutes(day.current()?r.attendance().earlyLeaveMillis():null),
-                        day.current()&&r.attendance().absence()!=null?("FULL".equals(r.attendance().absence())?"결근":"결근(반일)"):null));
+                        absent?"":judged&&a.lateMillis()!=null?(Object)AttendanceLabel.minutes(a.lateMillis()):null,
+                        absent?"":judged&&a.earlyLeaveMillis()!=null?(Object)AttendanceLabel.minutes(a.earlyLeaveMillis()):null,
+                        !judged?null:!absent?"":"FULL".equals(a.absence())?"결근":"결근(반일)"));
             }
             long sum=days.stream().filter(DayView::current).map(DayView::result).filter(r->r.actualWorkMillis()!=null).mapToLong(DayResult::actualWorkMillis).sum();
             long unresolved=days.stream().filter(d->!d.current()||d.result().actualWorkMillis()==null).count();
@@ -528,7 +531,6 @@ public final class WorktimeService {
             rows.set(List.copyOf(mapper.audits(actor.tenantId())));return new Change(actor.tenantId(),null,Map.of("returnedCount",rows.get().size()));
         });return rows.get();
     }
-    private static Long attendanceMinutes(Long millis) {return millis==null?null:(millis+59_999L)/60_000L;}
     private static String humanDuration(Long millis) {
         if(millis==null)return null;
         return String.format(Locale.ROOT,"%02d:%02d:%02d.%03d",millis/3_600_000,millis/60_000%60,millis/1_000%60,millis%1_000);

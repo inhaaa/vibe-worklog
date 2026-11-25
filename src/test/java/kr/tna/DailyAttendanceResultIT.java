@@ -127,8 +127,9 @@ class DailyAttendanceResultIT {
         }
         var header = rows.stream().filter(r -> r.contains("유급휴가 인정(ms)")).findFirst().orElseThrow();
         assertEquals(List.of("지각(분)", "조퇴(분)", "결근"), header.subList(header.size() - 3, header.size()));
-        assertEquals(List.of("7", "0", "미확정"), lastThree(rows, MONDAY));
-        assertEquals("결근", lastThree(rows, TUESDAY).get(2));
+        // 판정한 날의 빈 칸은 '해당 없음'이고, 판정하지 않은 날만 미확정이다.
+        assertEquals(List.of("7", "0", ""), lastThree(rows, MONDAY));
+        assertEquals(List.of("", "", "결근"), lastThree(rows, TUESDAY));
         assertEquals(List.of("미확정", "미확정", "미확정"), lastThree(rows, TUESDAY.plusDays(1)));
     }
 
