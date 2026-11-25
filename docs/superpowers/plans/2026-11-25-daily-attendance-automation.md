@@ -715,7 +715,7 @@ git commit -m "feat: add attendance judgement columns and automatic confirmation
 ```
 (`tna.employee`에 `active` 열이 있고 비활성 사원을 제외해야 하면 조건을 추가한다 — `BusinessCommands.requireCurrent`는 `e.active`를 쓴다.)
 
-회사 목록은 트랜잭션 밖에서 읽는다. `platform.tenant_registry`가 `tna_app`에서 읽히는지 확인한다(`grep -rn "tenant_registry" src/main/resources/db/migration | grep -i grant`). 읽을 수 없으면 V42에 `GRANT SELECT (id, active) ON platform.tenant_registry TO tna_app;`를 추가하고 Task 2 커밋에 포함되지 않았으므로 이 작업 커밋에 V42 수정을 넣지 말고 **새 마이그레이션 V43**으로 추가한다.
+회사 목록은 트랜잭션 밖에서 `authDataSource`(`tna_auth`, `tenant_registry`에 회사 조회 정책 `USING (true)` 보유)로 `id WHERE active`만 읽는다. `tna_app`은 RLS 때문에 현재 회사 행만 보이며, 이를 넓히는 GRANT·정책은 추가하지 않는다.
 
 `DailyAttendanceBatch.java`:
 ```java
