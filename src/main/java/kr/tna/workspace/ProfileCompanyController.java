@@ -21,10 +21,13 @@ public final class ProfileCompanyController {
     private final MonthEndReviewQueries monthEnd;
     private final AttendanceMonthCloseService monthClose;
     private final kr.tna.org.EmployeePersonalDetailsService details;
+    private final AttendanceExceptionQueries exceptions;
 
     public ProfileCompanyController(ProfileCompanyQueries queries, CheckoutOperationsQueries checkout,
-            kr.tna.org.EmployeePersonalDetailsService details, MonthEndReviewQueries monthEnd, AttendanceMonthCloseService monthClose) {
+            kr.tna.org.EmployeePersonalDetailsService details, MonthEndReviewQueries monthEnd, AttendanceMonthCloseService monthClose,
+            AttendanceExceptionQueries exceptions) {
         this.queries = queries;
+        this.exceptions = exceptions;
         this.checkout = checkout;
         this.monthEnd = monthEnd;
         this.monthClose = monthClose;
@@ -37,7 +40,7 @@ public final class ProfileCompanyController {
                 .addObject("personalDetails", details.self(actor));
     }
 
-    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end", "view!=close-blockers"})
+    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end", "view!=close-blockers", "view!=exceptions"})
     ModelAndView attendance(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required = false) @DateTimeFormat(pattern = "uuuu-MM") YearMonth month,
             @RequestParam(required = false) UUID organizationId, @RequestParam(required = false) UUID employeeId,
@@ -77,6 +80,15 @@ public final class ProfileCompanyController {
             @RequestParam(required = false) String kind, @RequestParam(defaultValue = "0") int page) {
         return new ModelAndView("company/attendance").addObject("canViewCheckout", true)
                 .addObject("monthCloseBlockers", monthClose.blockers(actor, month, kind, page));
+    }
+
+    @GetMapping(value = "/company/attendance", params = "view=exceptions")
+    ModelAndView exceptions(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required = false) String month,
+            @RequestParam(defaultValue = "ALL") String kind) {
+        var result = exceptions.read(actor, month, kind);
+        var view = new ModelAndView("company/attendance").addObject("canViewCheckout", true).addObject("attendanceExceptions", result);
+        if (result.error() != null) view.setStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+        return view;
     }
 
     @GetMapping("/company/requests")

@@ -14,6 +14,7 @@ import { CheckoutOperationsPage, type CheckoutOperations } from './CheckoutOpera
 import { CompanyAttendanceViews } from './CompanyAttendanceNavigation';
 import { canManageMonthEnd, MonthEndReviewPage, type MonthEndReview } from './MonthEndReviewPage';
 import { MonthCloseBlockersPage, type MonthCloseBlockers } from './MonthCloseBlockers';
+import { AttendanceExceptionsPage, type AttendanceExceptions } from './AttendanceExceptionsPage';
 import { MyCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 
 interface Profile {
@@ -315,6 +316,8 @@ export function IdentityPages({ page, data, csrf, reload }: PageProps): React.Re
       const blockers = data.monthCloseBlockers as MonthCloseBlockers | undefined;
       if (blockers) return canManageMonthEnd(data) ? <MonthCloseBlockersPage model={blockers} />
         : <ErrorNotice message="월 마감 점검 권한을 확인해 주세요." />;
+      const exceptions = data.attendanceExceptions as AttendanceExceptions | undefined;
+      if (exceptions) return <AttendanceExceptionsPage key={JSON.stringify([exceptions.month, exceptions.kind])} model={exceptions} />;
       const monthEnd = data.monthEndReview as MonthEndReview | undefined;
       if (monthEnd) {
         const canRequest = canManageMonthEnd(data);

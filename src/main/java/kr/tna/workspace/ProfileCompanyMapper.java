@@ -140,4 +140,19 @@ public interface ProfileCompanyMapper {
     List<CompanyRequest> requests(@Param("tenantId") UUID tenantId, @Param("today") LocalDate today,
             @Param("organizationId") UUID organizationId, @Param("status") String status,
             @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("offset") int offset, @Param("scope") String scope);
+
+    // ponytail: 한 달 최대 1000행, 페이지 없음. 넘으면 페이지를 추가한다.
+    @Select("""
+            SELECT r.employee_id, e.employee_no, e.display_name AS employee_name, r.work_date,
+              r.late_millis, r.early_leave_millis, r.absence
+            FROM (SELECT DISTINCT ON (employee_id, work_date) employee_id, work_date, late_millis, early_leave_millis, absence
+                  FROM tna.day_result WHERE tenant_id=#{tenantId} AND work_date>=#{from} AND work_date<#{to}
+                  ORDER BY employee_id, work_date, result_revision DESC) r
+            JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=r.employee_id
+            WHERE r.late_millis>0 OR r.early_leave_millis>0 OR r.absence IS NOT NULL
+            ORDER BY r.work_date DESC, e.employee_no
+            LIMIT 1000
+            """)
+    List<AttendanceExceptionQueries.Result> attendanceExceptions(@Param("tenantId") UUID tenantId,
+            @Param("from") LocalDate from, @Param("to") LocalDate to);
 }
