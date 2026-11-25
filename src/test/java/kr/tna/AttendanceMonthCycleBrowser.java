@@ -69,7 +69,7 @@ public final class AttendanceMonthCycleBrowser {
         var referenceData = new TransactionTemplate(new DataSourceTransactionManager(database.adminDataSource()));
         referenceData.executeWithoutResult(tx -> data.seed(companyCode, PasswordPolicy.passwordEncoder().encode(password)));
         var app = application.run("--spring.config.location=classpath:/", "--spring.profiles.active=local",
-                "--server.address=127.0.0.1", "--server.port=0", "--tna.operator.enabled=false");
+                "--server.address=127.0.0.1", "--server.port=0", "--tna.operator.enabled=false", "--tna.daily-batch.enabled=false");
         try {
             data.confirmComparisonDay(app.getBean(ClockService.class));
             String baseUrl = "http://127.0.0.1:" + app.getEnvironment().getRequiredProperty("local.server.port");

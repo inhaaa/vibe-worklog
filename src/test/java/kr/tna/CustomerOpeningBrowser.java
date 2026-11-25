@@ -56,7 +56,7 @@ public final class CustomerOpeningBrowser {
                     "spring.mail.properties[mail.smtp.starttls.required]=false").applyTo(context));
             try (var app = application.run("--spring.config.location=classpath:/",
                     "--spring.profiles.active=local", "--tna.operator.enabled=true",
-                    "--server.address=127.0.0.1", "--server.port=" + appPort)) {
+                    "--server.address=127.0.0.1", "--server.port=" + appPort, "--tna.daily-batch.enabled=false")) {
                 var browser = new ProcessBuilder("node", "scripts/verify-customer-opening-browser.cjs")
                         .redirectOutput(ProcessBuilder.Redirect.INHERIT).redirectError(ProcessBuilder.Redirect.INHERIT)
                         .start();

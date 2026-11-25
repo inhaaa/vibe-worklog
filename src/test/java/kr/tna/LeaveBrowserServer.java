@@ -60,7 +60,7 @@ final class LeaveBrowserServer {
                     "tna.auth.password=" + DatabaseFixture.AUTH_PASSWORD).applyTo(context);
         });
         try (var app = application.run("--spring.config.location=classpath:/", "--spring.profiles.active=local",
-                "--server.address=127.0.0.1", "--server.port=0", "--tna.operator.enabled=false")) {
+                "--server.address=127.0.0.1", "--server.port=0", "--tna.operator.enabled=false", "--tna.daily-batch.enabled=false")) {
             var configuration = new LinkedHashMap<>(scenario.prepare(app, db, run));
             configuration.put("baseUrl", "http://127.0.0.1:" + app.getEnvironment().getRequiredProperty("local.server.port"));
             configuration.put("password", password);
