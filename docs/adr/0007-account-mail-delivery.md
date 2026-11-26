@@ -12,6 +12,10 @@
 - 초대 발급 후 SMTP 수락을 확인하지 못하면 운영자 또는 담당자에게 이미 등록된 초대와 재발급 방법을 안내한다. 동일 명령 재시도는 회사·계정을 한 번만 생성한다. 초대 화면에서 새 명령으로 같은 주소에 재발급하면 이전 코드는 폐기된다.
 - 공개 비밀번호 복구 응답이 수신 여부나 SMTP 지연을 드러내지 않도록 커밋된 발급 건만 메모리에서 비동기 전송한다. 큐 포화·전송 실패·프로세스 재시작으로 메일이 도착하지 않으면 다시 요청할 수 있다. 재요청 때 기존 코드를 폐기한다. 전송 실패 로그에는 목적과 결과만 남긴다.
 
+## 결재 알림 메일 (2026-11-26)
+
+결재 알림 메일도 같은 `tna.mail.*`·`spring.mail` 설정을 따른다. `local` 프로필에서 전달 방식이 없으면 메모리 메일함에 쌓고, `public-demo`이거나 전달 방식이 없으면 보내지 않는다. 링크 주소는 `tna.mail.public-origin`이 없으면 `http://127.0.0.1:18080`을 쓴다. 발송은 1분 주기 작업이 트랜잭션 밖에서 하므로 서버가 발송 직후 멈추면 같은 메일이 한 번 더 갈 수 있다. `tna.notification-mail.enabled=false`로 발송 작업을 끌 수 있다. [설계](../superpowers/specs/2026-11-26-approval-notifications-design.md)
+
 ## 의존성 근거
 
 기존 Spring Boot 4.1.2가 버전을 관리하는 `spring-boot-starter-mail`을 추가했다. 프레임워크의 JavaMailSender와 Jakarta Mail API 2.1.5, Eclipse Angus Mail 2.0.5가 UTF-8 메일 인코딩과 SMTP 전송을 담당한다. 같은 버전의 starter와 mail 모듈은 Apache 2.0이고 Jakarta 및 Angus 배포물의 개별 라이선스는 Maven POM에서 확인했다. [Spring Boot 4.1 메일 설정](https://docs.spring.io/spring-boot/4.1/reference/io/email.html) · [Spring Boot 4.1.2 mail 모듈 의존성](https://github.com/spring-projects/spring-boot/blob/v4.1.2/module/spring-boot-mail/build.gradle) · [Eclipse Angus Mail](https://eclipse-ee4j.github.io/angus-mail/) · [해석한 좌표와 라이선스](../development/dependency-licenses.csv)
