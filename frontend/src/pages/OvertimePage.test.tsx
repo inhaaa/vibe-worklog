@@ -9,7 +9,7 @@ const day = { date:'2026-12-02', groupName:'운영조', workCode:'W01', dayKind:
   {kind:'AFTER',start:'18:30',end:'21:00',minutes:135,breaks:[{kind:'AFTER',start:'20:00',end:'20:15'}]},
 ] };
 const row = {id:'a',employeeName:'김사원',employeeNo:'26001',kind:'OVERTIME',status:'PENDING',effectStatus:'NONE',
-  workDate:day.date,startTime:'18:30',endTime:'21:00',requestedMinutes:135,approvedMinutes:0,actualIn:'09:00',actualOut:'20:00',currentStep:2,totalSteps:2};
+  workDate:day.date,startTime:'18:30',endTime:'21:00',requestedMinutes:135,approvedMinutes:0,actualIn:'09:00',actualOut:'20:00',currentStep:2,totalSteps:2,recognizedMillis:null as number|null};
 const model = {today:'2026-11-18',date:day.date,day,rows:[],from:'2026-12-01',to:'2026-12-05',page:0,status:'',q:'',hasNext:false};
 const draw = (admin=false, extra: Record<string, unknown> = {}) => render(<OvertimePage page={'overtime/'+(admin?'admin':'employee')}
   data={{overtime:{...model,...extra}}} csrf={csrf} reload={()=>{}} />);
@@ -58,6 +58,11 @@ it('저장 응답을 받지 못하면 같은 명령으로 다시 제출할 수 �
 it('날짜를 변경하면 이전 근무 기준으로 미리보거나 제출할 수 없다',()=>{
   draw();fireEvent.change(screen.getByLabelText('신청 근무일'),{target:{value:'2026-12-03'}});
   expect(screen.queryByRole('button',{name:'결재선·신청 시간 확인'})).toBeNull();
+});
+it('담당자 결과표에 인정 시간을 보이고 결과가 없으면 계산 전으로 표시한다',()=>{
+  draw(true,{rows:[{...row,recognizedMillis:15_900_000},{...row,id:'b',recognizedMillis:null}]});
+  expect(screen.getByRole('columnheader',{name:'인정 시간'})).toBeTruthy();
+  expect(screen.getByText('4시간 25분')).toBeTruthy();expect(screen.getByText('계산 전')).toBeTruthy();
 });
 it('담당자 복수 기록과 미기록을 구분한다',()=>{
   draw(true,{rows:[{...row,actualIn:null,actualOut:null,multipleIn:true,multipleOut:false}]});

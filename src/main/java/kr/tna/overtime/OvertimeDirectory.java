@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 public class OvertimeDirectory {
     public record Row(UUID id, UUID employeeId, String employeeNo, String employeeName, String kind, String status,
                       String effectStatus, LocalDate workDate, LocalTime startTime, LocalTime endTime,
-                      int requestedMinutes, int approvedMinutes, int currentStep, int totalSteps) {}
+                      int requestedMinutes, int approvedMinutes, int currentStep, int totalSteps, Long recognizedMillis) {}
     public record Item(@com.fasterxml.jackson.annotation.JsonUnwrapped Row request, LocalTime actualIn,
                        LocalTime actualOut, boolean multipleIn, boolean multipleOut) {}
     public record Page(LocalDate today, LocalDate date, LocalDate from, LocalDate to, String q, String status,
@@ -39,12 +39,15 @@ public class OvertimeDirectory {
                    r.kind,r.status,coalesce(f.effect_status,'NONE') AS effect_status,
                    d.work_date,d.start_time,d.end_time,d.requested_minutes,
                    CASE WHEN r.kind='OVERTIME' AND r.status='APPROVED' AND f.effect_status='EFFECTIVE'
-                        THEN d.requested_minutes ELSE 0 END AS approved_minutes,r.current_step,r.total_steps
+                        THEN d.requested_minutes ELSE 0 END AS approved_minutes,r.current_step,r.total_steps,res.approved_overtime_millis AS recognized_millis
             FROM tna.approval_request r
             JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
             JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=
                 CASE WHEN r.kind='CANCEL_OVERTIME' THEN r.original_request_id ELSE r.id END
             LEFT JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id
+            LEFT JOIN LATERAL (SELECT dr.approved_overtime_millis FROM tna.day_result dr
+              WHERE dr.tenant_id=r.tenant_id AND dr.employee_id=r.target_employee_id AND dr.work_date=d.work_date
+              ORDER BY dr.result_revision DESC LIMIT 1) res ON true
             WHERE r.tenant_id=#{tenant} AND r.kind IN ('OVERTIME','CANCEL_OVERTIME')
               AND (CAST(#{employee} AS uuid) IS NULL OR r.target_employee_id=#{employee})
               AND (CAST(#{from} AS date) IS NULL OR d.work_date>=#{from})

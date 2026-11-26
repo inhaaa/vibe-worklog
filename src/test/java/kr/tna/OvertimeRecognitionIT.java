@@ -3,7 +3,9 @@ package kr.tna;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.*;
@@ -81,6 +83,7 @@ class OvertimeRecognitionIT {
         approveOverHttp(direct,request,1L,2);
         // 18:30~21:00 150분에서 연장 휴게 20:00~20:15 15분을 뺀다.
         assertEquals(135L*60_000,latest().get("approved_overtime_millis"));
+        directoryShows(request,135*60_000);
 
         var cancelRoute=flow.formPreview(worker,null,"CANCEL_OVERTIME").routeToken();
         // 취소 신청도 시작 전에만 되므로 원신청을 잠시 미래 날짜로 돌려 신청한 뒤 어제로 되돌린다.
@@ -92,6 +95,14 @@ class OvertimeRecognitionIT {
         approveOverHttp(direct,cancel,1L,2);
         assertEquals(0L,latest().get("approved_overtime_millis"));
         assertEquals("CALC-3",latest().get("rule_version"));
+    }
+
+    /** 담당자 신청현황의 '인정 시간'은 그 근무일 최신 결과의 인정 연장과 같다. */
+    private void directoryShows(UUID request,int millis) throws Exception {
+        mvc.perform(get("/admin/overtime").with(as(admin)).accept("application/vnd.worklog.page+json")
+                .param("from",workDate.toString()).param("to",workDate.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.overtime.rows[?(@.id=='"+request+"')].recognizedMillis").value(millis));
     }
 
     private void moveRequest(UUID original,UUID target,LocalDate date) {
