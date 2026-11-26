@@ -64,11 +64,12 @@ export function AttendanceListBackLink({ href }: { href?: string | null }) {
   return <a className="t-btn" href={target}>{label}</a>;
 }
 
-export function CompanyAttendanceViews({ active = 'month' }: { active?: 'month' | 'checkout' | 'month-end' | 'exceptions' }) {
+export function CompanyAttendanceViews({ active = 'month' }: { active?: 'month' | 'checkout' | 'month-end' | 'exceptions' | 'weekly-hours' }) {
   return <nav className="checkout-views" aria-label="회사 근무현황 조회 방식">
     <a href={path} aria-current={active === 'month' ? 'page' : undefined}>월별 근무현황</a>
     <a href={path + '?view=checkout'} aria-current={active === 'checkout' ? 'page' : undefined}>퇴근 누락</a>
     <a href={path + '?view=month-end'} aria-current={active === 'month-end' ? 'page' : undefined}>월말 확인 대상</a>
     <a href={path + '?view=exceptions'} aria-current={active === 'exceptions' ? 'page' : undefined}>지각·조퇴·결근</a>
+    <a href={path + '?view=weekly-hours'} aria-current={active === 'weekly-hours' ? 'page' : undefined}>주 52시간</a>
   </nav>;
 }

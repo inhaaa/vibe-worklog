@@ -22,12 +22,14 @@ public final class ProfileCompanyController {
     private final AttendanceMonthCloseService monthClose;
     private final kr.tna.org.EmployeePersonalDetailsService details;
     private final AttendanceExceptionQueries exceptions;
+    private final WeeklyHoursQueries weeklyHours;
 
     public ProfileCompanyController(ProfileCompanyQueries queries, CheckoutOperationsQueries checkout,
             kr.tna.org.EmployeePersonalDetailsService details, MonthEndReviewQueries monthEnd, AttendanceMonthCloseService monthClose,
-            AttendanceExceptionQueries exceptions) {
+            AttendanceExceptionQueries exceptions, WeeklyHoursQueries weeklyHours) {
         this.queries = queries;
         this.exceptions = exceptions;
+        this.weeklyHours = weeklyHours;
         this.checkout = checkout;
         this.monthEnd = monthEnd;
         this.monthClose = monthClose;
@@ -40,7 +42,7 @@ public final class ProfileCompanyController {
                 .addObject("personalDetails", details.self(actor));
     }
 
-    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end", "view!=close-blockers", "view!=exceptions"})
+    @GetMapping(value = "/company/attendance", params = {"view!=checkout", "view!=month-end", "view!=close-blockers", "view!=exceptions", "view!=weekly-hours"})
     ModelAndView attendance(@AuthenticationPrincipal TnaPrincipal actor,
             @RequestParam(required = false) @DateTimeFormat(pattern = "uuuu-MM") YearMonth month,
             @RequestParam(required = false) UUID organizationId, @RequestParam(required = false) UUID employeeId,
@@ -87,6 +89,14 @@ public final class ProfileCompanyController {
             @RequestParam(defaultValue = "ALL") String kind) {
         var result = exceptions.read(actor, month, kind);
         var view = new ModelAndView("company/attendance").addObject("canViewCheckout", true).addObject("attendanceExceptions", result);
+        if (result.error() != null) view.setStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+        return view;
+    }
+
+    @GetMapping(value = "/company/attendance", params = "view=weekly-hours")
+    ModelAndView weeklyHours(@AuthenticationPrincipal TnaPrincipal actor, @RequestParam(required = false) String month) {
+        var result = weeklyHours.read(actor, month);
+        var view = new ModelAndView("company/attendance").addObject("canViewCheckout", true).addObject("weeklyHours", result);
         if (result.error() != null) view.setStatus(HttpStatus.UNPROCESSABLE_CONTENT);
         return view;
     }
