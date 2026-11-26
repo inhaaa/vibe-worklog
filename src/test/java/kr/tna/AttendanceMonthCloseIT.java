@@ -502,9 +502,9 @@ class AttendanceMonthCloseIT {
         assertTrue(check(MONTH).path("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "유급휴가 마감"), 200);
         var file = workbook(null);
-        assertTrue(MonthCloseExportIT.worksheet(file).contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "1.0", "7.5")));
-        assertTrue(MonthCloseExportIT.worksheet(workbook(first)).contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0", "0.0")));
-        assertTrue(MonthCloseExportIT.worksheet(workbook(second)).contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "1.0", "7.5")));
+        assertTrue(MonthCloseExportIT.worksheet(file).contains(MonthCloseExportIT.withZeroPayroll(List.of("범위 합계", "", "1", "2", "0", "0.0", "1.0", "7.5"))));
+        assertTrue(MonthCloseExportIT.worksheet(workbook(first)).contains(MonthCloseExportIT.withZeroPayroll(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0", "0.0"))));
+        assertTrue(MonthCloseExportIT.worksheet(workbook(second)).contains(MonthCloseExportIT.withZeroPayroll(List.of("범위 합계", "", "1", "1", "0", "0.0", "1.0", "7.5"))));
         db.update("UPDATE tna.schedule_day SET end_time=TIME '18:00' WHERE tenant_id=? AND workday", tenant);
         assertArrayEquals(file, workbook(null));
     }
@@ -527,8 +527,8 @@ class AttendanceMonthCloseIT {
         assertTrue(check(MONTH).path("canClose").asBoolean());
         body(change(admin, "CLOSE", 0, UUID.randomUUID(), "선택근무 마감"), 200);
         var sheet = MonthCloseExportIT.worksheet(workbook(null));
-        assertEquals("유급휴가 인정시간(시간)", sheet.get(3).getLast());
-        assertEquals(421.0 / 60.0, Double.parseDouble(sheet.get(4).getLast()), 0.0000001);
+        assertEquals("유급휴가 인정시간(시간)", sheet.get(3).get(7));
+        assertEquals(421.0 / 60.0, Double.parseDouble(sheet.get(4).get(7)), 0.0000001);
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", LAST.plusDays(1), tenant, worker);
         db.update("UPDATE tna.work_time_code_version SET standard_minutes=360 WHERE tenant_id=? AND work_mode='SELECTIVE'", tenant);
         assertEquals(calculated, selectivePeriod(worker));

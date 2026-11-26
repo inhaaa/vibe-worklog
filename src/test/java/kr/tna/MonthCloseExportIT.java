@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -81,16 +82,16 @@ class MonthCloseExportIT {
         var workbook = download(admin, 1, "COMPANY", null);
         var company = worksheet(workbook);
         assertTrue(company.get(3).contains("유급휴가 인정시간(시간)"));
-        assertTrue(company.contains(List.of("범위 합계", "", "2", "6", "0", "0.0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "A01", "이동 전 부서", "2", "0", "0.0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("001", "=합성 이동 사원", "B01", "이동 후 부서", "2", "0", "0.0", "0.0", "0.0")));
-        assertTrue(company.contains(List.of("002", "미배정 사원", "", "소속 미등록", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(company.contains(withZeroPayroll(List.of("범위 합계", "", "2", "6", "0", "0.0", "0.0", "0.0"))));
+        assertTrue(company.contains(withZeroPayroll(List.of("001", "=합성 이동 사원", "A01", "이동 전 부서", "2", "0", "0.0", "0.0", "0.0"))));
+        assertTrue(company.contains(withZeroPayroll(List.of("001", "=합성 이동 사원", "B01", "이동 후 부서", "2", "0", "0.0", "0.0", "0.0"))));
+        assertTrue(company.contains(withZeroPayroll(List.of("002", "미배정 사원", "", "소속 미등록", "2", "0", "0.0", "0.0", "0.0"))));
         var department = worksheet(download(admin, 1, "DEPARTMENT", second));
-        assertTrue(department.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(department.contains(withZeroPayroll(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0"))));
         assertFalse(department.toString().contains("미배정 사원"));
         assertFalse(department.toString().contains("이동 전 부서"));
         var unassignedSheet = worksheet(download(admin, 1, "UNASSIGNED", null));
-        assertTrue(unassignedSheet.contains(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(unassignedSheet.contains(withZeroPayroll(List.of("범위 합계", "", "1", "2", "0", "0.0", "0.0", "0.0"))));
         assertFalse(unassignedSheet.toString().contains("합성 이동 사원"));
 
         var other = company();
@@ -119,7 +120,7 @@ class MonthCloseExportIT {
         close(admin, "CLOSE", 2);
         mvc.perform(export(admin, 1, "COMPANY", null)).andExpect(status().isConflict());
         var reclosed = worksheet(download(admin, 3, "DEPARTMENT", first));
-        assertTrue(reclosed.contains(List.of("001", "변경된 사원", "A01", "변경된 부서", "2", "0", "0.0", "0.0", "0.0")));
+        assertTrue(reclosed.contains(withZeroPayroll(List.of("001", "변경된 사원", "A01", "변경된 부서", "2", "0", "0.0", "0.0", "0.0"))));
     }
 
     @Test
@@ -132,13 +133,99 @@ class MonthCloseExportIT {
                 INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
                 VALUES (?,gen_random_uuid(),?,1,'CLOSED','기존 마감',?,'담당자')
                 """, admin.tenantId(), FIRST, admin.accountId());
+        db.update("""
+                UPDATE tna.attendance_month_export_row SET payroll_captured=false,approved_overtime_millis=NULL,
+                  unapproved_extra_millis=NULL,night_work_millis=NULL,holiday_work_millis=NULL,late_count=NULL,late_millis=NULL,
+                  early_leave_count=NULL,early_leave_millis=NULL,absence_days=NULL WHERE tenant_id=?""", admin.tenantId());
         var legacy = worksheet(download(admin, 1, "COMPANY", null));
-        assertEquals(List.of("집계 범위", "부서코드", "사원 수(명)", "재직일수(일)", "실근로 발생 일수(일)",
-                "실근로시간(시간)", "사용 휴가(일)"), legacy.get(3));
-        assertTrue(legacy.contains(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0")));
+        var blanks = Collections.nCopies(9, "");
+        assertEquals(concat(List.of("집계 범위", "부서코드", "사원 수(명)", "재직일수(일)", "실근로 발생 일수(일)",
+                "실근로시간(시간)", "사용 휴가(일)"), PAYROLL_HEADERS), legacy.get(3));
+        assertTrue(legacy.contains(concat(List.of("범위 합계", "", "1", "1", "0", "0.0", "0.0"), blanks)));
         close(admin, "REOPEN", 1);
         close(admin, "CLOSE", 2);
-        assertEquals("유급휴가 인정시간(시간)", worksheet(download(admin, 3, "COMPANY", null)).get(3).getLast());
+        assertEquals("유급휴가 인정시간(시간)", worksheet(download(admin, 3, "COMPANY", null)).get(3).get(7));
+    }
+
+    @Test
+    void capturesPayrollTotalsAtCloseAndBlanksThemForCloseWithoutCaptureOrUnknownDays() throws Exception {
+        db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
+        var admin = company();
+        var team = department(admin, "PAY", "급여 부서");
+        UUID worker = employee(admin.tenantId(), "P01", "급여 사원", FIRST, FIRST.plusDays(4));
+        UUID legacyDays = employee(admin.tenantId(), "P02", "이전 규칙 사원", FIRST, FIRST.plusDays(1));
+        assign(admin, worker, team, FIRST, null);
+        assign(admin, legacyDays, team, FIRST, null);
+        restDays(admin, worker, legacyDays);
+        payrollResult(admin, worker, 0, "CALC-3", 2L, 3L, 1L, 420_000L, 0L, null, 2L);
+        payrollResult(admin, worker, 1, "CALC-3", 0L, 0L, 0L, 0L, 1_800_000L, "FULL", 0L);
+        payrollResult(admin, worker, 2, "CALC-3", 0L, 0L, 0L, 0L, 0L, "HALF", 0L);
+        payrollResult(admin, legacyDays, 0, "CALC-2", null, null, null, null, null, null, null);
+        db.update("""
+                INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
+                VALUES (?,gen_random_uuid(),?,1,'CLOSED','합성 마감',?,'담당자')
+                """, admin.tenantId(), FIRST, admin.accountId());
+        var row = db.queryForMap("""
+                SELECT r.* FROM tna.attendance_month_export_row r WHERE r.tenant_id=? AND r.employee_id=?
+                """, admin.tenantId(), worker);
+        assertEquals(true, row.get("payroll_captured"));
+        assertEquals(7_200_000L, row.get("approved_overtime_millis"));
+        assertEquals(3_600_000L, row.get("unapproved_extra_millis"));
+        assertEquals(3_600_000L, row.get("night_work_millis"));
+        assertEquals(2 * 3_600_000L, row.get("holiday_work_millis"));
+        assertEquals(1, row.get("late_count"));
+        assertEquals(420_000L, row.get("late_millis"));
+        assertEquals(1, row.get("early_leave_count"));
+        assertEquals(1_800_000L, row.get("early_leave_millis"));
+        assertEquals(0, new java.math.BigDecimal("1.5").compareTo((java.math.BigDecimal) row.get("absence_days")));
+        var legacy = db.queryForMap("SELECT * FROM tna.attendance_month_export_row WHERE tenant_id=? AND employee_id=?",
+                admin.tenantId(), legacyDays);
+        assertNull(legacy.get("approved_overtime_millis"));
+        assertNull(legacy.get("unapproved_extra_millis"));
+        assertEquals(0L, legacy.get("night_work_millis"));
+        var sheet = worksheet(download(admin, 1, "COMPANY", null));
+        assertTrue(sheet.contains(concat(List.of("P01", "급여 사원", "PAY", "급여 부서", "5", "3", "3.0", "0.0"),
+                List.of("2.0", "1.0", "1.0", "2.0", "1", "7", "1", "30", "1.5"))), sheet.toString());
+        assertTrue(sheet.contains(concat(List.of("P02", "이전 규칙 사원", "PAY", "급여 부서", "2", "1", "1.0", "0.0"),
+                List.of("미확정", "미확정", "0.0", "0.0", "0", "0", "0", "0", "0.0"))), sheet.toString());
+        assertTrue(sheet.contains(concat(List.of("범위 합계", "", "2", "7", "4", "4.0", "0.0"),
+                List.of("미확정", "미확정", "1.0", "2.0", "1", "7", "1", "30", "1.5"))), sheet.toString());
+    }
+
+    private static final List<String> PAYROLL_HEADERS = List.of("인정 연장(시간)", "승인 없는 초과(시간)", "야간근로(시간)",
+            "휴일근로(시간)", "지각(회)", "지각(분)", "조퇴(회)", "조퇴(분)", "결근(일)");
+
+    private static List<String> concat(List<String> a, List<String> b) {
+        var all = new ArrayList<>(a);
+        all.addAll(b);
+        return all;
+    }
+
+    static List<String> withZeroPayroll(List<String> cells) {
+        return concat(cells, List.of("0.0", "0.0", "0.0", "0.0", "0", "0", "0", "0", "0.0"));
+    }
+
+    private void payrollResult(TnaPrincipal person, UUID employee, int dayOffset, String rule, Long approvedHours,
+            Long outsideHours, Long nightHours, Long late, Long early, String absence, Long holidayHours) {
+        UUID run = UUID.randomUUID();
+        LocalDate day = FIRST.plusDays(dayOffset);
+        db.update("""
+                INSERT INTO tna.day_input_revision(tenant_id,employee_id,work_date,input_revision,review_revision,recalculation_required)
+                VALUES (?,?,?,1,0,false) ON CONFLICT DO NOTHING""", person.tenantId(), employee, day);
+        db.update("""
+                INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version)
+                VALUES (?,?,?,NULL,?,?,?,?,?)""", person.tenantId(), run, employee, day, day, day, day, rule);
+        long hour = 3_600_000L;
+        db.update("""
+                INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                  source_fingerprint,rule_version,status,leave_days,reason_codes,input_refs,actual_work_millis,
+                  approved_overtime_millis,outside_schedule_millis,night_work_millis,late_millis,early_leave_millis,absence,
+                  holiday_work_millis)
+                VALUES (?,?,?,?,?,1,1,0,?,?,'CALCULATED',0,'[]'::jsonb,'[]'::jsonb,?,?,?,?,?,?,?,?)""",
+                person.tenantId(), UUID.randomUUID(), run, employee, day, "c".repeat(64), rule, hour,
+                approvedHours == null || "CALC-2".equals(rule) ? null : approvedHours * hour,
+                outsideHours == null ? null : outsideHours * hour, nightHours == null ? null : nightHours * hour,
+                late, early, absence, holidayHours == null ? null : holidayHours * hour);
     }
 
     @Test

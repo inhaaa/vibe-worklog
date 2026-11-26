@@ -13,7 +13,10 @@ public interface MonthCloseExportMapper {
     record Event(UUID id, long version, String status, Instant changedAt, String actorName, boolean capturedAtClose, boolean includesPaidLeave) {}
     record Department(UUID organizationId, String organizationCode, String organizationName) {}
     record Row(UUID employeeId, String employeeNo, String employeeName, UUID organizationId, String organizationCode,
-            String organizationName, int employedDays, Integer workedDays, Long actualMillis, double leaveDays, Long paidLeaveMillis) {}
+            String organizationName, int employedDays, Integer workedDays, Long actualMillis, double leaveDays, Long paidLeaveMillis,
+            boolean payrollCaptured, Long approvedOvertimeMillis, Long unapprovedExtraMillis, Long nightWorkMillis,
+            Long holidayWorkMillis, Integer lateCount, Long lateMillis, Integer earlyLeaveCount, Long earlyLeaveMillis,
+            java.math.BigDecimal absenceDays) {}
 
     @Select("""
             SELECT id,version,status,changed_at,actor_name,export_at_close AS captured_at_close,
@@ -41,7 +44,9 @@ public interface MonthCloseExportMapper {
             )
             SELECT r.employee_id,r.employee_no,r.employee_name,r.organization_id,r.organization_code,r.organization_name,
                    r.employed_days,r.worked_days,r.actual_millis,r.leave_days,
-                   CASE WHEN paid.employee IS NULL THEN 0 ELSE paid.millis END AS paid_leave_millis
+                   CASE WHEN paid.employee IS NULL THEN 0 ELSE paid.millis END AS paid_leave_millis,
+                   r.payroll_captured,r.approved_overtime_millis,r.unapproved_extra_millis,r.night_work_millis,
+                   r.holiday_work_millis,r.late_count,r.late_millis,r.early_leave_count,r.early_leave_millis,r.absence_days
             FROM tna.attendance_month_export_row r LEFT JOIN paid
               ON paid.employee=r.employee_id AND paid.organization IS NOT DISTINCT FROM r.organization_id
             WHERE r.tenant_id=#{tenantId} AND r.closure_id=#{eventId}
