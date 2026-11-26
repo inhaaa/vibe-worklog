@@ -24,7 +24,8 @@ class AuditSummaryBatchTest {
         assertEquals("CALC-2", AuditSummary.project("{\"engineVersion\":\"CALC-2\"}").get("engineVersion"));
         assertEquals("CALC-1", AuditSummary.project("{\"engineVersion\":\"CALC-1\"}").get("engineVersion"));
         assertEquals("CALC-2", AuditSummary.project("{\"ruleVersion\":\"CALC-2\",\"dayCount\":7}").get("ruleVersion"));
-        assertTrue(AuditSummary.project("{\"engineVersion\":\"CALC-3\"}").isEmpty());
+        assertEquals("CALC-3", AuditSummary.project("{\"engineVersion\":\"CALC-3\"}").get("engineVersion"));
+        assertTrue(AuditSummary.project("{\"engineVersion\":\"CALC-4\"}").isEmpty());
     }
 
     @Test

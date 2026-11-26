@@ -45,6 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public final class WorktimeService {
+    static final String RULE_VERSION="CALC-3";
     private static final Logger LOG=LoggerFactory.getLogger(WorktimeService.class);
     private static final ZoneId SEOUL=ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter EXPORT_INSTANT=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSXXX",Locale.ROOT).withZone(SEOUL);
@@ -311,7 +312,7 @@ public final class WorktimeService {
             count++;
         }
         changed(mapper.completeRun(actor.tenantId(),runId));
-        return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion","CALC-2"));
+        return new Change(runId,null,Map.of("employeeId",target,"from",from,"to",to,"expandedFrom",start,"expandedTo",end,"dayCount",count,"ruleVersion",RULE_VERSION));
     }
     private void storeResult(UUID tenant,UUID runId,Employee employee,LocalDate date) {
         UUID target=employee.id();
@@ -335,7 +336,7 @@ public final class WorktimeService {
     }
     /**
      * 사람 감사 없이 지정 날짜만 계산한다(주 확장 없음, 마감 월 제외). 호출하는 쪽이 회사 트랜잭션을 연다.
-     * requestedBy가 null이면 시스템 실행. 이미 현재이고 그날이 끝난 뒤 계산된 CALC-2 결과는 건너뛴다.
+     * requestedBy가 null이면 시스템 실행. 이미 현재이고 그날이 끝난 뒤 계산된 CALC-3 결과는 건너뛴다.
      */
     public int calculateDatesAsSystem(UUID tenant,UUID requestedBy,UUID employeeId,java.util.Collection<LocalDate> dates) {
         // 결과 개정 번호를 같은 회사의 다른 쓰기와 겹치지 않게 배타 잠금으로 직렬화한다.
@@ -354,7 +355,7 @@ public final class WorktimeService {
             var in=input(tenant,employee,d);var saved=stored.get(d);
             Instant dayEnd=d.plusDays(1).atStartOfDay(SEOUL).toInstant();
             // CALC-1 결과나 날이 끝나기 전에 계산된 결과는 결근 판정이 빠져 있으므로 다시 계산한다.
-            boolean fresh=saved!=null&&"CALC-2".equals(saved.ruleVersion())
+            boolean fresh=saved!=null&&RULE_VERSION.equals(saved.ruleVersion())
                     &&current(in.clock(),in.source(),saved.inputRevision(),saved.reviewRevision(),saved.sourceFingerprint())
                     &&(d.equals(today)||!saved.calculatedAt().isBefore(dayEnd));
             if(!fresh)todo.add(d);
@@ -438,7 +439,7 @@ public final class WorktimeService {
             rows.add(row("고객사",company,"고객사 ID",actor.tenantId().toString()));
             rows.add(row("조회 시작일",from.toString(),"조회 종료일",to.toString(),"사원 ID",target.toString()));
             rows.add(row("스냅샷 ID",id.toString()));
-            rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙","CALC-2"));
+            rows.add(row("생성 시각",EXPORT_INSTANT.format(at),"시간대","Asia/Seoul","규칙",RULE_VERSION));
             rows.add(row("생성 당시 스냅샷이며 이후 재집계·원천 변경을 포함하지 않습니다."));
             rows.add(row("사번","이름","근무일","결과 상태","생성 당시 최신성","소정(ms)","체류(ms)","확인 실근로(ms)","확인 휴게(ms)",
                     "일정 밖(ms)","일 8시간 초과 참고(ms)","야간(ms)","휴일(ms)","법정 최종 연장(ms)","승인 휴가(일)","사유 코드","결과 ID","실행 ID","결과 개정","사실 개정","검토 개정","계산 시각",
@@ -608,14 +609,14 @@ public final class WorktimeService {
             if (closed && employed && !facts.pendingCorrection()) {
                 var confirmed = calculator.day(facts);
                 if (Long.valueOf(0).equals(confirmed.actualWorkMillis())) {
-                    return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-2", null,
+                    return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, RULE_VERSION, null,
                             source, true, confirmed, false, leave, confirmed.paidLeaveMillis(), true);
                 }
             }
             Long paid = approvedPaidLeaveMillis(facts);
             var missing = new DayResult(date, Status.REVIEW_REQUIRED, null, null, null, null, null, null, null, null, null, leave, paid,
                     snapshot.inputRevision(), snapshot.reviewRevision(), Set.of("NOT_CALCULATED", "LEGAL_OVERTIME_UNDETERMINED"));
-            return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, "CALC-2", null, source, false, missing,
+            return new DayView(null, null, employee.id(), employee.employeeNo(), employee.displayName(), date, 0, RULE_VERSION, null, source, false, missing,
                     employed && calculator.pending(facts, today, false, null), leave, paid, employed);
         }
         var result = storedResult(stored);
@@ -633,7 +634,7 @@ public final class WorktimeService {
                 r.outsideScheduleMillis(),r.over8hMillis(),r.nightWorkMillis(),r.holidayWorkMillis(),r.legalOvertimeMillis(),r.leaveDays(),
                 WorktimeCalculator.paidLeaveMillis(r.savedDayKind()==null?null:DayKind.valueOf(r.savedDayKind()),r.scheduledMillis(),r.paidLeaveDays()),r.inputRevision(),r.reviewRevision(),
                 Set.copyOf(Arrays.asList(json.readValue(r.reasonCodes(),String[].class))),
-                new Attendance(r.lateMillis(),r.earlyLeaveMillis(),r.absence()));
+                new Attendance(r.lateMillis(),r.earlyLeaveMillis(),r.absence()),r.approvedOvertimeMillis());
     }
     private static DayView storedDay(Employee employee,WorktimeMapper.ResultRow r,DayResult result,boolean current,boolean pending,double approvedLeaveDays,Long approvedPaidLeaveMillis,boolean employed) {
         return new DayView(r.id(),r.runId(),employee.id(),employee.employeeNo(),employee.displayName(),r.workDate(),r.resultRevision(),r.ruleVersion(),
@@ -684,8 +685,12 @@ public final class WorktimeService {
         var effects=mapper.leaveEffects(tenant,employee.id(),date);
         var leave=effects.stream().map(WorktimeMapper.LeaveEffect::id).toList();
         var pending=List.copyOf(mapper.pendingCorrections(tenant,employee.id(),date));
-        var day=dayInput(snapshot,assessment!=null&&assessment.generalRuleReviewed()&&employed(employee,date),
+        var base=dayInput(snapshot,assessment!=null&&assessment.generalRuleReviewed()&&employed(employee,date),
                 !pending.isEmpty(),WorktimeMapper.LeaveEffect.totalDays(effects),WorktimeMapper.LeaveEffect.paidDays(effects));
+        var approvedOvertime=OvertimeIntervals.net(date,mapper.approvedOvertime(tenant,employee.id(),date).stream()
+                .map(o->new OvertimeIntervals.Approved(o.startTime(),o.endTime(),mapper.overtimePauses(tenant,o.codeVersionId()))).toList());
+        var day=new DayInput(base.workDate(),base.events(),base.schedules(),base.dayKind(),base.generalRuleReviewed(),base.inputRevision(),
+                base.reviewRevision(),base.confirmation(),base.pendingCorrection(),base.approvedLeaveDays(),base.paidLeaveDays(),approvedOvertime);
         String source=source(snapshot,employee.joinedOn(),employee.leftOn(),policy==null?null:policy.id(),
                 assessment==null?null:assessment.id(),leave,pending);
         var context=new AttendanceContext(date.isBefore(LocalDate.now(clock.withZone(SEOUL))),WorktimeMapper.LeaveEffect.part(effects));

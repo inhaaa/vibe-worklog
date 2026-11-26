@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-/** 재집계가 지각·조퇴·결근 판정을 CALC-2 결과에 저장하고 조회 경로가 그대로 돌려주는지 확인한다. */
+/** 재집계가 지각·조퇴·결근 판정을 CALC-3 결과에 저장하고 조회 경로가 그대로 돌려주는지 확인한다. */
 @SpringBootTest
 class DailyAttendanceResultIT {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
@@ -89,11 +89,11 @@ class DailyAttendanceResultIT {
         assertEquals(420_000L, rows.get(0).get("late_millis"));
         assertEquals(0L, rows.get(0).get("early_leave_millis"));
         assertNull(rows.get(0).get("absence"));
-        assertEquals("CALC-2", rows.get(0).get("rule_version"));
+        assertEquals("CALC-3", rows.get(0).get("rule_version"));
         assertEquals("FULL", rows.get(1).get("absence"));
         assertNull(rows.get(1).get("late_millis"));
         assertEquals(0L, rows.get(1).get("actual_work_millis"));
-        assertEquals("CALC-2", db.queryForObject(
+        assertEquals("CALC-3", db.queryForObject(
                 "SELECT engine_version FROM tna.calculation_run WHERE tenant_id=? AND employee_id=? ORDER BY started_at DESC LIMIT 1",
                 String.class, tenant, employee.employeeId()));
 
@@ -101,7 +101,7 @@ class DailyAttendanceResultIT {
         assertEquals(420_000L, days.get(0).result().attendance().lateMillis());
         assertEquals(0L, days.get(0).result().attendance().earlyLeaveMillis());
         assertEquals("FULL", days.get(1).result().attendance().absence());
-        assertEquals("CALC-2", days.get(0).ruleVersion());
+        assertEquals("CALC-3", days.get(0).ruleVersion());
     }
 
     @Test void reviewWorkbookAppendsLatenessEarlyLeaveAndAbsenceColumns() throws Exception {

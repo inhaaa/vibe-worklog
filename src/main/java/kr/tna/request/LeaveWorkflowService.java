@@ -445,6 +445,8 @@ public final class LeaveWorkflowService {
             throw OrgException.invalid("근무 기준이 변경되었습니다. 철회 후 다시 신청해 주세요.");
         changed(mapper.insertEffect(actor.tenantId(),UUID.randomUUID(),request.id(),request.targetEmployeeId(),null,
                 "OVERTIME",json.writeValueAsString(List.of(stored)),null,null,actor.accountId()));
+        // 인정 연장이 바뀌므로 그날을 재계산 필요로 표시한다(결재 직후 재계산이 처리).
+        changed(mapper.reviseDay(actor.tenantId(),request.targetEmployeeId(),stored.workDate(),0));
     }
 
     private void approveOvertimeCancellation(TnaPrincipal actor,RequestView request) {
@@ -456,6 +458,7 @@ public final class LeaveWorkflowService {
         changed(mapper.endEffect(actor.tenantId(),effect.id(),"CANCELED"));
         changed(mapper.insertEffect(actor.tenantId(),UUID.randomUUID(),request.id(),request.targetEmployeeId(),null,
                 "CANCEL_OVERTIME",json.writeValueAsString(List.of(effect.id())),effect.id(),null,actor.accountId()));
+        changed(mapper.reviseDay(actor.tenantId(),original.targetEmployeeId(),mapper.overtime(actor.tenantId(),original.id()).workDate(),0));
     }
 
     private void approveLeave(TnaPrincipal actor,RequestView request,AttendancePolicy policy,String reason) {

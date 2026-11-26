@@ -194,7 +194,18 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     }
     @Select("SELECT id::text FROM tna.approval_request WHERE tenant_id=#{tenantId} AND target_employee_id=#{employeeId} AND kind='ATTENDANCE_CORRECTION' AND status='PENDING' AND from_date=#{date} ORDER BY id")
     List<String> pendingCorrections(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("date") LocalDate date);
-    @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-2')")
+    record ApprovedOvertimeRow(java.time.LocalTime startTime, java.time.LocalTime endTime, UUID codeVersionId) { }
+    @Select("""
+        SELECT d.start_time, d.end_time, d.code_version_id FROM tna.approval_request r
+        JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
+        JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id AND f.effect_kind='OVERTIME'
+        WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.kind='OVERTIME' AND r.status='APPROVED'
+          AND f.effect_status='EFFECTIVE' AND d.work_date=#{workDate}
+        ORDER BY d.start_time""")
+    List<ApprovedOvertimeRow> approvedOvertime(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("workDate") LocalDate workDate);
+    @Select("SELECT start_time, end_time FROM tna.work_time_code_break WHERE tenant_id=#{tenantId} AND version_id=#{versionId} AND kind<>'REGULAR'")
+    List<OvertimeIntervals.Pause> overtimePauses(@Param("tenantId") UUID tenantId,@Param("versionId") UUID versionId);
+    @Insert("INSERT INTO tna.calculation_run(tenant_id,id,employee_id,requested_by,from_date,to_date,expanded_from,expanded_to,engine_version) VALUES(#{tenantId},#{id},#{employeeId},#{actorId},#{from},#{to},#{expandedFrom},#{expandedTo},'CALC-3')")
     int insertRun(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("employeeId") UUID employeeId,
         @Param("actorId") UUID actorId,@Param("from") LocalDate from,@Param("to") LocalDate to,
         @Param("expandedFrom") LocalDate expandedFrom,@Param("expandedTo") LocalDate expandedTo);
@@ -206,12 +217,12 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,policy_version_id,assessment_id,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,
           confirmed_break_millis,outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
-          leave_days,reason_codes,input_refs,late_millis,early_leave_millis,absence)
+          leave_days,reason_codes,input_refs,late_millis,early_leave_millis,absence,approved_overtime_millis)
         VALUES(#{tenantId},#{id},#{runId},#{employeeId},#{r.workDate},#{revision},#{r.inputRevision},#{r.reviewRevision},
-          #{source},#{policyId},#{assessmentId},'CALC-2',#{r.status},#{r.scheduledMillis},#{r.presenceMillis},#{r.actualWorkMillis},
+          #{source},#{policyId},#{assessmentId},'CALC-3',#{r.status},#{r.scheduledMillis},#{r.presenceMillis},#{r.actualWorkMillis},
           #{r.confirmedBreakMillis},#{r.outsideScheduleMillis},#{r.over8hMillis},#{r.nightWorkMillis},#{r.holidayWorkMillis},NULL,
           #{r.leaveDays},CAST(#{reasons} AS jsonb),CAST(#{refs} AS jsonb),
-          #{r.attendance.lateMillis},#{r.attendance.earlyLeaveMillis},#{r.attendance.absence})
+          #{r.attendance.lateMillis},#{r.attendance.earlyLeaveMillis},#{r.attendance.absence},#{r.approvedOvertimeMillis})
         """)
     int insertResult(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("runId") UUID runId,
         @Param("employeeId") UUID employeeId,@Param("revision") long revision,@Param("r") WorktimeCalculator.DayResult result,
@@ -221,7 +232,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         SELECT DISTINCT ON(work_date) id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
           outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
-          late_millis,early_leave_millis,absence,leave_days,
+          late_millis,early_leave_millis,absence,approved_overtime_millis,leave_days,
           coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
           input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND work_date>=#{from} AND work_date<=#{to}
@@ -232,7 +243,7 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
         SELECT id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
           source_fingerprint,rule_version,status,scheduled_millis,presence_millis,actual_work_millis,confirmed_break_millis,
           outside_schedule_millis,over_8h_millis,night_work_millis,holiday_work_millis,legal_overtime_millis,
-          late_millis,early_leave_millis,absence,leave_days,
+          late_millis,early_leave_millis,absence,approved_overtime_millis,leave_days,
           coalesce((input_refs#>>'{0,paidLeaveDays}')::numeric,leave_days) AS paid_leave_days,
           input_refs#>>'{0,clock,dayKind}' AS saved_day_kind,reason_codes::text AS reason_codes,calculated_at
         FROM tna.day_result WHERE tenant_id=#{tenantId} AND id=#{id}
@@ -289,6 +300,6 @@ public interface WorktimeMapper extends ClosedAttendanceMonths {
     record ResultRow(UUID id,UUID runId,UUID employeeId,LocalDate workDate,long resultRevision,long inputRevision,
         long reviewRevision,String sourceFingerprint,String ruleVersion,String status,Long scheduledMillis,Long presenceMillis,
         Long actualWorkMillis,Long confirmedBreakMillis,Long outsideScheduleMillis,Long over8hMillis,Long nightWorkMillis,
-        Long holidayWorkMillis,Long legalOvertimeMillis,Long lateMillis,Long earlyLeaveMillis,String absence,double leaveDays,double paidLeaveDays,String savedDayKind,String reasonCodes,Instant calculatedAt) { }
+        Long holidayWorkMillis,Long legalOvertimeMillis,Long lateMillis,Long earlyLeaveMillis,String absence,Long approvedOvertimeMillis,double leaveDays,double paidLeaveDays,String savedDayKind,String reasonCodes,Instant calculatedAt) { }
     record SnapshotRow(UUID id,UUID requestedBy,UUID employeeId,LocalDate fromDate,LocalDate toDate,Instant asOf,byte[] workbook) { }
 }
