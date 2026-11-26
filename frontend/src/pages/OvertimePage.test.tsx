@@ -60,9 +60,10 @@ it('날짜를 변경하면 이전 근무 기준으로 미리보거나 제출할 
   expect(screen.queryByRole('button',{name:'결재선·신청 시간 확인'})).toBeNull();
 });
 it('담당자 결과표에 인정 시간을 보이고 결과가 없으면 계산 전으로 표시한다',()=>{
-  draw(true,{rows:[{...row,recognizedMillis:15_900_000},{...row,id:'b',recognizedMillis:null}]});
-  expect(screen.getByRole('columnheader',{name:'인정 시간'})).toBeTruthy();
-  expect(screen.getByText('4시간 25분')).toBeTruthy();expect(screen.getByText('계산 전')).toBeTruthy();
+  const ok={...row,status:'APPROVED',effectStatus:'EFFECTIVE'};
+  draw(true,{rows:[{...ok,recognizedMillis:15_900_000},{...ok,id:'b',recognizedMillis:null},{...row,id:'c',recognizedMillis:null}]});
+  expect(screen.getByRole('columnheader',{name:'인정 시간(일 합계)'})).toBeTruthy();
+  expect(screen.getByText('4시간 25분')).toBeTruthy();expect(screen.getByText('계산 전')).toBeTruthy();expect(screen.getAllByText('—').length).toBeGreaterThan(0);
 });
 it('담당자 복수 기록과 미기록을 구분한다',()=>{
   draw(true,{rows:[{...row,actualIn:null,actualOut:null,multipleIn:true,multipleOut:false}]});

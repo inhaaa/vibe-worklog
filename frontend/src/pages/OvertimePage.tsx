@@ -108,7 +108,7 @@ function Results({m,admin}: {m: Model; admin: boolean}) {
     return (admin?adminUrl:employeeUrl)+'?'+p;
   }
   const columns = [...(admin?['사원']:[]),'근무일','신청 구분','신청 시간','처리 상태','유효 승인',
-    ...(admin?['인정 시간','실제 출근','실제 퇴근']:[]),'상세'];
+    ...(admin?['인정 시간(일 합계)','실제 출근','실제 퇴근']:[]),'상세'];
   return <section className="wl-section"><h2>{admin?'신청·출퇴근 대조':'내 연장근무 신청 이력'}</h2>
     {!m.rows.length ? <p>조회된 신청이 없습니다.</p> : <table className="ot-rows"><thead><tr>{columns.map(h=><th scope="col" key={h}>{h}</th>)}</tr></thead>
       <tbody>{m.rows.map(r=><tr key={r.id}>
@@ -118,7 +118,7 @@ function Results({m,admin}: {m: Model; admin: boolean}) {
         <td data-label="처리 상태">{r.effectStatus==='CANCELED'?'취소됨':statuses[r.status] || r.status}
           {r.status==='PENDING' && ' · '+r.currentStep+'/'+r.totalSteps+'단계'}</td>
         <td data-label="유효 승인">{r.approvedMinutes == null?'—':r.approvedMinutes+'분'}</td>
-        {admin && <><td data-label="인정 시간">{recognized(r.recognizedMillis)}</td><td data-label="실제 출근">{r.multipleIn ? '복수 기록 · 확인 필요' : hhmm(r.actualIn)}</td><td data-label="실제 퇴근">{r.multipleOut ? '복수 기록 · 확인 필요' : hhmm(r.actualOut)}</td></>}
+        {admin && <><td data-label="인정 시간(일 합계)">{r.kind==='OVERTIME'&&r.status==='APPROVED'&&r.effectStatus==='EFFECTIVE'?recognized(r.recognizedMillis):'—'}</td><td data-label="실제 출근">{r.multipleIn ? '복수 기록 · 확인 필요' : hhmm(r.actualIn)}</td><td data-label="실제 퇴근">{r.multipleOut ? '복수 기록 · 확인 필요' : hhmm(r.actualOut)}</td></>}
         <td data-label="상세"><a href={'/requests/'+encodeURIComponent(r.id)}>상세 보기</a></td>
       </tr>)}</tbody></table>}
     <nav className="ot-pagination" aria-label="신청 목록 페이지">

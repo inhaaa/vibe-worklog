@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-/** Pure CALC-2 arithmetic. Persistence, authorization and approval effects belong to the calling service. */
+/** Pure CALC-3 arithmetic. Persistence, authorization and approval effects belong to the calling service. */
 public final class WorktimeCalculator {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final long HOUR = 3_600_000L;

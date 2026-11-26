@@ -39,7 +39,8 @@ public class OvertimeDirectory {
                    r.kind,r.status,coalesce(f.effect_status,'NONE') AS effect_status,
                    d.work_date,d.start_time,d.end_time,d.requested_minutes,
                    CASE WHEN r.kind='OVERTIME' AND r.status='APPROVED' AND f.effect_status='EFFECTIVE'
-                        THEN d.requested_minutes ELSE 0 END AS approved_minutes,r.current_step,r.total_steps,res.approved_overtime_millis AS recognized_millis
+                        THEN d.requested_minutes ELSE 0 END AS approved_minutes,r.current_step,r.total_steps,
+                   CASE WHEN r.kind='OVERTIME' AND r.status='APPROVED' AND f.effect_status='EFFECTIVE' THEN res.approved_overtime_millis END AS recognized_millis
             FROM tna.approval_request r
             JOIN tna.employee e ON e.tenant_id=r.tenant_id AND e.id=r.target_employee_id
             JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=

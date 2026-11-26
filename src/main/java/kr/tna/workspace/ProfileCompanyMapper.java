@@ -155,25 +155,25 @@ public interface ProfileCompanyMapper {
                 AND (r.late_millis>0 OR r.early_leave_millis>0 OR r.absence IS NOT NULL))
             """;
 
-    /** 직원·날짜별 최신·현재 결과를 주(월~일)로 묶어 실근로 합계 48시간(172,800,000ms) 이상만. 확인 전(NULL) 날은 부분합에서 빠지고 일수로 센다. */
+    /** 직원·날짜별 최신 결과를 주(월~일)로 묶어 실근로 합계 48시간(172,800,000ms) 이상만. 최신 결과가 현재가 아니거나 실근로가 NULL인 날은 합계에서 빠지고 확인 전 일수로 센다. */
     @Select("""
             WITH latest AS (
-              SELECT r.employee_id, r.work_date, r.actual_work_millis, r.approved_overtime_millis
+              SELECT r.employee_id, r.work_date, r.actual_work_millis, r.approved_overtime_millis,
+                (r.input_revision=COALESCE(rev.input_revision,0) AND r.review_revision=COALESCE(rev.review_revision,0)) AS is_current
               FROM (SELECT DISTINCT ON (employee_id, work_date) employee_id, work_date, input_revision, review_revision,
                       actual_work_millis, approved_overtime_millis
                     FROM tna.day_result WHERE tenant_id=#{tenantId} AND work_date>=#{from} AND work_date<#{to}
                     ORDER BY employee_id, work_date, result_revision DESC) r
               LEFT JOIN tna.day_input_revision rev ON rev.tenant_id=#{tenantId} AND rev.employee_id=r.employee_id
-                AND rev.work_date=r.work_date
-              WHERE r.input_revision=COALESCE(rev.input_revision,0) AND r.review_revision=COALESCE(rev.review_revision,0))
+                AND rev.work_date=r.work_date)
             SELECT l.employee_id, e.employee_no, e.display_name AS employee_name, date_trunc('week', l.work_date)::date AS week_start,
-              COALESCE(sum(l.actual_work_millis),0)::bigint AS actual_millis,
-              COALESCE(sum(l.approved_overtime_millis),0)::bigint AS approved_overtime_millis,
-              (count(*) FILTER (WHERE l.actual_work_millis IS NULL))::int AS unknown_days
+              COALESCE(sum(l.actual_work_millis) FILTER (WHERE l.is_current),0)::bigint AS actual_millis,
+              COALESCE(sum(l.approved_overtime_millis) FILTER (WHERE l.is_current),0)::bigint AS approved_overtime_millis,
+              (count(*) FILTER (WHERE NOT l.is_current OR l.actual_work_millis IS NULL))::int AS unknown_days
             FROM latest l JOIN tna.employee e ON e.tenant_id=#{tenantId} AND e.id=l.employee_id
             GROUP BY l.employee_id, e.employee_no, e.display_name, date_trunc('week', l.work_date)
-            HAVING COALESCE(sum(l.actual_work_millis),0) >= 172800000
-            ORDER BY sum(l.actual_work_millis) DESC, e.employee_no, week_start
+            HAVING COALESCE(sum(l.actual_work_millis) FILTER (WHERE l.is_current),0) >= 172800000
+            ORDER BY sum(l.actual_work_millis) FILTER (WHERE l.is_current) DESC, e.employee_no, week_start
             LIMIT 1001
             """)
     List<WeeklyHoursQueries.Found> weeklyHours(@Param("tenantId") UUID tenantId, @Param("from") LocalDate from, @Param("to") LocalDate to);

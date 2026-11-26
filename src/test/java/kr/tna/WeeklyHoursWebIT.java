@@ -59,6 +59,7 @@ class WeeklyHoursWebIT {
         var d = member(tenant, "E04", null);
         var e = member(tenant, "E05", null);
         var f = member(tenant, "E06", null);
+        var g = member(tenant, "E07", null);
         week(worker, "2026-10-05", 5, 53 * H / 5, 9 * H);      // 53시간: 초과 (인정 연장 9시간은 첫날)
         week(b, "2026-10-05", 5, 49 * H / 5, 0L);              // 49시간: 임박
         week(c, "2026-10-05", 5, 47 * H / 5, 0L);              // 47시간: 행 없음
@@ -66,6 +67,10 @@ class WeeklyHoursWebIT {
         result(d, "2026-10-16", 1, null, null);
         week(e, "2026-09-28", 5, 49 * H / 5, 0L);              // 월 경계: 9-28~10-04 주도 포함
         week(f, "2026-11-02", 1, 60 * H, 0L);                  // 조회 월과 겹치지 않는 주
+        week(g, "2026-10-19", 5, 10 * H, 0L);                  // 50시간 + 최신 결과가 현재가 아닌 하루(합계 제외, 확인 전)
+        result(g, "2026-10-24", 1, 9 * H, 0L);
+        db.update("UPDATE tna.day_input_revision SET input_revision=2 WHERE tenant_id=? AND employee_id=? AND work_date=DATE '2026-10-24'",
+                tenant, g.employeeId());
         result(b, "2026-10-05", 2, 0L, 0L);                    // 최신 결과가 0이면 B의 그날 합계가 줄어든다
         UUID foreign = company();
         week(member(foreign, "E01", "ATTENDANCE_ADMIN"), "2026-10-05", 5, 60 * H / 5, 0L);
@@ -78,7 +83,7 @@ class WeeklyHoursWebIT {
                 .andExpect(status().isOk()).andExpect(view().name("company/attendance"))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/month", MONTH))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/truncated", false))
-                .andExpect(jsonPath("$.data.weeklyHours.rows.length()").value(3))
+                .andExpect(jsonPath("$.data.weeklyHours.rows.length()").value(4))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/0/employeeNo", "E01"))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/0/employeeName", "합성 E01"))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/0/employeeId", worker.employeeId()))
@@ -91,9 +96,12 @@ class WeeklyHoursWebIT {
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/1/employeeNo", "E04"))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/1/status", "NEAR"))
                 .andExpect(ReactPageAssertions.data("/weeklyHours/rows/1/unknownDays", 1))
-                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/employeeNo", "E05"))
-                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/weekStart", "2026-09-28"))
-                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/status", "NEAR"))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/employeeNo", "E07"))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/actualMillis", (int) (50 * H)))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/2/unknownDays", 1))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/3/employeeNo", "E05"))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/3/weekStart", "2026-09-28"))
+                .andExpect(ReactPageAssertions.data("/weeklyHours/rows/3/status", "NEAR"))
                 .andExpect(jsonPath("$.data.weeklyHours.error").doesNotExist());
     }
 

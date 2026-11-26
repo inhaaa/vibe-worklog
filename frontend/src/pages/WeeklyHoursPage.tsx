@@ -10,7 +10,10 @@ interface WeeklyRow {
 
 export interface WeeklyHours { month: string; rows: WeeklyRow[]; truncated: boolean; error: string | null }
 
-const hours = (millis: number) => `${(millis / 3_600_000).toFixed(1)}시간`;
+const hours = (millis: number) => {
+  const minutes = Math.round(millis / 60000), h = Math.floor(minutes / 60), m = minutes % 60;
+  return h && m ? `${h}시간 ${m}분` : h ? `${h}시간` : `${m}분`;
+};
 
 export function WeeklyHoursPage({ model: m }: { model: WeeklyHours }) {
   return <>

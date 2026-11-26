@@ -261,6 +261,66 @@ class CodeMigrationUpgradeIT {
         } finally { cluster.execute("DROP DATABASE " + database + " WITH (FORCE)"); }
     }
 
+    @Test void v46FlagsOnlyOpenMonthPreCalc3OvertimeDaysForRecalculation() throws Exception {
+        var fixture = DatabaseFixture.start(); var cluster = new JdbcTemplate(fixture.adminDataSource());
+        String database = "tna_v46_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        String url = fixture.jdbcUrl().replace("/" + DatabaseFixture.DATABASE_NAME, "/" + database);
+        var original = (DriverManagerDataSource) fixture.adminDataSource();
+        var adminSource = new DriverManagerDataSource(url, original.getUsername(), original.getPassword());
+        var migrationSource = new DriverManagerDataSource(url, DatabaseFixture.MIGRATION_USER, DatabaseFixture.MIGRATION_PASSWORD);
+        cluster.execute("CREATE DATABASE " + database);
+        try {
+            var db = new JdbcTemplate(adminSource);
+            cluster.execute("REVOKE ALL ON DATABASE " + database + " FROM PUBLIC");
+            cluster.execute("GRANT CONNECT ON DATABASE " + database + " TO tna_migration,tna_app,tna_auth,tna_operator");
+            cluster.execute("GRANT CREATE ON DATABASE " + database + " TO tna_migration");
+            db.execute("GRANT USAGE,CREATE ON SCHEMA public TO tna_migration");
+            assertTrue(Flyway.configure().dataSource(migrationSource).target("45").load().migrate().success);
+            UUID tenant = UUID.randomUUID(), employee = UUID.randomUUID(), account = UUID.randomUUID();
+            java.time.LocalDate open = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+            java.time.LocalDate closed = open.withDayOfMonth(1).minusMonths(1);
+            db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 V46')", tenant, "V46-" + tenant);
+            // 기준 FK는 이번 검증과 무관하므로 이 연결에서만 건너뛰고, 승인된 연장 신청과 CALC-2 결과만 만든다.
+            db.execute((java.sql.Connection c) -> {
+                try (var st = c.createStatement()) { st.execute("SET session_replication_role = replica"); }
+                try (var ps = c.prepareStatement("INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name) VALUES (?,gen_random_uuid(),?,1,'CLOSED','합성 마감',?,'마감자')")) {
+                    ps.setObject(1, tenant); ps.setObject(2, closed); ps.setObject(3, account); ps.executeUpdate();
+                }
+                for (var day : List.of(open, closed)) {
+                    UUID request = UUID.randomUUID();
+                    try (var ps = c.prepareStatement("""
+                            INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,reason,
+                                from_date,to_date,client_command_id,form_version_id,version)
+                            VALUES (?,?,?,?,'OVERTIME','APPROVED',?,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
+                        ps.setObject(1, tenant); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, account);
+                        ps.setObject(5, employee); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
+                    }
+                    try (var ps = c.prepareStatement("""
+                            INSERT INTO tna.overtime_request_detail(tenant_id,request_id,work_date,start_time,end_time,requested_minutes,
+                                schedule_version_id,code_version_id,calendar_version_id,basis_token)
+                            VALUES (?,?,?,TIME '18:00',TIME '20:00',60,gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),repeat('a',64))""")) {
+                        ps.setObject(1, tenant); ps.setObject(2, request); ps.setObject(3, day); ps.executeUpdate();
+                    }
+                    try (var ps = c.prepareStatement("INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by) VALUES (?,gen_random_uuid(),?,?,'OVERTIME',?)")) {
+                        ps.setObject(1, tenant); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, account); ps.executeUpdate();
+                    }
+                    try (var ps = c.prepareStatement("""
+                            INSERT INTO tna.day_result(tenant_id,id,run_id,employee_id,work_date,result_revision,input_revision,review_revision,
+                                source_fingerprint,rule_version,status,actual_work_millis,leave_days,reason_codes,input_refs)
+                            VALUES (?,gen_random_uuid(),gen_random_uuid(),?,?,1,0,0,repeat('a',64),'CALC-2','CALCULATED',28800000,0,'[]','[]')""")) {
+                        ps.setObject(1, tenant); ps.setObject(2, employee); ps.setObject(3, day); ps.executeUpdate();
+                    }
+                }
+                return null;
+            });
+            var upgrade = Flyway.configure().dataSource(migrationSource).target("46").load().migrate();
+            assertTrue(upgrade.success); assertEquals(1, upgrade.migrationsExecuted);
+            assertEquals(List.of(open.toString()), db.queryForList(
+                    "SELECT work_date::text FROM tna.day_input_revision WHERE tenant_id=? AND recalculation_required", String.class, tenant));
+            assertEquals(0, db.queryForObject("SELECT count(*) FROM pg_policies WHERE policyname='flag_pre_calc3_registry_scan'", Integer.class));
+        } finally { cluster.execute("DROP DATABASE " + database + " WITH (FORCE)"); }
+    }
+
     private static void verifySelectiveWorkUpgrade(JdbcTemplate db, DriverManagerDataSource migrations) {
         assertEquals(2,db.update("""
                 INSERT INTO tna.work_time_code(tenant_id,id,code)

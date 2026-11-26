@@ -154,13 +154,17 @@ class MonthCloseExportIT {
         var team = department(admin, "PAY", "급여 부서");
         UUID worker = employee(admin.tenantId(), "P01", "급여 사원", FIRST, FIRST.plusDays(4));
         UUID legacyDays = employee(admin.tenantId(), "P02", "이전 규칙 사원", FIRST, FIRST.plusDays(1));
+        UUID legacyNoOvertime = employee(admin.tenantId(), "P03", "이전 규칙 무연장", FIRST, FIRST);
         assign(admin, worker, team, FIRST, null);
         assign(admin, legacyDays, team, FIRST, null);
-        restDays(admin, worker, legacyDays);
-        payrollResult(admin, worker, 0, "CALC-3", 2L, 3L, 1L, 420_000L, 0L, null, 2L);
+        assign(admin, legacyNoOvertime, team, FIRST, null);
+        restDays(admin, worker, legacyDays, legacyNoOvertime);
+        payrollResult(admin, worker, 0, "CALC-3", 2L, 5L, 1L, 420_000L, 0L, null, 2L);  // 5-2-2(휴일근로)=1
         payrollResult(admin, worker, 1, "CALC-3", 0L, 0L, 0L, 0L, 1_800_000L, "FULL", 0L);
         payrollResult(admin, worker, 2, "CALC-3", 0L, 0L, 0L, 0L, 0L, "HALF", 0L);
         payrollResult(admin, legacyDays, 0, "CALC-2", null, null, null, null, null, null, null);
+        payrollResult(admin, legacyNoOvertime, 0, "CALC-2", null, null, null, null, null, null, null);
+        approvedOvertime(admin, legacyDays, FIRST);
         db.update("""
                 INSERT INTO tna.attendance_month_closure(tenant_id,id,month_start,version,status,reason,actor_account_id,actor_name)
                 VALUES (?,gen_random_uuid(),?,1,'CLOSED','합성 마감',?,'담당자')
@@ -183,6 +187,11 @@ class MonthCloseExportIT {
         assertNull(legacy.get("approved_overtime_millis"));
         assertNull(legacy.get("unapproved_extra_millis"));
         assertEquals(0L, legacy.get("night_work_millis"));
+        // 승인된 연장이 없는 CALC-2 날은 인정 연장 0으로 센다.
+        var noOvertime = db.queryForMap("SELECT * FROM tna.attendance_month_export_row WHERE tenant_id=? AND employee_id=?",
+                admin.tenantId(), legacyNoOvertime);
+        assertEquals(0L, noOvertime.get("approved_overtime_millis"));
+        assertEquals(0L, noOvertime.get("unapproved_extra_millis"));
         var sheet = worksheet(download(admin, 1, "COMPANY", null));
         assertTrue(sheet.contains(concat(List.of("P01", "급여 사원", "PAY", "급여 부서", "5", "3", "3.0", "0.0"),
                 List.of("2.0", "1.0", "1.0", "2.0", "1", "7", "1", "30", "1.5"))), sheet.toString());
@@ -203,6 +212,31 @@ class MonthCloseExportIT {
 
     static List<String> withZeroPayroll(List<String> cells) {
         return concat(cells, List.of("0.0", "0.0", "0.0", "0.0", "0", "0", "0", "0", "0.0"));
+    }
+
+    /** 승인된 유효 연장 신청 한 건. 이 검증과 무관한 참조 키는 이 연결에서만 건너뛴다. */
+    private void approvedOvertime(TnaPrincipal person, UUID employee, LocalDate day) {
+        UUID request = UUID.randomUUID();
+        db.execute((java.sql.Connection c) -> {
+            try (var st = c.createStatement()) { st.execute("SET session_replication_role = replica"); }
+            try (var ps = c.prepareStatement("""
+                    INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,reason,
+                        from_date,to_date,client_command_id,form_version_id,version)
+                    VALUES (?,?,?,?,'OVERTIME','APPROVED',?,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
+                ps.setObject(1, person.tenantId()); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, person.accountId());
+                ps.setObject(5, employee); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
+            }
+            try (var ps = c.prepareStatement("""
+                    INSERT INTO tna.overtime_request_detail(tenant_id,request_id,work_date,start_time,end_time,requested_minutes,
+                        schedule_version_id,code_version_id,calendar_version_id,basis_token)
+                    VALUES (?,?,?,TIME '18:00',TIME '20:00',60,gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),repeat('a',64))""")) {
+                ps.setObject(1, person.tenantId()); ps.setObject(2, request); ps.setObject(3, day); ps.executeUpdate();
+            }
+            try (var ps = c.prepareStatement("INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by) VALUES (?,gen_random_uuid(),?,?,'OVERTIME',?)")) {
+                ps.setObject(1, person.tenantId()); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, person.accountId()); ps.executeUpdate();
+            }
+            return null;
+        });
     }
 
     private void payrollResult(TnaPrincipal person, UUID employee, int dayOffset, String rule, Long approvedHours,

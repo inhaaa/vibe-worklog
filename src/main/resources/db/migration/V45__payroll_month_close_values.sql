@@ -1,6 +1,7 @@
 -- Payroll attendance totals captured with each month close (design section 5).
 -- Time totals are NULL when any day's actual work is unconfirmed; approved overtime and unapproved extra are also
--- NULL when a confirmed day predates CALC-3 (no approved_overtime_millis). Late/early/absence count unjudged days as 0.
+-- NULL when a confirmed day predates CALC-3 (no approved_overtime_millis) and an approved effective overtime exists for
+-- that day; without one, such a day counts as 0 approved overtime. Late/early/absence count unjudged days as 0.
 DROP FUNCTION tna.month_close_export_values(uuid,date,timestamptz);
 CREATE FUNCTION tna.month_close_export_values(company uuid, month_start date, legacy_closed_at timestamptz DEFAULT NULL)
 RETURNS TABLE (employee_id uuid, employee_no text, employee_name text, organization_id uuid,
@@ -27,9 +28,13 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path=pg_catalog,pg_temp AS $$
                coalesce(sum(r.actual_work_millis),0)::bigint AS actual_millis,coalesce(sum(l.quantity),0) AS leave_days,
                bool_or(r.actual_work_millis IS NULL AND (r.id IS NOT NULL
                        OR coalesce(greatest(e.created_at,e.updated_at)>legacy_closed_at,false))) AS unknown_work,
-               bool_or(r.actual_work_millis IS NOT NULL AND r.approved_overtime_millis IS NULL) AS pre_calc3,
+               bool_or(r.actual_work_millis IS NOT NULL AND r.approved_overtime_millis IS NULL AND EXISTS (
+                       SELECT 1 FROM tna.request_effect f JOIN tna.approval_request ar ON ar.tenant_id=f.tenant_id AND ar.id=f.request_id
+                       JOIN tna.overtime_request_detail od ON od.tenant_id=ar.tenant_id AND od.request_id=ar.id
+                       WHERE f.tenant_id=company AND f.employee_id=e.id AND f.effect_kind='OVERTIME' AND f.effect_status='EFFECTIVE'
+                         AND ar.kind='OVERTIME' AND ar.status='APPROVED' AND od.work_date=d.work_date)) AS pre_calc3,
                coalesce(sum(r.approved_overtime_millis),0)::bigint AS approved_overtime_millis,
-               coalesce(sum(greatest(coalesce(r.outside_schedule_millis,0)-coalesce(r.approved_overtime_millis,0),0)),0)::bigint
+               coalesce(sum(greatest(coalesce(r.outside_schedule_millis,0)-coalesce(r.approved_overtime_millis,0)-coalesce(r.holiday_work_millis,0),0)),0)::bigint
                    AS unapproved_extra_millis,
                coalesce(sum(r.night_work_millis),0)::bigint AS night_work_millis,
                coalesce(sum(r.holiday_work_millis),0)::bigint AS holiday_work_millis,

@@ -30,9 +30,9 @@ it('주별 실근로·인정 연장·상태 태그를 보이고 주간은 그 �
     expect.arrayContaining(['사번', '이름', '주간', '실근로 합계', '인정 연장', '상태', '확인 전']));
   expect(within(grid).getByText('52시간 초과').className).toContain('red');
   expect(within(grid).getByText('임박').className).toContain('amber');
-  expect(within(grid).getByText('53.0시간')).toBeTruthy();
-  expect(within(grid).getByText('9.0시간')).toBeTruthy();
-  expect(within(grid).getByText('49.5시간')).toBeTruthy();
+  expect(within(grid).getByText('53시간')).toBeTruthy();
+  expect(within(grid).getByText('9시간')).toBeTruthy();
+  expect(within(grid).getByText('49시간 30분')).toBeTruthy();
   expect(within(grid).getByText('1일')).toBeTruthy();
   expect(within(grid).getByRole('link', { name: '10-05~10-11' }).getAttribute('href'))
     .toBe('/company/attendance?employeeId=employee-a&month=2026-10');
