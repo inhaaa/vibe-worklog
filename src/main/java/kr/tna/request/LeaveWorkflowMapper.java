@@ -217,6 +217,9 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
     int insertHistory(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("requestId") UUID requestId,
         @Param("kind") String kind,@Param("actorId") UUID actorId,@Param("from") String from,@Param("to") String to,
         @Param("reason") String reason,@Param("previous") UUID previous,@Param("next") UUID next,@Param("step") Integer step);
+    @Insert("INSERT INTO tna.notification(tenant_id,id,recipient_employee_id,event_id,request_id,kind) VALUES(#{tenantId},#{id},#{recipient},#{eventId},#{requestId},#{kind})")
+    int insertNotification(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("recipient") UUID recipient,
+        @Param("eventId") UUID eventId,@Param("requestId") UUID requestId,@Param("kind") String kind);
     @Select("SELECT id AS assignment_id,version AS assignment_version,approver_employee_id FROM tna.approver_assignment WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND superseded_at IS NULL AND valid_from<=#{today} AND(valid_to IS NULL OR valid_to>#{today})")
     ApproverBinding binding(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
     @Select("""

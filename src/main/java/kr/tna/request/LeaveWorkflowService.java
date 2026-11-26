@@ -679,7 +679,11 @@ public final class LeaveWorkflowService {
     }
     private UUID mapperAuthorEmployee(UUID tenant,UUID accountId) {String id=mapper.authorEmployee(tenant,accountId);if(id==null)throw OrgException.notFound();return UUID.fromString(id);}
     private void history(TnaPrincipal actor,RequestView r,String kind,String from,String to,String reason,UUID previous,UUID next) {
-        changed(mapper.insertHistory(actor.tenantId(),UUID.randomUUID(),r.id(),kind,actor.accountId(),from,to,reason,previous,next,r.legacyForm()?null:r.currentStep()));
+        UUID event=UUID.randomUUID();
+        changed(mapper.insertHistory(actor.tenantId(),event,r.id(),kind,actor.accountId(),from,to,reason,previous,next,r.legacyForm()?null:r.currentStep()));
+        // 결재와 같은 트랜잭션: 결재가 롤백되면 알림도 남지 않는다(설계 §2).
+        kr.tna.notification.NotificationRules.target(kind,actor.employeeId(),next,r.targetEmployeeId()).ifPresent(t->
+            changed(mapper.insertNotification(actor.tenantId(),UUID.randomUUID(),t.recipient(),event,r.id(),t.kind())));
     }
     private void ledger(TnaPrincipal actor,UUID bucket,UUID employee,String kind,BigDecimal quantity,LocalDate date,UUID effect,LocalDate leaveDate,UUID reverses,String source,String reason) {
         changed(mapper.insertLedger(actor.tenantId(),UUID.randomUUID(),bucket,employee,kind,quantity,date,effect,leaveDate,reverses,source,reason,actor.accountId()));
