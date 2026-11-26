@@ -280,6 +280,7 @@ class CodeMigrationUpgradeIT {
             java.time.LocalDate open = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
             java.time.LocalDate closed = open.withDayOfMonth(1).minusMonths(1);
             db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 V46')", tenant, "V46-" + tenant);
+            db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,'V46','합성 사원',DATE '2024-01-01')", tenant, employee);
             // 기준 FK는 이번 검증과 무관하므로 이 연결에서만 건너뛰고, 승인된 연장 신청과 CALC-2 결과만 만든다.
             db.execute((java.sql.Connection c) -> {
                 try (var st = c.createStatement()) { st.execute("SET session_replication_role = replica"); }
@@ -289,11 +290,11 @@ class CodeMigrationUpgradeIT {
                 for (var day : List.of(open, closed)) {
                     UUID request = UUID.randomUUID();
                     try (var ps = c.prepareStatement("""
-                            INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,reason,
+                            INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,approver_assignment_id,approver_assignment_version,reason,
                                 from_date,to_date,client_command_id,form_version_id,version)
-                            VALUES (?,?,?,?,'OVERTIME','APPROVED',?,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
+                            VALUES (?,?,?,?,'OVERTIME','APPROVED',?,gen_random_uuid(),0,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
                         ps.setObject(1, tenant); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, account);
-                        ps.setObject(5, employee); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
+                        ps.setObject(5, UUID.randomUUID()); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
                     }
                     try (var ps = c.prepareStatement("""
                             INSERT INTO tna.overtime_request_detail(tenant_id,request_id,work_date,start_time,end_time,requested_minutes,

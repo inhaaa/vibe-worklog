@@ -197,7 +197,7 @@ class MonthCloseExportIT {
                 List.of("2.0", "1.0", "1.0", "2.0", "1", "7", "1", "30", "1.5"))), sheet.toString());
         assertTrue(sheet.contains(concat(List.of("P02", "이전 규칙 사원", "PAY", "급여 부서", "2", "1", "1.0", "0.0"),
                 List.of("미확정", "미확정", "0.0", "0.0", "0", "0", "0", "0", "0.0"))), sheet.toString());
-        assertTrue(sheet.contains(concat(List.of("범위 합계", "", "2", "7", "4", "4.0", "0.0"),
+        assertTrue(sheet.contains(concat(List.of("범위 합계", "", "3", "8", "5", "5.0", "0.0"),
                 List.of("미확정", "미확정", "1.0", "2.0", "1", "7", "1", "30", "1.5"))), sheet.toString());
     }
 
@@ -220,11 +220,11 @@ class MonthCloseExportIT {
         db.execute((java.sql.Connection c) -> {
             try (var st = c.createStatement()) { st.execute("SET session_replication_role = replica"); }
             try (var ps = c.prepareStatement("""
-                    INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,reason,
+                    INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,approver_assignment_id,approver_assignment_version,reason,
                         from_date,to_date,client_command_id,form_version_id,version)
-                    VALUES (?,?,?,?,'OVERTIME','APPROVED',?,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
+                    VALUES (?,?,?,?,'OVERTIME','APPROVED',?,gen_random_uuid(),0,'합성',?,?,gen_random_uuid(),gen_random_uuid(),1)""")) {
                 ps.setObject(1, person.tenantId()); ps.setObject(2, request); ps.setObject(3, employee); ps.setObject(4, person.accountId());
-                ps.setObject(5, employee); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
+                ps.setObject(5, UUID.randomUUID()); ps.setObject(6, day); ps.setObject(7, day); ps.executeUpdate();
             }
             try (var ps = c.prepareStatement("""
                     INSERT INTO tna.overtime_request_detail(tenant_id,request_id,work_date,start_time,end_time,requested_minutes,
