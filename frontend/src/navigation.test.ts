@@ -13,7 +13,7 @@ describe('업무 메뉴 계약', () => {
   it('업무별 메뉴와 승인된 실제 경로를 3단계로 제공한다', () => {
     expect(getNavigation(allRoles).map(group => group.label)).toEqual(['내 업무', '결재', '인사관리', '조직관리', '근태 운영', '휴가관리', '시스템 설정']);
     expect(links(allRoles).map(item => item.href)).toEqual([
-      '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/attendance/follow-ups', '/me/overtime', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
+      '/me/profile', '/me/attendance', '/me/schedule', '/me/worktime', '/me/requests/correction', '/me/attendance/follow-ups', '/me/overtime', '/me/requests/new?kind=LEAVE_DAY', '/me/requests', '/me/notifications',
       '/approvals', '/approvals/completed',
       '/admin/employees', '/admin/employees/bulk-edit', '/admin/employees/onboarding', '/admin/employees/import',
       '/admin/organizations', '/admin/organization-heads?chart=true', '/company/organizations',
@@ -22,7 +22,7 @@ describe('업무 메뉴 계약', () => {
       '/admin/requests?scope=LEAVE', '/company/requests?scope=LEAVE', '/admin/leave-balances',
       '/admin/access', '/admin/accounts', '/admin/common-codes', '/admin/request-forms', '/admin/approval-routes', '/admin/approval-route-assignments', '/admin/networks', '/admin/audit',
     ]);
-    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(38);
+    expect(new Set(links(allRoles).map(item => item.id)).size).toBe(39);
     expect(getNavigationContext('org/request-forms', '/admin/request-forms')?.breadcrumbs.at(-1)?.label).toBe('신청서코드 관리');
     expect(getNavigationContext('org/personnel-home', '/admin/employees')?.href).toBe('/admin/employees');
     expect(getNavigationContext('org/employees', '/admin/employees/bulk-edit')?.href).toBe('/admin/employees/bulk-edit');
@@ -33,7 +33,7 @@ describe('업무 메뉴 계약', () => {
 
   it('일반 사원은 본인 업무만 보고 허용 자식이 없는 부모는 제거한다', () => {
     expect(getNavigation(['EMPLOYEE']).map(group => group.label)).toEqual(['내 업무']);
-    expect(links(['EMPLOYEE'])).toHaveLength(9);
+    expect(links(['EMPLOYEE'])).toHaveLength(10);
     expect(getNavigation([])).toEqual([]);
   });
 
@@ -93,7 +93,7 @@ const hrefs = (roles: string[]) => getNavigation(roles)
 describe('업무별 메뉴', () => {
   it('직원은 본인 기록에서 정정과 휴가 신청을 각각 찾을 수 있다', () => {
     expect(hrefs(['EMPLOYEE'])).toEqual(expect.arrayContaining([
-      '/me/attendance', '/me/requests/correction', '/me/overtime', '/me/requests/new?kind=LEAVE_DAY', '/me/requests',
+      '/me/attendance', '/me/requests/correction', '/me/overtime', '/me/requests/new?kind=LEAVE_DAY', '/me/requests', '/me/notifications',
     ]));
     expect(getNavigationContext('clock/period', '/me/attendance?view=period')?.itemId).toBe('attendance');
     expect(getNavigationContext('request/mine', '/me/requests/new?kind=LEAVE_DAY')?.itemId).toBe('new-leave');

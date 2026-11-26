@@ -23,6 +23,8 @@ import { CodePages } from './pages/CodePages';
 import { AnnualRequestPage, LeaveAttributionPage } from './pages/AnnualRequestPage';
 import { leaveOperationsReturn } from './pages/LeaveOperationsNavigation';
 import { PersonnelPage } from './pages/PersonnelPage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import type { NotificationRow } from './pages/NotificationsPage';
 import { EmployeeHeader } from './components/EmployeeHeader';
 import type { EmployeeHeaderData } from './components/EmployeeHeader';
 import { Breadcrumbs, WorkspaceNavigation } from './components/WorkspaceNavigation';
@@ -118,6 +120,7 @@ const titles: Record<string, string> = {
   'request/employment-leave': '입사·퇴사 연차 정산',
   'request/personal-ledger': '내 연차 원장',
   'request/list': '신청 목록',
+  'notification/list': '알림',
   'worktime/month': '근로시간',
   'worktime/result': '계산 근거',
   'worktime/policies': '계산 정책',
@@ -143,6 +146,7 @@ function Icon({ name }: { name: string }) {
     chart: 'M4 4v16h16M8 15v-4M13 15V7M18 15v-6',
     menu: 'M4 6h16M4 12h16M4 18h16',
     chevron: 'm9 5 7 7-7 7',
+    bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10 21a2 2 0 0 0 4 0',
   };
   return (
     <svg
@@ -180,6 +184,7 @@ function Workspace({
   const roles = (data.workspacePrincipal as { roles: string[] } | undefined)?.roles ?? [];
   const roleOptions = getWorkspaceRoles(roles);
   const demo = data.workspaceDemo === true;
+  const unread = Number(data.workspaceNotifications ?? 0);
   const workspaceName = demo ? 'WorkLog 데모' : (employee?.companyName ?? '워크스페이스');
   const [selectedRole, setSelectedRole] = useState(() => {
     const href = getNavigationContext(page, pageUrl, data)?.href;
@@ -256,6 +261,10 @@ function Workspace({
         </div>
         <div className="t-profile">
           <ThemeSwitcher />
+          <a className="t-notification-bell" href="/me/notifications" aria-label={unread > 0 ? `알림 ${unread}건 안 읽음` : '알림'}>
+            <Icon name="bell" />
+            {unread > 0 && <span className="t-notification-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+          </a>
           {roleOptions.length > 0 && <label className="t-role-picker">
             <span>업무 권한</span>
             <select aria-label="업무 권한" value={activeRole} onChange={event => setSelectedRole(selectWorkspaceRole(roles, event.target.value))}>
@@ -301,6 +310,7 @@ function Content(props: PageProps) {
       {props.page === 'org/employee-import' && <EmployeeImportPage model={props.data.employeeImport as EmployeeImportModel} csrf={props.csrf} />}
       {props.page === 'clock/holidays' && <HolidayPage model={props.data.holidays as HolidayModel} csrf={props.csrf} />}
       <ApprovalRoutePages {...props} />
+      {props.page === 'notification/list' && <NotificationsPage rows={(props.data.notifications ?? []) as NotificationRow[]} />}
       {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />
       <AnnualRequestPage {...props} />

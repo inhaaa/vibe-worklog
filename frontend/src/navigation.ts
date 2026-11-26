@@ -33,6 +33,7 @@ const navigation: NavigationGroup[] = [
     { id: 'my-requests', label: '휴가·신청', children: [
       item('new-leave', '휴가 신청', '/me/requests/new?kind=LEAVE_DAY', employee),
       item('requests', '내 신청 이력', '/me/requests', employee, 'request/mine', 'request/personal-ledger'),
+      item('notifications', '알림', '/me/notifications', employee, 'notification/list'),
     ] },
   ] },
   { id: 'approvals', label: '결재', children: [
