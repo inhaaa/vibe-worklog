@@ -46,7 +46,9 @@ class NotificationMailerIT {
     static final class FakeSender extends JavaMailSenderImpl {
         final List<SimpleMailMessage> sent = new java.util.ArrayList<>();
         final AtomicInteger failures = new AtomicInteger();
+        final AtomicInteger crashes = new AtomicInteger();
         @Override public void send(SimpleMailMessage message) {
+            if (crashes.getAndUpdate(n -> Math.max(0, n - 1)) > 0) throw new IllegalStateException("synthetic non-mail failure");
             if (failures.getAndUpdate(n -> Math.max(0, n - 1)) > 0) throw new MailSendException("synthetic relay failure");
             sent.add(message);
         }
@@ -154,6 +156,19 @@ class NotificationMailerIT {
         assertEquals("FAILED", state(id));
         assertEquals(3, attempts(id));
         assertTrue(sender.sent.isEmpty());
+    }
+
+    @Test void aNonMailExceptionOnOneRowDoesNotBlockTheNextRow() {
+        UUID first = insertNotification("APPROVAL_REQUESTED", "SUBMITTED", "합성");
+        admin.update("UPDATE tna.notification SET mail_next_at=CURRENT_TIMESTAMP - interval '2 second' WHERE tenant_id=? AND id=?", tenant, first);
+        UUID second = insertNotification("APPROVAL_REQUESTED", "SUBMITTED", "합성");
+        var sender = new FakeSender();
+        sender.crashes.set(1);
+        mailer(smtp(sender)).runOnce(List.of(tenant));
+        assertEquals("PENDING", state(first));
+        assertEquals(1, attempts(first));
+        assertTrue(admin.queryForObject("SELECT mail_next_at > CURRENT_TIMESTAMP + interval '50 seconds' FROM tna.notification WHERE tenant_id=? AND id=?", Boolean.class, tenant, first));
+        assertEquals("SENT", state(second));
     }
 
     @Test void onlyOneRunHoldsTheLock() throws Exception {

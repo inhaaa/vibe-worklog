@@ -220,6 +220,10 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
     @Insert("INSERT INTO tna.notification(tenant_id,id,recipient_employee_id,event_id,request_id,kind) VALUES(#{tenantId},#{id},#{recipient},#{eventId},#{requestId},#{kind})")
     int insertNotification(@Param("tenantId") UUID tenantId,@Param("id") UUID id,@Param("recipient") UUID recipient,
         @Param("eventId") UUID eventId,@Param("requestId") UUID requestId,@Param("kind") String kind);
+    @Update("UPDATE tna.notification SET read_at=CURRENT_TIMESTAMP WHERE tenant_id=#{tenantId} AND recipient_employee_id=#{employeeId} AND request_id=#{requestId} AND read_at IS NULL")
+    int readRequestNotifications(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("requestId") UUID requestId);
+    @Update("UPDATE tna.notification SET mail_state='SKIPPED',mail_next_at=NULL WHERE tenant_id=#{tenantId} AND recipient_employee_id=#{employeeId} AND request_id=#{requestId} AND mail_state='PENDING'")
+    int skipRequestMail(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("requestId") UUID requestId);
     @Select("SELECT id AS assignment_id,version AS assignment_version,approver_employee_id FROM tna.approver_assignment WHERE tenant_id=#{tenantId} AND employee_id=#{employeeId} AND superseded_at IS NULL AND valid_from<=#{today} AND(valid_to IS NULL OR valid_to>#{today})")
     ApproverBinding binding(@Param("tenantId") UUID tenantId,@Param("employeeId") UUID employeeId,@Param("today") LocalDate today);
     @Select("""

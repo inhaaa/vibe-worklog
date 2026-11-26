@@ -261,7 +261,7 @@ function Workspace({
         </div>
         <div className="t-profile">
           <ThemeSwitcher />
-          <a className="t-notification-bell" href="/me/notifications" aria-label={unread > 0 ? `알림 ${unread}건 안 읽음` : '알림'}>
+          <a className="t-notification-bell" href="/me/notifications" aria-label={unread > 99 ? '알림 99건 이상 안 읽음' : unread > 0 ? `알림 ${unread}건 안 읽음` : '알림'}>
             <Icon name="bell" />
             {unread > 0 && <span className="t-notification-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
           </a>
@@ -310,7 +310,7 @@ function Content(props: PageProps) {
       {props.page === 'org/employee-import' && <EmployeeImportPage model={props.data.employeeImport as EmployeeImportModel} csrf={props.csrf} />}
       {props.page === 'clock/holidays' && <HolidayPage model={props.data.holidays as HolidayModel} csrf={props.csrf} />}
       <ApprovalRoutePages {...props} />
-      {props.page === 'notification/list' && <NotificationsPage rows={(props.data.notifications ?? []) as NotificationRow[]} />}
+      {props.page === 'notification/list' && <NotificationsPage rows={(props.data.notifications ?? []) as NotificationRow[]} unreadCount={Number(props.data.workspaceNotifications ?? 0)} />}
       {props.page === 'org/request-forms' && <RequestFormPage data={props.data} />}
       <CodePages {...props} />
       <AnnualRequestPage {...props} />

@@ -684,6 +684,8 @@ public final class LeaveWorkflowService {
         // 결재와 같은 트랜잭션: 결재가 롤백되면 알림도 남지 않는다(설계 §2).
         kr.tna.notification.NotificationRules.target(kind,actor.employeeId(),next,r.targetEmployeeId()).ifPresent(t->
             changed(mapper.insertNotification(actor.tenantId(),UUID.randomUUID(),t.recipient(),event,r.id(),t.kind())));
+        // 대결로 넘어간 이전 결재자는 더 이상 볼 수 없는 신청이므로 알림은 읽음, 대기 메일은 건너뜀으로 닫는다.
+        if("REASSIGNED".equals(kind)&&previous!=null){mapper.readRequestNotifications(actor.tenantId(),previous,r.id());mapper.skipRequestMail(actor.tenantId(),previous,r.id());}
     }
     private void ledger(TnaPrincipal actor,UUID bucket,UUID employee,String kind,BigDecimal quantity,LocalDate date,UUID effect,LocalDate leaveDate,UUID reverses,String source,String reason) {
         changed(mapper.insertLedger(actor.tenantId(),UUID.randomUUID(),bucket,employee,kind,quantity,date,effect,leaveDate,reverses,source,reason,actor.accountId()));

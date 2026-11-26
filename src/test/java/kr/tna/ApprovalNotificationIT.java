@@ -107,6 +107,13 @@ class ApprovalNotificationIT {
         Integer step = db.queryForObject("SELECT current_step FROM tna.approval_request WHERE tenant_id=? AND id=?", Integer.class, tenant, request);
         flow.reassign(manager, request, new ReassignForm(substitute.employeeId(), version, "합성 대결", UUID.randomUUID(), step));
         assertEquals(Map.of("recipient", substitute.employeeId(), "kind", "APPROVAL_REQUESTED"), notifications(request).get(1));
+        var rows = db.queryForList("SELECT recipient_employee_id AS r, read_at IS NOT NULL AS read, mail_state AS state, mail_next_at IS NULL AS no_next FROM tna.notification WHERE tenant_id=? AND request_id=?", tenant, request);
+        for (var row : rows) {
+            boolean previous = approver.employeeId().equals(row.get("r"));
+            assertEquals(previous, row.get("read"), "이전 결재자의 알림만 읽음 처리");
+            assertEquals(previous ? "SKIPPED" : "PENDING", row.get("state"));
+            assertEquals(previous, row.get("no_next"));
+        }
     }
 
     private UUID leave(int days) {

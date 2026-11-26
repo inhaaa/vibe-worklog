@@ -17,6 +17,7 @@ it('상단 종에 안 읽은 알림 수를 보인다', () => {
 it('99건 넘으면 99+, 모두 읽었으면 배지를 숨긴다', () => {
   show(100);
   expect(screen.getByText('99+')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '알림 99건 이상 안 읽음' })).toBeTruthy();
   cleanup();
   show(0);
   expect(screen.getByRole('link', { name: '알림' }).textContent).toBe('');

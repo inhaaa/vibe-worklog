@@ -9,6 +9,10 @@ spring:
       "[mail.smtp.starttls.enable]": true
       "[mail.smtp.starttls.required]": true
       "[mail.smtp.ssl.checkserveridentity]": true
+  task:
+    scheduling:
+      pool:
+        size: 2
   servlet:
     multipart:
       enabled: false

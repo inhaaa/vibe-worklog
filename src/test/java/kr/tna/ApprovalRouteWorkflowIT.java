@@ -246,6 +246,21 @@ class ApprovalRouteWorkflowIT {
         flow.decide(actor,request,new DecisionForm("APPROVE",version,"단계 검토",UUID.randomUUID(),(int)version+1));
     }
 
+    @Test void stepApprovalNotifiesTheNextApproverAndOnlyTheFinalOneNotifiesTheRequester() {
+        configureChain("A01");
+        var day=clocks.day(worker,yesterday);
+        UUID request=flow.submitCorrection(worker,form(worker.employeeId(),day.inputRevision(),day.sourceFingerprint(),false,UUID.randomUUID()),flow.formPreview(worker,null,"ATTENDANCE_CORRECTION").routeToken());
+        assertEquals(List.of(head.employeeId()+" APPROVAL_REQUESTED"),notified(request));
+        decideStage(head,request,0);
+        assertEquals(List.of(head.employeeId()+" APPROVAL_REQUESTED",direct.employeeId()+" APPROVAL_REQUESTED"),notified(request),"요청자는 중간 단계에서 알림을 받지 않는다");
+        decideStage(direct,request,1);
+        assertEquals(worker.employeeId()+" APPROVED",notified(request).getLast());
+        assertEquals(3,notified(request).size());
+    }
+    private List<String> notified(UUID request) {
+        return db.queryForList("SELECT n.recipient_employee_id||' '||n.kind FROM tna.notification n JOIN tna.approval_event e ON e.tenant_id=n.tenant_id AND e.id=n.event_id WHERE n.tenant_id=? AND n.request_id=? ORDER BY e.created_at,e.id",String.class,tenant,request);
+    }
+
     @Test void repeatedIntermediateDecisionAndWithdrawalCannotApplyAnEffect() {
         configureChain("A01");
         var preview=flow.formPreview(worker,null,"ATTENDANCE_CORRECTION");

@@ -8,8 +8,8 @@ export interface NotificationRow {
   id: string; requestId: string; kind: keyof typeof kinds; requesterName: string; summary: string; createdAt: string; read: boolean;
 }
 
-export function NotificationsPage({ rows }: { rows: NotificationRow[] }) {
-  const unread = rows.some(row => !row.read);
+export function NotificationsPage({ rows, unreadCount = 0 }: { rows: NotificationRow[]; unreadCount?: number }) {
+  const unread = unreadCount > 0 || rows.some(row => !row.read);
   return <>
     <PageHeader title="알림" actions={unread ? <Form action="/me/notifications/read-all"><button type="submit" className="t-btn">모두 읽음</button></Form> : undefined} />
     <section className="wl-section">

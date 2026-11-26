@@ -24,3 +24,8 @@ it('알림이 없으면 안내만 보이고 모두 읽음은 숨긴다', async (
   expect(await screen.findByText('받은 알림이 없습니다.')).toBeTruthy();
   expect(screen.queryByRole('button', { name: '모두 읽음' })).toBeNull();
 });
+
+it('목록에는 모두 읽은 알림만 있어도 안 읽은 알림 수가 있으면 모두 읽음을 보인다', () => {
+  render(<NotificationsPage rows={[rows[1]]} unreadCount={150} />);
+  expect(screen.getByRole('button', { name: '모두 읽음' })).toBeTruthy();
+});

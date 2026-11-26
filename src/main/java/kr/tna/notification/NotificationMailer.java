@@ -12,7 +12,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.SingleConnectionDataSource;
-import org.springframework.mail.MailException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -79,10 +78,10 @@ public class NotificationMailer {
                 // 발송은 트랜잭션 밖: 발송 직후 서버가 멈추면 한 번 더 갈 수 있다(최소 1회 전달).
                 mail.send(NotificationText.mail(p.email(), facts, mail.origin()));
                 transactions.execute(tenant, () -> mapper.finishMail(tenant, p.id(), "SENT"));
-            } catch (MailException e) {
-                // 공급자 예외에는 받는 주소·본문이 들어 있을 수 있어 종류만 남긴다.
+            } catch (RuntimeException e) {
+                // 메일 예외 외에도 한 건의 실패가 회사 전체를 막지 않게 한다. 공급자 예외에는 받는 주소·본문이 들어 있을 수 있어 종류만 남긴다.
                 transactions.execute(tenant, () -> mapper.retryMail(tenant, p.id(), p.mailAttempts() + 1));
-                LOG.warn("event=notification_mail kind={} outcome=relay_unconfirmed attempt={}", p.kind(), p.mailAttempts() + 1);
+                LOG.warn("event=notification_mail kind={} outcome=relay_unconfirmed attempt={} cause={}", p.kind(), p.mailAttempts() + 1, e.getClass().getSimpleName());
             }
         }
     }
