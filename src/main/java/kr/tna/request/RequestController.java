@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.function.Supplier;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.clock.*;
+import kr.tna.notification.NotificationService;
 import kr.tna.org.*;
 import kr.tna.request.RequestData.*;
 import kr.tna.worktime.MonthCloseReviewReturn;
@@ -25,9 +26,10 @@ public class RequestController {
     private final LeaveOperationsQueries leaveOperations;
     private final SelectiveSettlementReturn settlements;
     private final WorktimeService worktime;
+    private final NotificationService notifications;
     public RequestController(LeaveWorkflowService flow, ClockService clocks, EmployeeService employees, ApproverService approvers,
             OrgCommands commands, Clock clock, AnnualRequestService annual, LeaveOperationsQueries leaveOperations,
-            SelectiveSettlementReturn settlements, WorktimeService worktime) {
+            SelectiveSettlementReturn settlements, WorktimeService worktime, NotificationService notifications) {
         this.flow = flow;
         this.clocks = clocks;
         this.employees = employees;
@@ -38,6 +40,7 @@ public class RequestController {
         this.leaveOperations = leaveOperations;
         this.settlements = settlements;
         this.worktime = worktime;
+        this.notifications = notifications;
     }
     @GetMapping(value="/requests/route-preview",produces=MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody ApprovalPreview routePreview(@AuthenticationPrincipal TnaPrincipal actor,@RequestParam String kind,
@@ -56,6 +59,7 @@ public class RequestController {
     ModelAndView detail(@AuthenticationPrincipal TnaPrincipal actor, @PathVariable UUID id,
             @RequestParam(required=false) String returnTo, @RequestParam(required=false) String settlementReturn) {
         var detail = detailPage(actor, id);
+        notifications.markRequestRead(actor, id);
         var request = (RequestView) detail.getModel().get("request");
         if (actor.roles().contains("ATTENDANCE_ADMIN") && isLeave(request)) {
             var policy = ((RequestDetail) detail.getModel().get("detail")).attendancePolicy();

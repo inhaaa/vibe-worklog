@@ -91,6 +91,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/requests/**", "/me/requests", "/me/requests/**", "/worktime/results/*").authenticated()
                         .requestMatchers(HttpMethod.GET, "/me/home", "/me/schedule", "/me/profile", "/me/profile/photo").authenticated()
                         .requestMatchers("/", "/me/today", "/me/today/status", "/me/attendance", "/me/attendance/events", "/me/work-confirmations", "/me/worktime").authenticated()
+                        .requestMatchers("/me/notifications", "/me/notifications/read-all").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll();
                 })

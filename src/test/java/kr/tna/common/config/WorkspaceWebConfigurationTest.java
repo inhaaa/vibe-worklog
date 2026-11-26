@@ -8,6 +8,7 @@ import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
+import kr.tna.notification.NotificationService;
 import kr.tna.org.EmployeeMapper;
 import kr.tna.org.EmployeeOverview;
 import kr.tna.org.EmployeePersonnelData.Header;
@@ -32,7 +33,7 @@ class WorkspaceWebConfigurationTest {
     private final TenantTransactions tenants = mock(TenantTransactions.class);
     private final AuthStore auth = mock(AuthStore.class);
     private final WorkspaceWebConfiguration configuration = new WorkspaceWebConfiguration(tenants,
-            mock(EmployeeMapper.class), auth, mock(LocalDemoLogin.class), personnel);
+            mock(EmployeeMapper.class), auth, mock(LocalDemoLogin.class), personnel, mock(NotificationService.class));
 
     @BeforeEach
     void authenticate() {

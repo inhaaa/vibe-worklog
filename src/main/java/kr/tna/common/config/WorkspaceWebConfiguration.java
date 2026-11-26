@@ -7,6 +7,7 @@ import kr.tna.common.auth.AuthStore;
 import kr.tna.common.auth.LocalDemoLogin;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
+import kr.tna.notification.NotificationService;
 import kr.tna.org.EmployeeMapper;
 import kr.tna.org.EmployeePersonnelService;
 import kr.tna.org.OrgException;
@@ -30,14 +31,17 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
     private final AuthStore auth;
     private final LocalDemoLogin demo;
     private final EmployeePersonnelService personnel;
+    private final NotificationService notifications;
 
     public WorkspaceWebConfiguration(TenantTransactions tenants, EmployeeMapper employees,
-                                     AuthStore auth, LocalDemoLogin demo, EmployeePersonnelService personnel) {
+                                     AuthStore auth, LocalDemoLogin demo, EmployeePersonnelService personnel,
+                                     NotificationService notifications) {
         this.tenants = tenants;
         this.employees = employees;
         this.auth = auth;
         this.demo = demo;
         this.personnel = personnel;
+        this.notifications = notifications;
     }
 
     @Override
@@ -62,6 +66,8 @@ public class WorkspaceWebConfiguration implements WebMvcConfigurer, HandlerInter
             view.addObject("workspaceEmployee", employee);
             view.addObject("workspacePrincipal", principal);
             view.addObject("workspaceDemo", demo.enabled());
+            view.addObject("workspaceNotifications", tenants.execute(principal.tenantId(),
+                    () -> notifications.unreadCount(principal.tenantId(), principal.employeeId())));
             String path = request.getRequestURI();
             if (path.startsWith("/me/") && !"workspace/home".equals(view.getViewName())) {
                 view.addObject("employeeHeader", personnel.selfHeader(principal));

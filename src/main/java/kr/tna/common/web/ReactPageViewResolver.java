@@ -26,8 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 public final class ReactPageViewResolver implements ViewResolver, Ordered {
     public static final String MEDIA_TYPE = "application/vnd.worklog.page+json";
-    private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo", "employeeHeader");
+    private static final Set<String> COMMON = Set.of("error", "workspaceEmployee", "workspacePrincipal", "workspaceDemo", "workspaceNotifications", "employeeHeader");
     private static final Map<String, Set<String>> PAGES = Map.ofEntries(
+            page("notification/list", "notifications"),
             page("login", "localDemo"), page("demo", "demoLogin", "demoPassword", "demoApproverLogin", "demoApproverPassword", "demoAccounts", "publicDemo"),
             page("invite", "companyCode", "inviteByCompany"), page("password-reset"), page("first-login", "companyCode", "employeeNo"),
             page("operator/login"),
