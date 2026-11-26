@@ -110,7 +110,7 @@ class DailyAttendanceResultIT {
         clocks.confirm(employee, new ConfirmationForm(MONDAY, 2L, 0L, true, true, before.sourceFingerprint(), UUID.randomUUID()));
         worktime.recalculate(manager, employee.employeeId(), MONDAY, TUESDAY, UUID.randomUUID(), "합성 재집계");
 
-        UUID snapshot = worktime.prepareExport(manager, employee.employeeId(), MONDAY, TUESDAY.plusDays(1), UUID.randomUUID(), "합성 판정 열");
+        UUID snapshot = worktime.prepareExport(manager, employee.employeeId(), MONDAY, MONDAY.plusDays(5), UUID.randomUUID(), "합성 판정 열");
         String sheet = null;
         try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(worktime.download(manager, snapshot)), java.nio.charset.StandardCharsets.UTF_8)) {
             for (var e = zip.getNextEntry(); e != null; e = zip.getNextEntry())
@@ -130,7 +130,8 @@ class DailyAttendanceResultIT {
         // 판정한 날의 빈 칸은 '해당 없음'이고, 판정하지 않은 날만 미확정이다.
         assertEquals(List.of("7", "0", ""), lastThree(rows, MONDAY));
         assertEquals(List.of("", "", "결근"), lastThree(rows, TUESDAY));
-        assertEquals(List.of("미확정", "미확정", "미확정"), lastThree(rows, TUESDAY.plusDays(1)));
+        // 토요일(비근로일)은 현재 결과가 있어도 판정하지 않으므로 미확정이다. 날짜가 지나도 결과가 같다.
+        assertEquals(List.of("미확정", "미확정", "미확정"), lastThree(rows, MONDAY.plusDays(5)));
     }
 
     private static List<String> lastThree(List<List<String>> rows, LocalDate date) {
