@@ -1,4 +1,6 @@
-# 시험 중에는 새벽 일괄 작업 빈을 만들지 않는다. DailyAttendanceBatchIT만 켠다.
+# 시험 중에는 새벽 일괄 작업·알림 메일 발송 빈을 만들지 않는다. DailyAttendanceBatchIT만 켜고, NotificationMailerIT는 직접 만든다.
 tna:
   daily-batch:
+    enabled: false
+  notification-mail:
     enabled: false

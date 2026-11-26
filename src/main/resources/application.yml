@@ -24,6 +24,8 @@ spring:
 tna:
   daily-batch:
     enabled: true
+  notification-mail:
+    enabled: true
   operator:
     enabled: ${TNA_OPERATOR_ENABLED:false}
     url: ${TNA_JDBC_URL}
