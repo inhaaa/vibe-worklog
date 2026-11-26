@@ -54,7 +54,9 @@ function isTaskUrl(url: URL) {
 
 interface BackgroundPage { envelope: PageEnvelope; url: string; revision: number; position: number }
 
-function shouldRefreshLeaveList(saved: BackgroundPage, detail: PageEnvelope) {
+function shouldRefreshBackground(saved: BackgroundPage, detail: PageEnvelope) {
+  // 결재 상세를 열면 그 신청 알림이 읽음 처리되므로 닫을 때 알림 목록을 다시 불러온다.
+  if (saved.envelope.page === 'notification/list' && detail.page === 'request/detail') return true;
   if (saved.envelope.page !== 'request/list' || detail.page !== 'request/detail'
       || detail.data.admin !== true || typeof detail.data.leaveReturnTo !== 'string'
       || !leaveOperationsReturn(detail.data.leaveReturnTo)) return false;
@@ -373,7 +375,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
       !window.confirm('저장하지 않은 변경이 있습니다. 편집 내용을 버리고 닫을까요?')) return;
     modalDirty.current = false;
     const saved = backgroundRef.current;
-    if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) {
+    if (shouldRefreshBackground(saved, currentPage.current.envelope)) {
       if (location.href !== saved.url) history.back();
       return;
     }
@@ -533,7 +535,7 @@ export function App({ initial }: { initial: PageEnvelope }) {
           history.forward();
           return;
         }
-        if (shouldRefreshLeaveList(saved, currentPage.current.envelope)) void navigate(saved.url, {}, 'none', true);
+        if (shouldRefreshBackground(saved, currentPage.current.envelope)) void navigate(saved.url, {}, 'none', true);
         else restoreBackground();
         return;
       }
@@ -723,7 +725,8 @@ export function App({ initial }: { initial: PageEnvelope }) {
         )}
         {workspace ? (
           <Workspace
-            data={base.data}
+            // 상세 창이 떠 있어도 상단 종은 가장 최근 응답의 안 읽은 건수를 쓴다.
+            data={background ? { ...base.data, workspaceNotifications: envelope.data.workspaceNotifications ?? base.data.workspaceNotifications } : base.data}
             page={base.page}
             pageUrl={background?.url ?? currentUrl.current}
             title={titles[base.page] ?? '업무'}
