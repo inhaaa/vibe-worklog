@@ -5,6 +5,7 @@ import type { PageProps } from '../types';
 import type { DaySnapshot } from './WorkflowTypes';
 import { HomeCheckoutFollowUps, type CheckoutFollowUpList } from './CheckoutFollowUps';
 import { combinedLeavePart, leavePartNames, requestKindName, type LeavePart } from './leavePart';
+import { AttendanceTag } from './AttendancePeriodPage';
 import './WorkspaceHome.css';
 
 interface HomeRequest {
@@ -19,6 +20,7 @@ interface HomeDay {
   scheduleText: string;
   calendarText: string;
   requests: { effectiveLeave: boolean; leavePart?: LeavePart | null; companyLeaveName?: string | null }[];
+  attendanceLabel?: string | null;
 }
 
 interface HomeToday extends HomeDay {
@@ -303,7 +305,7 @@ function HomeDashboard({ home, clock, storageKey, busy, followUps }: {
             return <a key={workDate} href={`/me/schedule?month=${workDate.slice(0, 7)}&date=${workDate}`} aria-current={day.today ? 'date' : undefined}>
               <span className="t-work-home-week-date">{weekdayLabel.format(seoulDay(workDate))}<time dateTime={workDate}>{workDate.slice(5).replace('-', '.')}</time>{day.today && <span>오늘</span>}</span>
               <span className="t-work-home-week-shift"><strong>{day.scheduleText}</strong>
-                <small>{dayNote(day)}</small></span>
+                <small>{dayNote(day)}</small>{day.attendanceLabel && <AttendanceTag label={day.attendanceLabel} />}</span>
             </a>;
           })}
         </div>

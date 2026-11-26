@@ -52,6 +52,14 @@ function editWidgets() {
 }
 
 describe('업무 홈', () => {
+  it('이번 주 일정에 날짜별 근태를 표시한다', () => {
+    const late = { ...day, snapshot: { workDate: '2026-11-05' }, today: false, attendanceLabel: '지각 7분' };
+    const absent = { ...day, snapshot: { workDate: '2026-11-04' }, today: false, attendanceLabel: '결근' };
+    render(<WorkspaceHome data={{ workspaceHome: { ...home, week: [absent, late, { ...day, attendanceLabel: null }] } }} />);
+    const week = within(screen.getByRole('region', { name: '이번 주 일정' }));
+    expect(week.getByText('지각 7분').className).toContain('amber');
+    expect(week.getByText('결근').className).toContain('red');
+  });
   it('오늘과 이번 주의 승인된 오후 반차를 구분하고 출근 기록을 허용한다', () => {
     const partial = { ...day, inRecordedAt: null, requests: [{ effectiveLeave: true, leavePart: 'PM' }] };
     render(<WorkspaceHome data={{ workspaceHome: { ...home, today: partial, week: [partial] }, clockInCommand: 'in-cmd' }} />);
