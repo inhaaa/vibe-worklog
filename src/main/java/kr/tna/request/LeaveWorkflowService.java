@@ -153,6 +153,18 @@ public final class LeaveWorkflowService {
                     &&approvers.eligible(actor.tenantId(),actor.employeeId(),today()))return detail(actor.tenantId(),r);
             throw OrgException.notFound();});
     }
+    static final int WEEKLY_OVERTIME_LIMIT_MINUTES=720;
+    /** 주(월~일) 연장 신청·승인 합계 + 이번 신청이 12시간을 넘으면 거부한다(설계 §4). 회사 잠금 안에서 부른다. */
+    public void requireWeeklyOvertimeLimit(UUID tenant,UUID employee,LocalDate workDate,int minutes) {
+        LocalDate start=workDate.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        int existing=mapper.weeklyOvertimeMinutes(tenant,employee,start,start.plusDays(6));
+        if(existing+minutes>WEEKLY_OVERTIME_LIMIT_MINUTES)
+            throw OrgException.invalid("이번 주 연장 신청·승인 합계 "+duration(existing)+"에 이번 신청 "+duration(minutes)+"을 더하면 주 12시간을 넘습니다.");
+    }
+    private static String duration(int minutes) {
+        int h=minutes/60,m=minutes%60;
+        return h==0?m+"분":m==0?h+"시간":h+"시간 "+m+"분";
+    }
     public UUID submitOvertime(TnaPrincipal actor,LocalDate date,LocalTime start,LocalTime end,String inputReason,
                                String basisToken,String routeToken,UUID commandId) {
         String reason=requiredText(inputReason,500,"연장 사유"), action="OVERTIME_SUBMIT";
@@ -167,6 +179,7 @@ public final class LeaveWorkflowService {
                 throw OrgException.conflict("근무 기준이 달라졌습니다. 신청 시간을 다시 확인해 주세요.");
             if(mapper.overlappingOvertime(actor.tenantId(),actor.employeeId(),date,start,end))
                 throw OrgException.conflict("같은 시간에 대기 또는 승인된 연장근무가 있습니다.");
+            requireWeeklyOvertimeLimit(actor.tenantId(),actor.employeeId(),date,basis.requestedMinutes());
             var request=createRequest(actor,actor.employeeId(),"OVERTIME",date,date,reason,null,null,null,false,commandId,routeToken);
             var evidence=new OvertimeDetail(date,start,end,basis.requestedMinutes(),basis.scheduleVersionId(),
                     basis.codeVersionId(),basis.calendarVersionId(),basis.basisToken());

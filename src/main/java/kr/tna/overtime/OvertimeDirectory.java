@@ -80,6 +80,7 @@ public class OvertimeDirectory {
         return employee.read(actor, () -> {
             requests.readLock(actor.tenantId());
             var basis=policy.evaluate(actor.tenantId(),actor.employeeId(),date,start,end,true);
+            workflow.requireWeeklyOvertimeLimit(actor.tenantId(),actor.employeeId(),date,basis.requestedMinutes());
             var route=workflow.formPreview(actor,null,"OVERTIME");
             if (!route.eligible()) throw OrgException.invalid(route.message());
             return new Preview(basis.requestedMinutes(),basis.basisToken(),route.routeToken(),route.steps());

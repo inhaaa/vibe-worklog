@@ -344,6 +344,15 @@ public interface LeaveWorkflowMapper extends FormStepMapper, ClosedAttendanceMon
     int insertOvertime(UUID tenant,UUID id,OvertimeDetail d);
 
     @Select("""
+        SELECT COALESCE(sum(d.requested_minutes),0)::int FROM tna.approval_request r
+        JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
+        LEFT JOIN tna.request_effect f ON f.tenant_id=r.tenant_id AND f.request_id=r.id AND f.effect_kind='OVERTIME'
+        WHERE r.tenant_id=#{tenantId} AND r.target_employee_id=#{employeeId} AND r.kind='OVERTIME'
+          AND d.work_date BETWEEN #{weekStart} AND #{weekEnd}
+          AND (r.status='PENDING' OR (r.status='APPROVED' AND f.effect_status='EFFECTIVE'))""")
+    int weeklyOvertimeMinutes(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId,
+            @Param("weekStart") LocalDate weekStart, @Param("weekEnd") LocalDate weekEnd);
+    @Select("""
         SELECT EXISTS(SELECT 1 FROM tna.approval_request r
             JOIN tna.overtime_request_detail d ON d.tenant_id=r.tenant_id AND d.request_id=r.id
             LEFT JOIN tna.request_effect e ON e.tenant_id=r.tenant_id AND e.request_id=r.id
