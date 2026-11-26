@@ -40,12 +40,22 @@ public final class WorktimeCalculator {
                                List<Interval> actualBreaks) { }
     public record DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules,
                            DayKind dayKind, boolean generalRuleReviewed, long inputRevision, long reviewRevision,
-                           Confirmation confirmation, boolean pendingCorrection, double approvedLeaveDays, double paidLeaveDays) {
+                           Confirmation confirmation, boolean pendingCorrection, double approvedLeaveDays, double paidLeaveDays,
+                           List<Interval> approvedOvertime) {
+        public DayInput {
+            if (approvedOvertime == null) approvedOvertime = List.of();
+        }
+        public DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules, DayKind dayKind,
+                boolean generalRuleReviewed, long inputRevision, long reviewRevision, Confirmation confirmation,
+                boolean pendingCorrection, double approvedLeaveDays, double paidLeaveDays) {
+            this(workDate, events, schedules, dayKind, generalRuleReviewed, inputRevision, reviewRevision,
+                    confirmation, pendingCorrection, approvedLeaveDays, paidLeaveDays, List.of());
+        }
         public DayInput(LocalDate workDate, List<ClockEvent> events, List<Schedule> schedules, DayKind dayKind,
                 boolean generalRuleReviewed, long inputRevision, long reviewRevision, Confirmation confirmation,
                 boolean pendingCorrection, double approvedLeaveDays) {
             this(workDate, events, schedules, dayKind, generalRuleReviewed, inputRevision, reviewRevision,
-                    confirmation, pendingCorrection, approvedLeaveDays, approvedLeaveDays);
+                    confirmation, pendingCorrection, approvedLeaveDays, approvedLeaveDays, List.of());
         }
     }
     public record AttendanceContext(boolean dayEnded, String leavePart) {
@@ -59,9 +69,18 @@ public final class WorktimeCalculator {
                             Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
                             Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
                             double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons,
-                            Attendance attendance) {
+                            Attendance attendance, Long approvedOvertimeMillis) {
         public DayResult {
             if (attendance == null) attendance = Attendance.NONE;
+        }
+        public DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
+                         Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
+                         Long over8hMillis, Long nightWorkMillis, Long holidayWorkMillis, Long legalOvertimeMillis,
+                         double leaveDays, Long paidLeaveMillis, long inputRevision, long reviewRevision, Set<String> reasons,
+                         Attendance attendance) {
+            this(workDate, status, scheduledMillis, presenceMillis, actualWorkMillis, confirmedBreakMillis, outsideScheduleMillis,
+                    over8hMillis, nightWorkMillis, holidayWorkMillis, legalOvertimeMillis, leaveDays, paidLeaveMillis,
+                    inputRevision, reviewRevision, reasons, attendance, null);
         }
         public DayResult(LocalDate workDate, Status status, Long scheduledMillis, Long presenceMillis,
                          Long actualWorkMillis, Long confirmedBreakMillis, Long outsideScheduleMillis,
@@ -138,14 +157,14 @@ public final class WorktimeCalculator {
         boolean judged = scheduledWork != null && !selective && schedule.workday() && scheduled != null && scheduled > 0
                 && input.dayKind() == DayKind.WORKDAY && input.approvedLeaveDays() < 1;
         String absence = null;
-        Long presence=null, actual=null, confirmedBreak=null, outside=null, overEight=null, night=null, holiday=null;
+        Long presence=null, actual=null, confirmedBreak=null, outside=null, overEight=null, night=null, holiday=null, approvedOvertime=null;
         if (noEvents) {
             if (scheduled!=null && input.dayKind()!=DayKind.UNCONFIRMED && !input.pendingCorrection()
                     && (nonWorkday || input.approvedLeaveDays()==1)) {
-                actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L;
+                actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L; approvedOvertime=0L;
                 reasons.add(input.approvedLeaveDays()==1?"APPROVED_LEAVE_NO_ATTENDANCE":"NO_CLOCK_ON_CONFIRMED_NON_WORKDAY");
             } else if (judged && context.dayEnded() && !input.pendingCorrection()) {
-                actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L;
+                actual=0L; confirmedBreak=0L; outside=0L; night=0L; holiday=0L; approvedOvertime=0L;
                 absence = input.approvedLeaveDays() == 0.5 ? "HALF" : "FULL";
                 reasons.add("ABSENT");
             } else if (!input.pendingCorrection()) {
@@ -185,6 +204,8 @@ public final class WorktimeCalculator {
                                 outside=actual-inside;
                                 if (outside>0) reasons.add("EXTRA_WORK_REVIEW");
                             }
+                            approvedOvertime=0L;
+                            for (var real:work) for (var approved:input.approvedOvertime()) approvedOvertime+=intersection(real,approved);
                             night=0L;
                             Interval early=new Interval(input.workDate().atStartOfDay(SEOUL).toInstant(),
                                     input.workDate().atTime(6,0).atZone(SEOUL).toInstant());
@@ -227,7 +248,7 @@ public final class WorktimeCalculator {
                 :noEvents && nonWorkday && input.approvedLeaveDays()==0?Status.NO_SCHEDULED_WORK:Status.CALCULATED;
         return new DayResult(input.workDate(),status,scheduled,presence,actual,confirmedBreak,outside,overEight,night,holiday,
                 null,input.approvedLeaveDays(),paidLeaveMillis(input.dayKind(),scheduled,input.paidLeaveDays()),
-                input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons),attendance);
+                input.inputRevision(),input.reviewRevision(),Set.copyOf(reasons),attendance,approvedOvertime);
     }
 
     static Long paidLeaveMillis(DayKind dayKind, Long scheduledMillis, double paidDays) {
