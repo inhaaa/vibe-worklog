@@ -5,13 +5,15 @@ import { PageRequestError, requestJson } from '../transport';
 import type { CsrfToken } from '../types';
 import { FormRow, FormTable, fmtDate } from '../ui';
 import { AnnualLeaveTable } from './AnnualLeaveTable';
+import { AnnualMonthlyBulk } from './AnnualMonthlyBulk';
 import { employmentPath } from './employmentLeaveTypes';
 import { basisNames } from './annualLeaveTypes';
-import type { AnnualCycleCommand, AnnualCycleModel, AnnualCyclePreview, AnnualLeaveBasis, AnnualLeaveRule, PolicyCommand } from './annualLeaveTypes';
+import type { AnnualCycleCommand, AnnualCycleModel, AnnualCyclePreview, AnnualCycleRow, AnnualLeaveBasis, AnnualLeaveRule, PolicyCommand } from './annualLeaveTypes';
 import './AnnualLeave.css';
 
 const base = '/admin/leave-balances/annual-cycle';
 type Write = { kind: 'policy'; command: PolicyCommand } | { kind: 'apply'; command: AnnualCycleCommand; count: number };
+type PreviewRequest = { year: number } | { month: string };
 type Feedback = { area: 'policy' | 'cycle'; text: string; conflict?: boolean };
 const draftRule = (rule: AnnualLeaveRule | null) => ({
   basis: (rule?.basis ?? 'FISCAL') as AnnualLeaveBasis, fiscalStartMonth: String(rule?.fiscalStartMonth ?? ''),
@@ -23,12 +25,15 @@ const isRule = (rule: AnnualLeaveRule) => rule && Number.isSafeInteger(rule.vers
   && (rule.basis === 'FISCAL' || rule.basis === 'HIRE_DATE')
   && Number.isInteger(rule.fiscalStartMonth) && rule.fiscalStartMonth >= 1 && rule.fiscalStartMonth <= 12
   && isDays(rule.grantDays) && isDays(rule.carryLimitDays);
-function isPreview(result: AnnualCyclePreview, year: number) {
-  return result?.year === year && isRule(result.rule) && typeof result.periodStart === 'string' && typeof result.periodEnd === 'string'
-    && [result.postedCount, result.existingCount, result.laterCount, result.pendingCount].every(isCount) && typeof result.canPost === 'boolean'
-    && (!result.canPost || (typeof result.token === 'string' && result.token.length > 0))
-    && Array.isArray(result.rows) && result.rows.every(row => row && row.employeeId && row.employeeNo && row.employeeName
-      && [row.previousDays, row.grantDays, row.carryDays, row.expireDays].every(isDays));
+const isRow = (row: AnnualCycleRow) => row && row.employeeId && row.employeeNo && row.employeeName
+  && (row.decision === 'GRANT' || row.decision === 'NEEDS_REVIEW') && Number.isInteger(row.serviceYear)
+  && [row.previousDays, row.grantDays, row.carryDays, row.expireDays].every(isDays);
+function isPreview(result: AnnualCyclePreview, request: PreviewRequest) {
+  return ('month' in request ? result?.month === request.month : result?.year === request.year) && isRule(result.rule)
+    && typeof result.periodStart === 'string' && typeof result.periodEnd === 'string'
+    && [result.postedCount, result.existingCount, result.laterCount, result.pendingCount, result.reviewCount].every(isCount)
+    && typeof result.canPost === 'boolean' && (!result.canPost || (typeof result.token === 'string' && result.token.length > 0))
+    && Array.isArray(result.rows) && result.rows.every(isRow);
 }
 
 function ReasonField({ id, label, value, onChange, required, disabled }: {
@@ -45,27 +50,39 @@ function ReasonField({ id, label, value, onChange, required, disabled }: {
   </FormRow>;
 }
 
-function PreviewResults({ result, today }: { result: AnnualCyclePreview; today: string }) {
+function PreviewResults({ result, today, reviewed, onReview, selectable }: {
+  result: AnnualCyclePreview; today: string; reviewed: Set<string>; onReview: (employeeId: string, checked: boolean) => void; selectable: boolean;
+}) {
+  const hire = result.rule.basis === 'HIRE_DATE';
+  const columns = ['사원', '입사일', ...(hire ? ['부여일'] : []), '근속', '출근율', '판정', '전년 잔여', '이월', '소멸', '신규 부여', '반영 후 잔여'];
   return <section className="annual-cycle-preview" aria-labelledby="annual-review-title">
     <h3 id="annual-review-title" tabIndex={-1}>미리보기 결과</h3>
     <p><strong>{fmtDate(result.periodStart)} ~ {fmtDate(result.periodEnd)}</strong></p>
-    <p>기준 버전 {result.rule.version} · {result.rule.basis === 'HIRE_DATE' ? '입사일 기준' : `매년 ${result.rule.fiscalStartMonth}월 1일 시작`} · 이월 한도 {result.rule.carryLimitDays}일</p>
+    <p>기준 버전 {result.rule.version} · {hire ? '입사일 기준' : `매년 ${result.rule.fiscalStartMonth}월 1일 시작`} · 이월 한도 {result.rule.carryLimitDays}일</p>
     <ul className="annual-review-counts">
-      <li>반영 대상 {result.rows.length}명</li><li>이미 반영 {result.postedCount}명</li>
+      <li>반영 대상 {result.rows.filter(row => row.decision === 'GRANT').length}명</li>
+      {result.reviewCount > 0 && <li>확인 필요 {result.reviewCount}명</li>}
+      <li>이미 반영 {result.postedCount}명</li>
       {result.existingCount > 0 && <li>기초 등록으로 제외 {result.existingCount}명</li>}
       {result.laterCount > 0 && <li>후속 연도 부여로 제외 {result.laterCount}명</li>}
       {result.pendingCount > 0 && <li>전기 휴가 결재 대기 {result.pendingCount}명</li>}
     </ul>
     {result.pendingCount > 0 && <p className="hint">전기 휴가 사용·취소가 대기 중인 사원은 결재가 끝난 뒤 다시 미리 보세요.{' '}
       <a href="/admin/requests?scope=LEAVE">휴가 신청 현황</a></p>}
+    {result.reviewCount > 0 && <p className="hint">확인 필요인 사원은 근태를 확정한 뒤 다시 미리 보거나, 사정을 확인하고 '법정 일수 부여'를 골라 함께 반영하세요.
+      고른 사원은 부여 대상과 같은 법정 일수를 받고 '담당자 확인'으로 기록됩니다. 출근율 80% 미만이라 법정 일수를 주지 않을 사원은 고르지 말고 개인별 연차 관리의 잔여 조정으로 처리합니다.</p>}
     {result.rows.length ? <>
-      <AnnualLeaveTable label="사원별 반영 예정" columns={['사원', '전년 잔여', '이월', '소멸', '신규 부여', '반영 후 잔여']}
+      <AnnualLeaveTable label="사원별 반영 예정" columns={columns}
         rows={result.rows.map(row => ({ id: row.employeeId, cells: [
-          <><strong>{row.employeeName}</strong><small>{row.employeeNo}</small></>, row.previousDays + '일', row.carryDays + '일',
-          row.expireDays + '일', row.grantDays + '일', <strong>{row.grantDays + row.carryDays}일</strong>,
+          <><strong>{row.employeeName}</strong><small>{row.employeeNo}</small></>, fmtDate(row.joinedOn), ...(hire ? [fmtDate(row.grantOn)] : []),
+          row.serviceYear + '년차', row.attendanceRate == null ? '—' : row.attendanceRate + '%',
+          row.decision === 'GRANT' ? '부여 대상' : <><strong className="annual-review-flag">확인 필요</strong><small>{row.reason}</small>
+            {selectable && <label className="annual-review-pick"><input type="checkbox" aria-label={row.employeeName + ' 법정 일수 부여'}
+              checked={reviewed.has(row.employeeId)} onChange={event => onReview(row.employeeId, event.target.checked)} />법정 일수 부여</label>}</>,
+          row.previousDays + '일', row.carryDays + '일', row.expireDays + '일', row.grantDays + '일', <strong>{row.grantDays + row.carryDays}일</strong>,
         ] }))} />
       <p className="hint">반영 후 잔여는 새 연도 묶음에 기록할 신규 부여와 이월의 합계입니다.</p>
-    </> : <p>{result.pendingCount ? '현재 바로 반영할 사원이 없습니다.' : '이 연도에 추가로 반영할 사원이 없습니다.'}</p>}
+    </> : <p>{result.pendingCount ? '현재 바로 반영할 사원이 없습니다.' : '이 기간에 추가로 반영할 사원이 없습니다.'}</p>}
     {!result.canPost && result.periodStart > today && <p>{result.periodStart}부터 원장에 반영할 수 있습니다.</p>}
   </section>;
 }
@@ -75,6 +92,8 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
   const [draft, setDraft] = useState(() => draftRule(model.policy));
   const [policyReason, setPolicyReason] = useState('');
   const [year, setYear] = useState(String(model.year));
+  const [month, setMonth] = useState(model.month);
+  const [reviewed, setReviewed] = useState<Set<string>>(() => new Set());
   const yearSelected = useRef(model.yearSelected);
   const [reason, setReason] = useState('');
   const [preview, setPreview] = useState<AnnualCyclePreview>();
@@ -91,8 +110,11 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
   const ruleChanged = !rule || draft.basis !== rule.basis || draft.carryLimitDays === '' || Number(draft.carryLimitDays) !== rule.carryLimitDays
     || (draft.basis === 'FISCAL' && (draft.fiscalStartMonth === '' || Number(draft.fiscalStartMonth) !== rule.fiscalStartMonth));
   const hasYear = Number.isInteger(Number(year)) && Number(year) >= 1900 && Number(year) <= 9998;
-  const canPreview = Boolean(rule && !ruleChanged && hasYear && !locked);
-  const expiryDays = preview?.rows.reduce((total, row) => total + row.expireDays, 0) ?? 0;
+  const hire = rule?.basis === 'HIRE_DATE';
+  const hasMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && month <= model.month;
+  const canPreview = Boolean(rule && !ruleChanged && (hire ? hasMonth : hasYear) && !locked);
+  const selected = preview?.rows.filter(row => row.decision === 'GRANT' || reviewed.has(row.employeeId)) ?? [];
+  const expiryDays = selected.reduce((total, row) => total + row.expireDays, 0);
   const canApply = Boolean(preview?.canPost && preview.rows.length && !model.publicDemo);
   const checkedPolicyReason = commandReason(policyReason), checkedReason = commandReason(reason);
   useEffect(() => {
@@ -102,6 +124,15 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
 
   function clearReview() {
     setPreview(undefined);
+    setReviewed(new Set());
+    setExpiryConfirmed(false);
+  }
+  function review(employeeId: string, checked: boolean) {
+    setReviewed(current => {
+      const next = new Set(current);
+      if (checked) next.add(employeeId); else next.delete(employeeId);
+      return next;
+    });
     setExpiryConfirmed(false);
   }
   function inputChanged() {
@@ -129,11 +160,11 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
     }
     return false;
   }
-  async function readPreview(selectedYear: number) {
+  async function readPreview(selected: PreviewRequest) {
     clearReview();
     try {
-      const data = await requestJson<AnnualCyclePreview>(base + '/preview', { csrf, body: { year: selectedYear } });
-      if (!isPreview(data, selectedYear)) throw new Error();
+      const data = await requestJson<AnnualCyclePreview>(base + '/preview', { csrf, body: selected });
+      if (!isPreview(data, selected)) throw new Error();
       setPreview(data);
     } catch (failure) {
       if (!lostAccess(failure)) setError({ area: 'cycle', text: failure instanceof PageRequestError
@@ -142,7 +173,7 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
   }
   async function inspect() {
     if (!canPreview || !start('preview')) return;
-    try { await readPreview(Number(year)); } finally { finish(); }
+    try { await readPreview(hire ? { month } : { year: Number(year) }); } finally { finish(); }
   }
   async function write(action: Write) {
     if (model.publicDemo || !start(action.kind)) return;
@@ -162,7 +193,7 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
         if (typeof receipt?.id !== 'string' || !receipt.id) throw new Error();
         setSuccess({ area: 'cycle', text: `${action.count}명의 연차를 원장에 반영했습니다.` });
         setReason('');
-        await readPreview(action.command.year);
+        await readPreview(action.command.month ? { month: action.command.month } : { year: action.command.year! });
       }
       setRetry(undefined);
     } catch (failure) {
@@ -231,15 +262,20 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
       </form>
     </section>
     <section className="wl-section">
-      <h2 id="annual-cycle-title">연도별 일괄 처리</h2>
-      <p className="hint">회계연도 시작일에 재직한 사원이 대상입니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.
-        전년 귀속이 확인되고 새 연도 시작 전날 사용이 끝난 잔여를 이월합니다.</p>
+      <h2 id="annual-cycle-title">{hire ? '월별 일괄 처리' : '연도별 일괄 처리'}</h2>
+      {hire ? <p className="hint">선택한 달 1일부터 오늘(지난달이면 말일)까지 입사기념일이 지난 사원이 대상입니다.
+        직전 1년 출근율이 80% 이상이고 근태가 모두 확정된 사원만 반영합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.</p>
+        : <p className="hint">회계연도 시작일 전에 입사해 시작일에 재직한 사원이 대상이고, 직전 회계연도 출근율로 판정합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.
+        전년 귀속이 확인되고 새 연도 시작 전날 사용이 끝난 잔여를 이월합니다.</p>}
       <form className="wl-form" aria-labelledby="annual-cycle-title" onSubmit={event => { event.preventDefault(); void inspect(); }}>
         <fieldset disabled={locked} className="annual-fields"><FormTable columns={2}>
-          <FormRow label="대상 회계연도" htmlFor="annual-target-year" required>
+          {hire ? <FormRow label="대상 월" htmlFor="annual-target-month" required>
+            <input id="annual-target-month" className="t-input" type="month" required max={model.month} value={month}
+              onChange={event => { setMonth(event.target.value); inputChanged(); }} />
+          </FormRow> : <FormRow label="대상 회계연도" htmlFor="annual-target-year" required>
             <input id="annual-target-year" className="t-input" type="number" min="1900" max="9998" required value={year}
               onChange={event => { yearSelected.current = true; setYear(event.target.value); inputChanged(); }} />
-          </FormRow>
+          </FormRow>}
           <ReasonField id="annual-post-reason" label="처리 사유" value={reason} disabled={model.publicDemo}
             onChange={value => { setReason(value); setExpiryConfirmed(false); setError(undefined); setSuccess(undefined); }} />
         </FormTable></fieldset>
@@ -247,18 +283,22 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
         <div className="wl-form-actions"><button type="submit" className="t-btn" disabled={!canPreview}>
           {busy === 'preview' ? '조회 중…' : '미리보기'}</button></div>
       </form>
-      {preview && <div ref={resultArea}><PreviewResults result={preview} today={model.today} /></div>}
+      {preview && <div ref={resultArea}><PreviewResults result={preview} today={model.today} reviewed={reviewed} onReview={review}
+        selectable={canApply && !locked} /></div>}
       {canApply && preview && <div className="annual-cycle-confirm">
         {expiryDays > 0 && <div><strong>소멸 합계 {expiryDays}일</strong>
           <label><input type="checkbox" checked={expiryConfirmed} disabled={locked}
             onChange={event => setExpiryConfirmed(event.target.checked)} />소멸 대상과 일수를 확인했습니다.</label></div>}
-        <button type="button" className="t-btn primary" disabled={Boolean(busy) || !checkedReason.validReason || (expiryDays > 0 && !expiryConfirmed)}
-          onClick={() => void write(retry?.kind === 'apply' ? retry : { kind: 'apply', count: preview.rows.length,
-            command: { year: preview.year, token: preview.token, reason: checkedReason.trimmed, commandId: crypto.randomUUID() } })}>
+        <button type="button" className="t-btn primary"
+          disabled={Boolean(busy) || (!retry && selected.length === 0) || !checkedReason.validReason || (expiryDays > 0 && !expiryConfirmed)}
+          onClick={() => void write(retry?.kind === 'apply' ? retry : { kind: 'apply', count: selected.length,
+            command: { ...(preview.month ? { month: preview.month } : { year: preview.year }), token: preview.token,
+              reason: checkedReason.trimmed, reviewedEmployeeIds: [...reviewed], commandId: crypto.randomUUID() } })}>
           {retry?.kind === 'apply' ? '같은 명령으로 반영 결과 확인' : busy === 'apply' ? '반영 중…' : '원장에 반영'}
         </button>
       </div>}
       {messages('cycle')}
     </section>
+    <AnnualMonthlyBulk csrf={csrf} publicDemo={model.publicDemo} />
   </div>;
 }

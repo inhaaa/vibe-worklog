@@ -1,4 +1,4 @@
-import type { AttendanceDecision, ExitReceipt } from './employmentLeaveTypes';
+import type { AttendanceDecision, ExitReceipt, MonthlyPeriod } from './employmentLeaveTypes';
 
 export type AnnualLeaveBasis = 'FISCAL' | 'HIRE_DATE';
 export const basisNames: Record<AnnualLeaveBasis, string> = { FISCAL: '회계연도 기준', HIRE_DATE: '입사일 기준' };
@@ -15,6 +15,7 @@ export interface AnnualCycleModel {
   policy: AnnualLeaveRule | null;
   year: number;
   yearSelected: boolean;
+  month: string;
   today: string;
   publicDemo: boolean;
 }
@@ -23,6 +24,17 @@ export interface AnnualCycleRow {
   employeeId: string;
   employeeNo: string;
   employeeName: string;
+  joinedOn: string;
+  grantOn: string;
+  serviceYear: number;
+  periodStart: string;
+  periodEnd: string;
+  scheduledDays: number;
+  absenceDays: number;
+  unresolvedDays: number;
+  attendanceRate: number | null;
+  decision: 'GRANT' | 'NEEDS_REVIEW';
+  reason: string | null;
   previousDays: number;
   grantDays: number;
   carryDays: number;
@@ -31,6 +43,7 @@ export interface AnnualCycleRow {
 
 export interface AnnualCyclePreview {
   year: number;
+  month: string | null;
   periodStart: string;
   periodEnd: string;
   rule: AnnualLeaveRule;
@@ -39,6 +52,7 @@ export interface AnnualCyclePreview {
   existingCount: number;
   laterCount: number;
   pendingCount: number;
+  reviewCount: number;
   token: string;
   canPost: boolean;
 }
@@ -53,10 +67,32 @@ export interface PolicyCommand {
 }
 
 export interface AnnualCycleCommand {
-  year: number;
+  year?: number;
+  month?: string;
   token: string;
   reason: string;
+  reviewedEmployeeIds: string[];
   commandId: string;
+}
+
+export type MonthlyBulkDecision = 'FULL' | 'NOT_FULL' | 'NEEDS_REVIEW';
+export interface MonthlyBulkRow {
+  employeeId: string;
+  employeeNo: string;
+  employeeName: string;
+  joinedOn: string;
+  period: MonthlyPeriod;
+  decision: MonthlyBulkDecision;
+  finding: string;
+}
+export interface MonthlyBulkPreview {
+  today: string;
+  rows: MonthlyBulkRow[];
+  fullCount: number;
+  notFullCount: number;
+  reviewCount: number;
+  token: string;
+  canPost: boolean;
 }
 
 export interface PersonalLedger {
@@ -64,6 +100,9 @@ export interface PersonalLedger {
   year: number;
   today: string;
   availableDays: number;
+  basis: AnnualLeaveBasis;
+  periodStart: string;
+  periodEnd: string;
   entries: {
     id: string;
     bucketId: string;

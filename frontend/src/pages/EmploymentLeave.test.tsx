@@ -242,7 +242,7 @@ it('기확정 0일 정산도 담당자와 직원에게 같은 마지막 재직�
   expect(screen.queryByRole('button', { name: '1개월차 검토' })).toBeNull();
   manager.unmount();
   const movements = [['MONTHLY_ACCRUAL', 0, '미개근 확인'], ['EXIT_SETTLEMENT', -0.5, '퇴사일 잔여 대조']] as const;
-  const ledger = { year: 2026, today: '2026-05-12', availableDays: 0, entries: movements.map(([entryKind, signedQuantityDays, reason], index) => ({
+  const ledger = { year: 2026, today: '2026-05-12', availableDays: 0, basis: 'FISCAL', periodStart: '2026-01-01', periodEnd: '2026-12-31', entries: movements.map(([entryKind, signedQuantityDays, reason], index) => ({
     id: 'row-' + index, bucketId: 'b1', employeeNo: employee.employeeNo, entitlementYear: 2026,
     entryKind, signedQuantityDays, effectiveOn: '2026-05-12', leaveDate: null, sourceReference: '사원별 산정 근거', reason,
   })) };
@@ -254,7 +254,7 @@ it('기확정 0일 정산도 담당자와 직원에게 같은 마지막 재직�
 });
 
 it('직원 원장에서 같은 0일도 판정 필드를 사용해 미개근과 기존 부여에 포함된 개근을 구분한다', () => {
-  const ledger = { year: 2026, today: '2026-07-15', availableDays: 0, entries: ['INCLUDED', 'NOT_FULL'].map((monthlyDecision, i) => ({
+  const ledger = { year: 2026, today: '2026-07-15', availableDays: 0, basis: 'FISCAL', periodStart: '2026-01-01', periodEnd: '2026-12-31', entries: ['INCLUDED', 'NOT_FULL'].map((monthlyDecision, i) => ({
     id: 'row-' + i, bucketId: 'monthly', employeeNo: 'A101', entitlementYear: 2026, entryKind: 'MONTHLY_ACCRUAL',
     signedQuantityDays: 0, effectiveOn: '2026-06-10', leaveDate: null, sourceReference: '개근 여부 증빙 확인',
     reason: '인사 담당자 확인', monthlyDecision,

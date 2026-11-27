@@ -7,6 +7,8 @@
 .annual-cycle-preview { margin-top: 20px; }
 .annual-review-counts { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; padding: 0; }
 .annual-review-counts li:first-child { font-weight: 700; }
+.annual-review-flag { color: var(--t-danger); margin-right: 4px; }
+.annual-review-pick { display: flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; white-space: nowrap; }
 .annual-cycle-confirm, .annual-cycle-confirm label, .annual-ledger-balance {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
 }

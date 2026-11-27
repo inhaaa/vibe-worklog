@@ -27,7 +27,9 @@ export function PersonalLeaveLedger({ ledger }: { ledger: PersonalLedger }) {
     {ledger.exitReceipt && <ExitReceiptSummary receipt={ledger.exitReceipt} />}
     <section className="wl-section" aria-labelledby="annual-entries-title">
       <h2 id="annual-entries-title">연차 변동 이력</h2>
-      <p className="hint">{ledger.year}년 귀속 묶음의 내역과 해당 회계기간에 효력이 생긴 변동을 표시합니다.</p>
+      <p className="hint">{ledger.basis === 'HIRE_DATE'
+        ? `${fmtDate(ledger.periodStart)} ~ ${fmtDate(ledger.periodEnd)} 입사기념일 기준 1년의 묶음과 이 기간에 효력이 생긴 변동을 표시합니다.`
+        : `${ledger.year}년 귀속 묶음의 내역과 해당 회계기간(${fmtDate(ledger.periodStart)} ~ ${fmtDate(ledger.periodEnd)})에 효력이 생긴 변동을 표시합니다.`}</p>
       {ledger.entries.length ? <AnnualLeaveTable label="연차 변동 이력"
         columns={['구분', '일수 증감', '귀속연도', '효력 기준일', '휴가 사용일', '근거·사유']}
         rows={ledger.entries.map(entry => ({ id: entry.id, cells: [

@@ -2,16 +2,23 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { WorkflowPages } from './WorkflowPages';
-import type { AnnualCycleModel, AnnualCyclePreview, PersonalLedger } from './annualLeaveTypes';
+import type { AnnualCycleModel, AnnualCyclePreview, AnnualCycleRow, PersonalLedger } from './annualLeaveTypes';
 
 const csrf = { headerName: 'X-TEST-CSRF', parameterName: '_csrf', token: 'synthetic-token' };
 const base = '/admin/leave-balances/annual-cycle';
 const policy = { version: 1, basis: 'FISCAL' as const, fiscalStartMonth: 1, grantDays: 15, carryLimitDays: 3 };
-const model: AnnualCycleModel = { policy, year: 2026, yearSelected: false, today: '2026-01-05', publicDemo: false };
-const preview: AnnualCyclePreview = { year: 2026, periodStart: '2026-01-01', periodEnd: '2026-12-31',
-  rule: policy, postedCount: 1, existingCount: 2, laterCount: 1, pendingCount: 1, token: 'checked-state', canPost: true, rows: [
-    { employeeId: 'employee-a', employeeNo: 'E101', employeeName: '김가람', previousDays: 4.5, grantDays: 12, carryDays: 3, expireDays: 1.5 },
-    { employeeId: 'employee-b', employeeNo: 'E102', employeeName: '이소라', previousDays: 0, grantDays: 12, carryDays: 0, expireDays: 0 },
+const model: AnnualCycleModel = { policy, year: 2026, yearSelected: false, month: '2026-01', today: '2026-01-05', publicDemo: false };
+const row = (values: Partial<AnnualCycleRow>): AnnualCycleRow => ({ employeeId: 'employee-a', employeeNo: 'E101', employeeName: '김가람',
+  joinedOn: '2023-01-01', grantOn: '2026-01-01', serviceYear: 3, periodStart: '2025-01-01', periodEnd: '2025-12-31',
+  scheduledDays: 248, absenceDays: 0, unresolvedDays: 0, attendanceRate: 100, decision: 'GRANT', reason: null,
+  previousDays: 4.5, grantDays: 16, carryDays: 3, expireDays: 1.5, ...values });
+const preview: AnnualCyclePreview = { year: 2026, month: null, periodStart: '2026-01-01', periodEnd: '2026-12-31',
+  rule: policy, postedCount: 1, existingCount: 2, laterCount: 1, pendingCount: 1, reviewCount: 1, token: 'checked-state', canPost: true, rows: [
+    row({}),
+    row({ employeeId: 'employee-b', employeeNo: 'E102', employeeName: '이소라', joinedOn: '2025-07-01', serviceYear: 1,
+      periodStart: '2025-07-01', previousDays: 0, grantDays: 8, carryDays: 0, expireDays: 0 }),
+    row({ employeeId: 'employee-c', employeeNo: 'E103', employeeName: '박하늘', attendanceRate: 76.4, decision: 'NEEDS_REVIEW',
+      reason: '출근율 76.4%', previousDays: 2, grantDays: 15, carryDays: 2, expireDays: 0 }),
   ] };
 const emptyPreview = { ...preview, rows: [], postedCount: 3, canPost: false };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
@@ -95,7 +102,10 @@ it('전기 잔여·이월·소멸·부여와 새 묶음 합계를 대조한 뒤 
   const headers = within(table).getAllByRole('columnheader').map(header => header.textContent);
   const cells = within(within(table).getAllByRole('row')[1]).getAllByRole('cell');
   expect(cells.map(cell => cell.getAttribute('data-label'))).toEqual(headers);
-  expect(cells.map(cell => cell.textContent)).toEqual([expect.stringContaining('김가람'), '4.5일', '3일', '1.5일', '12일', '15일']);
+  expect(cells.map(cell => cell.textContent)).toEqual([expect.stringContaining('김가람'), '2023-01-01', '3년차', '100%', '부여 대상',
+    '4.5일', '3일', '1.5일', '16일', '19일']);
+  expect(within(within(table).getAllByRole('row')[3]).getAllByRole('cell')[4].textContent).toContain('확인 필요출근율 76.4%');
+  expect(screen.getByText('확인 필요 1명')).toBeTruthy();
   expect(screen.getByText('이미 반영 1명')).toBeTruthy();
   expect(screen.getByText('기초 등록으로 제외 2명')).toBeTruthy();
   expect(screen.getByText('후속 연도 부여로 제외 1명')).toBeTruthy();
@@ -112,7 +122,7 @@ it('전기 잔여·이월·소멸·부여와 새 묶음 합계를 대조한 뒤 
   expect(send.mock.calls.every(([, options]) => new Headers(options?.headers).get(csrf.headerName) === csrf.token)).toBe(true);
   expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toEqual({ year: 2026 });
   expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({
-    year: 2026, token: preview.token, reason: '연도별 연차 부여', commandId: expect.any(String),
+    year: 2026, token: preview.token, reason: '연도별 연차 부여', reviewedEmployeeIds: [], commandId: expect.any(String),
   });
 });
 
@@ -148,7 +158,7 @@ it('미리본 일수를 보면서 처리 사유를 입력하고 소멸 확인을
   expect(button('원장에 반영').disabled).toBe(true);
   edit('처리 사유', '미리본 소멸 수량을 확인함');
   expect(table.isConnected).toBe(true);
-  expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+  expect((screen.getByRole('checkbox', { name: '소멸 대상과 일수를 확인했습니다.' }) as HTMLInputElement).checked).toBe(false);
   approveExpiry();
   expect(button('원장에 반영').disabled).toBe(false);
   expect(send).toHaveBeenCalledTimes(1);
@@ -264,7 +274,7 @@ it('직원의 오늘 사용 가능 잔여와 연도별 원장에 종류, 부호,
     ['EXPIRE', '연차 소멸', -1.5], ['GRANT', '연차 부여', 12], ['CARRY_IN', '전년도에서 이월', 3],
     ['USE', '휴가 사용', -0.5], ['RESTORE', '취소 복원', 0.5],
   ] as const;
-  const ledger: PersonalLedger = { year: 2026, today: '2026-01-05', availableDays: 15,
+  const ledger: PersonalLedger = { year: 2026, today: '2026-01-05', availableDays: 15, basis: 'FISCAL', periodStart: '2026-01-01', periodEnd: '2026-12-31',
     entries: movements.map(([entryKind,, signedQuantityDays], i) => ({ id: 'row-' + i, bucketId: 'balance-' + i,
       employeeNo: 'E101', entitlementYear: i === 0 ? null : i < 4 ? 2025 : 2026, entryKind, signedQuantityDays,
       effectiveOn: '2026-01-05', leaveDate: i >= 6 ? '2026-02-02' : null, sourceReference: null, reason: '합성 사유 ' + i })) };
@@ -302,4 +312,56 @@ it('입사일 기준을 고르면 회계 시작월 없이 저장하고 기준 �
   expect((await screen.findByRole('alert')).textContent).toContain('연차 기준을 바꿀 수 없습니다');
   expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toMatchObject({ basis: 'HIRE_DATE', fiscalStartMonth: null, carryLimitDays: 3, expectedVersion: 1 });
   expect(field('연차 부여 기준').value).toBe('HIRE_DATE');
+});
+
+it('입사일 기준 회사는 월을 골라 미리 보고 기념일 부여일을 보여준 뒤 그 월로 반영한다', async () => {
+  const hire = { ...policy, basis: 'HIRE_DATE' as const };
+  const monthly = { ...preview, rule: hire, month: '2026-03', periodStart: '2026-03-01', periodEnd: '2026-03-10', reviewCount: 0,
+    rows: [row({ grantOn: '2026-03-02', serviceYear: 1, grantDays: 15, previousDays: 0, carryDays: 0, expireDays: 0 })] };
+  const send = fetches().mockResolvedValueOnce(json(monthly)).mockResolvedValueOnce(json({ id: 'r' })).mockResolvedValueOnce(json({ ...monthly, rows: [] }));
+  show({ policy: hire, month: '2026-03', today: '2026-03-10' });
+  expect(screen.queryByLabelText('대상 회계연도')).toBeNull();
+  expect(field('대상 월').value).toBe('2026-03');
+  expect(field('대상 월').max).toBe('2026-03');
+  edit('대상 월', '2026-04');
+  expect(button('미리보기').disabled).toBe(true);
+  edit('대상 월', '2026-03');
+  edit('처리 사유', '3월 입사기념일');
+  const table = await review();
+  expect(within(table).getAllByRole('columnheader').map(header => header.textContent)).toContain('부여일');
+  fireEvent.click(button('원장에 반영'));
+  await screen.findByText('1명의 연차를 원장에 반영했습니다.');
+  expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toEqual({ month: '2026-03' });
+  expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({ month: '2026-03', token: monthly.token, reason: '3월 입사기념일', reviewedEmployeeIds: [], commandId: expect.any(String) });
+  expect(JSON.parse(String(send.mock.calls[2][1]?.body))).toEqual({ month: '2026-03' });
+});
+
+it('확인 필요 행은 담당자가 골라야 반영되고 고른 사원 ID를 보낸다', async () => {
+  const send = fetches().mockResolvedValueOnce(json({ ...preview, rows: [preview.rows[2]] })).mockResolvedValueOnce(json({ id: 'r' }))
+    .mockResolvedValueOnce(json(emptyPreview));
+  show();
+  edit('처리 사유', '도입 전 근태 확인');
+  await review();
+  expect(screen.getByText(/근태를 확정한 뒤 다시 미리 보거나/)).toBeTruthy();
+  expect(button('원장에 반영').disabled).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox', { name: '박하늘 법정 일수 부여' }));
+  fireEvent.click(button('원장에 반영'));
+  await screen.findByText('1명의 연차를 원장에 반영했습니다.');
+  expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({ year: 2026, token: preview.token, reason: '도입 전 근태 확인',
+    reviewedEmployeeIds: ['employee-c'], commandId: expect.any(String) });
+});
+
+it('공개 데모에서는 확인 필요 행을 고를 수 없다', async () => {
+  fetches().mockResolvedValueOnce(json(preview));
+  show({ publicDemo: true });
+  await review();
+  expect(screen.queryByRole('checkbox', { name: '박하늘 법정 일수 부여' })).toBeNull();
+});
+
+it('입사일 기준 회사의 원장은 입사기념일 기준 1년 기간을 보여준다', () => {
+  const ledger: PersonalLedger = { year: 2026, today: '2026-03-10', availableDays: 15, basis: 'HIRE_DATE',
+    periodStart: '2026-03-02', periodEnd: '2027-03-01', entries: [] };
+  render(<WorkflowPages page="request/personal-ledger" data={{ ledger }} csrf={csrf} reload={vi.fn()} />);
+  expect(screen.getByText(/2026-03-02 ~ 2027-03-01/)).toBeTruthy();
+  expect(screen.getByText(/입사기념일 기준 1년/)).toBeTruthy();
 });
