@@ -38,7 +38,7 @@ WorkLog는 고정 근무를 운영하는 국내 중소기업을 대상으로 만
 
 개발본에서 담당자는 경조휴가·개인휴가 등 회사 휴가를 등록하고 사용 단위, 유급 여부와 연차 차감 여부를 정할 수 있습니다. 직원이 사용일에 맞는 휴가를 선택하면 최종 승인·취소 결과가 휴가 이력, 근무현황과 월 마감 Excel에 반영됩니다. [회사별 휴가 운영 기준](docs/superpowers/plans/2026-11-20-company-leave-operations.md) · [PC·모바일 검증](docs/quality/company-leave-operations-20261120.md)
 
-개발본의 **휴가관리 → 신청·연차 → 연차 관리**에서 회사의 연차 부여 기준(회계연도 기준·입사일 기준)과 이월 한도를 정합니다. 사원별 연차 일수는 근로기준법대로 근속년차와 직전 기간 출근율로 계산하고, 담당자가 미리 본 뒤 일괄 반영합니다. 입사 첫해 월 연차도 일일 근태로 판정해 한 번에 반영합니다. 직원은 **내 신청 이력 → 내 연차 원장**에서 오늘 사용 가능한 일수와 신청 승인·취소에 따른 변동을 확인합니다. [회사별 연차 운영 기준](docs/superpowers/plans/2026-11-21-annual-leave-ledger.md) · [법정 연차 산정 설계](docs/superpowers/specs/2026-11-27-statutory-annual-leave-design.md) · [PC·모바일 검증 결과](docs/quality/annual-leave-ledger-20261121.md)
+개발본의 **휴가관리 → 신청·연차 → 연차 관리**에서 회사의 연차 부여 기준(회계연도 기준·입사일 기준)과 이월 한도를 정합니다. 사원별 연차 일수는 근로기준법대로 근속년차와 직전 기간 출근율로 계산하고, 담당자가 미리 본 뒤 일괄 반영합니다. 입사 첫해 월 연차도 일일 근태로 판정해 한 번에 반영합니다. 직원은 **내 신청 이력 → 내 연차 원장**에서 오늘 사용 가능한 일수와 신청 승인·취소에 따른 변동을 확인합니다. [회사별 연차 운영 기준](docs/superpowers/plans/2026-11-21-annual-leave-ledger.md) · [법정 연차 산정 설계](docs/superpowers/specs/2026-11-27-statutory-annual-leave-design.md) · [법정 연차 검증 결과](docs/quality/statutory-annual-leave-20261127.md) · [PC·모바일 검증 결과](docs/quality/annual-leave-ledger-20261121.md)
 
 개발본의 **연차 관리 → 입사·퇴사 연차 정산**에서는 사원을 검색해 입사 후 월별 개근 판단과 근거를 기록하고, 마지막 재직일에 남은 일수를 정산합니다. 직원은 **내 연차 원장**에서 같은 월별 일수와 퇴사 정산 결과를 확인합니다. [업무 기준](docs/superpowers/plans/2026-11-22-employment-leave.md) · [브라우저 검증](docs/quality/employment-leave-20261122.md)
 
