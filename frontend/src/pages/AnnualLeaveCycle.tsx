@@ -264,7 +264,7 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
     <section className="wl-section">
       <h2 id="annual-cycle-title">{hire ? '월별 일괄 처리' : '연도별 일괄 처리'}</h2>
       {hire ? <p className="hint">선택한 달 1일부터 오늘(지난달이면 말일)까지 입사기념일이 지난 사원이 대상입니다.
-        직전 1년 출근율이 80% 이상이고 근태가 모두 확정된 사원만 반영합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.</p>
+        직전 1년 출근율이 80% 이상이고 근태가 모두 확정된 사원은 부여 대상이고, 확인 필요 사원은 '법정 일수 부여'를 고른 경우에만 반영합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.</p>
         : <p className="hint">회계연도 시작일 전에 입사해 시작일에 재직한 사원이 대상이고, 직전 회계연도 출근율로 판정합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다.
         전년 귀속이 확인되고 새 연도 시작 전날 사용이 끝난 잔여를 이월합니다.</p>}
       <form className="wl-form" aria-labelledby="annual-cycle-title" onSubmit={event => { event.preventDefault(); void inspect(); }}>

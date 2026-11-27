@@ -365,3 +365,53 @@ it('입사일 기준 회사의 원장은 입사기념일 기준 1년 기간을 �
   expect(screen.getByText(/2026-03-02 ~ 2027-03-01/)).toBeTruthy();
   expect(screen.getByText(/입사기념일 기준 1년/)).toBeTruthy();
 });
+
+it('확인 필요 행을 고른 뒤 다시 미리 보거나 연도를 바꾸면 고른 사원을 비우고 보내지 않는다', async () => {
+  const pair = { ...preview, rows: [preview.rows[1], preview.rows[2]] };
+  const send = fetches().mockResolvedValueOnce(json(pair)).mockResolvedValueOnce(json(pair)).mockResolvedValueOnce(json(pair))
+    .mockResolvedValueOnce(json({ id: 'r' })).mockResolvedValueOnce(json(emptyPreview));
+  show();
+  edit('처리 사유', '연차 부여');
+  await review();
+  const pick = () => screen.getByRole('checkbox', { name: '박하늘 법정 일수 부여' }) as HTMLInputElement;
+  fireEvent.click(pick());
+  expect(pick().checked).toBe(true);
+  await review();
+  await waitFor(() => expect(pick().checked).toBe(false));
+  fireEvent.click(pick());
+  edit('대상 회계연도', '2027');
+  edit('대상 회계연도', '2026');
+  await review();
+  expect(pick().checked).toBe(false);
+  fireEvent.click(button('원장에 반영'));
+  await screen.findByText('1명의 연차를 원장에 반영했습니다.');
+  expect(JSON.parse(String(send.mock.calls[3][1]?.body)).reviewedEmployeeIds).toEqual([]);
+});
+
+it('소멸이 있는 확인 필요 행을 고르면 소멸 합계에 더하고 확인 전까지 반영을 막는다', async () => {
+  fetches().mockResolvedValueOnce(json({ ...preview, rows: [preview.rows[1], { ...preview.rows[2], expireDays: 1 }] }));
+  show();
+  edit('처리 사유', '연차 부여');
+  await review();
+  expect(screen.queryByText(/소멸 합계/)).toBeNull();
+  expect(button('원장에 반영').disabled).toBe(false);
+  fireEvent.click(screen.getByRole('checkbox', { name: '박하늘 법정 일수 부여' }));
+  expect(screen.getByText('소멸 합계 1일')).toBeTruthy();
+  expect(button('원장에 반영').disabled).toBe(true);
+  approveExpiry();
+  expect(button('원장에 반영').disabled).toBe(false);
+});
+
+it('반영 응답이 유실된 뒤 같은 명령으로 확인할 때도 고른 사원 ID를 그대로 보낸다', async () => {
+  const send = fetches().mockResolvedValueOnce(json({ ...preview, rows: [preview.rows[2]] })).mockRejectedValueOnce(Error('연결 끊김'))
+    .mockResolvedValueOnce(json({ id: 'r' })).mockResolvedValueOnce(json(emptyPreview));
+  show();
+  edit('처리 사유', '도입 전 근태 확인');
+  await review();
+  fireEvent.click(screen.getByRole('checkbox', { name: '박하늘 법정 일수 부여' }));
+  fireEvent.click(button('원장에 반영'));
+  fireEvent.click(await screen.findByRole('button', { name: '같은 명령으로 반영 결과 확인' }));
+  await screen.findByText('1명의 연차를 원장에 반영했습니다.');
+  expect(send.mock.calls[2][1]?.body).toBe(send.mock.calls[1][1]?.body);
+  expect(JSON.parse(String(send.mock.calls[2][1]?.body)).reviewedEmployeeIds).toEqual(['employee-c']);
+});

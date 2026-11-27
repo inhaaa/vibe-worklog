@@ -54,3 +54,54 @@ it('미리본 뒤 근태가 바뀌어 거절되면 서버 문구를 보여준다
   fireEvent.click(screen.getByRole('button', { name: '개근·미개근 2건 반영' }));
   expect((await screen.findByRole('alert')).textContent).toContain('미리보기를 다시 확인해 주세요');
 });
+
+it('반영 응답이 유실되면 같은 명령 ID로 결과를 확인한다', async () => {
+  const send = vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json({ message: '오류' }, 503))
+    .mockResolvedValueOnce(json({ id: 'r' })).mockResolvedValueOnce(json({ ...preview, rows: [], fullCount: 0, notFullCount: 0, reviewCount: 0, canPost: false }));
+  vi.stubGlobal('fetch', send);
+  render(<AnnualMonthlyBulk csrf={csrf} publicDemo={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '월 연차 미리보기' }));
+  await screen.findByRole('table', { name: '월 연차 자동 판정' });
+  fireEvent.change(screen.getByLabelText('월 연차 반영 사유'), { target: { value: '확인' } });
+  fireEvent.click(screen.getByRole('button', { name: '개근·미개근 2건 반영' }));
+  const retry = await screen.findByRole('button', { name: '같은 명령으로 반영 결과 확인' });
+  expect((screen.getByLabelText('월 연차 반영 사유') as HTMLInputElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: '월 연차 미리보기' }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(retry);
+  await screen.findByText('월 연차 2건을 원장에 반영했습니다.');
+  expect(send.mock.calls[2][1]?.body).toBe(send.mock.calls[1][1]?.body);
+  expect(send.mock.calls.map(([url]) => url)).toEqual([base + '/monthly-preview', base + '/monthly-apply', base + '/monthly-apply', base + '/monthly-preview']);
+});
+
+it('반영은 됐지만 다시 조회하지 못하면 반영 결과와 조회 실패를 따로 보여주고 재시도를 제시하지 않는다', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json({ id: 'r' }))
+    .mockRejectedValueOnce(Error('조회 실패')));
+  render(<AnnualMonthlyBulk csrf={csrf} publicDemo={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '월 연차 미리보기' }));
+  await screen.findByRole('table', { name: '월 연차 자동 판정' });
+  fireEvent.change(screen.getByLabelText('월 연차 반영 사유'), { target: { value: '확인' } });
+  fireEvent.click(screen.getByRole('button', { name: '개근·미개근 2건 반영' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('미리보기를 불러오지 못했습니다');
+  expect(screen.getByRole('status').textContent).toContain('월 연차 2건을 원장에 반영했습니다.');
+  expect(screen.queryByRole('button', { name: /반영 결과 확인|건 반영/ })).toBeNull();
+  expect((screen.getByRole('button', { name: '월 연차 미리보기' }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it('권한이 회수되면 사원 정보를 지우고 다시 로그인을 안내한다', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(json(preview)).mockResolvedValueOnce(json({}, 403)));
+  render(<AnnualMonthlyBulk csrf={csrf} publicDemo={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '월 연차 미리보기' }));
+  await screen.findByRole('table', { name: '월 연차 자동 판정' });
+  fireEvent.click(screen.getByRole('button', { name: '월 연차 미리보기' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('권한');
+  expect(screen.queryByText('김가람')).toBeNull();
+  expect(screen.getByRole('link', { name: '다시 로그인' }).getAttribute('href')).toBe('/login');
+});
+
+it('응답 모양이 다르면 표를 그리지 않고 다시 미리보기를 안내한다', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValueOnce(json({ ...preview, rows: [{ employeeId: 'x' }] })));
+  render(<AnnualMonthlyBulk csrf={csrf} publicDemo={false} />);
+  fireEvent.click(screen.getByRole('button', { name: '월 연차 미리보기' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('다시 미리보기를 실행하세요');
+  expect(screen.queryByRole('table')).toBeNull();
+});
