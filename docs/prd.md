@@ -9,7 +9,7 @@
 | 회사별 휴가 운영 | 담당자가 휴가코드에 적용일, 사용 단위, 유급·무급, 연차 차감 여부를 지정해 직원에게 제공한다. 직원 신청과 순차결재, 종류별 이력과 월 마감에 같은 정책을 적용한다. | 담당자가 유급 경조휴가와 무급 개인휴가를 개설하고, 직원 신청·승인·취소 뒤 잔여, 인정시간, 회사·부서별 마감 파일을 대조한다. [검증 결과](quality/company-leave-operations-20261120.md) |
 | 고객사 개통 | 첫 담당자는 초대 메일로 계정을 활성화한다. 홈의 회사 초기 설정에서 조직·근무 기준·허용망을 설정하고 입사·초대·결재자 배정을 이어간다. 직원의 미수락 초대는 재발급하고, 비밀번호 분실은 이메일로 복구한다. | 새 회사에서 결재자를 미리 보고 직원이 배정된 근무에 첫 출근한다. 비밀번호 복구 후에도 같은 출근 기록을 확인한다. [업무 기준](superpowers/plans/2026-11-21-customer-onboarding.md) · [검증 결과](quality/customer-onboarding-20261121.md) |
 | 일상 근태와 월 마감 | 담당자는 미처리 건을 찾아 보완을 요청하고 재집계한 뒤 회사의 한 달을 마감한다. 새 마감 Excel은 실근로시간, 사용 휴가일수, 유급휴가 인정시간을 사원·부서·회사별로 보여 준다. | 같은 직원의 퇴근 정정과 회사 휴가를 승인하고, 모든 미처리 건을 해소한 뒤 직원 본인의 일·월 결과와 실제 다운로드한 파일을 대조한다. [인수 기준](superpowers/plans/2026-11-21-attendance-month-cycle.md) · [PC·모바일 결과](quality/attendance-month-cycle-20261121.md) |
-| 회사별 연차 부여와 원장 | 담당자가 회계연도별 부여 일수와 이월 한도를 정하고 사원별 이월·소멸·부여량을 미리 본 뒤 확정한다. | 직원의 현재 잔여와 원장 내역이 반차 승인, 취소 대기, 취소 완료 때 같은 수량을 보인다. [업무 기준](superpowers/plans/2026-11-21-annual-leave-ledger.md) · [PC·모바일 검증](quality/annual-leave-ledger-20261121.md) |
+| 회사별 연차 부여와 원장 | 담당자가 연차 부여 기준과 법정 근속 일수·출근율 판정, 이월 한도를 정하고 사원별 이월·소멸·부여량을 미리 본 뒤 확정한다. | 직원의 현재 잔여와 원장 내역이 반차 승인, 취소 대기, 취소 완료 때 같은 수량을 보인다. [업무 기준](superpowers/plans/2026-11-21-annual-leave-ledger.md) · [PC·모바일 검증](quality/annual-leave-ledger-20261121.md) |
 | 중도 입사와 퇴사 정산 | 월별로 소정근로·확인된 출근·휴가와 담당자의 판단을 기록하고, 퇴사 시 남은 일수를 정산한다. | 담당자 미리보기와 직원 원장에서 월별 수량·반차 차감·마지막 정산 일수가 일치한다. [업무 기준](superpowers/plans/2026-11-22-employment-leave.md) · [PC·모바일 검증](quality/employment-leave-20261122.md) |
 
 ### 첫 개발 묶음의 인수 사례
@@ -18,7 +18,7 @@
 
 같은 사원이 경조휴가 하루를 신청하면 중간 승인 때는 대기 상태를 유지한다. 최종 승인 뒤에는 연차 잔여가 그대로이고 휴가현황에 경조휴가 하루가 나타난다. 정산에서는 회사가 인정한 유급휴가 시간과 실제 일한 시간을 구분한다. 무급 개인휴가도 사용 이력은 남고 유급 인정시간은 0이다. 취소 심사 중에는 원승인이 유효하고 취소 최종 승인 때 최초 반영분만 한 번 되돌린다. 담당자는 종류별 사용량을 회사·부서 마감 Excel의 사용 휴가 합계와 대조한다. 기존 연차의 차감·복원, 마감 당시 결과 보존과 회사 간 정보 격리도 함께 확인한다.
 
-근속 1년 이후의 입사일 기준 발생과 회계 기준의 차이는 담당자가 대조한다. 미사용수당 금액·실제 급여 지급은 후속 업무다. 선택근무 부서별 점검 목록과 보완 요청 범위 확대는 운영 편의 개선으로 둔다. [휴가·정정 결재선](superpowers/specs/2026-11-18-request-form-approval-routing-design.md) · [현재 연차·반차 기준](superpowers/specs/2026-11-18-attendance-codes-half-day.md) · [잔여 이관](superpowers/specs/2026-11-18-leave-balance-batch.md) · [고객사 최초 연결](design/operator-onboarding.md) · [월 마감 결과](superpowers/specs/2026-11-19-month-close-details-export.md)
+입사일 기준 회사는 기념일마다 부여한다. 회계연도 기준 회사의 퇴사 시 입사일 기준과의 차이는 퇴사 정산 화면에서 대조한다. 미사용수당 금액·실제 급여 지급은 후속 업무다. 선택근무 부서별 점검 목록과 보완 요청 범위 확대는 운영 편의 개선으로 둔다. [휴가·정정 결재선](superpowers/specs/2026-11-18-request-form-approval-routing-design.md) · [현재 연차·반차 기준](superpowers/specs/2026-11-18-attendance-codes-half-day.md) · [잔여 이관](superpowers/specs/2026-11-18-leave-balance-batch.md) · [고객사 최초 연결](design/operator-onboarding.md) · [월 마감 결과](superpowers/specs/2026-11-19-month-close-details-export.md)
 
 ## 현재 구현·검증 이력
 
