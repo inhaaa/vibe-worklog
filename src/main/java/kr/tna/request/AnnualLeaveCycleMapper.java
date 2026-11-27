@@ -14,19 +14,19 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface AnnualLeaveCycleMapper {
     @Select("""
-            SELECT version, fiscal_start_month, grant_days, carry_limit_days FROM tna.annual_leave_rule
+            SELECT version, fiscal_start_month, grant_days, carry_limit_days, basis FROM tna.annual_leave_rule
             WHERE tenant_id=#{tenantId} ORDER BY version DESC LIMIT 1
             """)
     Rule currentRule(UUID tenantId);
 
     @Select("""
-            SELECT version, fiscal_start_month, grant_days, carry_limit_days FROM tna.annual_leave_rule
+            SELECT version, fiscal_start_month, grant_days, carry_limit_days, basis FROM tna.annual_leave_rule
             WHERE tenant_id=#{tenantId} AND id=#{id}
             """)
     Rule savedRule(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
 
     @Select("""
-            SELECT r.version, r.fiscal_start_month, r.grant_days, r.carry_limit_days
+            SELECT r.version, r.fiscal_start_month, r.grant_days, r.carry_limit_days, r.basis
             FROM tna.annual_leave_cycle c JOIN tna.annual_leave_rule r ON r.tenant_id=c.tenant_id AND r.version=c.rule_version
             WHERE c.tenant_id=#{tenantId} AND c.entitlement_year=#{year}
             """)
@@ -39,8 +39,8 @@ public interface AnnualLeaveCycleMapper {
     boolean hasCycles(UUID tenantId);
 
     @Insert("""
-            INSERT INTO tna.annual_leave_rule(tenant_id, id, version, fiscal_start_month, grant_days, carry_limit_days, created_by)
-            VALUES (#{tenantId},#{id},#{rule.version},#{rule.fiscalStartMonth},#{rule.grantDays},#{rule.carryLimitDays},#{actor})
+            INSERT INTO tna.annual_leave_rule(tenant_id, id, version, fiscal_start_month, grant_days, carry_limit_days, basis, created_by)
+            VALUES (#{tenantId},#{id},#{rule.version},#{rule.fiscalStartMonth},#{rule.grantDays},#{rule.carryLimitDays},#{rule.basis},#{actor})
             """)
     int insertRule(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("rule") Rule rule, @Param("actor") UUID actor);
 

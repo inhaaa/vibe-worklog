@@ -15,8 +15,8 @@ public final class AnnualLeaveCycleData {
         return today.getYear() - (rule != null && today.getMonthValue() < rule.fiscalStartMonth() ? 1 : 0);
     }
 
-    public record Rule(long version, int fiscalStartMonth, BigDecimal grantDays, BigDecimal carryLimitDays) { }
-    public record RuleForm(Long expectedVersion, Integer fiscalStartMonth, BigDecimal grantDays, BigDecimal carryLimitDays,
+    public record Rule(long version, int fiscalStartMonth, BigDecimal grantDays, BigDecimal carryLimitDays, String basis) { }
+    public record RuleForm(Long expectedVersion, String basis, Integer fiscalStartMonth, BigDecimal carryLimitDays,
             String reason, UUID commandId) { }
     public record PostForm(Integer year, String token, String reason, UUID commandId) { }
     public record Row(UUID employeeId, String employeeNo, String employeeName, BigDecimal previousDays,

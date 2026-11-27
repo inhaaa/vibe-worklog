@@ -67,7 +67,7 @@ class AnnualLeaveCycleWebIT {
         assertEquals("request/annual-cycle", ReactPageAssertions.envelope(adminPage).path("page").asString());
         mvc.perform(as(get(ADMIN).param("year", String.valueOf(today.getYear())).accept(PAGE), admin))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/yearSelected", true));
-        var policy = Map.of("expectedVersion", 0, "fiscalStartMonth", 1, "grantDays", 12.5, "carryLimitDays", 3,
+        var policy = Map.of("expectedVersion", 0, "basis", "FISCAL", "fiscalStartMonth", 1, "carryLimitDays", 3,
                 "reason", "합성 운영 규정", "commandId", UUID.randomUUID());
         var saved = json(postJson("/policy", policy, admin).andExpect(status().isOk()));
         assertEquals(1, saved.path("version").asInt());
@@ -75,7 +75,7 @@ class AnnualLeaveCycleWebIT {
         JsonNode preview = json(postJson("/preview", Map.of("year", year), admin).andExpect(status().isOk()));
         assertEquals(1, preview.path("rows").size());
         assertEquals("E01", preview.at("/rows/0/employeeNo").asString());
-        assertEquals(12.5, preview.at("/rows/0/grantDays").asDouble());
+        assertEquals(15.0, preview.at("/rows/0/grantDays").asDouble());
         assertEquals(0, ownLedger(employee).path("entries").size());
         assertEquals(0, ownLedger(employee).path("availableDays").asDouble());
         var application = Map.of("year", year, "token", preview.path("token").asString(), "reason", "연도 시작",
@@ -84,14 +84,14 @@ class AnnualLeaveCycleWebIT {
         var retry = json(postJson("/apply", application, admin).andExpect(status().isOk()));
         assertFalse(first.path("id").asString().isBlank());
         assertEquals(first.path("id"), retry.path("id"));
-        assertEquals(12.5, ownLedger(employee).path("availableDays").asDouble());
+        assertEquals(15.0, ownLedger(employee).path("availableDays").asDouble());
         assertEquals("GRANT", ownLedger(employee).at("/entries/0/entryKind").asString());
         assertEquals(0, ownLedger(admin).path("entries").size());
         var annual = mvc.perform(as(get("/me/requests").accept(PAGE), employee)).andExpect(status().isOk()).andReturn();
-        assertEquals(12.5, ReactPageAssertions.envelope(annual).at("/data/annual/registeredDays").asDouble());
-        assertEquals(12.5, ReactPageAssertions.envelope(annual).at("/data/annual/currentAvailableDays").asDouble());
+        assertEquals(15.0, ReactPageAssertions.envelope(annual).at("/data/annual/registeredDays").asDouble());
+        assertEquals(15.0, ReactPageAssertions.envelope(annual).at("/data/annual/currentAvailableDays").asDouble());
         var otherAdmin = member(admin.tenantId(), "M02", admin.roles());
-        var revision = Map.of("expectedVersion", 1, "fiscalStartMonth", 1, "grantDays", 18.5, "carryLimitDays", 2,
+        var revision = Map.of("expectedVersion", 1, "basis", "FISCAL", "fiscalStartMonth", 1, "carryLimitDays", 2,
                 "reason", "다음 연도 개정", "commandId", UUID.randomUUID());
         postJson("/policy", revision, otherAdmin).andExpect(status().isOk());
         assertEquals(saved, json(postJson("/policy", policy, admin).andExpect(status().isOk())));
@@ -113,8 +113,8 @@ class AnnualLeaveCycleWebIT {
     }
 
     @Test void aFractionalMonthVersionOrYearNeverAppliesTheTruncatedValue() throws Exception {
-        var rule = new java.util.HashMap<String, Object>(Map.of("expectedVersion", 0, "fiscalStartMonth", 1.9,
-                "grantDays", 12.5, "carryLimitDays", 3, "reason", "합성 기준", "commandId", UUID.randomUUID()));
+        var rule = new java.util.HashMap<String, Object>(Map.of("expectedVersion", 0, "basis", "FISCAL", "fiscalStartMonth", 1.9,
+                "carryLimitDays", 3, "reason", "합성 기준", "commandId", UUID.randomUUID()));
         postJson("/policy", rule, admin).andExpect(status().isBadRequest());
         rule.put("fiscalStartMonth", 1);
         rule.put("expectedVersion", 0.9);

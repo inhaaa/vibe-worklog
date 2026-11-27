@@ -55,20 +55,28 @@ public final class AnnualLeaveCycleService {
     }
 
     public UUID saveRule(TnaPrincipal actor, RuleForm form) {
-        if (form == null || form.fiscalStartMonth() == null || form.fiscalStartMonth() < 1 || form.fiscalStartMonth() > 12)
+        if (form == null || !StatutoryLeave.FISCAL.equals(form.basis()) && !StatutoryLeave.HIRE_DATE.equals(form.basis()))
+            throw OrgException.invalid("연차 부여 기준을 회계연도 기준 또는 입사일 기준으로 선택해 주세요.");
+        boolean fiscal = StatutoryLeave.FISCAL.equals(form.basis());
+        if (fiscal && (form.fiscalStartMonth() == null || form.fiscalStartMonth() < 1 || form.fiscalStartMonth() > 12))
             throw OrgException.invalid("회계 시작월을 1~12월 중에서 선택해 주세요.");
-        var grant = quantity(form.grantDays());
         var cap = quantity(form.carryLimitDays());
         String reason = requiredText(form.reason(), 500, "변경 사유");
         return administration.execute(actor, form.commandId(), "ANNUAL_LEAVE_RULE_SAVE", "ANNUAL_LEAVE_RULE",
-                fingerprint(form.expectedVersion(), form.fiscalStartMonth(), grant, cap, reason), reason, () -> {
+                fingerprint(form.expectedVersion(), form.basis(), form.fiscalStartMonth(), cap, reason), reason, () -> {
                     var before = mapper.currentRule(actor.tenantId());
                     long version = before == null ? 0 : before.version();
                     checkVersion(form.expectedVersion(), version);
-                    int startMonth = before == null ? 1 : before.fiscalStartMonth();
-                    if (startMonth != form.fiscalStartMonth() && mapper.hasCycles(actor.tenantId()))
-                        throw OrgException.conflict("연간 부여나 월별 연차를 기록한 회사는 기존 회계 시작월을 유지해 주세요. 부여·이월 일수는 변경할 수 있습니다.");
-                    var rule = new Rule(version + 1, form.fiscalStartMonth(), grant, cap);
+                    String beforeBasis = before == null ? StatutoryLeave.FISCAL : before.basis();
+                    int beforeMonth = before == null ? 1 : before.fiscalStartMonth();
+                    // 입사일 기준도 월 연차 귀속연도가 쓰는 회계 시작월을 그대로 보존한다.
+                    int month = fiscal ? form.fiscalStartMonth() : beforeMonth;
+                    boolean basisChanged = !beforeBasis.equals(form.basis());
+                    if ((basisChanged || beforeMonth != month) && mapper.hasCycles(actor.tenantId()))
+                        throw OrgException.conflict(basisChanged
+                                ? "연간 부여나 월별 연차를 기록한 회사는 연차 기준을 바꿀 수 없습니다. 이월 한도는 변경할 수 있습니다."
+                                : "연간 부여나 월별 연차를 기록한 회사는 기존 회계 시작월을 유지해 주세요. 이월 한도는 변경할 수 있습니다.");
+                    var rule = new Rule(version + 1, month, StatutoryLeave.BASE_DAYS, cap, form.basis());
                     UUID id = UUID.randomUUID();
                     changed(mapper.insertRule(actor.tenantId(), id, rule, actor.accountId()));
                     return new Change(id, before, rule);
@@ -143,7 +151,7 @@ public final class AnnualLeaveCycleService {
         boolean started = !start.isAfter(administration.today());
         var signatures = new ArrayList<String>();
         signatures.add(fingerprint(tenant, actor.accountId(), actor.employeeId(), year, rule.version(),
-                rule.fiscalStartMonth(), rule.grantDays(), rule.carryLimitDays(), applied != null, started));
+                rule.fiscalStartMonth(), rule.basis(), rule.carryLimitDays(), applied != null, started));
         int posted = 0, existing = 0, later = 0, pending = 0;
         var awards = new ArrayList<Award>();
         for (var employee : mapper.candidates(tenant, actor.employeeId(), year, start)) {
@@ -210,7 +218,7 @@ public final class AnnualLeaveCycleService {
         BigDecimal normalized = value == null ? null : value.stripTrailingZeros();
         if (normalized == null || normalized.signum() < 0 || normalized.compareTo(LIMIT) > 0 || normalized.scale() > 1
                 || normalized.remainder(HALF).signum() != 0)
-            throw OrgException.invalid("부여·이월 일수는 0~100000일 사이의 0.5일 단위로 입력해 주세요.");
+            throw OrgException.invalid("이월 한도는 0~100000일 사이의 0.5일 단위로 입력해 주세요.");
         return normalized.setScale(1);
     }
 

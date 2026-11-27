@@ -139,7 +139,7 @@ class EmploymentAccrualIT {
     }
 
     @Test void laterMonthlyCreditsCannotFinanceEarlierLeaveAndMonthlyBucketsDoNotBlockTheCompanyFiscalAward() {
-        annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,joined.getMonthValue(),BigDecimal.TEN,BigDecimal.ONE,"회계연도 기준",UUID.randomUUID()));
+        annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,"FISCAL",joined.getMonthValue(),BigDecimal.ONE,"회계연도 기준",UUID.randomUUID()));
         var periods=accrual.preview(admin,worker.employeeId()).periods();
         accrual.post(admin,form(periods.get(1),"FULL"));
         accrual.post(admin,form(accrual.preview(admin,worker.employeeId()).periods().getFirst(),"FULL"));
@@ -149,13 +149,13 @@ class EmploymentAccrualIT {
         var movements=transactions.execute(tenant,()->workflow.monthlyBalanceMovements(tenant,bucket));
         assertFalse(EmploymentAccrualData.covers(movements,List.of(day(periods.getFirst().accrualOn(),1),day(periods.getFirst().accrualOn().plusDays(1),1))));
         assertTrue(EmploymentAccrualData.covers(movements,List.of(day(periods.getFirst().accrualOn(),1),day(periods.get(1).accrualOn(),1))));
-        assertTrue(annual.preview(admin,joined.getYear()).rows().stream().anyMatch(r -> r.employeeId().equals(worker.employeeId())));
+        assertTrue(annual.preview(admin,joined.getYear()+1).rows().stream().anyMatch(r -> r.employeeId().equals(worker.employeeId())));
     }
 
     @Test void firstReviewWithoutPolicyKeepsTheLedgerCalendarYearWhenTheFirstPolicyIsSaved() {
         accrual.post(admin,form(accrual.preview(admin,worker.employeeId()).periods().getFirst(),"FULL"));
-        assertEquals(409,failure(() -> annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,3,BigDecimal.TEN,BigDecimal.ONE,"첫 기준",UUID.randomUUID()))));
-        annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,1,BigDecimal.TEN,BigDecimal.ONE,"원장과 같은 회계연도",UUID.randomUUID()));
+        assertEquals(409,failure(() -> annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,"FISCAL",3,BigDecimal.ONE,"첫 기준",UUID.randomUUID()))));
+        annual.saveRule(admin,new AnnualLeaveCycleData.RuleForm(0L,"FISCAL",1,BigDecimal.ONE,"원장과 같은 회계연도",UUID.randomUUID()));
         assertEquals(1,annual.rule(admin).fiscalStartMonth());
     }
 

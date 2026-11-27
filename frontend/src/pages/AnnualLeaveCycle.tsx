@@ -6,18 +6,21 @@ import type { CsrfToken } from '../types';
 import { FormRow, FormTable, fmtDate } from '../ui';
 import { AnnualLeaveTable } from './AnnualLeaveTable';
 import { employmentPath } from './employmentLeaveTypes';
-import type { AnnualCycleCommand, AnnualCycleModel, AnnualCyclePreview, AnnualLeaveRule, PolicyCommand } from './annualLeaveTypes';
+import { basisNames } from './annualLeaveTypes';
+import type { AnnualCycleCommand, AnnualCycleModel, AnnualCyclePreview, AnnualLeaveBasis, AnnualLeaveRule, PolicyCommand } from './annualLeaveTypes';
 import './AnnualLeave.css';
 
 const base = '/admin/leave-balances/annual-cycle';
 type Write = { kind: 'policy'; command: PolicyCommand } | { kind: 'apply'; command: AnnualCycleCommand; count: number };
 type Feedback = { area: 'policy' | 'cycle'; text: string; conflict?: boolean };
 const draftRule = (rule: AnnualLeaveRule | null) => ({
-  fiscalStartMonth: String(rule?.fiscalStartMonth ?? ''), grantDays: String(rule?.grantDays ?? ''), carryLimitDays: String(rule?.carryLimitDays ?? ''),
+  basis: (rule?.basis ?? 'FISCAL') as AnnualLeaveBasis, fiscalStartMonth: String(rule?.fiscalStartMonth ?? ''),
+  carryLimitDays: String(rule?.carryLimitDays ?? ''),
 });
 const isCount = (value: number) => Number.isSafeInteger(value) && value >= 0;
 const isDays = (value: number) => Number.isFinite(value) && value >= 0 && Number.isSafeInteger(value * 2);
 const isRule = (rule: AnnualLeaveRule) => rule && Number.isSafeInteger(rule.version) && rule.version > 0
+  && (rule.basis === 'FISCAL' || rule.basis === 'HIRE_DATE')
   && Number.isInteger(rule.fiscalStartMonth) && rule.fiscalStartMonth >= 1 && rule.fiscalStartMonth <= 12
   && isDays(rule.grantDays) && isDays(rule.carryLimitDays);
 function isPreview(result: AnnualCyclePreview, year: number) {
@@ -46,7 +49,7 @@ function PreviewResults({ result, today }: { result: AnnualCyclePreview; today: 
   return <section className="annual-cycle-preview" aria-labelledby="annual-review-title">
     <h3 id="annual-review-title" tabIndex={-1}>미리보기 결과</h3>
     <p><strong>{fmtDate(result.periodStart)} ~ {fmtDate(result.periodEnd)}</strong></p>
-    <p>기준 버전 {result.rule.version} · 매년 {result.rule.fiscalStartMonth}월 1일 시작 · 부여 {result.rule.grantDays}일 · 이월 한도 {result.rule.carryLimitDays}일</p>
+    <p>기준 버전 {result.rule.version} · {result.rule.basis === 'HIRE_DATE' ? '입사일 기준' : `매년 ${result.rule.fiscalStartMonth}월 1일 시작`} · 이월 한도 {result.rule.carryLimitDays}일</p>
     <ul className="annual-review-counts">
       <li>반영 대상 {result.rows.length}명</li><li>이미 반영 {result.postedCount}명</li>
       {result.existingCount > 0 && <li>기초 등록으로 제외 {result.existingCount}명</li>}
@@ -85,8 +88,8 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
   const resultArea = useRef<HTMLDivElement>(null);
   const feedback = useRef<HTMLParagraphElement>(null);
   const locked = Boolean(busy || retry);
-  const ruleChanged = !rule || (Object.keys(draft) as (keyof typeof draft)[])
-    .some(key => draft[key] === '' || Number(draft[key]) !== rule[key]);
+  const ruleChanged = !rule || draft.basis !== rule.basis || draft.carryLimitDays === '' || Number(draft.carryLimitDays) !== rule.carryLimitDays
+    || (draft.basis === 'FISCAL' && (draft.fiscalStartMonth === '' || Number(draft.fiscalStartMonth) !== rule.fiscalStartMonth));
   const hasYear = Number.isInteger(Number(year)) && Number(year) >= 1900 && Number(year) <= 9998;
   const canPreview = Boolean(rule && !ruleChanged && hasYear && !locked);
   const expiryDays = preview?.rows.reduce((total, row) => total + row.expireDays, 0) ?? 0;
@@ -191,26 +194,27 @@ export function AnnualLeaveCycle({ model, csrf }: { model: AnnualCycleModel; csr
     {model.publicDemo && <p className="notice">공개 데모에서는 회사 연차 기준과 미리보기를 조회할 수 있습니다.</p>}
     <section className="wl-section">
       <h2 id="annual-policy-title">회사 연차 기준</h2>
-      {!rule && <p className="hint">회사의 회계연도와 연차 일수를 먼저 설정하세요.</p>}
-      <p className="hint">연간 부여 일수와 이월 한도는 사원 한 명을 기준으로 0.5일 단위로 입력합니다.</p>
+      {!rule && <p className="hint">회사의 연차 부여 기준과 이월 한도를 먼저 설정하세요.</p>}
+      <p className="hint">연차 일수는 근로기준법에 따라 사원별로 계산합니다. 1·2년차 15일, 3년 이상 근속하면 2년마다 1일을 더하고 최대 25일입니다. 이월 한도는 사원 한 명 기준 0.5일 단위로 입력합니다.</p>
       <form className="wl-form" aria-labelledby="annual-policy-title" onSubmit={event => {
         event.preventDefault();
         if (retry?.kind === 'policy') { void write(retry); return; }
         if (!ruleChanged || locked || !checkedPolicyReason.validReason || !event.currentTarget.reportValidity()) return;
-        void write({ kind: 'policy', command: { expectedVersion: rule?.version ?? 0, fiscalStartMonth: Number(draft.fiscalStartMonth),
-          grantDays: Number(draft.grantDays), carryLimitDays: Number(draft.carryLimitDays), reason: checkedPolicyReason.trimmed, commandId: crypto.randomUUID() } });
+        void write({ kind: 'policy', command: { expectedVersion: rule?.version ?? 0, basis: draft.basis,
+          fiscalStartMonth: draft.basis === 'FISCAL' ? Number(draft.fiscalStartMonth) : null, carryLimitDays: Number(draft.carryLimitDays), reason: checkedPolicyReason.trimmed, commandId: crypto.randomUUID() } });
       }}>
         <fieldset disabled={locked || model.publicDemo} className="annual-fields">
           <FormTable columns={2}>
-            <FormRow label="회계연도 시작 월" htmlFor="annual-start-month" required>
+            <FormRow label="연차 부여 기준" htmlFor="annual-basis" required>
+              <select id="annual-basis" className="t-select" required value={draft.basis} onChange={event => changeRule('basis', event.target.value)}>
+                {(Object.keys(basisNames) as AnnualLeaveBasis[]).map(basis => <option key={basis} value={basis}>{basisNames[basis]}</option>)}
+              </select>
+            </FormRow>
+            {draft.basis === 'FISCAL' && <FormRow label="회계연도 시작 월" htmlFor="annual-start-month" required>
               <select id="annual-start-month" className="t-select" required value={draft.fiscalStartMonth} onChange={event => changeRule('fiscalStartMonth', event.target.value)}>
                 <option value="">월 선택</option>{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}월 1일</option>)}
               </select>
-            </FormRow>
-            <FormRow label="연간 부여 일수" htmlFor="annual-grant-days" required>
-              <input type="number" id="annual-grant-days" className="t-input" min="0" max="100000" step="0.5" required value={draft.grantDays}
-                onChange={event => changeRule('grantDays', event.target.value)} />
-            </FormRow>
+            </FormRow>}
             <FormRow label="이월 한도 일수" htmlFor="annual-carry-days" required>
               <input type="number" id="annual-carry-days" className="t-input" min="0" max="100000" step="0.5" required value={draft.carryLimitDays}
                 onChange={event => changeRule('carryLimitDays', event.target.value)} />

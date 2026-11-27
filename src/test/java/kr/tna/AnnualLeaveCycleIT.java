@@ -66,8 +66,8 @@ class AnnualLeaveCycleIT {
         year = start.getYear();
         db = new JdbcTemplate(DatabaseFixture.start().adminDataSource());
         tenant = company();
-        admin = member(tenant, "담당", true, start.minusYears(3));
-        worker = member(tenant, "직원", false, start);
+        admin = member(tenant, "담당", true, start.minusYears(2));
+        worker = member(tenant, "직원", false, start.minusYears(2));
     }
 
     @Test void previewConsumesOnlyConfirmedFinitePreviousResidualAndPreservesEveryLedger() {
@@ -76,7 +76,7 @@ class AnnualLeaveCycleIT {
         UUID uncertain = bucket(worker, start.minusYears(1), start.minusDays(1), "5", null);
         UUID open = bucket(worker, start.minusYears(1), null, "1", year-1);
         UUID earlier = bucket(worker, start.minusYears(1), start.minusDays(2), "8", year-1);
-        var existing = member(tenant, "기존", false, start);
+        var existing = member(tenant, "기존", false, start.minusYears(2));
         var existingBucket = bucket(existing, start, start.plusYears(1).minusDays(1), "3", year);
         member(tenant, "입사예정", false, start.plusDays(1));
         var left = member(tenant, "퇴직", false, start.minusYears(1));
@@ -84,7 +84,7 @@ class AnnualLeaveCycleIT {
         var inactive = member(tenant, "비활성", false, start.minusYears(1));
         db.update("UPDATE tna.employee SET active=false WHERE tenant_id=? AND id=?", tenant, inactive.employeeId());
         member(company(), "타사", false, start.minusYears(1));
-        save("12.5", "3.5");
+        save("3.5");
         var preview = cycles.preview(admin, year);
         assertTrue(preview.canPost());
         assertEquals(start, preview.periodStart());
@@ -106,7 +106,7 @@ class AnnualLeaveCycleIT {
         status(409, () -> cycles.post(admin, post(preview)));
         assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='ANNUAL_LEAVE_POST'", Integer.class, tenant));
         var ledger = cycles.ledger(worker, year);
-        days("17", ledger.availableDays());
+        days("19.5", ledger.availableDays());
         assertEquals(5, ledger.entries().stream().filter(e -> Set.of("GRANT","CARRY_IN","CARRY_OUT","EXPIRE").contains(e.entryKind())).count());
         assertTrue(ledger.entries().stream().allMatch(e -> "직원".equals(e.employeeNo())));
         assertTrue(ledger.entries().stream().filter(e -> "EXPIRE".equals(e.entryKind())).allMatch(e -> e.entitlementYear()==year-1));
@@ -119,27 +119,49 @@ class AnnualLeaveCycleIT {
         assertEquals(8, balance(earlier));
         assertEquals(3, balance(existingBucket));
         var target = ledger.entries().stream().filter(e -> "GRANT".equals(e.entryKind())).findFirst().orElseThrow().bucketId();
-        assertEquals(16, balance(target));
-        days("16", annual.view(worker, new Filter(year,null,"",0,0),null,null).annual().registeredDays());
+        assertEquals(18.5, balance(target));
+        days("18.5", annual.view(worker, new Filter(year,null,"",0,0),null,null).annual().registeredDays());
         status(409, () -> attributions.save(admin, target, attribution(1, year-1)));
         status(409, () -> attributions.save(admin, one, attribution(1, year)));
         assertTrue(cycles.ledger(worker, year-1).entries().stream().anyMatch(e -> e.bucketId().equals(one) && e.entryKind().equals("CARRY_OUT")));
         assertTrue(cycles.ledger(existing, year).entries().stream().noneMatch(e -> e.bucketId().equals(target)));
     }
 
+    @Test void basisIsChosenOnceRecordsExistAndNewVersionsStoreTheStatutoryBaseDays() {
+        UUID first = cycles.saveRule(admin, new RuleForm(0L, "HIRE_DATE", null, new BigDecimal("3"), "입사일 기준 운영", UUID.randomUUID()));
+        var saved = cycles.savedRule(admin, first);
+        assertEquals("HIRE_DATE", saved.basis());
+        assertEquals(1, saved.fiscalStartMonth());
+        days("15", saved.grantDays());
+        cycles.saveRule(admin, new RuleForm(1L, "FISCAL", 4, new BigDecimal("3"), "회계연도 기준으로 변경", UUID.randomUUID()));
+        assertEquals("FISCAL", cycles.rule(admin).basis());
+        assertEquals(4, cycles.rule(admin).fiscalStartMonth());
+        db.update("INSERT INTO tna.annual_leave_cycle(tenant_id,id,entitlement_year,rule_version,created_by) VALUES (?,?,?,2,?)",
+                tenant, UUID.randomUUID(), year, admin.accountId());
+        var locked = assertThrows(OrgException.class, () -> cycles.saveRule(admin,
+                new RuleForm(2L, "HIRE_DATE", null, new BigDecimal("3"), "기준 변경 시도", UUID.randomUUID())));
+        assertEquals(409, locked.status());
+        assertEquals("연간 부여나 월별 연차를 기록한 회사는 연차 기준을 바꿀 수 없습니다. 이월 한도는 변경할 수 있습니다.", locked.getMessage());
+        cycles.saveRule(admin, new RuleForm(2L, "FISCAL", 4, new BigDecimal("5"), "이월 한도 조정", UUID.randomUUID()));
+        days("5", cycles.rule(admin).carryLimitDays());
+        for (String basis : java.util.Arrays.asList(null, "MONTHLY"))
+            status(422, () -> cycles.saveRule(admin, new RuleForm(3L, basis, 4, BigDecimal.ONE, "잘못된 기준", UUID.randomUUID())));
+        status(422, () -> cycles.saveRule(admin, new RuleForm(3L, "FISCAL", null, BigDecimal.ONE, "시작월 누락", UUID.randomUUID())));
+    }
+
     @Test void policyRevisionsAndYearSnapshotKeepBothAdministratorsFromAwardingThemselves() {
-        var other = member(tenant, "다른담당", true, start);
-        var form = rule(0, start.getMonthValue(), "0", "0");
+        var other = member(tenant, "다른담당", true, start.minusYears(2));
+        var form = rule(0, start.getMonthValue(), "0");
         var saved = cycles.saveRule(admin, form);
         assertEquals(saved, cycles.saveRule(admin, form));
-        status(409, () -> cycles.saveRule(admin, rule(0, 1, "9", "0")));
+        status(409, () -> cycles.saveRule(admin, rule(0, 1, "0")));
         var preview = cycles.preview(admin, year);
         assertEquals(Set.of(other.employeeId(), worker.employeeId()),
                 Set.copyOf(preview.rows().stream().map(Row::employeeId).toList()));
         status(409, () -> cycles.post(other, post(preview)));
         cycles.post(admin, post(preview));
-        status(409, () -> cycles.saveRule(admin, rule(1, start.getMonthValue()%12+1, "9", "5")));
-        cycles.saveRule(admin, rule(1, start.getMonthValue(), "8", "4"));
+        status(409, () -> cycles.saveRule(admin, rule(1, start.getMonthValue()%12+1, "5")));
+        cycles.saveRule(admin, rule(1, start.getMonthValue(), "4"));
         assertEquals(2, cycles.rule(other).version());
         var skipped = cycles.preview(other, year);
         assertEquals(1, skipped.rule().version());
@@ -147,11 +169,11 @@ class AnnualLeaveCycleIT {
         cycles.post(other, post(skipped));
         assertEquals(3, count("annual_leave_award"));
         assertFalse(cycles.preview(other, year).canPost());
-        assertEquals(0, cycles.ledger(admin, year).availableDays().signum());
+        days("15", cycles.ledger(admin, year).availableDays());
         assertEquals(1, cycles.ledger(worker, year).entries().size());
         status(403, () -> cycles.preview(worker, year));
         status(403, () -> cycles.rule(worker));
-        status(403, () -> cycles.saveRule(worker, rule(2, 2, "0", "0")));
+        status(403, () -> cycles.saveRule(worker, rule(2, 2, "0")));
         status(403, () -> cycles.post(worker, post(skipped)));
         db.update("UPDATE tna.role_grant SET active=false WHERE tenant_id=? AND account_id=? AND role='ATTENDANCE_ADMIN'",tenant,admin.accountId());
         status(403, () -> cycles.post(admin, post(preview)));
@@ -159,7 +181,7 @@ class AnnualLeaveCycleIT {
 
     @Test void retroactiveGrantsSkipOnlyEmployeesWhoseLaterYearWasAlreadyApplied() {
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?", start.minusYears(2),tenant,worker.employeeId());
-        save("2","1");
+        save("1");
         cycles.post(admin,post(cycles.preview(admin,year)));
         var lateHireRecord=member(tenant,"이력확인",false,start.minusYears(2));
         var prior=cycles.preview(admin,year-1);
@@ -172,13 +194,13 @@ class AnnualLeaveCycleIT {
     }
 
     @Test void retryReturnsTheOriginallySavedRuleEvenAfterAnotherAdministratorRevisesIt() {
-        var other=member(tenant,"둘째담당",true,start);
-        var first=rule(0,1,"12","2.5");
+        var other=member(tenant,"둘째담당",true,start.minusYears(2));
+        var first=rule(0,1,"2.5");
         UUID saved=cycles.saveRule(admin,first);
         var receipt=cycles.savedRule(admin,saved);
         assertEquals(1,receipt.version());
-        days("12",receipt.grantDays());
-        cycles.saveRule(other,rule(1,1,"15","1"));
+        days("15",receipt.grantDays());
+        cycles.saveRule(other,rule(1,1,"1"));
         assertEquals(2,cycles.rule(admin).version());
         assertEquals(receipt,cycles.savedRule(admin,cycles.saveRule(admin,first)));
         assertEquals(2,count("annual_leave_rule"));
@@ -188,17 +210,17 @@ class AnnualLeaveCycleIT {
     }
 
     @Test void staleSourceEvenAtSameBalanceRuleOrAudienceInvalidatesThePreview() {
-        save("2","1");
+        save("1");
         UUID source = bucket(worker, start.minusYears(1), start.minusDays(1), "3", year-1);
         var before = cycles.preview(admin, year);
         adjust(source, "0.5");
         adjust(source, "-0.5");
         status(409, () -> cycles.post(admin, post(before)));
         var revised = cycles.preview(admin, year);
-        cycles.saveRule(admin, rule(1, start.getMonthValue(), "2.5", "1"));
+        cycles.saveRule(admin, rule(1, start.getMonthValue(), "2"));
         status(409, () -> cycles.post(admin, post(revised)));
         var policy = cycles.preview(admin, year);
-        member(tenant, "추가", false, start);
+        member(tenant, "추가", false, start.minusYears(2));
         status(409, () -> cycles.post(admin, post(policy)));
         assertEquals(0, count("annual_leave_award"));
         var latest = cycles.preview(admin, year);
@@ -206,11 +228,11 @@ class AnnualLeaveCycleIT {
         adjust(source, "0.5");
         days("0.5", db.queryForObject("SELECT sum(signed_quantity_days) FROM tna.leave_ledger WHERE tenant_id=? AND bucket_id=?", BigDecimal.class, tenant, source));
         assertFalse(cycles.preview(admin, year).canPost());
-        days("3.5", cycles.ledger(worker, year).availableDays());
+        days("17", cycles.ledger(worker, year).availableDays());
     }
 
     @Test void duplicateConcurrentPostsWriteOneSetOfEntriesAndOneAudit() throws Exception {
-        save("5", "2.5");
+        save("2.5");
         var preview = cycles.preview(admin, year);
         var startBoth = new CountDownLatch(1);
         Callable<Integer> attempt = () -> {
@@ -232,12 +254,10 @@ class AnnualLeaveCycleIT {
         assertNull(cycles.rule(admin));
         assertNull(cycles.preview(admin, year).rule());
         assertFalse(cycles.preview(admin, year).canPost());
-        for (String quantity : List.of("-0.5","0.25","100000.5")) {
-            status(422, () -> cycles.saveRule(admin, rule(0,1,quantity,"0")));
-            status(422, () -> cycles.saveRule(admin, rule(0,1,"0",quantity)));
-        }
-        status(422, () -> cycles.saveRule(admin, rule(0,13,"1","0")));
-        save("100000.0", "0");
+        for (String quantity : List.of("-0.5","0.25","100000.5"))
+            status(422, () -> cycles.saveRule(admin, rule(0,1,quantity)));
+        status(422, () -> cycles.saveRule(admin, rule(0,13,"0")));
+        save("0");
         var future = cycles.preview(admin, year+1);
         assertFalse(future.canPost());
         status(422, () -> cycles.post(admin, post(future)));
@@ -245,13 +265,13 @@ class AnnualLeaveCycleIT {
         status(422, () -> cycles.ledger(worker, 9999));
         assertEquals(year,cycles.ledger(worker,null).year());
         if (today.getMonthValue()<12) {
-            cycles.saveRule(admin, rule(1,today.getMonthValue()+1,"0","0"));
+            cycles.saveRule(admin, rule(1,today.getMonthValue()+1,"0"));
             assertEquals(year-1,cycles.ledger(worker,null).year());
         }
     }
 
     @Test void aLedgerFailureRollsBackTheYearAwardsAttributionsAndAuditAsAUnit() {
-        save("3","1");
+        save("1");
         bucket(worker, start.minusYears(1), start.minusDays(1), "2", year-1);
         var preview = cycles.preview(admin, year);
         var id = "cycle_test_" + tenant.toString().replace("-","");
@@ -268,7 +288,7 @@ class AnnualLeaveCycleIT {
     }
 
     @Test void negativeImportedSourceRequiresReviewAndCreatesNoNewAwards() {
-        save("1","1");
+        save("1");
         UUID source=bucket(worker,start.minusYears(1),start.minusDays(1),"0.5",year-1);
         db.update("""
                 INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,effective_on,
@@ -280,7 +300,7 @@ class AnnualLeaveCycleIT {
     }
 
     @Test void annualTablesForceTenantIsolationAndOnlyAcceptNewRows() {
-        save("0","0");
+        save("0");
         cycles.post(admin,post(cycles.preview(admin,year)));
         var app = new JdbcTemplate(appSource);
         for (String table : List.of("annual_leave_rule","annual_leave_cycle","annual_leave_award")) {
@@ -300,7 +320,7 @@ class AnnualLeaveCycleIT {
 
     @Test void movementReferencesAndHalfDaySignsAreEnforcedByPostgres() {
         UUID previous=bucket(worker,start.minusYears(1),start.minusDays(1),"0.5",year-1);
-        save("0","0");
+        save("0");
         cycles.post(admin,post(cycles.preview(admin,year)));
         UUID award=db.queryForObject("SELECT bucket_id FROM tna.annual_leave_award WHERE tenant_id=? AND employee_id=?",UUID.class,tenant,worker.employeeId());
         invalidMovement(previous,award,"CARRY_IN","1");
@@ -352,9 +372,9 @@ class AnnualLeaveCycleIT {
     private static Form attribution(long revision,int year) { return new Form(revision,"CONFIRMED",year,true,"확정 기초 자료","합성 확인",UUID.randomUUID()); }
     private static void status(int expected,Runnable action) { assertEquals(expected,assertThrows(OrgException.class,action::run).status()); }
     private static void days(String expected,BigDecimal actual) { assertEquals(0,new BigDecimal(expected).compareTo(actual),()->expected+" != "+actual); }
-    private static RuleForm rule(long version,int month,String grant,String cap) {
-        return new RuleForm(version,month,new BigDecimal(grant),new BigDecimal(cap),"합성 회사 기준",UUID.randomUUID());
+    private static RuleForm rule(long version,int month,String cap) {
+        return new RuleForm(version,"FISCAL",month,new BigDecimal(cap),"합성 회사 기준",UUID.randomUUID());
     }
-    private void save(String grant,String cap) { cycles.saveRule(admin,rule(0,start.getMonthValue(),grant,cap)); }
+    private void save(String cap) { cycles.saveRule(admin,rule(0,start.getMonthValue(),cap)); }
     private static PostForm post(Preview preview) { return new PostForm(preview.year(),preview.token(),"합성 기장 확인",UUID.randomUUID()); }
 }

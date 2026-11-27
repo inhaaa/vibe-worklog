@@ -1,7 +1,11 @@
 import type { AttendanceDecision, ExitReceipt } from './employmentLeaveTypes';
 
+export type AnnualLeaveBasis = 'FISCAL' | 'HIRE_DATE';
+export const basisNames: Record<AnnualLeaveBasis, string> = { FISCAL: '회계연도 기준', HIRE_DATE: '입사일 기준' };
+
 export interface AnnualLeaveRule {
   version: number;
+  basis: AnnualLeaveBasis;
   fiscalStartMonth: number;
   grantDays: number;
   carryLimitDays: number;
@@ -41,8 +45,8 @@ export interface AnnualCyclePreview {
 
 export interface PolicyCommand {
   expectedVersion: number;
-  fiscalStartMonth: number;
-  grantDays: number;
+  basis: AnnualLeaveBasis;
+  fiscalStartMonth: number | null;
   carryLimitDays: number;
   reason: string;
   commandId: string;

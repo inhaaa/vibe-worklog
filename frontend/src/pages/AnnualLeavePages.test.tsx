@@ -6,7 +6,7 @@ import type { AnnualCycleModel, AnnualCyclePreview, PersonalLedger } from './ann
 
 const csrf = { headerName: 'X-TEST-CSRF', parameterName: '_csrf', token: 'synthetic-token' };
 const base = '/admin/leave-balances/annual-cycle';
-const policy = { version: 1, fiscalStartMonth: 1, grantDays: 12, carryLimitDays: 3 };
+const policy = { version: 1, basis: 'FISCAL' as const, fiscalStartMonth: 1, grantDays: 15, carryLimitDays: 3 };
 const model: AnnualCycleModel = { policy, year: 2026, yearSelected: false, today: '2026-01-05', publicDemo: false };
 const preview: AnnualCyclePreview = { year: 2026, periodStart: '2026-01-01', periodEnd: '2026-12-31',
   rule: policy, postedCount: 1, existingCount: 2, laterCount: 1, pendingCount: 1, token: 'checked-state', canPost: true, rows: [
@@ -39,13 +39,11 @@ it('미설정 기준에 일수를 채워 넣지 않고 입력한 회사 기준�
   const send = fetches().mockResolvedValueOnce(json(policy));
   show({ policy: null });
   expect(screen.getByRole('link', { name: '입사·퇴사 연차 정산' }).getAttribute('href')).toBe('/admin/leave-balances/employment');
-  expect(field('연간 부여 일수').value).toBe('');
+  expect(screen.queryByLabelText('연간 부여 일수')).toBeNull();
+  expect(field('연차 부여 기준').value).toBe('FISCAL');
   expect(field('이월 한도 일수').value).toBe('');
   expect(button('미리보기').disabled).toBe(true);
   edit('회계연도 시작 월', '1');
-  edit('연간 부여 일수', '12.25');
-  expect(field('연간 부여 일수').validity.stepMismatch).toBe(true);
-  edit('연간 부여 일수', '12');
   edit('이월 한도 일수', '3');
   edit('기준 설정 사유', '사내 휴가 규정 개정');
   fireEvent.click(button('기준 저장'));
@@ -55,7 +53,7 @@ it('미설정 기준에 일수를 채워 넣지 않고 입력한 회사 기준�
   expect(path).toBe(base + '/policy');
   expect(options).toMatchObject({ method: 'POST', credentials: 'same-origin' });
   expect(new Headers(options?.headers).get(csrf.headerName)).toBe(csrf.token);
-  expect(JSON.parse(String(options?.body))).toEqual({ fiscalStartMonth: 1, grantDays: 12, carryLimitDays: 3,
+  expect(JSON.parse(String(options?.body))).toEqual({ basis: 'FISCAL', fiscalStartMonth: 1, carryLimitDays: 3,
     expectedVersion: 0, reason: '사내 휴가 규정 개정', commandId: expect.any(String) });
 });
 
@@ -67,7 +65,7 @@ it.each([
   fetches().mockResolvedValueOnce(json({ ...policy, version: oldMonth ? 2 : 1, fiscalStartMonth: nextMonth }));
   show({ policy: oldMonth ? { ...policy, fiscalStartMonth: oldMonth } : null, year: oldYear, yearSelected: false, today: '2026-11-21' });
   edit('회계연도 시작 월', String(nextMonth));
-  if (!oldMonth) { edit('연간 부여 일수', '12'); edit('이월 한도 일수', '3'); }
+  if (!oldMonth) { edit('이월 한도 일수', '3'); }
   edit('기준 설정 사유', '회계 시작월 확정');
   fireEvent.click(button('기준 저장'));
   await screen.findByText('회사 연차 기준을 저장했습니다.');
@@ -167,7 +165,7 @@ it('부여·기준 사유는 서버와 같은 유니코드 문자 단위로 500�
   edit('처리 사유', longReason + '달');
   expect(button('원장에 반영').disabled).toBe(true);
   expect(field('처리 사유').getAttribute('aria-invalid')).toBe('true');
-  edit('연간 부여 일수', '12.5');
+  edit('이월 한도 일수', '3.5');
   edit('기준 설정 사유', longReason);
   expect(button('기준 저장').disabled).toBe(false);
   edit('기준 설정 사유', longReason + '달');
@@ -210,12 +208,12 @@ it('미래 시작분은 기간과 수량만 보여주고 공개 데모에서는 
 
 it('처리한 연도를 다시 조회하면 현재 회사 기준과 별도로 그 연도에 고정한 기준을 보여준다', async () => {
   fetches().mockResolvedValueOnce(json(emptyPreview));
-  show({ policy: { ...policy, version: 2, grantDays: 14 } });
+  show({ policy: { ...policy, version: 2, carryLimitDays: 4 } });
   fireEvent.click(button('미리보기'));
   await screen.findByText('이미 반영 3명');
-  expect(field('연간 부여 일수').value).toBe('14');
+  expect(field('이월 한도 일수').value).toBe('4');
   const result = screen.getByRole('region', { name: '미리보기 결과' });
-  expect(result.textContent).toContain('부여 12일');
+  expect(result.textContent).toContain('매년 1월 1일 시작');
   expect(result.textContent).toContain('이월 한도 3일');
   expect(within(result).getByText('전기 휴가 결재 대기 1명')).toBeTruthy();
   expect(within(result).getByRole('link', { name: '휴가 신청 현황' }).getAttribute('href')).toBe('/admin/requests?scope=LEAVE');
@@ -292,4 +290,16 @@ it('직원의 오늘 사용 가능 잔여와 연도별 원장에 종류, 부호,
   expect(within(rows[3]).getByText('2025년')).toBeTruthy();
   expect(within(rows[7]).getByText('2026-02-02')).toBeTruthy();
   expect(within(rows[7]).getByText('합성 사유 7')).toBeTruthy();
+});
+
+it('입사일 기준을 고르면 회계 시작월 없이 저장하고 기준 변경 금지 안내를 보여준다', async () => {
+  const send = fetches().mockResolvedValueOnce(json({ message: '연간 부여나 월별 연차를 기록한 회사는 연차 기준을 바꿀 수 없습니다. 이월 한도는 변경할 수 있습니다.' }, 409));
+  show();
+  edit('연차 부여 기준', 'HIRE_DATE');
+  expect(screen.queryByLabelText('회계연도 시작 월')).toBeNull();
+  edit('기준 설정 사유', '입사일 기준 전환');
+  fireEvent.click(button('기준 저장'));
+  expect((await screen.findByRole('alert')).textContent).toContain('연차 기준을 바꿀 수 없습니다');
+  expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toMatchObject({ basis: 'HIRE_DATE', fiscalStartMonth: null, carryLimitDays: 3, expectedVersion: 1 });
+  expect(field('연차 부여 기준').value).toBe('HIRE_DATE');
 });

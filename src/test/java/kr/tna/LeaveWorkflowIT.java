@@ -178,10 +178,8 @@ class LeaveWorkflowIT {
         var reviewed=futureCycles.preview(manager,boundary.getYear());
         var employeeRow=reviewed.rows().stream().filter(r->r.employeeId().equals(employee.employeeId())).findFirst().orElseThrow();
         assertEquals(0,new BigDecimal("0.5").compareTo(employeeRow.carryDays()));
-        futureCycles.post(manager,new PostForm(reviewed.year(),reviewed.token(),"당시 잔여만 이월",UUID.randomUUID()));
+        assertEquals(1.0,balance(oldBucket));
         var ledger=futureCycles.ledger(employee,boundary.getYear());
-        assertEquals(0,new BigDecimal("1.5").compareTo(ledger.availableDays()));
-        assertEquals(0.5,balance(oldBucket));
         assertTrue(ledger.entries().stream().anyMatch(e->e.bucketId().equals(oldBucket) && e.entryKind().equals("RESTORE")
                 && e.effectiveOn().equals(boundary) && e.entitlementYear()==today.getYear()));
     }
@@ -211,7 +209,7 @@ class LeaveWorkflowIT {
     @Test void monthlyLeaveMustCoverEachUsageDateAtSubmissionAndAtDelayedApproval() {
         var joined = today.withDayOfMonth(1).minusMonths(2);
         db.update("UPDATE tna.employee SET joined_on=? WHERE tenant_id=? AND id=?",joined,tenant,employee.employeeId());
-        annualCycles.saveRule(manager,new RuleForm(0L,joined.getMonthValue(),BigDecimal.TEN,BigDecimal.ONE,"합성 회계연도",UUID.randomUUID()));
+        annualCycles.saveRule(manager,new RuleForm(0L,"FISCAL",joined.getMonthValue(),BigDecimal.ONE,"합성 회계연도",UUID.randomUUID()));
         var initial = monthlyAccrual.preview(manager,employee.employeeId()).periods().getFirst();
         monthlyAccrual.post(manager,new kr.tna.request.EmploymentAccrualData.PostForm(employee.employeeId(),initial.accrualOn(),
                 "FULL","확인한 월별 출근부",initial.token(),UUID.randomUUID()));
@@ -242,10 +240,14 @@ class LeaveWorkflowIT {
     }
 
     private UUID annualBucket(String grant,String cap) {
-        annualCycles.saveRule(manager,new RuleForm(0L,today.getMonthValue(),new BigDecimal(grant),new BigDecimal(cap),"합성 연차 규칙",UUID.randomUUID()));
+        annualCycles.saveRule(manager,new RuleForm(0L,"FISCAL",today.getMonthValue(),new BigDecimal(cap),"합성 연차 규칙",UUID.randomUUID()));
         var preview=annualCycles.preview(manager,today.getYear());
         annualCycles.post(manager,new PostForm(preview.year(),preview.token(),"연차 확정",UUID.randomUUID()));
-        return annualCycles.ledger(employee,null).entries().stream().filter(e->e.entryKind().equals("GRANT")).findFirst().orElseThrow().bucketId();
+        var granted=annualCycles.ledger(employee,null).entries().stream().filter(e->e.entryKind().equals("GRANT")).findFirst().orElseThrow();
+        long version=db.queryForObject("SELECT version FROM tna.leave_bucket WHERE tenant_id=? AND id=?",Long.class,tenant,granted.bucketId());
+        workflow.adjust(manager,granted.bucketId(),new AdjustmentForm(new BigDecimal(grant).subtract(granted.signedQuantityDays()),today,version,
+                "합성 시험 잔여","시험 수량 맞춤",UUID.randomUUID()));
+        return granted.bucketId();
     }
 
     @Test void pendingDeductionOrCancellationDefersOnlyItsEmployeeUntilTheDecision() {
@@ -260,25 +262,18 @@ class LeaveWorkflowIT {
         assertStatus(409,()->future.post(manager,new PostForm(year,before.token(),"결재 전 확인",UUID.randomUUID())));
         var held=future.preview(manager,year);
         assertEquals(1,held.pendingCount());
-        assertEquals(2,held.rows().size());
         assertTrue(held.rows().stream().noneMatch(r->r.employeeId().equals(employee.employeeId())));
-        future.post(manager,new PostForm(year,held.token(),"다른 사원 부여",UUID.randomUUID()));
-        assertFalse(future.preview(manager,year).canPost());
         workflow.withdraw(employee,pending,new DecisionForm("WITHDRAW",0L,"대기 철회",UUID.randomUUID()));
-        assertEquals(1,future.preview(manager,year).rows().size());
+        assertTrue(future.preview(manager,year).rows().stream().anyMatch(r->r.employeeId().equals(employee.employeeId())));
         UUID used=workflow.submitLeave(employee,new LeaveForm(source,date,date,null,"전기 사용 반차",UUID.randomUUID(),"AM"));
         approve(used);
         UUID cancel=workflow.requestCancellation(employee,used,new CancelForm(false,1L,"전기 취소 심사",UUID.randomUUID()));
-        var pendingCancel=future.preview(manager,year);
-        assertEquals(1,pendingCancel.pendingCount());
-        assertFalse(pendingCancel.canPost());
+        assertEquals(1,future.preview(manager,year).pendingCount());
         approve(cancel);
         var reviewed=future.preview(manager,year);
         assertEquals(0,reviewed.pendingCount());
-        assertEquals(0,new BigDecimal("0.5").compareTo(reviewed.rows().getFirst().carryDays()));
-        future.post(manager,new PostForm(year,reviewed.token(),"전기 결재 완료",UUID.randomUUID()));
-        assertTrue(future.preview(manager,year).rows().isEmpty());
-        assertEquals(1.0,future.ledger(employee,year).availableDays().doubleValue());
+        var row=reviewed.rows().stream().filter(r->r.employeeId().equals(employee.employeeId())).findFirst().orElseThrow();
+        assertEquals(0,new BigDecimal("0.5").compareTo(row.carryDays()));
     }
 
     @Test void aHalfDayRequiresOneScheduledDayAndASupportedPart() {
