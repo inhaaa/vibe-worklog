@@ -147,7 +147,7 @@ public final class WorktimeService {
     }
 
     public record LeaveAttendanceDay(LocalDate date, boolean scheduled, boolean attended, boolean leave,
-            boolean unresolved, String source, UUID resultId, long resultRevision) { }
+            boolean unresolved, double absenceDays, String source, UUID resultId, long resultRevision) { }
 
     /** A completed service month uses the same effective schedule, approved leave and result freshness as company results. */
     public List<LeaveAttendanceDay> leaveAttendanceDays(TnaPrincipal actor, UUID employeeId, LocalDate from, LocalDate through) {
@@ -594,7 +594,7 @@ public final class WorktimeService {
                         && day.result().actualWorkMillis() != null && day.result().actualWorkMillis() > 0;
                 boolean unresolved = !known || scheduled && (!pending.isEmpty() || !attended && day.approvedLeaveDays() < 1);
                 attendance.add(new LeaveAttendanceDay(date, scheduled, attended, scheduled && day.approvedLeaveDays() > 0,
-                        unresolved, source, day.id(), day.resultRevision()));
+                        unresolved, 0, source, day.id(), day.resultRevision()));
             }
             if (row.mondayWeekReviewed()) reviewedWeekDates.add(date);
         }
