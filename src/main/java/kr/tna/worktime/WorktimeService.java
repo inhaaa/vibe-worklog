@@ -149,13 +149,17 @@ public final class WorktimeService {
     public record LeaveAttendanceDay(LocalDate date, boolean scheduled, boolean attended, boolean leave,
             boolean unresolved, double absenceDays, String source, UUID resultId, long resultRevision) { }
 
-    /** A completed service month uses the same effective schedule, approved leave and result freshness as company results. */
+    /** 월 연차·연간 출근율 판정: 회사 결과와 같은 배정 근무조·승인 휴가·결과 최신성을 쓴다. monthDays가 42일 상한이라 31일씩 읽는다. */
     public List<LeaveAttendanceDay> leaveAttendanceDays(TnaPrincipal actor, UUID employeeId, LocalDate from, LocalDate through) {
-        if (from == null || through == null || through.isBefore(from) || ChronoUnit.DAYS.between(from, through) > 33)
-            throw OrgException.invalid("월별 발생의 산정 기간을 확인해 주세요.");
+        if (from == null || through == null || through.isBefore(from) || ChronoUnit.DAYS.between(from, through) > 366)
+            throw OrgException.invalid("연차 산정 기간을 확인해 주세요.");
         return administration.readShared(actor, () -> {
+            var person = employee(actor.tenantId(), employeeId);
             var attendance = new ArrayList<LeaveAttendanceDay>();
-            readMonthDays(actor.tenantId(), employee(actor.tenantId(), employeeId), from, through, attendance);
+            for (LocalDate start = from; !start.isAfter(through); start = start.plusDays(31)) {
+                LocalDate end = start.plusDays(30).isAfter(through) ? through : start.plusDays(30);
+                readMonthDays(actor.tenantId(), person, start, end, attendance);
+            }
             return List.copyOf(attendance);
         });
     }
@@ -592,9 +596,13 @@ public final class WorktimeService {
                 boolean scheduled = known && snapshot.schedule().workday() && "WORKDAY".equals(snapshot.dayKind());
                 boolean attended = scheduled && day.current() && pending.isEmpty()
                         && day.result().actualWorkMillis() != null && day.result().actualWorkMillis() > 0;
-                boolean unresolved = !known || scheduled && (!pending.isEmpty() || !attended && day.approvedLeaveDays() < 1);
+                // 판정 불가는 최신 결과가 없거나 최신이 아닌 소정근로일이다. 결근으로 확정된 날은 판정한 날이다(설계 2026-11-27 §4).
+                boolean resolved = day.current() && day.result().actualWorkMillis() != null;
+                boolean unresolved = !known || scheduled && (!pending.isEmpty() || day.approvedLeaveDays() < 1 && !resolved);
+                String absence = scheduled && day.current() ? day.result().attendance().absence() : null;
+                double absenceDays = "FULL".equals(absence) ? 1 : "HALF".equals(absence) ? 0.5 : 0;
                 attendance.add(new LeaveAttendanceDay(date, scheduled, attended, scheduled && day.approvedLeaveDays() > 0,
-                        unresolved, 0, source, day.id(), day.resultRevision()));
+                        unresolved, absenceDays, source, day.id(), day.resultRevision()));
             }
             if (row.mondayWeekReviewed()) reviewedWeekDates.add(date);
         }

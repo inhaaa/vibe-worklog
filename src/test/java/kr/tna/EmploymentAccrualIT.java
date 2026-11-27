@@ -340,6 +340,23 @@ class EmploymentAccrualIT {
     private PostForm form(Period p,String decision) {
         return new PostForm(worker.employeeId(),p.accrualOn(),decision,"외부 출근부 확인",p.token(),UUID.randomUUID());
     }
+    @Test void attendanceEvidenceCountsAbsenceAndUnconfirmedWorkdaysOverMoreThanAMonth() {
+        LocalDate from = LocalDate.of(2026,1,5), through = today.minusDays(1);
+        LocalDate first = LocalDate.of(2026,2,2), absent = LocalDate.of(2026,5,4), open = LocalDate.of(2026,9,7);
+        var person = member("W09", false, from);
+        AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, from, through, first, absent, open)
+                .employee(person.employeeId(), Set.of(absent), List.of(first, absent));
+        var days = worktime.leaveAttendanceDays(admin, person.employeeId(), from, through);
+        var evidence = StatutoryLeave.Evidence.of(days);
+        assertEquals(3, evidence.scheduledDays());
+        assertEquals(0, new BigDecimal("1").compareTo(evidence.absenceDays()));
+        assertEquals(1, evidence.unresolvedDays());
+        var absence = days.stream().filter(day -> day.date().equals(absent)).findFirst().orElseThrow();
+        assertFalse(absence.unresolved(), "결근으로 확정된 날은 판정 불가가 아닙니다.");
+        assertTrue(days.stream().filter(day -> day.date().equals(open)).findFirst().orElseThrow().unresolved());
+        assertEquals(422, failure(() -> worktime.leaveAttendanceDays(admin, person.employeeId(), from.minusDays(60), through)));
+    }
+
     private int failure(Runnable command) { return assertThrows(OrgException.class,command::run).status(); }
     private TnaPrincipal member(String no, boolean manager,LocalDate hired) {
         return member(tenant,no,manager,hired);
