@@ -146,8 +146,13 @@ public final class EmploymentAccrualService {
             for (var window : basis.windows()) {
                 if (basis.reviews().containsKey(window.monthNumber())) continue;
                 var period = period(actor,basis,window);
-                String decision = StatutoryLeave.monthly(new StatutoryLeave.Evidence(period.scheduledDays(),period.absenceDays(),period.unresolvedDays()));
-                String finding = StatutoryLeave.NEEDS_REVIEW.equals(decision) ? "판정 불가 %d일".formatted(period.unresolvedDays())
+                // 기초 원장에 이미 포함됐을 수 있는 월은 사원별 화면에서 '기초에 포함' 여부를 정한다(설계 §5).
+                boolean opening = basis.sources().stream().anyMatch(source -> source.covers(window.accrualOn(),basis.rule())
+                        && source.creditedDays().subtract(source.linkedDays()).compareTo(BigDecimal.ONE) >= 0);
+                String decision = opening ? StatutoryLeave.NEEDS_REVIEW
+                        : StatutoryLeave.monthly(new StatutoryLeave.Evidence(period.scheduledDays(),period.absenceDays(),period.unresolvedDays()));
+                String finding = opening ? "기초 잔여 확인 필요"
+                        : StatutoryLeave.NEEDS_REVIEW.equals(decision) ? "판정 불가 %d일".formatted(period.unresolvedDays())
                         : "자동 판정: 소정 %d일, 결근 %s일".formatted(period.scheduledDays(),period.absenceDays().stripTrailingZeros().toPlainString());
                 rows.add(new BulkRow(person.id(),person.employeeNo(),person.displayName(),person.joinedOn(),period,decision,finding));
                 signature.add(fingerprint(person.id(),window.accrualOn(),period.token(),decision));

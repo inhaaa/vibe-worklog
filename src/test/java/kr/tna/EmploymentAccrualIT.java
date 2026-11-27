@@ -393,6 +393,25 @@ class EmploymentAccrualIT {
         assertEquals("FULL", accrual.preview(admin, worker.employeeId()).periods().getFirst().decision());
     }
 
+    @Test void bulkMonthlyLeavesMonthsCoveredByAnOpeningBalanceToThePerEmployeeScreen() {
+        LocalDate first = LocalDate.of(2026,8,3), second = LocalDate.of(2026,9,7), third = LocalDate.of(2026,10,5);
+        var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, joined, today.minusDays(1), first, second, third);
+        var colleague = member("W02", false, joined);
+        seed.attend(worker.employeeId());
+        seed.attend(colleague.employeeId());
+        UUID opening = opening(worker, "이관 기초 1일");
+        var preview = accrual.bulkPreview(admin);
+        assertEquals(List.of("NEEDS_REVIEW","NEEDS_REVIEW","NEEDS_REVIEW","FULL","FULL","FULL"), preview.rows().stream().map(BulkRow::decision).toList());
+        assertTrue(preview.rows().subList(0,3).stream().allMatch(row -> row.finding().equals("기초 잔여 확인 필요")));
+        accrual.postBulk(admin, new BulkForm(preview.token(), "출근부 자동 판정 확인", UUID.randomUUID()));
+        assertEquals(List.of(colleague.employeeId()), db.queryForList("SELECT DISTINCT employee_id FROM tna.leave_monthly_review WHERE tenant_id=?", UUID.class, tenant));
+        var personal = accrual.preview(admin, worker.employeeId()).periods().getFirst();
+        accrual.post(admin, included(personal, opening));
+        assertEquals("INCLUDED", accrual.preview(admin, worker.employeeId()).periods().getFirst().decision());
+        // 기초 1일을 연결해 남은 원부여가 없으므로 나머지 두 달은 자동 판정된다.
+        assertEquals(List.of("FULL","FULL"), accrual.bulkPreview(admin).rows().stream().map(BulkRow::decision).toList());
+    }
+
     @Test void bulkMonthlyPostRejectsChangedAttendanceAndOtherRoles() {
         LocalDate first = LocalDate.of(2026,8,3), second = LocalDate.of(2026,9,7), third = LocalDate.of(2026,10,5);
         var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, joined, today.minusDays(1), first, second, third);

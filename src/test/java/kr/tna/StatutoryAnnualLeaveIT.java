@@ -276,9 +276,22 @@ class StatutoryAnnualLeaveIT {
         status(409, () -> cycles.post(admin, post(february, people.i().employeeId())));   // 부여 대상은 담당자 확인으로 고를 수 없다
         cycles.post(admin, post(february));
         assertEquals(3, count("annual_leave_award"));
-        var april = cycles.previewMonth(admin, YearMonth.of(2026, 4));
-        assertTrue(april.rows().isEmpty());
-        assertFalse(april.canPost());
+        var future = assertThrows(OrgException.class, () -> cycles.previewMonth(admin, YearMonth.of(2026, 4)));
+        assertEquals(422, future.status());
+        assertEquals("이번 달까지만 미리 볼 수 있습니다.", future.getMessage());
+        status(422, () -> cycles.post(admin, new PostForm(null, "2026-04", march.token(), "다음 달 반영 시도", UUID.randomUUID(), null)));
+        assertEquals(3, count("annual_leave_award"));
+    }
+
+    @Test void hireDateMonthIncludesAnEmployeeWhoLeftAfterTheAnniversaryButNotBefore() {
+        hire();
+        var stayed = member(tenant, "L01", false, LocalDate.of(2025, 2, 12));
+        var gone = member(tenant, "L02", false, LocalDate.of(2025, 2, 14));
+        db.update("UPDATE tna.employee SET left_on=?,active=false WHERE tenant_id=? AND id=?", LocalDate.of(2026, 2, 20), tenant, stayed.employeeId());
+        db.update("UPDATE tna.employee SET left_on=?,active=false WHERE tenant_id=? AND id=?", LocalDate.of(2026, 2, 13), tenant, gone.employeeId());
+        var february = cycles.previewMonth(admin, YearMonth.of(2026, 2));
+        assertEquals(List.of("I01", "L01"), february.rows().stream().map(Row::employeeNo).toList());
+        assertEquals(LocalDate.of(2026, 2, 12), february.rows().get(1).grantOn());
     }
 
     @Test void hireDateLedgerUsesTheAnniversaryYearAndTheWrongPeriodKindIsRejected() {

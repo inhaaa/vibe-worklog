@@ -84,7 +84,7 @@ public interface AnnualLeaveCycleMapper {
             LEFT JOIN tna.annual_leave_award w ON w.tenant_id=e.tenant_id AND w.employee_id=e.id AND w.entitlement_year=#{year}
             LEFT JOIN confirmed ON confirmed.employee_id=e.id
             LEFT JOIN later ON later.employee_id=e.id
-            WHERE e.tenant_id=#{tenantId} AND e.id<>#{self} AND e.active AND e.joined_on<#{start}
+            WHERE e.tenant_id=#{tenantId} AND e.id<>#{self} AND (e.active OR e.left_on IS NOT NULL) AND e.joined_on<#{start}
                 AND (e.left_on IS NULL OR e.left_on>=#{start})
                 AND NOT EXISTS (SELECT 1 FROM tna.leave_exit_settlement x WHERE x.tenant_id=e.tenant_id AND x.employee_id=e.id)
             ORDER BY e.employee_no,e.id

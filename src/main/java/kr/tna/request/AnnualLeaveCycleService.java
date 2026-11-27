@@ -208,6 +208,8 @@ public final class AnnualLeaveCycleService {
     /** month가 없으면 회계연도 기준 연간 부여, 있으면 입사일 기준 그 달의 기념일 부여다. 회사 기준과 다르면 거절한다. */
     private Plan plan(TnaPrincipal actor, int year, YearMonth month) {
         UUID tenant = actor.tenantId();
+        if (month != null && month.isAfter(YearMonth.from(administration.today())))
+            throw OrgException.invalid("이번 달까지만 미리 볼 수 있습니다.");
         // 입사일 기준은 부여마다 현재 규칙(이월 한도)을 쓴다. 회계연도 기준은 그 연도에 고정한 규칙을 쓴다.
         var applied = month == null ? mapper.appliedRule(tenant, year) : null;
         var rule = applied == null ? mapper.currentRule(tenant) : applied;
