@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 회사가 '회계연도 기준'과 '입사일 기준' 중에서 연차 부여 기준을 고른다. 근속년차별 법정 일수(첫해 비례, 3년 이상 2년마다 1일 가산, 최대 25일)를 사원별로 계산한다. 출근율 80%와 월 개근은 일일 근태의 결근 판정으로 자동 판정한다. 담당자는 미리보기를 확인한 뒤 연간 부여와 월 연차를 일괄 반영한다.
+**Goal:** 회사가 '회계연도 기준'과 '입사일 기준' 중에서 연차 부여 기준을 고른다. 근속년차별 법정 일수(첫해 비례, 3년 이상 2년마다 1일 가산, 최대 25일)를 사원별로 계산한다. 출근율 80%와 월 개근은 일일 근태의 결근 판정으로 자동 판정한다. 담당자는 미리보기를 확인한 뒤 연간 부여와 월 연차를 일괄 반영한다. 연간 부여의 '확인 필요' 행은 담당자가 골라 법정 일수로 함께 반영할 수 있다.
 
 **Architecture:** 일수·기념일·출근율 판정은 저장소에 접근하지 않는 `kr.tna.request.StatutoryLeave`에 모은다. 출근율 근거는 B 묶음이 쓰는 `WorktimeService.leaveAttendanceDays`(근무조·달력·최신 결과 비교)를 1년 범위로 넓혀 그대로 쓰고, 결근 일수(`absence` FULL=1, HALF=0.5)를 더한다. `AnnualLeaveCycleService`의 미리보기·반영은 지금 구조(토큰, `OrgCommands.execute`, 이월·소멸)를 유지하고, 사원별 부여 일수와 판정 근거를 행과 `annual_leave_award`(V47)에 싣는다. 입사일 기준은 같은 서비스에서 '월'을 골라 사원마다 기념일을 부여일로 쓴다. 월 연차 일괄 반영은 `EmploymentAccrualService`의 기존 사원별 저장 경로를 같이 쓴다.
 
@@ -35,13 +35,17 @@
 5. **출근율 조회 범위**: `leaveAttendanceDays`의 33일 상한을 366일로 넓힌다. `WorktimeMapper.monthDays`는 42일 상한이라 31일씩 나눠 읽는다.
 6. **월 연차 일괄 대상**: 월 연차 사용기한(첫 입사기념일 전날)이 오늘 이후인 사원만 보인다. 기한이 지난 미판정 월은 기존 사원별 화면에서 처리한다.
 7. **월 개근 자동 판정 순서**: 결근이 있으면 판정 불가가 있어도 '미개근'이다. 결근 0일·판정 불가 0일이면 소정근로일이 0일이어도 '개근'이다.
-8. **확인 필요 행의 이월·소멸**: 연간 미리보기는 확인 필요 행도 전기 잔여·이월·소멸을 계산해 보인다. 반영은 부여 대상 행만 한다.
+8. **확인 필요 행의 이월·소멸**: 연간 미리보기는 확인 필요 행도 전기 잔여·이월·소멸을 계산해 보인다. 반영은 부여 대상 행 전부와 담당자가 고른 확인 필요 행(`reviewedEmployeeIds`)만 한다.
 9. **회계 시작월 변경 안내**: 부여 일수 입력이 없어지므로 기존 문구의 "부여·이월 일수는"을 "이월 한도는"으로 바꾼다.
 10. **월 연차 일괄 반영의 판정 근거**: `leave_monthly_review`에 결근 열을 더하지 않는다. "자동 판정: 소정 n일, 결근 m일"은 원장 근거(`source_reference`)에, 담당자 사유는 `reason`에 저장한다.
 11. **미래 시점 시험**: `LeaveWorkflowIT`의 다음 회계연도 시점 시험 2개는 미래 날짜의 근태 결과를 만들 수 없어 부여 대상이 될 수 없다. 이월·대기·복원 계산은 미리보기 단계까지만 검증하도록 바꾼다.
 12. **월 연차 일괄 반영 응답 유실**: 같은 명령 재시도 버튼은 두지 않는다. 다시 미리보면 반영된 월은 빠지고 토큰이 바뀌어 중복 반영되지 않는다.
 
-남는 위험: WorkLog 도입 전 근태가 없는 기존 사원은 직전 기간 결과가 없어 처음 연간 부여에서 모두 '확인 필요'가 된다. 설계 §4.1대로 담당자가 기존 '잔여 조정'·'기초 등록'으로 처리한다. 그 밖의 경우는 이 계획에서 바꾸지 않는다.
+13. **담당자 확인 부여의 기록**(사용자 결정 2026-11-27, 설계 §4.1·§5): `annual_leave_award.reviewed_by_admin boolean NOT NULL DEFAULT false`로 표시한다. 판정 근거 열은 계산한 값 그대로 저장한다. 그래서 소정근로일 0일 행도 담당자가 고르면 저장할 수 있게 검사 조건을 `scheduled_days > 0 OR reviewed_by_admin`으로 둔다. 원장 근거(새 `leave_bucket.source_reference`와 같은 반영의 `leave_ledger.source_reference`)에 ` · 담당자 확인(판정 사유)`를 덧붙이고, `reason`은 담당자가 입력한 반영 사유 그대로다.
+14. **고른 사원 검증**: 고른 사원 목록(중복 제거·정렬)을 명령 지문에 넣는다. 다시 계산한 계획에서 확인 필요 행이 아닌 ID(이미 반영됨, 부여 대상, 다른 회사·없는 사원)가 있으면 409 "확인한 사원이 미리보기의 확인 필요 사원과 다릅니다. 미리보기를 다시 확인해 주세요."로 거절한다. 빈 값(`null`)이 섞이면 422다.
+15. **반영 가능(`canPost`)**: 시작일이 지났고 행이 하나라도 있으면 참이다(확인 필요 행만 있어도 고르면 반영할 수 있다). 부여 대상도 고른 행도 없으면 반영 때 422 "부여할 사원이 없습니다. 확인 필요 사원을 고르거나 근태를 확정한 뒤 다시 미리 보세요."다.
+
+WorkLog 도입 전 근태가 없는 기존 사원은 처음 연간 부여에서 '확인 필요'가 되고, 담당자가 확인해 골라 법정 일수로 반영한다(결정 13). 월 연차 일괄 반영(Task 7)의 확인 필요 행은 지금처럼 빼고 사원별 화면에서 처리한다.
 
 ## 파일 구조
 
@@ -105,11 +109,15 @@ class StatutoryLeaveSchemaIT {
     }
 
     private int award(Integer serviceYear, String start, String end, Integer scheduled, String absence, String granted) {
+        return award(serviceYear, start, end, scheduled, absence, granted, false);
+    }
+
+    private int award(Integer serviceYear, String start, String end, Integer scheduled, String absence, String granted, boolean reviewed) {
         return db.update("""
                 INSERT INTO tna.annual_leave_award(tenant_id,entitlement_year,employee_id,bucket_id,created_by,
-                    service_year,period_start,period_end,scheduled_days,absence_days,granted_days)
-                VALUES (?,2025,?,?,?,?,CAST(? AS date),CAST(? AS date),?,CAST(? AS numeric),CAST(? AS numeric))""",
-                tenant, employee, bucket, account, serviceYear, start, end, scheduled, absence, granted);
+                    service_year,period_start,period_end,scheduled_days,absence_days,granted_days,reviewed_by_admin)
+                VALUES (?,2025,?,?,?,?,CAST(? AS date),CAST(? AS date),?,CAST(? AS numeric),CAST(? AS numeric),?)""",
+                tenant, employee, bucket, account, serviceYear, start, end, scheduled, absence, granted, reviewed);
     }
 
     @Test void existingRulesAreFiscalAndOnlyTheTwoBasesAreAccepted() {
@@ -132,8 +140,14 @@ class StatutoryLeaveSchemaIT {
                    AND has_column_privilege('tna_app','tna.annual_leave_rule','basis','INSERT')""", Boolean.class));
     }
 
-    @Test void awardsPostedBeforeV47KeepEmptyEvidence() {
+    @Test void awardsPostedBeforeV47KeepEmptyEvidenceAndAreNotAdminReviewed() {
+        assertThrows(DataIntegrityViolationException.class, () -> award(null, null, null, null, null, null, true));
         assertEquals(1, award(null, null, null, null, null, null));
+        assertEquals(Boolean.FALSE, db.queryForObject("SELECT reviewed_by_admin FROM tna.annual_leave_award WHERE tenant_id=?", Boolean.class, tenant));
+    }
+
+    @Test void aReviewedAwardKeepsTheComputedEvidenceEvenWithoutScheduledDays() {
+        assertEquals(1, award(2, "2024-01-01", "2024-12-31", 0, "0", "15", true));
     }
 }
 ```
@@ -156,11 +170,14 @@ ALTER TABLE tna.annual_leave_award
     ADD COLUMN scheduled_days integer,
     ADD COLUMN absence_days numeric,
     ADD COLUMN granted_days numeric,
+    -- 출근율 판정이 '확인 필요'인 사원을 담당자가 골라 법정 일수로 부여했는지(설계 §4.1). 기존 행은 거짓이다.
+    ADD COLUMN reviewed_by_admin boolean NOT NULL DEFAULT false,
     ADD CONSTRAINT annual_leave_award_evidence_valid CHECK (
         (service_year IS NULL AND period_start IS NULL AND period_end IS NULL AND scheduled_days IS NULL
-            AND absence_days IS NULL AND granted_days IS NULL)
+            AND absence_days IS NULL AND granted_days IS NULL AND NOT reviewed_by_admin)
         OR (service_year >= 1 AND period_start IS NOT NULL AND period_end IS NOT NULL AND period_start <= period_end
-            AND scheduled_days > 0 AND absence_days >= 0 AND mod(absence_days, 0.5) = 0 AND absence_days <= scheduled_days
+            AND scheduled_days >= 0 AND (scheduled_days > 0 OR reviewed_by_admin)
+            AND absence_days >= 0 AND mod(absence_days, 0.5) = 0 AND absence_days <= scheduled_days
             AND granted_days BETWEEN 0 AND 25 AND mod(granted_days, 0.5) = 0)
     );
 ```
@@ -966,11 +983,40 @@ class StatutoryAnnualLeaveIT {
         days("8", (BigDecimal) award.get("granted_days"));
         days("8", cycles.ledger(people.a(), 2026).availableDays());
         days("16", cycles.ledger(people.b(), 2026).availableDays());
+        assertEquals(Boolean.FALSE, db.queryForObject("SELECT reviewed_by_admin FROM tna.annual_leave_award WHERE tenant_id=? AND employee_id=?",
+                Boolean.class, tenant, people.a().employeeId()));
         var after = cycles.preview(admin, 2026);
         assertEquals(2, after.postedCount());
         assertEquals(List.of("C01", "E01"), after.rows().stream().map(Row::employeeNo).toList());
-        assertFalse(after.canPost());
-        status(422, () -> cycles.post(admin, post(after)));
+        assertTrue(after.canPost());
+        status(422, () -> cycles.post(admin, post(after)));   // 확인 필요 행을 고르지 않으면 반영할 사원이 없다
+    }
+
+    @Test void reviewedRowsArePostedWithStatutoryDaysOnlyWhenTheAdministratorChecksThem() {
+        var people = fiscal();
+        cycles.post(admin, post(cycles.preview(admin, 2026), people.e().employeeId()));
+        assertEquals(3, count("annual_leave_award"));
+        var award = db.queryForMap("""
+                SELECT reviewed_by_admin,service_year,scheduled_days,absence_days,granted_days FROM tna.annual_leave_award
+                WHERE tenant_id=? AND employee_id=?""", tenant, people.e().employeeId());
+        assertEquals(true, award.get("reviewed_by_admin"));
+        assertEquals(2, award.get("service_year"));
+        assertEquals(2, award.get("scheduled_days"));
+        days("1", (BigDecimal) award.get("absence_days"));
+        days("15", (BigDecimal) award.get("granted_days"));
+        var ledger = cycles.ledger(people.e(), 2026);
+        days("15", ledger.availableDays());
+        assertTrue(ledger.entries().stream().anyMatch(e -> "GRANT".equals(e.entryKind())
+                && e.sourceReference().contains("담당자 확인(출근율 50.0%)")));
+        var after = cycles.preview(admin, 2026);
+        assertEquals(List.of("C01"), after.rows().stream().map(Row::employeeNo).toList());
+        status(409, () -> cycles.post(admin, post(after, people.a().employeeId())));   // 이미 반영한 사원
+        status(409, () -> cycles.post(admin, post(after, UUID.randomUUID())));         // 미리보기에 없는 사원
+        status(422, () -> cycles.post(admin, new PostForm(2026, after.token(), "빈 값", UUID.randomUUID(),
+                java.util.Arrays.asList((UUID) null))));
+        cycles.post(admin, post(after, people.c().employeeId()));   // 근태가 없는 사원도 담당자가 확인하면 법정 일수
+        days("17", cycles.ledger(people.c(), 2026).availableDays());
+        assertTrue(cycles.preview(admin, 2026).rows().isEmpty());
     }
 
     @Test void attendanceConfirmedAfterThePreviewRejectsThePostAndThenGrants() {
@@ -991,8 +1037,10 @@ class StatutoryAnnualLeaveIT {
         status(403, () -> cycles.post(people.a(), post(preview)));
         var foreign = member(company(), "X01", true, LocalDate.of(2020, 1, 1));
         cycles.saveRule(foreign, new RuleForm(0L, "FISCAL", 1, BigDecimal.ONE, "타사 기준", UUID.randomUUID()));
-        assertTrue(cycles.preview(foreign, 2026).rows().isEmpty());
+        var foreignPreview = cycles.preview(foreign, 2026);
+        assertTrue(foreignPreview.rows().isEmpty());
         status(409, () -> cycles.post(foreign, post(preview)));
+        status(409, () -> cycles.post(foreign, post(foreignPreview, people.c().employeeId())));   // 다른 회사 사원은 고를 수 없다
         assertEquals(0, count("annual_leave_award"));
     }
 
@@ -1012,7 +1060,9 @@ class StatutoryAnnualLeaveIT {
     private int count(String table) { return db.queryForObject("SELECT count(*) FROM tna." + table + " WHERE tenant_id=?", Integer.class, tenant); }
     private static void status(int expected, Runnable action) { assertEquals(expected, assertThrows(OrgException.class, action::run).status()); }
     private static void days(String expected, BigDecimal actual) { assertEquals(0, new BigDecimal(expected).compareTo(actual), () -> expected + " != " + actual); }
-    private static PostForm post(Preview preview) { return new PostForm(preview.year(), preview.token(), "합성 법정 연차 반영", UUID.randomUUID()); }
+    private static PostForm post(Preview preview, UUID... reviewed) {
+        return new PostForm(preview.year(), preview.token(), "합성 법정 연차 반영", UUID.randomUUID(), List.of(reviewed));
+    }
 }
 ```
 
@@ -1029,6 +1079,10 @@ class StatutoryAnnualLeaveIT {
             BigDecimal previousDays, BigDecimal grantDays, BigDecimal carryDays, BigDecimal expireDays) { }
     public record Preview(int year, String month, LocalDate periodStart, LocalDate periodEnd, Rule rule, List<Row> rows,
             int postedCount, int existingCount, int laterCount, int pendingCount, int reviewCount, String token, boolean canPost) { }
+    /** reviewedEmployeeIds: 담당자가 골라 법정 일수로 함께 반영할 확인 필요 사원. 없으면 부여 대상만 반영한다. */
+    public record PostForm(Integer year, String token, String reason, UUID commandId, List<UUID> reviewedEmployeeIds) {
+        public PostForm(Integer year, String token, String reason, UUID commandId) { this(year, token, reason, commandId, null); }
+    }
 ```
 
 `AnnualLeaveCycleMapper.java`:
@@ -1038,36 +1092,62 @@ class StatutoryAnnualLeaveIT {
 ```java
     @Insert("""
             INSERT INTO tna.annual_leave_award (tenant_id,entitlement_year,employee_id,bucket_id,created_by,
-                service_year,period_start,period_end,scheduled_days,absence_days,granted_days)
+                service_year,period_start,period_end,scheduled_days,absence_days,granted_days,reviewed_by_admin)
             VALUES (#{tenantId},#{year},#{row.employeeId},#{bucketId},#{actor},#{row.serviceYear},#{row.periodStart},
-                #{row.periodEnd},#{row.scheduledDays},#{row.absenceDays},#{row.grantDays})
+                #{row.periodEnd},#{row.scheduledDays},#{row.absenceDays},#{row.grantDays},#{reviewed})
             """)
     int insertAward(@Param("tenantId") UUID tenantId,@Param("year") int year,@Param("row") AnnualLeaveCycleData.Row row,
-            @Param("bucketId") UUID bucketId,@Param("actor") UUID actor);
+            @Param("bucketId") UUID bucketId,@Param("reviewed") boolean reviewed,@Param("actor") UUID actor);
 ```
 
 - [ ] **Step 4: 서비스** — `AnnualLeaveCycleService`.
 
 생성자에 `kr.tna.worktime.WorktimeService worktime`을 마지막 인자로 더하고 필드에 저장한다. import에 `kr.tna.request.AnnualLeaveCycleMapper.Candidate`, `kr.tna.worktime.WorktimeService`를 더한다.
 
-`post()`의 반영 부분(:90-104)을 바꾼다:
+`post()` 전체(import `java.util.Objects`, `java.util.Set`, `java.util.TreeSet`, `java.util.stream.Collectors`):
 
 ```java
+    public UUID post(TnaPrincipal actor, PostForm form) {
+        if (form == null || form.year() == null) throw OrgException.invalid("반영할 연도를 입력해 주세요.");
+        int year = validYear(form.year());
+        if (form.token() == null || !form.token().matches("[0-9a-f]{64}"))
+            throw OrgException.invalid("반영할 연도의 미리보기를 확인해 주세요.");
+        String reason = requiredText(form.reason(), 500, "반영 사유");
+        var reviewed = reviewed(form.reviewedEmployeeIds());
+        return administration.execute(actor, form.commandId(), "ANNUAL_LEAVE_POST", "ANNUAL_LEAVE_CYCLE",
+                fingerprint(year, form.token(), reason, reviewed), reason, () -> {
                     var plan = plan(actor, year);
                     var preview = plan.preview();
                     if (!form.token().equals(preview.token()))
                         throw OrgException.conflict("회사 기준, 대상 사원, 근태 또는 잔여가 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
-                    if (!preview.canPost()) throw OrgException.invalid(preview.periodStart() != null && preview.periodStart().isAfter(administration.today())
-                            ? "회계연도 시작일 이후에 반영 대상자를 확인해 주세요."
-                            : "부여 대상인 사원이 없습니다. 확인 필요 사원은 근태를 확정한 뒤 다시 미리 보세요.");
+                    var selected = selected(plan, reviewed);
+                    if (!preview.canPost()) throw OrgException.invalid("회계연도 시작일 이후에 반영 대상자를 확인해 주세요.");
+                    if (selected.isEmpty()) throw OrgException.invalid("부여할 사원이 없습니다. 확인 필요 사원을 고르거나 근태를 확정한 뒤 다시 미리 보세요.");
                     …(cycleId, type은 그대로)…
                     String source = year + "년 회사 연차 기준 " + preview.rule().version() + "차";
                     var awards = new ArrayList<UUID>();
-                    for (var award : plan.awards())
-                        if (StatutoryLeave.GRANT.equals(award.row().decision())) awards.add(postAward(actor, preview, award, type, source, reason));
+                    for (var award : selected) awards.add(postAward(actor, preview, award, type, source, reason));
                     return new Change(cycleId, null, Map.of("year", year, "ruleVersion", preview.rule().version(),
                             "periodStart", preview.periodStart(), "periodEnd", preview.periodEnd(), "awardBuckets", awards,
-                            "postedCount", awards.size(), "reviewCount", preview.reviewCount(), "previewToken", preview.token()));
+                            "postedCount", awards.size(), "reviewedEmployeeIds", List.copyOf(reviewed), "previewToken", preview.token()));
+                });
+    }
+
+    private static Set<UUID> reviewed(List<UUID> ids) {
+        if (ids == null) return Set.of();
+        if (ids.stream().anyMatch(Objects::isNull)) throw OrgException.invalid("확인한 사원을 다시 선택해 주세요.");
+        return new TreeSet<>(ids);
+    }
+
+    /** 부여 대상 행 전부와 담당자가 고른 확인 필요 행(설계 §4.1·§5). 고른 사원이 확인 필요 행이 아니면 다시 미리 보게 한다. */
+    private static List<Award> selected(Plan plan, Set<UUID> reviewed) {
+        var review = plan.awards().stream().filter(award -> StatutoryLeave.NEEDS_REVIEW.equals(award.row().decision()))
+                .map(award -> award.row().employeeId()).collect(Collectors.toSet());
+        if (!review.containsAll(reviewed))
+            throw OrgException.conflict("확인한 사원이 미리보기의 확인 필요 사원과 다릅니다. 미리보기를 다시 확인해 주세요.");
+        return plan.awards().stream().filter(award -> StatutoryLeave.GRANT.equals(award.row().decision())
+                || reviewed.contains(award.row().employeeId())).toList();
+    }
 ```
 
 `plan()`과 새 `award()`·`byEmployee()` (기존 :127-180을 바꾼다):
@@ -1110,7 +1190,7 @@ class StatutoryAnnualLeaveIT {
         var rows = awards.stream().map(Award::row).toList();
         int review = (int) rows.stream().filter(row -> StatutoryLeave.NEEDS_REVIEW.equals(row.decision())).count();
         var preview = new Preview(year, null, start, end, rule, rows, posted, existing, later, pending, review, token,
-                started && review < rows.size());
+                started && !rows.isEmpty());
         return new Plan(preview, awards);
     }
 
@@ -1147,16 +1227,18 @@ class StatutoryAnnualLeaveIT {
     }
 ```
 
-`postAward()`는 사원별 부여일·사용기한과 근거를 쓴다:
+`postAward()`는 사원별 부여일·사용기한과 근거를 쓰고, 담당자가 고른 행은 근거 문구와 `reviewed_by_admin`에 표시한다:
 
 ```java
-    private UUID postAward(TnaPrincipal actor, Preview preview, Award award, UUID type, String source, String reason) {
+    private UUID postAward(TnaPrincipal actor, Preview preview, Award award, UUID type, String basisSource, String reason) {
         UUID tenant = actor.tenantId(), employee = award.row().employeeId(), bucket = UUID.randomUUID();
         LocalDate start = award.row().grantOn();
+        boolean reviewed = StatutoryLeave.NEEDS_REVIEW.equals(award.row().decision());
+        String source = reviewed ? basisSource + " · 담당자 확인(" + award.row().reason() + ")" : basisSource;
         changed(workflow.insertBucket(tenant, bucket, new BucketForm(employee, start, start, award.usableTo(),
                 award.row().grantDays(), source, reason, null), actor.accountId()));
-        changed(mapper.insertAward(tenant, preview.year(), award.row(), bucket, actor.accountId()));
-        …(나머지 attribution·movement·settlement 줄은 그대로)…
+        changed(mapper.insertAward(tenant, preview.year(), award.row(), bucket, reviewed, actor.accountId()));
+        …(나머지 attribution·movement·settlement 줄은 그대로이며 모두 위의 `source`를 쓴다)…
     }
 ```
 
@@ -1178,7 +1260,8 @@ class StatutoryAnnualLeaveIT {
 
 - `policyRevisions…`: `other`를 만든 직후 `attendance.attend(other.employeeId());`.
 - `retroactiveGrants…`: `lateHireRecord`를 만든 직후 `attendance.attend(lateHireRecord.employeeId());`.
-- 다른 시험은 Task 3의 값 그대로 통과한다(‘추가’ 사원은 시드가 없어 확인 필요 행이 되고, 토큰만 바뀐다).
+- `staleSource…`: 마지막 `assertFalse(cycles.preview(admin, year).canPost())`를 `assertEquals(List.of("NEEDS_REVIEW"), cycles.preview(admin, year).rows().stream().map(Row::decision).toList())`로 바꾼다('추가' 사원은 시드가 없어 확인 필요 행으로 남고, 행이 있으면 `canPost`가 참이다).
+- 다른 시험은 Task 3의 값 그대로 통과한다.
 
 `AnnualLeaveCycleWebIT`: `@Autowired TenantTransactions transactions; @Autowired ClockService clocks; @Autowired WorktimeService worktime;`를 더하고 `company()` 끝에:
 
@@ -1260,7 +1343,7 @@ class StatutoryAnnualLeaveIT {
         days("5", g.previousDays());
         days("3", g.carryDays());
         days("2", g.expireDays());
-        cycles.post(admin, new PostForm(null, "2026-03", march.token(), "3월 입사기념일 반영", UUID.randomUUID()));
+        cycles.post(admin, post(march));
         var buckets = db.queryForList("""
                 SELECT b.usable_from,b.usable_to,w.entitlement_year FROM tna.annual_leave_award w
                 JOIN tna.leave_bucket b ON b.tenant_id=w.tenant_id AND b.id=w.bucket_id
@@ -1275,7 +1358,7 @@ class StatutoryAnnualLeaveIT {
         assertEquals(2, cycles.previewMonth(admin, YearMonth.of(2026, 3)).postedCount());
         var february = cycles.previewMonth(admin, YearMonth.of(2026, 2));
         assertEquals(List.of("I01"), february.rows().stream().map(Row::employeeNo).toList());
-        cycles.post(admin, new PostForm(null, "2026-02", february.token(), "지난달 입사기념일 반영", UUID.randomUUID()));
+        cycles.post(admin, post(february));
         assertEquals(3, count("annual_leave_award"));
         var april = cycles.previewMonth(admin, YearMonth.of(2026, 4));
         assertTrue(april.rows().isEmpty());
@@ -1285,7 +1368,7 @@ class StatutoryAnnualLeaveIT {
     @Test void hireDateLedgerUsesTheAnniversaryYearAndTheWrongPeriodKindIsRejected() {
         var people = hire();
         var march = cycles.previewMonth(admin, YearMonth.of(2026, 3));
-        cycles.post(admin, new PostForm(null, "2026-03", march.token(), "3월 입사기념일 반영", UUID.randomUUID()));
+        cycles.post(admin, post(march));
         var ledger = cycles.ledger(people.f(), null);
         assertEquals(2026, ledger.year());
         assertEquals("HIRE_DATE", ledger.basis());
@@ -1306,6 +1389,16 @@ class StatutoryAnnualLeaveIT {
     }
 ```
 
+시험 도우미 `post`가 월도 싣도록 바꾼다(회계연도 미리보기의 `month`는 `null`이라 Task 5 시험은 그대로 통과한다):
+
+```java
+    private static PostForm post(Preview preview, UUID... reviewed) {
+        return new PostForm(preview.year(), preview.month(), preview.token(), "합성 법정 연차 반영", UUID.randomUUID(), List.of(reviewed));
+    }
+```
+
+`hireDateMonthlyPosting…`의 2월 반영 앞에 입사일 기준도 담당자 확인이 되는지 한 줄 더한다(I는 근태가 확정돼 부여 대상이므로 고를 수 없다): `status(409, () -> cycles.post(admin, post(february, people.i().employeeId())));`
+
 `AnnualLeaveCycleWebIT.adminPreviewsWithoutWriting…`의 첫 페이지 단언에 `.andExpect(ReactPageAssertions.data("/month", java.time.YearMonth.from(today).toString()))`를 더하고, 같은 시험 끝에 잘못된 월은 422임을 확인한다: `postJson("/preview", Map.of("month", "2026-13"), admin).andExpect(status().isUnprocessableEntity());`.
 
 - [ ] **Step 2: 실패 확인** — `-Dit.test=StatutoryAnnualLeaveIT,AnnualLeaveCycleWebIT` → 컴파일 실패.
@@ -1313,8 +1406,8 @@ class StatutoryAnnualLeaveIT {
 - [ ] **Step 3: 데이터·매퍼**
 
 ```java
-    public record PostForm(Integer year, String month, String token, String reason, UUID commandId) {
-        public PostForm(Integer year, String token, String reason, UUID commandId) { this(year, null, token, reason, commandId); }
+    public record PostForm(Integer year, String month, String token, String reason, UUID commandId, List<UUID> reviewedEmployeeIds) {
+        public PostForm(Integer year, String token, String reason, UUID commandId) { this(year, null, token, reason, commandId, null); }
     }
     public record Ledger(int year, LocalDate today, BigDecimal availableDays, List<Entry> entries, ExitReceipt exitReceipt,
             String basis, LocalDate periodStart, LocalDate periodEnd) { }
@@ -1359,14 +1452,14 @@ class StatutoryAnnualLeaveIT {
         if (form.token() == null || !form.token().matches("[0-9a-f]{64}"))
             throw OrgException.invalid("반영할 기간의 미리보기를 확인해 주세요.");
         String reason = requiredText(form.reason(), 500, "반영 사유");
+        var reviewed = reviewed(form.reviewedEmployeeIds());
         return administration.execute(actor, form.commandId(), "ANNUAL_LEAVE_POST", "ANNUAL_LEAVE_CYCLE",
-                fingerprint(year, form.month(), form.token(), reason), reason, () -> {
+                fingerprint(year, form.month(), form.token(), reason, reviewed), reason, () -> {
                     var plan = plan(actor, year, month);
-                    …(토큰·canPost·cycle·type은 Task 5 그대로. canPost 메시지의 첫 경우는 "부여일 이후에 반영 대상자를 확인해 주세요."로 바꾼다)…
+                    …(토큰 비교·`selected(plan, reviewed)`·canPost·빈 선택·cycle·type은 Task 5 그대로. canPost 메시지는 "부여일 이후에 반영 대상자를 확인해 주세요."로 바꾼다)…
                     boolean hire = HIRE_DATE.equals(preview.rule().basis());
                     var awards = new ArrayList<UUID>();
-                    for (var award : plan.awards()) {
-                        if (!StatutoryLeave.GRANT.equals(award.row().decision())) continue;
+                    for (var award : selected) {
                         String source = hire
                                 ? "%s 입사 %d년차 연차 · 회사 연차 기준 %d차".formatted(award.row().joinedOn(), award.row().serviceYear(), preview.rule().version())
                                 : year + "년 회사 연차 기준 " + preview.rule().version() + "차";
@@ -1374,7 +1467,7 @@ class StatutoryAnnualLeaveIT {
                     }
                     var audit = new HashMap<String, Object>(Map.of("year", year, "ruleVersion", preview.rule().version(),
                             "periodStart", preview.periodStart(), "periodEnd", preview.periodEnd(), "awardBuckets", awards,
-                            "postedCount", awards.size(), "reviewCount", preview.reviewCount(), "previewToken", preview.token()));
+                            "postedCount", awards.size(), "reviewedEmployeeIds", List.copyOf(reviewed), "previewToken", preview.token()));
                     if (month != null) audit.put("month", month.toString());
                     return new Change(cycleId, null, audit);
                 });
@@ -1425,7 +1518,7 @@ class StatutoryAnnualLeaveIT {
         }
         …(토큰·rows·review Task 5 그대로)…
         var preview = new Preview(year, label, start, end, rule, rows, posted, existing, later, pending, review, token,
-                started && review < rows.size());
+                started && !rows.isEmpty());
         return new Plan(preview, awards);
     }
 ```
@@ -1753,7 +1846,8 @@ const preview: AnnualCyclePreview = { year: 2026, month: null, periodStart: '202
   ] };
 ```
 
-- 반영 시험의 셀 기대값: `[expect.stringContaining('김가람'), '2023-01-01', '3년차', '100%', '부여 대상', '4.5일', '3일', '1.5일', '16일', '19일']`, 셋째 행 판정 셀은 `'확인 필요출근율 76.4%'`를 포함한다. `확인 필요 1명`이 보이고 성공 문구는 `2명의 연차를 원장에 반영했습니다.`(부여 대상만).
+- 반영 시험의 셀 기대값: `[expect.stringContaining('김가람'), '2023-01-01', '3년차', '100%', '부여 대상', '4.5일', '3일', '1.5일', '16일', '19일']`, 셋째 행 판정 셀은 `'확인 필요출근율 76.4%'`를 포함한다. `확인 필요 1명`이 보이고, 셋째 행을 고르지 않았으므로 성공 문구는 `2명의 연차를 원장에 반영했습니다.`(부여 대상만)이며 반영 본문은 `{ year: 2026, token: preview.token, reason: '연도별 연차 부여', reviewedEmployeeIds: [], commandId: expect.any(String) }`이다.
+- '미리본 일수를 보면서…' 시험의 `screen.getByRole('checkbox')`는 확인 필요 행 선택칸이 생겨 둘이 되므로 `screen.getByRole('checkbox', { name: '소멸 대상과 일수를 확인했습니다.' })`로 바꾼다.
 - 다른 시험의 `preview.rows[1]`은 그대로 쓴다(부여 대상 행).
 - 새 시험:
 
@@ -1772,15 +1866,29 @@ it('입사일 기준 회사는 월을 골라 미리 보고 기념일 부여일�
   fireEvent.click(button('원장에 반영'));
   await screen.findByText('1명의 연차를 원장에 반영했습니다.');
   expect(JSON.parse(String(send.mock.calls[0][1]?.body))).toEqual({ month: '2026-03' });
-  expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({ month: '2026-03', token: monthly.token, reason: '3월 입사기념일', commandId: expect.any(String) });
+  expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({ month: '2026-03', token: monthly.token, reason: '3월 입사기념일', reviewedEmployeeIds: [], commandId: expect.any(String) });
 });
 
-it('확인 필요 행만 남으면 반영 버튼 없이 근태 확정을 안내한다', async () => {
-  fetches().mockResolvedValueOnce(json({ ...preview, rows: [preview.rows[2]], canPost: false }));
+it('확인 필요 행은 담당자가 골라야 반영되고 고른 사원 ID를 보낸다', async () => {
+  const send = fetches().mockResolvedValueOnce(json({ ...preview, rows: [preview.rows[2]] })).mockResolvedValueOnce(json({ id: 'r' }))
+    .mockResolvedValueOnce(json(emptyPreview));
   show();
+  edit('처리 사유', '도입 전 근태 확인');
   await review();
-  expect(screen.getByText(/근태를 확정한 뒤 다시 미리 보세요/)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: '원장에 반영' })).toBeNull();
+  expect(screen.getByText(/근태를 확정한 뒤 다시 미리 보거나/)).toBeTruthy();
+  expect(button('원장에 반영').disabled).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox', { name: '박하늘 법정 일수 부여' }));
+  fireEvent.click(button('원장에 반영'));
+  await screen.findByText('1명의 연차를 원장에 반영했습니다.');
+  expect(JSON.parse(String(send.mock.calls[1][1]?.body))).toEqual({ year: 2026, token: preview.token, reason: '도입 전 근태 확인',
+    reviewedEmployeeIds: ['employee-c'], commandId: expect.any(String) });
+});
+
+it('공개 데모에서는 확인 필요 행을 고를 수 없다', async () => {
+  fetches().mockResolvedValueOnce(json(preview));
+  show({ publicDemo: true });
+  await review();
+  expect(screen.queryByRole('checkbox', { name: '박하늘 법정 일수 부여' })).toBeNull();
 });
 ```
 
@@ -1880,7 +1988,7 @@ export interface AnnualCyclePreview {
   postedCount: number; existingCount: number; laterCount: number; pendingCount: number; reviewCount: number; token: string; canPost: boolean;
 }
 
-export interface AnnualCycleCommand { year?: number; month?: string; token: string; reason: string; commandId: string; }
+export interface AnnualCycleCommand { year?: number; month?: string; token: string; reason: string; reviewedEmployeeIds: string[]; commandId: string; }
 
 export type MonthlyBulkDecision = 'FULL' | 'NOT_FULL' | 'NEEDS_REVIEW';
 export interface MonthlyBulkRow { employeeId: string; employeeNo: string; employeeName: string; joinedOn: string; period: MonthlyPeriod; decision: MonthlyBulkDecision; finding: string; }
@@ -1908,7 +2016,9 @@ function isPreview(result: AnnualCyclePreview, request: PreviewRequest) {
 `PreviewResults`:
 
 ```tsx
-function PreviewResults({ result, today }: { result: AnnualCyclePreview; today: string }) {
+function PreviewResults({ result, today, reviewed, onReview, selectable }: {
+  result: AnnualCyclePreview; today: string; reviewed: Set<string>; onReview: (employeeId: string, checked: boolean) => void; selectable: boolean;
+}) {
   const hire = result.rule.basis === 'HIRE_DATE';
   const granted = result.rows.filter(row => row.decision === 'GRANT');
   const columns = ['사원', '입사일', ...(hire ? ['부여일'] : []), '근속', '출근율', '판정', '전년 잔여', '이월', '소멸', '신규 부여', '반영 후 잔여'];
@@ -1922,12 +2032,15 @@ function PreviewResults({ result, today }: { result: AnnualCyclePreview; today: 
       …(기존 기초 등록·후속 연도·결재 대기 li 그대로)…
     </ul>
     …(기존 결재 대기 안내 그대로)…
-    {result.reviewCount > 0 && <p className="hint">확인 필요인 사원은 근태를 확정한 뒤 다시 미리 보세요. 출근율 80% 미만 사원은 개인별 연차 관리의 잔여 조정으로 처리합니다.</p>}
+    {result.reviewCount > 0 && <p className="hint">확인 필요인 사원은 근태를 확정한 뒤 다시 미리 보거나, 사정을 확인하고 '법정 일수 부여'를 골라 함께 반영하세요.
+      고른 사원은 부여 대상과 같은 법정 일수를 받고 '담당자 확인'으로 기록됩니다. 출근율 80% 미만이라 법정 일수를 주지 않을 사원은 고르지 말고 개인별 연차 관리의 잔여 조정으로 처리합니다.</p>}
     {result.rows.length ? <AnnualLeaveTable label="사원별 반영 예정" columns={columns}
       rows={result.rows.map(row => ({ id: row.employeeId, cells: [
         <><strong>{row.employeeName}</strong><small>{row.employeeNo}</small></>, fmtDate(row.joinedOn), ...(hire ? [fmtDate(row.grantOn)] : []),
         row.serviceYear + '년차', row.attendanceRate == null ? '—' : row.attendanceRate + '%',
-        row.decision === 'GRANT' ? '부여 대상' : <><strong className="annual-review-flag">확인 필요</strong><small>{row.reason}</small></>,
+        row.decision === 'GRANT' ? '부여 대상' : <><strong className="annual-review-flag">확인 필요</strong><small>{row.reason}</small>
+          {selectable && <label><input type="checkbox" aria-label={row.employeeName + ' 법정 일수 부여'} checked={reviewed.has(row.employeeId)}
+            onChange={event => onReview(row.employeeId, event.target.checked)} />법정 일수 부여</label>}</>,
         row.previousDays + '일', row.carryDays + '일', row.expireDays + '일', row.grantDays + '일', <strong>{row.grantDays + row.carryDays}일</strong>,
       ] }))} /> : <p>{result.pendingCount ? '현재 바로 반영할 사원이 없습니다.' : '이 기간에 추가로 반영할 사원이 없습니다.'}</p>}
     {!result.canPost && result.periodStart > today && <p>{result.periodStart}부터 원장에 반영할 수 있습니다.</p>}
@@ -1942,8 +2055,9 @@ function PreviewResults({ result, today }: { result: AnnualCyclePreview; today: 
 - `const canPreview = Boolean(rule && !ruleChanged && (hire ? hasMonth : hasYear) && !locked);`
 - `const request = (): PreviewRequest => hire ? { month } : { year: Number(year) };`
 - `readPreview(selected: PreviewRequest)`: 본문 `body: selected`, 검사 `isPreview(data, selected)`. `inspect()`는 `readPreview(request())`.
-- `const granted = preview?.rows.filter(row => row.decision === 'GRANT') ?? [];` `expiryDays`는 `granted` 합계, `canApply = Boolean(preview?.canPost && granted.length && !model.publicDemo)`.
-- 반영 명령: `{ kind: 'apply', count: granted.length, command: { ...(preview.month ? { month: preview.month } : { year: preview.year }), token: preview.token, reason: checkedReason.trimmed, commandId: crypto.randomUUID() } }`. 반영 뒤 `readPreview(action.command.month ? { month: action.command.month } : { year: action.command.year! })`.
+- `const [reviewed, setReviewed] = useState<Set<string>>(() => new Set());` `clearReview()`에서 `setReviewed(new Set())`도 한다. 고르기: `function review(employeeId: string, checked: boolean) { setReviewed(current => { const next = new Set(current); if (checked) next.add(employeeId); else next.delete(employeeId); return next; }); setExpiryConfirmed(false); }`
+- `const selected = preview?.rows.filter(row => row.decision === 'GRANT' || reviewed.has(row.employeeId)) ?? [];` `expiryDays`는 `selected` 합계, `canApply = Boolean(preview?.canPost && !model.publicDemo)`. 반영 버튼은 `selected.length === 0`이면 비활성이다. `<PreviewResults result={preview} today={model.today} reviewed={reviewed} onReview={review} selectable={canApply && !locked} />`.
+- 반영 명령: `{ kind: 'apply', count: selected.length, command: { ...(preview.month ? { month: preview.month } : { year: preview.year }), token: preview.token, reason: checkedReason.trimmed, reviewedEmployeeIds: [...reviewed], commandId: crypto.randomUUID() } }`. 반영 뒤 `readPreview(action.command.month ? { month: action.command.month } : { year: action.command.year! })`.
 - 처리 영역 제목·입력: 회계연도 기준은 지금처럼 '연도별 일괄 처리'와 '대상 회계연도', 입사일 기준은 제목 '월별 일괄 처리'와 `<input id="annual-target-month" className="t-input" type="month" required value={month} onChange={event => { setMonth(event.target.value); inputChanged(); }} />`(라벨 '대상 월').
 - 안내 문장: 입사일 기준은 "선택한 달 1일부터 오늘(지난달이면 말일)까지 입사기념일이 지난 사원이 대상입니다. 직전 1년 출근율이 80% 이상이고 근태가 모두 확정된 사원만 반영합니다. 담당자 본인의 연차는 다른 담당자가 처리합니다." 회계연도 기준은 기존 문장 앞에 "회계연도 시작일 전에 입사한 사원이 대상이고, 직전 회계연도 출근율로 판정합니다."를 더한다.
 - 페이지 끝(`</section>` 뒤)에 `<AnnualMonthlyBulk csrf={csrf} publicDemo={model.publicDemo} />`를 둔다.
@@ -2044,7 +2158,7 @@ export function AnnualMonthlyBulk({ csrf, publicDemo }: { csrf: CsrfToken; publi
 
 - [ ] **Step 1: 문서** — 설계의 결정만 옮긴다.
   - `README.md:41`: "회사의 연차 부여 기준(회계연도 기준·입사일 기준)과 이월 한도를 정합니다. 사원별 연차 일수는 근로기준법대로 근속년차와 직전 기간 출근율로 계산하고, 담당자가 미리 본 뒤 일괄 반영합니다. 입사 첫해 월 연차도 일일 근태로 판정해 한 번에 반영합니다." 끝에 설계·결과 링크.
-  - `docs/rules/workflow.md:83`: 회계연도 전환 문장 뒤에 "입사일 기준 회사는 입사기념일마다 같은 방식으로 이월·소멸과 새 묶음을 기록한다. 부여 일수는 법정 근속 일수이고, 직전 기간 출근율 80% 미만이거나 근태가 확정되지 않은 사원은 반영하지 않는다." 와 설계 링크.
+  - `docs/rules/workflow.md:83`: 회계연도 전환 문장 뒤에 "입사일 기준 회사는 입사기념일마다 같은 방식으로 이월·소멸과 새 묶음을 기록한다. 부여 일수는 법정 근속 일수다. 직전 기간 출근율 80% 미만이거나 근태가 확정되지 않은 사원은 '확인 필요'로 표시하고, 담당자가 확인해 고른 사원만 같은 법정 일수로 반영하며 '담당자 확인'으로 기록한다." 와 설계 링크.
   - `docs/prd.md:12`: "회계연도별 부여 일수" → "연차 부여 기준과 법정 근속 일수·출근율 판정". `:21`의 "근속 1년 이후의 입사일 기준 발생과 회계 기준의 차이는 담당자가 대조한다."는 "입사일 기준 회사는 기념일마다 부여한다. 회계연도 기준 회사의 퇴사 시 입사일 기준과의 차이는 퇴사 정산 화면에서 대조한다."로 바꾼다.
   - 커밋: `docs: describe statutory annual leave accrual and the company basis`
 
@@ -2053,7 +2167,7 @@ export function AnnualMonthlyBulk({ csrf, publicDemo }: { csrf: CsrfToken; publi
 - [ ] **Step 3: 전체 회귀** — 새 테스트 DB에서 `mvn-test.ps1 verify`, `cd frontend; npx vitest run; npm run build`. 기대: [이전 결과](../../quality/overtime-payroll-20261126.md)의 알려진 오류 13건 외 실패 0건.
 
 - [ ] **Step 4: 브라우저 확인** (로컬 데모, 앱 내장 브라우저, 합성 자료만)
-  - 회계연도 기준: 기준 저장(부여 일수 입력 없음) → 연도 미리보기에서 비례 첫해·근속 가산·확인 필요(사유) 행 확인 → 반영 → 직원 '내 연차 원장' 잔여·GRANT.
+  - 회계연도 기준: 기준 저장(부여 일수 입력 없음) → 연도 미리보기에서 비례 첫해·근속 가산·확인 필요(사유) 행 확인 → 확인 필요 한 명을 '법정 일수 부여'로 고르고 반영 → 직원 '내 연차 원장' 잔여·GRANT 근거의 '담당자 확인'.
   - 입사일 기준(별도 합성 회사): 기준 저장 → 이번 달·지난달 미리보기 → 반영 → 직전 묶음 이월·소멸 → 직원 원장의 '입사기념일 기준 1년' 기간.
   - 기준 변경 금지 안내(반영 뒤 기준 바꾸기 시도).
   - 월 연차 일괄: 개근·미개근·확인 필요 행 → 사유 입력 → 반영 → 재조회에서 확인 필요만 남음 → 사원별 화면 판정 확인.
