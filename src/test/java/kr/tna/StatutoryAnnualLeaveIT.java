@@ -104,7 +104,7 @@ class StatutoryAnnualLeaveIT {
         assertEquals(6, c.serviceYear());
         days("17", c.grantDays());
         assertEquals("NEEDS_REVIEW", c.decision());
-        assertTrue(c.reason().startsWith("근태 확정 전 "), c.reason());
+        assertEquals("판정 불가 365일", c.reason());   // 근무조 배정이 없는 날도 판정할 수 없다(설계 §4)
         var e = preview.rows().get(3);
         assertEquals(2, e.serviceYear());
         days("15", e.grantDays());
@@ -113,6 +113,32 @@ class StatutoryAnnualLeaveIT {
         assertEquals("출근율 50.0%", e.reason());
         assertEquals(2, preview.reviewCount());
         assertTrue(preview.canPost());
+    }
+
+    /** 일일 근태의 반일 결근은 0.5일이고, 출근율 정확히 80%는 부여 대상이다(설계 §4·§4.1). */
+    @Test void halfDayAbsenceCountsAsHalfAndExactlyEightyPercentGrants() {
+        cycles.saveRule(admin, new RuleForm(0L, "FISCAL", 1, BigDecimal.ZERO, "회계연도 기준", UUID.randomUUID()));
+        var half = member(tenant, "F01", false, LocalDate.of(2023, 1, 1));
+        var exact = member(tenant, "G01", false, LocalDate.of(2023, 1, 1));
+        var mondays = List.of(LocalDate.of(2025, 3, 3), LocalDate.of(2025, 3, 10), LocalDate.of(2025, 3, 17),
+                LocalDate.of(2025, 3, 24), LocalDate.of(2025, 3, 31));
+        var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31),
+                mondays.toArray(LocalDate[]::new));
+        seed.halfDayLeave(half, mondays.get(0));
+        seed.employee(half.employeeId(), Set.of(mondays.get(0)), mondays);
+        seed.employee(exact.employeeId(), Set.of(mondays.get(1)), mondays);
+        var rows = cycles.preview(admin, 2026).rows();
+        assertEquals(List.of("F01", "G01"), rows.stream().map(Row::employeeNo).toList());
+        var f = rows.get(0);
+        assertEquals(5, f.scheduledDays());
+        days("0.5", f.absenceDays());
+        days("90", f.attendanceRate());
+        assertEquals("GRANT", f.decision());
+        var g = rows.get(1);
+        days("1", g.absenceDays());
+        days("80", g.attendanceRate());
+        assertEquals("GRANT", g.decision());
+        assertNull(g.reason());
     }
 
     @Test void postingRecordsOnlyGrantRowsWithTheirEvidence() {

@@ -22,7 +22,7 @@ final class AttendanceSeed {
     private final TnaPrincipal admin;
     private final LocalDate from, through;
     private final List<LocalDate> workdays;
-    private final UUID schedule = UUID.randomUUID(), network = UUID.randomUUID();
+    private final UUID schedule = UUID.randomUUID(), network = UUID.randomUUID(), calendar = UUID.randomUUID();
 
     private AttendanceSeed(JdbcTemplate db, TenantTransactions transactions, ClockService clocks, WorktimeService worktime,
             TnaPrincipal admin, LocalDate from, LocalDate through, List<LocalDate> workdays) {
@@ -33,7 +33,7 @@ final class AttendanceSeed {
     static AttendanceSeed calendar(JdbcTemplate db, TenantTransactions transactions, ClockService clocks, WorktimeService worktime,
             TnaPrincipal admin, LocalDate from, LocalDate through, LocalDate... workdays) {
         var seed = new AttendanceSeed(db, transactions, clocks, worktime, admin, from, through, List.of(workdays));
-        UUID tenant = admin.tenantId(), account = admin.accountId(), template = UUID.randomUUID(), calendar = UUID.randomUUID();
+        UUID tenant = admin.tenantId(), account = admin.accountId(), template = UUID.randomUUID(), calendar = seed.calendar;
         db.update("INSERT INTO tna.schedule_template(tenant_id,id,code,name,created_by,updated_by) VALUES (?,?,?,'합성 출근율 일정',?,?)",
                 tenant, template, template.toString(), account, account);
         db.update("INSERT INTO tna.schedule_version(tenant_id,id,template_id,revision,valid_from,reason,created_by) VALUES (?,?,?,1,?,'합성 출근율 일정',?)",
@@ -90,4 +90,24 @@ final class AttendanceSeed {
     }
 
     void attend(UUID employee) { employee(employee, Set.of(), workdays); }
+
+    /** employee()보다 먼저 부른다. day에 담당자를 결재자로 승인된 반차(0.5일) 연차를 넣는다. 그날 출근 기록이 없으면 일일 근태가 반일 결근으로 판정한다. */
+    void halfDayLeave(TnaPrincipal owner, LocalDate day) {
+        UUID tenant = admin.tenantId(), request = UUID.randomUUID(), bucket = UUID.randomUUID(), assignment = UUID.randomUUID();
+        db.update("INSERT INTO tna.approver_assignment(tenant_id,id,employee_id,approver_employee_id,valid_from,reason,created_by,updated_by) VALUES (?,?,?,?,?,'합성 결재자',?,?)",
+                tenant, assignment, owner.employeeId(), admin.employeeId(), from, admin.accountId(), admin.accountId());
+        db.update("INSERT INTO tna.leave_bucket(tenant_id,id,employee_id,base_date,usable_from,source_reference,created_by) VALUES (?,?,?,?,?,'합성 반차 연차',?)",
+                tenant, bucket, owner.employeeId(), day, day, admin.accountId());
+        db.update("""
+                INSERT INTO tna.approval_request(tenant_id,id,target_employee_id,author_account_id,kind,status,current_approver_id,
+                  approver_assignment_id,approver_assignment_version,reason,leave_bucket_id,from_date,to_date,client_command_id,attendance_type_version_id)
+                VALUES (?,?,?,?,'LEAVE_DAY','APPROVED',?,?,0,'합성 반차',?,?,?,gen_random_uuid(),
+                  (SELECT v.id FROM tna.attendance_type_version v JOIN tna.attendance_type t ON t.tenant_id=v.tenant_id AND t.id=v.type_id
+                   WHERE t.tenant_id=? AND t.system_kind='ANNUAL_LEAVE' AND v.revision=1))
+                """, tenant, request, owner.employeeId(), owner.accountId(), admin.employeeId(), assignment, bucket, day, day, tenant);
+        db.update("INSERT INTO tna.leave_request_day(tenant_id,id,request_id,leave_date,quantity_days,leave_part,schedule_version_id,calendar_version_id) VALUES (?,gen_random_uuid(),?,?,0.5,'AM',?,?)",
+                tenant, request, day, schedule, calendar);
+        db.update("INSERT INTO tna.request_effect(tenant_id,id,request_id,employee_id,effect_kind,created_by) VALUES (?,gen_random_uuid(),?,?,'LEAVE',?)",
+                tenant, request, owner.employeeId(), admin.accountId());
+    }
 }

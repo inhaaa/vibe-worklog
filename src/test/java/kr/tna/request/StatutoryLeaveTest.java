@@ -58,7 +58,7 @@ class StatutoryLeaveTest {
         assertEquals("출근율 75.0%", StatutoryLeave.annual(new Evidence(10, new BigDecimal("2.5"), 0)).reason());
         assertEquals(StatutoryLeave.GRANT, StatutoryLeave.annual(new Evidence(5, new BigDecimal("0.5"), 0)).decision());
         var unresolved = StatutoryLeave.annual(new Evidence(200, BigDecimal.ZERO, 3));
-        assertEquals("근태 확정 전 3일", unresolved.reason());
+        assertEquals("판정 불가 3일", unresolved.reason());
         assertNull(unresolved.attendanceRate());
         assertEquals("소정근로일 0일", StatutoryLeave.annual(new Evidence(0, BigDecimal.ZERO, 0)).reason());
     }

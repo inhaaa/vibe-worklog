@@ -63,7 +63,7 @@ public final class StatutoryLeave {
 
     /** 연간 부여 80% 판정(§4.1). 출근율은 소수 첫째 자리에서 버려 표시하고 비교는 정확히 한다. */
     public static Judgement annual(Evidence evidence) {
-        if (evidence.unresolvedDays() > 0) return new Judgement(NEEDS_REVIEW, null, "근태 확정 전 " + evidence.unresolvedDays() + "일");
+        if (evidence.unresolvedDays() > 0) return new Judgement(NEEDS_REVIEW, null, "판정 불가 " + evidence.unresolvedDays() + "일");
         if (evidence.scheduledDays() == 0) return new Judgement(NEEDS_REVIEW, null, "소정근로일 0일");
         BigDecimal scheduled = BigDecimal.valueOf(evidence.scheduledDays());
         BigDecimal attended = scheduled.subtract(evidence.absenceDays());
