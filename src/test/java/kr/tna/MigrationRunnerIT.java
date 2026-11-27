@@ -28,11 +28,11 @@ class MigrationRunnerIT {
         assertTrue(result.success);
         assertEquals(0, result.migrationsExecuted);
         JdbcTemplate migration = new JdbcTemplate(database.migrationDataSource());
-        assertEquals(46, migration.queryForObject(
+        assertEquals(47, migration.queryForObject(
                 "SELECT count(*) FROM public.flyway_schema_history WHERE success", Integer.class));
         assertEquals(1, migration.queryForObject("""
                 SELECT count(*) FROM public.flyway_schema_history
-                WHERE version = '46' AND installed_by = 'tna_migration' AND success
+                WHERE version = '47' AND installed_by = 'tna_migration' AND success
                 """, Integer.class));
         try (var connection = MigrationRunner.configuration(environment).getDataSource().getConnection();
                 var statement = connection.createStatement();
