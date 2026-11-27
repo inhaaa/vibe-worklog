@@ -14,6 +14,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
+import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.OrgException;
@@ -26,6 +27,7 @@ import kr.tna.request.LeaveAttributionService;
 import kr.tna.request.LeaveWorkflowService;
 import kr.tna.request.RequestData.AdjustmentForm;
 import kr.tna.request.RequestData.BucketForm;
+import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,8 +45,11 @@ class AnnualLeaveCycleIT {
     @Autowired LeaveAttributionService attributions;
     @Autowired AnnualRequestService annual;
     @Autowired TenantTransactions transactions;
+    @Autowired ClockService clocks;
+    @Autowired WorktimeService worktime;
     @Autowired @Qualifier("dataSource") DataSource appSource;
     JdbcTemplate db;
+    AttendanceSeed attendance;
     UUID tenant;
     TnaPrincipal admin, worker;
     LocalDate today, start;
@@ -68,7 +73,13 @@ class AnnualLeaveCycleIT {
         tenant = company();
         admin = member(tenant, "담당", true, start.minusYears(2));
         worker = member(tenant, "직원", false, start.minusYears(2));
+        // 근속 2년차 직전 회계연도와 1년차(입사~입사 회계연도 말일) 산정기간에 근로일을 하루씩 둔다.
+        attendance = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, start.minusYears(2), start.minusDays(1),
+                monday(start.minusYears(2)), monday(start.minusYears(1)));
+        attendance.attend(admin.employeeId());
+        attendance.attend(worker.employeeId());
     }
+    private static LocalDate monday(LocalDate date) { return date.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY)); }
 
     @Test void previewConsumesOnlyConfirmedFinitePreviousResidualAndPreservesEveryLedger() {
         UUID one = bucket(worker, start.minusYears(1), start.minusDays(1), "2.5", year-1);
@@ -151,6 +162,7 @@ class AnnualLeaveCycleIT {
 
     @Test void policyRevisionsAndYearSnapshotKeepBothAdministratorsFromAwardingThemselves() {
         var other = member(tenant, "다른담당", true, start.minusYears(2));
+        attendance.attend(other.employeeId());
         var form = rule(0, start.getMonthValue(), "0");
         var saved = cycles.saveRule(admin, form);
         assertEquals(saved, cycles.saveRule(admin, form));
@@ -184,6 +196,7 @@ class AnnualLeaveCycleIT {
         save("1");
         cycles.post(admin,post(cycles.preview(admin,year)));
         var lateHireRecord=member(tenant,"이력확인",false,start.minusYears(2));
+        attendance.attend(lateHireRecord.employeeId());
         var prior=cycles.preview(admin,year-1);
         assertEquals(1,prior.laterCount());
         assertEquals(List.of(lateHireRecord.employeeId()),prior.rows().stream().map(Row::employeeId).toList());
@@ -227,7 +240,8 @@ class AnnualLeaveCycleIT {
         cycles.post(admin, post(latest));
         adjust(source, "0.5");
         days("0.5", db.queryForObject("SELECT sum(signed_quantity_days) FROM tna.leave_ledger WHERE tenant_id=? AND bucket_id=?", BigDecimal.class, tenant, source));
-        assertFalse(cycles.preview(admin, year).canPost());
+        // '추가' 사원은 근태가 없어 확인 필요 행으로 남는다(설계 §4.1). 행이 있으면 canPost는 참이다(결정 15).
+        assertEquals(List.of("NEEDS_REVIEW"), cycles.preview(admin, year).rows().stream().map(Row::decision).toList());
         days("17", cycles.ledger(worker, year).availableDays());
     }
 

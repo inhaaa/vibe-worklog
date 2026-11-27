@@ -11,8 +11,11 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.common.web.ReactPageViewResolver;
+import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +41,9 @@ class AnnualLeaveCycleWebIT {
     private static final String PAGE = ReactPageViewResolver.MEDIA_TYPE;
     private static final JsonMapper JSON = JsonMapper.builder().build();
     @Autowired MockMvc mvc;
+    @Autowired TenantTransactions transactions;
+    @Autowired ClockService clocks;
+    @Autowired WorktimeService worktime;
     private JdbcTemplate db;
     private TnaPrincipal admin, employee;
     private final LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
@@ -59,6 +65,11 @@ class AnnualLeaveCycleWebIT {
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 연차 회사')", tenant, "LEDGER-" + tenant);
         admin = member(tenant, "M01", Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"));
         employee = member(tenant, "E01", Set.of("EMPLOYEE"));
+        // 1월 시작 회사의 올해 부여는 지난 회계연도 출근율로 판정한다(설계 §4.1).
+        int last = today.getYear() - 1;
+        var monday = LocalDate.of(last, 1, 1).with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY));
+        AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, LocalDate.of(last, 1, 1), LocalDate.of(last, 12, 31), monday)
+                .attend(employee.employeeId());
     }
 
     @Test void adminPreviewsWithoutWritingAndEmployeeCanReadOnlyTheirOwnPostedDays() throws Exception {

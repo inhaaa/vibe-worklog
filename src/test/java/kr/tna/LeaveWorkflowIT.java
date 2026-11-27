@@ -169,7 +169,7 @@ class LeaveWorkflowIT {
         var zone=ZoneId.of("Asia/Seoul");
         var nextClock=Clock.fixed(boundary.atTime(9,0).atZone(zone).toInstant(),zone);
         var futureAdmin=new OrgCommands(tenantTransactions,appSource,nextClock);
-        var futureCycles=new AnnualLeaveCycleService(annualCycleMapper,workflowMapper,attributionMapper,futureAdmin,businessCommands);
+        var futureCycles=new AnnualLeaveCycleService(annualCycleMapper,workflowMapper,attributionMapper,futureAdmin,businessCommands,worktime);
         var futureWorkflow=new LeaveWorkflowService(workflowMapper,businessCommands,futureAdmin,workflowEmployees,workflowApprovers,clocks,nextClock,requestForms);
         var earlier=futureCycles.preview(manager,boundary.getYear());
         UUID cancel=futureWorkflow.requestCancellation(manager,request,new CancelForm(true,1L,"기존 승인 예외 취소",UUID.randomUUID()));
@@ -241,6 +241,11 @@ class LeaveWorkflowIT {
 
     private UUID annualBucket(String grant,String cap) {
         annualCycles.saveRule(manager,new RuleForm(0L,"FISCAL",today.getMonthValue(),new BigDecimal(cap),"합성 연차 규칙",UUID.randomUUID()));
+        // 출근율 판정(설계 §4.1): 입사일~회계연도 시작 전날 산정기간에 근로일 하루를 출근으로 둔다.
+        LocalDate start=today.withDayOfMonth(1);
+        LocalDate joined=db.queryForObject("SELECT joined_on FROM tna.employee WHERE tenant_id=? AND id=?",LocalDate.class,tenant,employee.employeeId());
+        AttendanceSeed.calendar(db,tenantTransactions,clocks,worktime,manager,joined,start.minusDays(1),
+                joined.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.MONDAY))).attend(employee.employeeId());
         var preview=annualCycles.preview(manager,today.getYear());
         annualCycles.post(manager,new PostForm(preview.year(),preview.token(),"연차 확정",UUID.randomUUID()));
         var granted=annualCycles.ledger(employee,null).entries().stream().filter(e->e.entryKind().equals("GRANT")).findFirst().orElseThrow();
@@ -255,7 +260,7 @@ class LeaveWorkflowIT {
         LocalDate boundary=today.withDayOfMonth(1).plusYears(1);
         var zone=ZoneId.of("Asia/Seoul");
         var futureAdmin=new OrgCommands(tenantTransactions,appSource,Clock.fixed(boundary.atStartOfDay(zone).toInstant(),zone));
-        var future=new AnnualLeaveCycleService(annualCycleMapper,workflowMapper,attributionMapper,futureAdmin,businessCommands);
+        var future=new AnnualLeaveCycleService(annualCycleMapper,workflowMapper,attributionMapper,futureAdmin,businessCommands,worktime);
         int year=boundary.getYear();
         var before=future.preview(manager,year);
         UUID pending=workflow.submitLeave(employee,new LeaveForm(source,date,date,null,"전기 미결재 반차",UUID.randomUUID(),"AM"));

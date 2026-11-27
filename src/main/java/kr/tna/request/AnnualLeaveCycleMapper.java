@@ -81,7 +81,7 @@ public interface AnnualLeaveCycleMapper {
             LEFT JOIN tna.annual_leave_award w ON w.tenant_id=e.tenant_id AND w.employee_id=e.id AND w.entitlement_year=#{year}
             LEFT JOIN confirmed ON confirmed.employee_id=e.id
             LEFT JOIN later ON later.employee_id=e.id
-            WHERE e.tenant_id=#{tenantId} AND e.id<>#{self} AND e.active AND e.joined_on<=#{start}
+            WHERE e.tenant_id=#{tenantId} AND e.id<>#{self} AND e.active AND e.joined_on<#{start}
                 AND (e.left_on IS NULL OR e.left_on>=#{start})
                 AND NOT EXISTS (SELECT 1 FROM tna.leave_exit_settlement x WHERE x.tenant_id=e.tenant_id AND x.employee_id=e.id)
             ORDER BY e.employee_no,e.id
@@ -120,11 +120,13 @@ public interface AnnualLeaveCycleMapper {
             @Param("previousYear") int previousYear, @Param("lastDay") LocalDate lastDay);
 
     @Insert("""
-            INSERT INTO tna.annual_leave_award (tenant_id,entitlement_year,employee_id,bucket_id,created_by)
-            VALUES (#{tenantId},#{year},#{employeeId},#{bucketId},#{actor})
+            INSERT INTO tna.annual_leave_award (tenant_id,entitlement_year,employee_id,bucket_id,created_by,
+                service_year,period_start,period_end,scheduled_days,absence_days,granted_days,reviewed_by_admin)
+            VALUES (#{tenantId},#{year},#{row.employeeId},#{bucketId},#{actor},#{row.serviceYear},#{row.periodStart},
+                #{row.periodEnd},#{row.scheduledDays},#{row.absenceDays},#{row.grantDays},#{reviewed})
             """)
-    int insertAward(@Param("tenantId") UUID tenantId,@Param("year") int year,@Param("employeeId") UUID employeeId,
-            @Param("bucketId") UUID bucketId,@Param("actor") UUID actor);
+    int insertAward(@Param("tenantId") UUID tenantId,@Param("year") int year,@Param("row") AnnualLeaveCycleData.Row row,
+            @Param("bucketId") UUID bucketId,@Param("reviewed") boolean reviewed,@Param("actor") UUID actor);
 
     @Insert("""
             INSERT INTO tna.leave_ledger(tenant_id,id,bucket_id,employee_id,entry_kind,signed_quantity_days,

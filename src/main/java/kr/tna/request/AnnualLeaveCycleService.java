@@ -11,15 +11,21 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import kr.tna.common.auth.TnaPrincipal;
 import kr.tna.common.tenant.BusinessCommands;
 import kr.tna.org.OrgCommands;
 import kr.tna.org.OrgCommands.Change;
 import kr.tna.org.OrgException;
+import kr.tna.request.AnnualLeaveCycleMapper.Candidate;
 import kr.tna.request.AnnualLeaveCycleMapper.Source;
 import kr.tna.request.LeaveAttributionData.Attribution;
 import kr.tna.request.RequestData.BucketForm;
+import kr.tna.worktime.WorktimeService;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -32,14 +38,16 @@ public final class AnnualLeaveCycleService {
     private final LeaveAttributionMapper attribution;
     private final OrgCommands administration;
     private final BusinessCommands employees;
+    private final WorktimeService worktime;
 
     public AnnualLeaveCycleService(AnnualLeaveCycleMapper mapper, LeaveWorkflowMapper workflow,
-            LeaveAttributionMapper attribution, OrgCommands administration, BusinessCommands employees) {
+            LeaveAttributionMapper attribution, OrgCommands administration, BusinessCommands employees, WorktimeService worktime) {
         this.mapper = mapper;
         this.workflow = workflow;
         this.attribution = attribution;
         this.administration = administration;
         this.employees = employees;
+        this.worktime = worktime;
     }
 
     public Rule rule(TnaPrincipal actor) {
@@ -93,13 +101,16 @@ public final class AnnualLeaveCycleService {
         if (form.token() == null || !form.token().matches("[0-9a-f]{64}"))
             throw OrgException.invalid("반영할 연도의 미리보기를 확인해 주세요.");
         String reason = requiredText(form.reason(), 500, "반영 사유");
+        var reviewed = reviewed(form.reviewedEmployeeIds());
         return administration.execute(actor, form.commandId(), "ANNUAL_LEAVE_POST", "ANNUAL_LEAVE_CYCLE",
-                fingerprint(year, form.token(), reason), reason, () -> {
+                fingerprint(year, form.token(), reason, reviewed), reason, () -> {
                     var plan = plan(actor, year);
                     var preview = plan.preview();
                     if (!form.token().equals(preview.token()))
-                        throw OrgException.conflict("회사 기준, 대상 사원 또는 잔여가 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
+                        throw OrgException.conflict("회사 기준, 대상 사원, 근태 또는 잔여가 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
+                    var selected = selected(plan, reviewed);
                     if (!preview.canPost()) throw OrgException.invalid("회계연도 시작일 이후에 반영 대상자를 확인해 주세요.");
+                    if (selected.isEmpty()) throw OrgException.invalid("부여할 사원이 없습니다. 확인 필요 사원을 고르거나 근태를 확정한 뒤 다시 미리 보세요.");
                     UUID cycleId = mapper.cycleId(actor.tenantId(), year);
                     if (cycleId == null) {
                         cycleId = UUID.randomUUID();
@@ -109,11 +120,27 @@ public final class AnnualLeaveCycleService {
                     if (type == null) throw OrgException.conflict("회사의 시스템 연차 유형을 확인해 주세요.");
                     String source = year + "년 회사 연차 기준 " + preview.rule().version() + "차";
                     var awards = new ArrayList<UUID>();
-                    for (var award : plan.awards()) awards.add(postAward(actor, preview, award, type, source, reason));
+                    for (var award : selected) awards.add(postAward(actor, preview, award, type, source, reason));
                     return new Change(cycleId, null, Map.of("year", year, "ruleVersion", preview.rule().version(),
                             "periodStart", preview.periodStart(), "periodEnd", preview.periodEnd(), "awardBuckets", awards,
-                            "postedCount", awards.size(), "previewToken", preview.token()));
+                            "postedCount", awards.size(), "reviewedEmployeeIds", List.copyOf(reviewed), "previewToken", preview.token()));
                 });
+    }
+
+    private static Set<UUID> reviewed(List<UUID> ids) {
+        if (ids == null) return Set.of();
+        if (ids.stream().anyMatch(Objects::isNull)) throw OrgException.invalid("확인한 사원을 다시 선택해 주세요.");
+        return new TreeSet<>(ids);
+    }
+
+    /** 부여 대상 행 전부와 담당자가 고른 확인 필요 행(설계 §4.1·§5). 고른 사원이 확인 필요 행이 아니면 다시 미리 보게 한다. */
+    private static List<Award> selected(Plan plan, Set<UUID> reviewed) {
+        var review = plan.awards().stream().filter(award -> StatutoryLeave.NEEDS_REVIEW.equals(award.row().decision()))
+                .map(award -> award.row().employeeId()).collect(Collectors.toSet());
+        if (!review.containsAll(reviewed))
+            throw OrgException.conflict("확인한 사원이 미리보기의 확인 필요 사원과 다릅니다. 미리보기를 다시 확인해 주세요.");
+        return plan.awards().stream().filter(award -> StatutoryLeave.GRANT.equals(award.row().decision())
+                || reviewed.contains(award.row().employeeId())).toList();
     }
 
     public Ledger ledger(TnaPrincipal actor, Integer selectedYear) {
@@ -133,25 +160,21 @@ public final class AnnualLeaveCycleService {
     }
 
     private record Settlement(Source source, BigDecimal carry, BigDecimal expire) { }
-    private record Award(Row row, List<Settlement> settlements) { }
+    private record Award(Row row, List<Settlement> settlements, LocalDate usableTo) { }
     private record Plan(Preview preview, List<Award> awards) { }
 
     private Plan plan(TnaPrincipal actor, int year) {
         UUID tenant = actor.tenantId();
         var applied = mapper.appliedRule(tenant, year);
         var rule = applied == null ? mapper.currentRule(tenant) : applied;
-        if (rule == null) return new Plan(new Preview(year, null, null, null, List.of(), 0, 0, 0, 0, null, false), List.of());
+        if (rule == null) return new Plan(new Preview(year, null, null, null, null, List.of(), 0, 0, 0, 0, 0, null, false), List.of());
         var start = LocalDate.of(year, rule.fiscalStartMonth(), 1);
         var end = start.plusYears(1).minusDays(1);
-        var sources = new HashMap<UUID,List<Source>>();
-        for (var source : mapper.sources(tenant, actor.employeeId(), year-1, start.minusDays(1))) {
-            sources.computeIfAbsent(source.employeeId(), key -> new ArrayList<>()).add(source);
-        }
-
+        var sources = byEmployee(mapper.sources(tenant, actor.employeeId(), year-1, start.minusDays(1)));
         boolean started = !start.isAfter(administration.today());
         var signatures = new ArrayList<String>();
-        signatures.add(fingerprint(tenant, actor.accountId(), actor.employeeId(), year, rule.version(),
-                rule.fiscalStartMonth(), rule.basis(), rule.carryLimitDays(), applied != null, started));
+        signatures.add(fingerprint(tenant, actor.accountId(), actor.employeeId(), year, rule.version(), rule.basis(),
+                rule.fiscalStartMonth(), rule.carryLimitDays(), applied != null, started));
         int posted = 0, existing = 0, later = 0, pending = 0;
         var awards = new ArrayList<Award>();
         for (var employee : mapper.candidates(tenant, actor.employeeId(), year, start)) {
@@ -160,39 +183,63 @@ public final class AnnualLeaveCycleService {
             if (employee.posted()) { posted++; continue; }
             if (employee.confirmed()) { existing++; continue; }
             if (employee.later()) { later++; continue; }
-
             var previousBuckets = sources.getOrDefault(employee.employeeId(), List.of());
             for (var source : previousBuckets) signatures.add(fingerprint(source.bucketId(), source.version(),
                     source.revision(), source.balance(), source.closingBalance(), source.pending()));
             if (previousBuckets.stream().anyMatch(Source::pending)) { pending++; continue; }
-            BigDecimal previous = ZERO, carried = ZERO;
-            var settlements = new ArrayList<Settlement>();
-            for (var source : previousBuckets) {
-                if (source.balance().signum() < 0) throw OrgException.conflict("이월 대상 묶음에 음수 잔여가 있습니다. 해당 원장을 확인해 주세요.");
-                // Credits effective after expiry stay in the original bucket for an administrator to review.
-                BigDecimal eligible = source.balance().min(source.closingBalance()).max(ZERO);
-                if (eligible.signum() == 0) continue;
-                BigDecimal carry = eligible.min(rule.carryLimitDays().subtract(carried));
-                settlements.add(new Settlement(source, carry, eligible.subtract(carry)));
-                previous = previous.add(eligible);
-                carried = carried.add(carry);
-            }
-            var row = new Row(employee.employeeId(), employee.employeeNo(), employee.employeeName(),
-                    previous, rule.grantDays(), carried, previous.subtract(carried));
-            awards.add(new Award(row, settlements));
+            int serviceYear = StatutoryLeave.fiscalServiceYear(employee.joinedOn(), start, rule.fiscalStartMonth());
+            var days = serviceYear == 1 ? StatutoryLeave.prorated(employee.joinedOn(), start) : StatutoryLeave.serviceDays(serviceYear);
+            var periodStart = serviceYear == 1 ? employee.joinedOn() : start.minusYears(1);
+            awards.add(award(actor, rule, employee, start, end, serviceYear, periodStart, days, previousBuckets, signatures));
         }
         String token = fingerprint(signatures.toArray());
-        var preview = new Preview(year, start, end, rule, awards.stream().map(Award::row).toList(),
-                posted, existing, later, pending, token, started && !awards.isEmpty());
+        var rows = awards.stream().map(Award::row).toList();
+        int review = (int) rows.stream().filter(row -> StatutoryLeave.NEEDS_REVIEW.equals(row.decision())).count();
+        var preview = new Preview(year, null, start, end, rule, rows, posted, existing, later, pending, review, token,
+                started && !rows.isEmpty());
         return new Plan(preview, awards);
     }
 
-    private UUID postAward(TnaPrincipal actor, Preview preview, Award award, UUID type, String source, String reason) {
+    /** 한 사원의 전기 잔여 이월·소멸과 직전 산정기간 출근율 판정을 반영 행으로 만든다(설계 §4.1). */
+    private Award award(TnaPrincipal actor, Rule rule, Candidate employee, LocalDate grantOn, LocalDate usableTo, int serviceYear,
+            LocalDate periodStart, BigDecimal days, List<Source> previousBuckets, List<String> signatures) {
+        BigDecimal previous = ZERO, carried = ZERO;
+        var settlements = new ArrayList<Settlement>();
+        for (var source : previousBuckets) {
+            if (source.balance().signum() < 0) throw OrgException.conflict("이월 대상 묶음에 음수 잔여가 있습니다. 해당 원장을 확인해 주세요.");
+            // Credits effective after expiry stay in the original bucket for an administrator to review.
+            BigDecimal eligible = source.balance().min(source.closingBalance()).max(ZERO);
+            if (eligible.signum() == 0) continue;
+            BigDecimal carry = eligible.min(rule.carryLimitDays().subtract(carried));
+            settlements.add(new Settlement(source, carry, eligible.subtract(carry)));
+            previous = previous.add(eligible);
+            carried = carried.add(carry);
+        }
+        var periodEnd = grantOn.minusDays(1);
+        var attendance = worktime.leaveAttendanceDays(actor, employee.employeeId(), periodStart, periodEnd);
+        signatures.add(fingerprint(attendance.stream().map(day -> fingerprint(day)).toArray()));
+        var evidence = StatutoryLeave.Evidence.of(attendance);
+        var judgement = StatutoryLeave.annual(evidence);
+        var row = new Row(employee.employeeId(), employee.employeeNo(), employee.employeeName(), employee.joinedOn(), grantOn,
+                serviceYear, periodStart, periodEnd, evidence.scheduledDays(), evidence.absenceDays(), evidence.unresolvedDays(),
+                judgement.attendanceRate(), judgement.decision(), judgement.reason(), previous, days, carried, previous.subtract(carried));
+        return new Award(row, settlements, usableTo);
+    }
+
+    private static Map<UUID, List<Source>> byEmployee(List<Source> sources) {
+        var grouped = new HashMap<UUID, List<Source>>();
+        for (var source : sources) grouped.computeIfAbsent(source.employeeId(), key -> new ArrayList<>()).add(source);
+        return grouped;
+    }
+
+    private UUID postAward(TnaPrincipal actor, Preview preview, Award award, UUID type, String basisSource, String reason) {
         UUID tenant = actor.tenantId(), employee = award.row().employeeId(), bucket = UUID.randomUUID();
-        LocalDate start = preview.periodStart();
-        changed(workflow.insertBucket(tenant, bucket, new BucketForm(employee, start, start, preview.periodEnd(),
+        LocalDate start = award.row().grantOn();
+        boolean reviewed = StatutoryLeave.NEEDS_REVIEW.equals(award.row().decision());
+        String source = reviewed ? basisSource + " · 담당자 확인(" + award.row().reason() + ")" : basisSource;
+        changed(workflow.insertBucket(tenant, bucket, new BucketForm(employee, start, start, award.usableTo(),
                 award.row().grantDays(), source, reason, null), actor.accountId()));
-        changed(mapper.insertAward(tenant, preview.year(), employee, bucket, actor.accountId()));
+        changed(mapper.insertAward(tenant, preview.year(), award.row(), bucket, reviewed, actor.accountId()));
         changed(attribution.insert(tenant, new Attribution(UUID.randomUUID(), bucket, 1, type, "CONFIRMED", preview.year(),
                 source, reason, actor.accountId(), null, null)));
         movement(actor, employee, bucket, bucket, "GRANT", award.row().grantDays(), start, source, reason);
