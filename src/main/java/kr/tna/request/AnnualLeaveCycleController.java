@@ -33,7 +33,8 @@ public final class AnnualLeaveCycleController {
         var today = commands.today();
         return new ModelAndView("request/annual-cycle").addObject("policy", policy).addObject("today", today)
                 .addObject("year", year == null ? AnnualLeaveCycleData.currentYear(today, policy) : year)
-                .addObject("yearSelected", year != null).addObject("publicDemo", demo.publicDemo());
+                .addObject("yearSelected", year != null).addObject("month", java.time.YearMonth.from(today).toString())
+                .addObject("publicDemo", demo.publicDemo());
     }
 
     @GetMapping("/me/leave-ledger")

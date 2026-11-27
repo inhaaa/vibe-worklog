@@ -18,9 +18,9 @@ public final class AnnualLeaveCycleData {
     public record Rule(long version, int fiscalStartMonth, BigDecimal grantDays, BigDecimal carryLimitDays, String basis) { }
     public record RuleForm(Long expectedVersion, String basis, Integer fiscalStartMonth, BigDecimal carryLimitDays,
             String reason, UUID commandId) { }
-    /** reviewedEmployeeIds: 담당자가 골라 법정 일수로 함께 반영할 확인 필요 사원. 없으면 부여 대상만 반영한다. */
-    public record PostForm(Integer year, String token, String reason, UUID commandId, List<UUID> reviewedEmployeeIds) {
-        public PostForm(Integer year, String token, String reason, UUID commandId) { this(year, token, reason, commandId, null); }
+    /** month: 입사일 기준 회사가 반영할 월(2026-03). reviewedEmployeeIds: 담당자가 골라 법정 일수로 함께 반영할 확인 필요 사원. 없으면 부여 대상만 반영한다. */
+    public record PostForm(Integer year, String month, String token, String reason, UUID commandId, List<UUID> reviewedEmployeeIds) {
+        public PostForm(Integer year, String token, String reason, UUID commandId) { this(year, null, token, reason, commandId, null); }
     }
     public record Row(UUID employeeId, String employeeNo, String employeeName, LocalDate joinedOn, LocalDate grantOn, int serviceYear,
             LocalDate periodStart, LocalDate periodEnd, int scheduledDays, BigDecimal absenceDays, int unresolvedDays,
@@ -32,5 +32,6 @@ public final class AnnualLeaveCycleData {
             BigDecimal signedQuantityDays, LocalDate effectiveOn, LocalDate leaveDate, String sourceReference, String reason,
             String monthlyDecision) { }
     public record ExitReceipt(LocalDate leftOn, BigDecimal settlementDays, String reason) { }
-    public record Ledger(int year, LocalDate today, BigDecimal availableDays, List<Entry> entries, ExitReceipt exitReceipt) { }
+    public record Ledger(int year, LocalDate today, BigDecimal availableDays, List<Entry> entries, ExitReceipt exitReceipt,
+            String basis, LocalDate periodStart, LocalDate periodEnd) { }
 }

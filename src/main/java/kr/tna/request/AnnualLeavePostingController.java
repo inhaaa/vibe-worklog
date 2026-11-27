@@ -35,7 +35,7 @@ public final class AnnualLeavePostingController {
                 .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     }
 
-    public record PreviewYear(Integer year) {}
+    public record PreviewForm(Integer year, String month) {}
 
     @PostMapping("/policy")
     Rule savePolicy(@AuthenticationPrincipal TnaPrincipal actor, InputStream body) {
@@ -45,8 +45,9 @@ public final class AnnualLeavePostingController {
 
     @PostMapping("/preview")
     Preview preview(@AuthenticationPrincipal TnaPrincipal actor, InputStream body) {
-        var form = form(body, PreviewYear.class);
-        if (form.year() == null) throw OrgException.invalid("미리 볼 회계연도를 입력해 주세요.");
+        var form = form(body, PreviewForm.class);
+        if (form.month() != null) return cycles.previewMonth(actor, AnnualLeaveCycleService.month(form.month()));
+        if (form.year() == null) throw OrgException.invalid("미리 볼 회계연도나 월을 입력해 주세요.");
         return cycles.preview(actor, form.year());
     }
 

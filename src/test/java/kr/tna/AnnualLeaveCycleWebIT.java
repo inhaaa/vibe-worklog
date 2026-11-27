@@ -74,7 +74,8 @@ class AnnualLeaveCycleWebIT {
 
     @Test void adminPreviewsWithoutWritingAndEmployeeCanReadOnlyTheirOwnPostedDays() throws Exception {
         var adminPage = mvc.perform(as(get(ADMIN).accept(PAGE), admin)).andExpect(status().isOk())
-                .andExpect(ReactPageAssertions.csrf()).andExpect(ReactPageAssertions.data("/yearSelected", false)).andReturn();
+                .andExpect(ReactPageAssertions.csrf()).andExpect(ReactPageAssertions.data("/yearSelected", false))
+                .andExpect(ReactPageAssertions.data("/month", java.time.YearMonth.from(today).toString())).andReturn();
         assertEquals("request/annual-cycle", ReactPageAssertions.envelope(adminPage).path("page").asString());
         mvc.perform(as(get(ADMIN).param("year", String.valueOf(today.getYear())).accept(PAGE), admin))
                 .andExpect(status().isOk()).andExpect(ReactPageAssertions.data("/yearSelected", true));
@@ -107,6 +108,7 @@ class AnnualLeaveCycleWebIT {
         postJson("/policy", revision, otherAdmin).andExpect(status().isOk());
         assertEquals(saved, json(postJson("/policy", policy, admin).andExpect(status().isOk())));
         mvc.perform(as(get(ADMIN).accept(PAGE), admin)).andExpect(ReactPageAssertions.data("/policy/version", 2));
+        postJson("/preview", Map.of("month", "2026-13"), admin).andExpect(status().isUnprocessableEntity());
     }
 
     @Test void employeeCannotChooseAnotherLedgerOrManageCompanyAndWritesRequireCsrf() throws Exception {

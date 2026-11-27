@@ -4,9 +4,12 @@ import static kr.tna.org.OrgCommands.checkVersion;
 import static kr.tna.org.OrgCommands.fingerprint;
 import static kr.tna.org.OrgCommands.requiredText;
 import static kr.tna.request.AnnualLeaveCycleData.*;
+import static kr.tna.request.StatutoryLeave.HIRE_DATE;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -92,24 +95,40 @@ public final class AnnualLeaveCycleService {
     }
 
     public Preview preview(TnaPrincipal actor, int year) {
-        return administration.readShared(actor, () -> plan(actor, validYear(year)).preview());
+        return administration.readShared(actor, () -> plan(actor, validYear(year), null).preview());
+    }
+
+    /** 입사일 기준 회사의 월별 미리보기: 그 달 1일부터 오늘(지난달이면 말일)까지 기념일이 지난 사원(설계 §5). */
+    public Preview previewMonth(TnaPrincipal actor, YearMonth month) {
+        return administration.readShared(actor, () -> plan(actor, validYear(month.getYear()), month).preview());
+    }
+
+    public static YearMonth month(String value) {
+        try {
+            var month = YearMonth.parse(value);
+            validYear(month.getYear());
+            return month;
+        } catch (DateTimeParseException invalid) {
+            throw OrgException.invalid("반영할 월을 2026-03 형식으로 입력해 주세요.");
+        }
     }
 
     public UUID post(TnaPrincipal actor, PostForm form) {
-        if (form == null || form.year() == null) throw OrgException.invalid("반영할 연도를 입력해 주세요.");
-        int year = validYear(form.year());
+        if (form == null || form.year() == null && form.month() == null) throw OrgException.invalid("반영할 연도나 월을 입력해 주세요.");
+        YearMonth month = form.month() == null ? null : month(form.month());
+        int year = month == null ? validYear(form.year()) : month.getYear();
         if (form.token() == null || !form.token().matches("[0-9a-f]{64}"))
-            throw OrgException.invalid("반영할 연도의 미리보기를 확인해 주세요.");
+            throw OrgException.invalid("반영할 기간의 미리보기를 확인해 주세요.");
         String reason = requiredText(form.reason(), 500, "반영 사유");
         var reviewed = reviewed(form.reviewedEmployeeIds());
         return administration.execute(actor, form.commandId(), "ANNUAL_LEAVE_POST", "ANNUAL_LEAVE_CYCLE",
-                fingerprint(year, form.token(), reason, reviewed), reason, () -> {
-                    var plan = plan(actor, year);
+                fingerprint(year, form.month(), form.token(), reason, reviewed), reason, () -> {
+                    var plan = plan(actor, year, month);
                     var preview = plan.preview();
                     if (!form.token().equals(preview.token()))
                         throw OrgException.conflict("회사 기준, 대상 사원, 근태 또는 잔여가 바뀌었습니다. 미리보기를 다시 확인해 주세요.");
                     var selected = selected(plan, reviewed);
-                    if (!preview.canPost()) throw OrgException.invalid("회계연도 시작일 이후에 반영 대상자를 확인해 주세요.");
+                    if (!preview.canPost()) throw OrgException.invalid("부여일 이후에 반영 대상자를 확인해 주세요.");
                     if (selected.isEmpty()) throw OrgException.invalid("부여할 사원이 없습니다. 확인 필요 사원을 고르거나 근태를 확정한 뒤 다시 미리 보세요.");
                     UUID cycleId = mapper.cycleId(actor.tenantId(), year);
                     if (cycleId == null) {
@@ -118,12 +137,18 @@ public final class AnnualLeaveCycleService {
                     }
                     UUID type = attribution.annualLeaveType(actor.tenantId());
                     if (type == null) throw OrgException.conflict("회사의 시스템 연차 유형을 확인해 주세요.");
-                    String source = year + "년 회사 연차 기준 " + preview.rule().version() + "차";
                     var awards = new ArrayList<UUID>();
-                    for (var award : selected) awards.add(postAward(actor, preview, award, type, source, reason));
-                    return new Change(cycleId, null, Map.of("year", year, "ruleVersion", preview.rule().version(),
+                    for (var award : selected) {
+                        String source = month != null
+                                ? "%s 입사 %d년차 연차 · 회사 연차 기준 %d차".formatted(award.row().joinedOn(), award.row().serviceYear(), preview.rule().version())
+                                : year + "년 회사 연차 기준 " + preview.rule().version() + "차";
+                        awards.add(postAward(actor, preview, award, type, source, reason));
+                    }
+                    var audit = new HashMap<String, Object>(Map.of("year", year, "ruleVersion", preview.rule().version(),
                             "periodStart", preview.periodStart(), "periodEnd", preview.periodEnd(), "awardBuckets", awards,
                             "postedCount", awards.size(), "reviewedEmployeeIds", List.copyOf(reviewed), "previewToken", preview.token()));
+                    if (month != null) audit.put("month", month.toString());
+                    return new Change(cycleId, null, audit);
                 });
     }
 
@@ -148,54 +173,85 @@ public final class AnnualLeaveCycleService {
             workflow.readLock(actor.tenantId());
             LocalDate today = administration.today();
             var current = mapper.currentRule(actor.tenantId());
-            int year = validYear(selectedYear == null ? currentYear(today, current) : selectedYear);
-            var applied = mapper.appliedRule(actor.tenantId(), year);
-            var rule = applied == null ? current : applied;
-            LocalDate start = LocalDate.of(year, rule == null ? 1 : rule.fiscalStartMonth(), 1);
-            LocalDate end = start.plusYears(1);
+            boolean hire = current != null && HIRE_DATE.equals(current.basis());
+            LocalDate joined = hire ? mapper.joinedOn(actor.tenantId(), actor.employeeId()) : null;
+            int year = validYear(selectedYear != null ? selectedYear : hire ? anniversaryYear(joined, today) : currentYear(today, current));
+            LocalDate start, end;
+            if (hire) {
+                // 입사일 기준 회사의 연도는 그 해 기념일부터 다음 기념일 전날까지다(설계 §5 개인 원장).
+                int years = Math.max(0, year - joined.getYear());
+                start = StatutoryLeave.anniversary(joined, years);
+                end = StatutoryLeave.anniversary(joined, years + 1);
+            } else {
+                var applied = mapper.appliedRule(actor.tenantId(), year);
+                var rule = applied == null ? current : applied;
+                start = LocalDate.of(year, rule == null ? 1 : rule.fiscalStartMonth(), 1);
+                end = start.plusYears(1);
+            }
             return new Ledger(year, today, mapper.available(actor.tenantId(), actor.employeeId(), today),
                     mapper.entries(actor.tenantId(), actor.employeeId(), year, start, end),
-                    mapper.exitReceipt(actor.tenantId(), actor.employeeId(), start, end));
+                    mapper.exitReceipt(actor.tenantId(), actor.employeeId(), start, end),
+                    hire ? HIRE_DATE : StatutoryLeave.FISCAL, start, end.minusDays(1));
         });
+    }
+
+    private static int anniversaryYear(LocalDate joined, LocalDate today) {
+        int years = Math.max(0, today.getYear() - joined.getYear());
+        if (years > 0 && StatutoryLeave.anniversary(joined, years).isAfter(today)) years--;
+        return joined.getYear() + years;
     }
 
     private record Settlement(Source source, BigDecimal carry, BigDecimal expire) { }
     private record Award(Row row, List<Settlement> settlements, LocalDate usableTo) { }
     private record Plan(Preview preview, List<Award> awards) { }
 
-    private Plan plan(TnaPrincipal actor, int year) {
+    /** month가 없으면 회계연도 기준 연간 부여, 있으면 입사일 기준 그 달의 기념일 부여다. 회사 기준과 다르면 거절한다. */
+    private Plan plan(TnaPrincipal actor, int year, YearMonth month) {
         UUID tenant = actor.tenantId();
-        var applied = mapper.appliedRule(tenant, year);
+        // 입사일 기준은 부여마다 현재 규칙(이월 한도)을 쓴다. 회계연도 기준은 그 연도에 고정한 규칙을 쓴다.
+        var applied = month == null ? mapper.appliedRule(tenant, year) : null;
         var rule = applied == null ? mapper.currentRule(tenant) : applied;
-        if (rule == null) return new Plan(new Preview(year, null, null, null, null, List.of(), 0, 0, 0, 0, 0, null, false), List.of());
-        var start = LocalDate.of(year, rule.fiscalStartMonth(), 1);
-        var end = start.plusYears(1).minusDays(1);
-        var sources = byEmployee(mapper.sources(tenant, actor.employeeId(), year-1, start.minusDays(1)));
-        boolean started = !start.isAfter(administration.today());
+        String label = month == null ? null : month.toString();
+        if (rule == null) return new Plan(new Preview(year, label, null, null, null, List.of(), 0, 0, 0, 0, 0, null, false), List.of());
+        boolean hire = HIRE_DATE.equals(rule.basis());
+        if (hire != (month != null))
+            throw OrgException.invalid(hire ? "입사일 기준 회사는 월을 선택해 미리 보세요." : "회계연도 기준 회사는 연도를 선택해 미리 보세요.");
+        LocalDate today = administration.today();
+        LocalDate start = hire ? month.atDay(1) : LocalDate.of(year, rule.fiscalStartMonth(), 1);
+        LocalDate end = !hire ? start.plusYears(1).minusDays(1) : month.atEndOfMonth().isAfter(today) ? today : month.atEndOfMonth();
+        boolean started = !start.isAfter(today);
+        var sources = new HashMap<LocalDate, Map<UUID, List<Source>>>();
         var signatures = new ArrayList<String>();
-        signatures.add(fingerprint(tenant, actor.accountId(), actor.employeeId(), year, rule.version(), rule.basis(),
+        signatures.add(fingerprint(tenant, actor.accountId(), actor.employeeId(), year, label, end, rule.version(), rule.basis(),
                 rule.fiscalStartMonth(), rule.carryLimitDays(), applied != null, started));
         int posted = 0, existing = 0, later = 0, pending = 0;
         var awards = new ArrayList<Award>();
         for (var employee : mapper.candidates(tenant, actor.employeeId(), year, start)) {
+            LocalDate joined = employee.joinedOn();
+            int serviceYear = hire ? year - joined.getYear() : StatutoryLeave.fiscalServiceYear(joined, start, rule.fiscalStartMonth());
+            LocalDate grantOn = hire ? StatutoryLeave.anniversary(joined, serviceYear) : start;
+            if (hire && (serviceYear < 1 || grantOn.isBefore(start) || grantOn.isAfter(end)
+                    || employee.leftOn() != null && employee.leftOn().isBefore(grantOn))) continue;
             signatures.add(fingerprint(employee.employeeId(), employee.employeeNo(), employee.employeeName(),
                     employee.version(), employee.joinedOn(), employee.leftOn(), employee.posted(), employee.confirmed(), employee.later()));
             if (employee.posted()) { posted++; continue; }
             if (employee.confirmed()) { existing++; continue; }
             if (employee.later()) { later++; continue; }
-            var previousBuckets = sources.getOrDefault(employee.employeeId(), List.of());
+            var previousBuckets = sources.computeIfAbsent(grantOn,
+                    day -> byEmployee(mapper.sources(tenant, actor.employeeId(), year - 1, day.minusDays(1))))
+                    .getOrDefault(employee.employeeId(), List.of());
             for (var source : previousBuckets) signatures.add(fingerprint(source.bucketId(), source.version(),
                     source.revision(), source.balance(), source.closingBalance(), source.pending()));
             if (previousBuckets.stream().anyMatch(Source::pending)) { pending++; continue; }
-            int serviceYear = StatutoryLeave.fiscalServiceYear(employee.joinedOn(), start, rule.fiscalStartMonth());
-            var days = serviceYear == 1 ? StatutoryLeave.prorated(employee.joinedOn(), start) : StatutoryLeave.serviceDays(serviceYear);
-            var periodStart = serviceYear == 1 ? employee.joinedOn() : start.minusYears(1);
-            awards.add(award(actor, rule, employee, start, end, serviceYear, periodStart, days, previousBuckets, signatures));
+            var days = !hire && serviceYear == 1 ? StatutoryLeave.prorated(joined, start) : StatutoryLeave.serviceDays(serviceYear);
+            var periodStart = hire ? StatutoryLeave.anniversary(joined, serviceYear - 1) : serviceYear == 1 ? joined : start.minusYears(1);
+            var usableTo = hire ? StatutoryLeave.anniversary(joined, serviceYear + 1).minusDays(1) : end;
+            awards.add(award(actor, rule, employee, grantOn, usableTo, serviceYear, periodStart, days, previousBuckets, signatures));
         }
         String token = fingerprint(signatures.toArray());
         var rows = awards.stream().map(Award::row).toList();
         int review = (int) rows.stream().filter(row -> StatutoryLeave.NEEDS_REVIEW.equals(row.decision())).count();
-        var preview = new Preview(year, null, start, end, rule, rows, posted, existing, later, pending, review, token,
+        var preview = new Preview(year, label, start, end, rule, rows, posted, existing, later, pending, review, token,
                 started && !rows.isEmpty());
         return new Plan(preview, awards);
     }

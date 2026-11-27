@@ -179,7 +179,7 @@ class LeaveWorkflowIT {
         var employeeRow=reviewed.rows().stream().filter(r->r.employeeId().equals(employee.employeeId())).findFirst().orElseThrow();
         assertEquals(0,new BigDecimal("0.5").compareTo(employeeRow.carryDays()));
         // 다음 회계연도 산정기간은 근태가 아직 없어 확인 필요 행이다. 담당자가 골라 법정 일수로 반영한다(설계 §4.1·결정 13).
-        futureCycles.post(manager,new PostForm(reviewed.year(),reviewed.token(),"당시 잔여만 이월",UUID.randomUUID(),List.of(employee.employeeId())));
+        futureCycles.post(manager,new PostForm(reviewed.year(),null,reviewed.token(),"당시 잔여만 이월",UUID.randomUUID(),List.of(employee.employeeId())));
         var ledger=futureCycles.ledger(employee,boundary.getYear());
         // 부여는 근속 2년차 법정 15일이다(설계 §3). 예전 규칙 부여 1일 + 이월 0.5일 = 1.5일이 15 + 0.5일이 된다.
         assertEquals(0,new BigDecimal("15.5").compareTo(ledger.availableDays()));
@@ -274,7 +274,7 @@ class LeaveWorkflowIT {
         assertEquals(2,held.rows().size());
         assertTrue(held.rows().stream().noneMatch(r->r.employeeId().equals(employee.employeeId())));
         // 근태가 없는 다른 두 사원은 확인 필요 행이다. 담당자가 골라 법정 일수로 반영한다(설계 §4.1·결정 13).
-        future.post(manager,new PostForm(year,held.token(),"다른 사원 부여",UUID.randomUUID(),List.of(approver.employeeId(),replacement.employeeId())));
+        future.post(manager,new PostForm(year,null,held.token(),"다른 사원 부여",UUID.randomUUID(),List.of(approver.employeeId(),replacement.employeeId())));
         assertFalse(future.preview(manager,year).canPost());
         workflow.withdraw(employee,pending,new DecisionForm("WITHDRAW",0L,"대기 철회",UUID.randomUUID()));
         assertEquals(1,future.preview(manager,year).rows().size());
@@ -288,7 +288,7 @@ class LeaveWorkflowIT {
         var reviewed=future.preview(manager,year);
         assertEquals(0,reviewed.pendingCount());
         assertEquals(0,new BigDecimal("0.5").compareTo(reviewed.rows().getFirst().carryDays()));
-        future.post(manager,new PostForm(year,reviewed.token(),"전기 결재 완료",UUID.randomUUID(),List.of(employee.employeeId())));
+        future.post(manager,new PostForm(year,null,reviewed.token(),"전기 결재 완료",UUID.randomUUID(),List.of(employee.employeeId())));
         assertTrue(future.preview(manager,year).rows().isEmpty());
         // 부여는 근속 2년차 법정 15일이다(설계 §3). 예전 규칙 부여 0.5일 + 이월 0.5일 = 1.0일이 15 + 0.5일이 된다.
         assertEquals(15.5,future.ledger(employee,year).availableDays().doubleValue());

@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
@@ -15,8 +16,10 @@ import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.OrgException;
 import kr.tna.request.AnnualLeaveCycleData.*;
 import kr.tna.request.AnnualLeaveCycleService;
+import kr.tna.request.LeaveAttributionData;
 import kr.tna.request.LeaveAttributionService;
 import kr.tna.request.LeaveWorkflowService;
+import kr.tna.request.RequestData.BucketForm;
 import kr.tna.worktime.WorktimeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -185,7 +188,7 @@ class StatutoryAnnualLeaveIT {
         assertEquals(List.of("C01"), after.rows().stream().map(Row::employeeNo).toList());
         status(409, () -> cycles.post(admin, post(after, people.a().employeeId())));   // 이미 반영한 사원
         status(409, () -> cycles.post(admin, post(after, UUID.randomUUID())));         // 미리보기에 없는 사원
-        status(422, () -> cycles.post(admin, new PostForm(2026, after.token(), "빈 값", UUID.randomUUID(),
+        status(422, () -> cycles.post(admin, new PostForm(2026, null, after.token(), "빈 값", UUID.randomUUID(),
                 java.util.Arrays.asList((UUID) null))));
         cycles.post(admin, post(after, people.c().employeeId()));   // 근태가 없는 사원도 담당자가 확인하면 법정 일수
         days("17", cycles.ledger(people.c(), 2026).availableDays());
@@ -217,6 +220,95 @@ class StatutoryAnnualLeaveIT {
         assertEquals(0, count("annual_leave_award"));
     }
 
+    record Hire(TnaPrincipal f, TnaPrincipal g, TnaPrincipal i, UUID opening) { }
+
+    /** 입사일 기준, 이월 한도 3일. F 2025-03-02 입사(1주년 3-02), G 2024-02-29 입사(2주년 3-01, 전기 5일), H 3-20 기념일(미도래), I 2025-02-10 입사. */
+    private Hire hire() {
+        cycles.saveRule(admin, new RuleForm(0L, "HIRE_DATE", null, new BigDecimal("3"), "입사일 기준", UUID.randomUUID()));
+        var f = member(tenant, "F01", false, LocalDate.of(2025, 3, 2));
+        var g = member(tenant, "G01", false, LocalDate.of(2024, 2, 29));
+        member(tenant, "H02", false, LocalDate.of(2025, 3, 20));
+        var i = member(tenant, "I01", false, LocalDate.of(2025, 2, 10));
+        var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, LocalDate.of(2025, 2, 10), LocalDate.of(2026, 3, 9),
+                LocalDate.of(2025, 6, 2));
+        for (var person : List.of(f, g, i)) seed.attend(person.employeeId());
+        UUID opening = workflow.openBucket(admin, new BucketForm(g.employeeId(), LocalDate.of(2025, 3, 1), LocalDate.of(2025, 3, 1),
+                LocalDate.of(2026, 2, 28), new BigDecimal("5"), "합성 1년차 연차", "이전 원장", UUID.randomUUID()));
+        attributions.save(admin, opening, new LeaveAttributionData.Form(0L, "CONFIRMED", 2025, true, "확정 기초 자료", "합성 확인", UUID.randomUUID()));
+        return new Hire(f, g, i, opening);
+    }
+
+    @Test void hireDateMonthlyPostingGrantsOnEachAnniversaryAndSettlesThePreviousYear() {
+        var people = hire();
+        var march = cycles.previewMonth(admin, YearMonth.of(2026, 3));
+        assertEquals("2026-03", march.month());
+        assertEquals(LocalDate.of(2026, 3, 1), march.periodStart());
+        assertEquals(TODAY, march.periodEnd());
+        assertEquals(List.of("F01", "G01"), march.rows().stream().map(Row::employeeNo).toList());
+        var f = march.rows().get(0);
+        assertEquals(LocalDate.of(2026, 3, 2), f.grantOn());
+        assertEquals(1, f.serviceYear());
+        days("15", f.grantDays());
+        assertEquals(LocalDate.of(2025, 3, 2), f.periodStart());
+        assertEquals(LocalDate.of(2026, 3, 1), f.periodEnd());
+        assertEquals("GRANT", f.decision());
+        var g = march.rows().get(1);
+        assertEquals(LocalDate.of(2026, 3, 1), g.grantOn());
+        assertEquals(2, g.serviceYear());
+        days("5", g.previousDays());
+        days("3", g.carryDays());
+        days("2", g.expireDays());
+        cycles.post(admin, post(march));
+        var buckets = db.queryForList("""
+                SELECT b.usable_from,b.usable_to,w.entitlement_year FROM tna.annual_leave_award w
+                JOIN tna.leave_bucket b ON b.tenant_id=w.tenant_id AND b.id=w.bucket_id
+                JOIN tna.employee e ON e.tenant_id=w.tenant_id AND e.id=w.employee_id
+                WHERE w.tenant_id=? ORDER BY e.employee_no""", tenant);
+        assertEquals(List.of(java.sql.Date.valueOf("2026-03-02"), java.sql.Date.valueOf("2026-03-01")), buckets.stream().map(r -> r.get("usable_from")).toList());
+        assertEquals(List.of(java.sql.Date.valueOf("2027-03-01"), java.sql.Date.valueOf("2027-02-28")), buckets.stream().map(r -> r.get("usable_to")).toList());
+        assertTrue(buckets.stream().allMatch(r -> Integer.valueOf(2026).equals(r.get("entitlement_year"))));
+        assertEquals(-2.0, db.queryForObject("SELECT sum(signed_quantity_days) FROM tna.leave_ledger WHERE tenant_id=? AND bucket_id=? AND entry_kind='EXPIRE'",
+                Double.class, tenant, people.opening()));
+        days("18", cycles.ledger(people.g(), null).availableDays());
+        assertEquals(2, cycles.previewMonth(admin, YearMonth.of(2026, 3)).postedCount());
+        var february = cycles.previewMonth(admin, YearMonth.of(2026, 2));
+        assertEquals(List.of("I01"), february.rows().stream().map(Row::employeeNo).toList());
+        status(409, () -> cycles.post(admin, post(february, people.i().employeeId())));   // 부여 대상은 담당자 확인으로 고를 수 없다
+        cycles.post(admin, post(february));
+        assertEquals(3, count("annual_leave_award"));
+        var april = cycles.previewMonth(admin, YearMonth.of(2026, 4));
+        assertTrue(april.rows().isEmpty());
+        assertFalse(april.canPost());
+    }
+
+    @Test void hireDateLedgerUsesTheAnniversaryYearAndTheWrongPeriodKindIsRejected() {
+        var people = hire();
+        var march = cycles.previewMonth(admin, YearMonth.of(2026, 3));
+        cycles.post(admin, post(march));
+        var ledger = cycles.ledger(people.f(), null);
+        assertEquals(2026, ledger.year());
+        assertEquals("HIRE_DATE", ledger.basis());
+        assertEquals(LocalDate.of(2026, 3, 2), ledger.periodStart());
+        assertEquals(LocalDate.of(2027, 3, 1), ledger.periodEnd());
+        days("15", ledger.availableDays());
+        assertTrue(ledger.entries().stream().anyMatch(e -> "GRANT".equals(e.entryKind())));
+        var previous = cycles.ledger(people.f(), 2025);
+        assertEquals(LocalDate.of(2025, 3, 2), previous.periodStart());
+        assertEquals(LocalDate.of(2026, 3, 1), previous.periodEnd());
+        status(422, () -> cycles.preview(admin, 2026));   // 입사일 기준 회사는 연도 미리보기·반영을 할 수 없다
+        status(422, () -> cycles.post(admin, new PostForm(2026, march.token(), "연도 반영 시도", UUID.randomUUID())));
+        status(422, () -> cycles.previewMonth(admin, YearMonth.of(1899, 12)));
+        var fiscalAdmin = member(company(), "X02", true, LocalDate.of(2020, 1, 1));
+        cycles.saveRule(fiscalAdmin, new RuleForm(0L, "FISCAL", 1, BigDecimal.ONE, "회계연도 기준", UUID.randomUUID()));
+        status(422, () -> cycles.previewMonth(fiscalAdmin, YearMonth.of(2026, 3)));   // 회계연도 기준 회사는 월 미리보기·반영을 할 수 없다
+        status(422, () -> cycles.post(fiscalAdmin, new PostForm(null, "2026-03", "0".repeat(64), "월 반영 시도", UUID.randomUUID(), null)));
+        var ledgerOfFiscal = cycles.ledger(fiscalAdmin, 2026);
+        assertEquals("FISCAL", ledgerOfFiscal.basis());
+        assertEquals(LocalDate.of(2026, 1, 1), ledgerOfFiscal.periodStart());
+        assertEquals(LocalDate.of(2026, 12, 31), ledgerOfFiscal.periodEnd());
+        status(409, () -> cycles.saveRule(admin, new RuleForm(1L, "FISCAL", 1, new BigDecimal("3"), "기준 변경 시도", UUID.randomUUID())));
+    }
+
     private UUID company() {
         UUID id = UUID.randomUUID();
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'합성 법정 연차 회사')", id, "STAT-" + id);
@@ -234,6 +326,6 @@ class StatutoryAnnualLeaveIT {
     private static void status(int expected, Runnable action) { assertEquals(expected, assertThrows(OrgException.class, action::run).status()); }
     private static void days(String expected, BigDecimal actual) { assertEquals(0, new BigDecimal(expected).compareTo(actual), () -> expected + " != " + actual); }
     private static PostForm post(Preview preview, UUID... reviewed) {
-        return new PostForm(preview.year(), preview.token(), "합성 법정 연차 반영", UUID.randomUUID(), List.of(reviewed));
+        return new PostForm(preview.year(), preview.month(), preview.token(), "합성 법정 연차 반영", UUID.randomUUID(), List.of(reviewed));
     }
 }

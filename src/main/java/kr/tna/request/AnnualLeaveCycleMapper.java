@@ -44,6 +44,9 @@ public interface AnnualLeaveCycleMapper {
             """)
     int insertRule(@Param("tenantId") UUID tenantId, @Param("id") UUID id, @Param("rule") Rule rule, @Param("actor") UUID actor);
 
+    @Select("SELECT joined_on FROM tna.employee WHERE tenant_id=#{tenantId} AND id=#{employeeId}")
+    LocalDate joinedOn(@Param("tenantId") UUID tenantId, @Param("employeeId") UUID employeeId);
+
     @Select("SELECT id FROM tna.annual_leave_cycle WHERE tenant_id=#{tenantId} AND entitlement_year=#{year}")
     UUID cycleId(@Param("tenantId") UUID tenantId, @Param("year") int year);
 
