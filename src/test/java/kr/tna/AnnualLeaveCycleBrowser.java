@@ -10,17 +10,20 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import kr.tna.LeaveBrowserServer.Member;
+import kr.tna.clock.ClockService;
 import kr.tna.common.auth.TnaPrincipal;
+import kr.tna.common.tenant.TenantTransactions;
 import kr.tna.org.AccountData.ApproverForm;
 import kr.tna.org.ApproverService;
 import kr.tna.schedule.ScheduleData.AssignmentForm;
 import kr.tna.schedule.ScheduleData.DayForm;
 import kr.tna.schedule.ScheduleData.TemplateForm;
 import kr.tna.schedule.ScheduleService;
+import kr.tna.worktime.WorktimeService;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** A January balance cycle in a disposable company. All current-year ledger mutations come from Chrome. */
+/** A January balance cycle in a disposable company. 2025 attendance is seeded through the app's own calculation; L303 has none and needs review. All current-year ledger mutations come from Chrome. */
 public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenario {
     private static final String COMPANY = "ANNUAL-CYCLE";
     private static final LocalDate TODAY = LocalDate.of(2026, 1, 5);
@@ -30,6 +33,7 @@ public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenari
     private final UUID tenant = UUID.randomUUID();
     private final Member worker = new Member("L101", "합성이월");
     private final Member comparison = new Member("L202", "합성신규");
+    private final Member review = new Member("L303", "합성확인");
     private final Member admin = new Member("L900", "합성담당");
     private final Member approver = new Member("L901", "합성결재");
 
@@ -41,7 +45,7 @@ public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenari
 
     @Override public Map<String, Object> prepare(ConfigurableApplicationContext app, JdbcTemplate db, Path run) {
         workAndApproval(app, db);
-        return Map.of("companyCode", COMPANY, "worker", worker, "comparison", comparison,
+        return Map.of("companyCode", COMPANY, "worker", worker, "comparison", comparison, "review", review,
                 "admin", admin, "approver", approver, "today", TODAY, "leaveDate", TODAY.plusDays(1));
     }
 
@@ -49,9 +53,9 @@ public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenari
         db.update("INSERT INTO platform.tenant_registry(id,company_code,display_name) VALUES (?,?,'가상 연차 회사')",
                 tenant, COMPANY);
         LocalDate oldHire = LocalDate.of(2024, 1, 1), newHire = LocalDate.of(2026, 1, 2);
-        for (var person : List.of(worker, comparison, admin, approver)) {
+        for (var person : List.of(worker, comparison, review, admin, approver)) {
             db.update("INSERT INTO tna.employee(tenant_id,id,employee_no,display_name,joined_on) VALUES (?,?,?,?,?)",
-                    tenant, person.employeeId(), person.employeeNo(), person.name(), person.equals(worker) || person.equals(comparison) ? oldHire : newHire);
+                    tenant, person.employeeId(), person.employeeNo(), person.name(), person.equals(admin) || person.equals(approver) ? newHire : oldHire);
             db.update("INSERT INTO tna.tenant_account(tenant_id,id,employee_id,email,password_hash) VALUES (?,?,?,?,?)",
                     tenant, person.accountId(), person.employeeId(), person.email(), passwordHash);
             db.update("INSERT INTO tna.role_grant(tenant_id,account_id,role) VALUES (?,?,'EMPLOYEE')", tenant, person.accountId());
@@ -81,6 +85,11 @@ public final class AnnualLeaveCycleBrowser implements LeaveBrowserServer.Scenari
                 Set.of("EMPLOYEE", "ATTENDANCE_ADMIN"), CLOCK.instant());
         app.getBean(ApproverService.class).set(manager, new ApproverForm(worker.employeeId(), approver.employeeId(),
                 TODAY, 0L, "가상 독립 승인자", UUID.randomUUID()));
+        var attendance = AttendanceSeed.calendar(db, app.getBean(TenantTransactions.class), app.getBean(ClockService.class),
+                app.getBean(WorktimeService.class), manager, LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31),
+                LocalDate.of(2025, 3, 3), LocalDate.of(2025, 6, 2), LocalDate.of(2025, 9, 1));
+        attendance.attend(worker.employeeId());
+        attendance.attend(comparison.employeeId());
         var days = IntStream.rangeClosed(1, 7).mapToObj(day -> day <= 5
                 ? new DayForm(day, true, "09:00", "18:00", "12:00-13:00")
                 : new DayForm(day, false, null, null, null)).toList();

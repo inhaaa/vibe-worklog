@@ -39,7 +39,7 @@ async function ledger(page, year) {
   return { available: days(available), entries, movements };
 }
 
-const grant = ['연차 부여', 12], use = ['휴가 사용', -0.5], restore = ['취소 복원', 0.5];
+const grant = ['연차 부여', 15], use = ['휴가 사용', -0.5], restore = ['취소 복원', 0.5];
 const boundary = [grant, ['전년도에서 이월', 3], ['다음 연도로 이월', -3], ['연차 소멸', -1.5]];
 async function balance(page, key, expected, entries, shot) {
   const summary = await metrics(page);
@@ -55,15 +55,24 @@ async function review(admin) {
   const response = await post(admin, cycleRoute + '/preview', '미리보기', [200]);
   const model = await response.json();
   const data = await table(admin, '사원별 반영 예정');
-  const prepared = cfg.worker.employeeNo, empty = cfg.comparison.employeeNo;
-  const actual = data.rows.map(row => [row[0], ...row.slice(1).map(days)]);
-  const find = no => actual.find(row => row[0].includes(no));
-  assert.deepEqual(find(prepared).slice(1), [4.5, 3, 1.5, 12, 15]);
-  assert.deepEqual(find(empty).slice(1), [0, 0, 0, 12, 12]);
-  assert.equal(actual.length, 2, '회계연도 시작에 재직한 두 사원');
+  const prepared = cfg.worker.employeeNo, empty = cfg.comparison.employeeNo, checking = cfg.review.employeeNo;
+  assert.deepEqual(data.headings, ['사원', '입사일', '근속', '출근율', '판정', '전년 잔여', '이월', '소멸', '신규 부여', '반영 후 잔여']);
+  const find = no => data.rows.find(row => row[0].includes(no));
+  const amounts = row => row.slice(5).map(days);
+  for (const [no, expected] of [[prepared, [4.5, 3, 1.5, 15, 18]], [empty, [0, 0, 0, 15, 15]]]) {
+    assert.deepEqual(find(no).slice(2, 5), ['2년차', '100%', '부여 대상'], no + ' 근속·출근율·판정');
+    assert.deepEqual(amounts(find(no)), expected, no + ' 법정 일수와 이월');
+  }
+  assert.equal(find(checking)[3], '—', '근태가 없는 사원은 출근율을 계산하지 않습니다.');
+  assert.ok(find(checking)[4].includes('확인 필요'), '근태가 없는 사원은 확인 필요');
+  assert.deepEqual(amounts(find(checking)), [0, 0, 0, 15, 15]);
+  assert.equal(data.rows.length, 3, '회계연도 시작에 재직한 세 사원');
+  assert.equal(model.reviewCount, 1);
+  const actual = data.rows.map(row => [row[0], ...amounts(row)]);
   assert.equal(model.periodStart, '2026-01-01');
   assert.equal(model.periodEnd, '2026-12-31');
   assert.equal(model.canPost, true);
+  assert.equal(model.rule.basis, 'FISCAL');
   return { headings: data.headings, rows: actual };
 }
 
@@ -79,13 +88,13 @@ async function run(browser) {
   const worker = await login(browser, cfg.worker);
   let approver, comparison;
   await check('담당자가 회사 연차 기준을 저장하고 직원이 기초 잔여를 조회', async () => {
+    await admin.select(named('combobox', '연차 부여 기준'), 'FISCAL');
     await admin.select(named('combobox', '회계연도 시작 월'), '1');
-    await fill(admin, named('spinbutton', '연간 부여 일수'), '12');
     await fill(admin, named('spinbutton', '이월 한도 일수'), '3');
     await fill(admin, named('textbox', '기준 설정 사유'), '가상 회사 2026년 연차 운영 기준');
     const response = await post(admin, cycleRoute + '/policy', '기준 저장', [200]);
     const rule = await response.json();
-    assert.deepEqual([rule.fiscalStartMonth, rule.grantDays, rule.carryLimitDays], [1, 12, 3]);
+    assert.deepEqual([rule.basis, rule.fiscalStartMonth, rule.grantDays, rule.carryLimitDays], ['FISCAL', 1, 15, 3]);
     await balance(worker, 'opening', 0, [], false);
     await metrics(worker);
     const prior = await ledger(worker, 2025);
@@ -105,6 +114,7 @@ async function run(browser) {
     await balance(worker, 'preview', 0, [], false);
   });
   await check('담당자가 확인한 처리와 동일 명령 재시도 후 사원별 잔액 확인', async () => {
+    await tap(admin, named('checkbox', cfg.review.name + ' 법정 일수 부여'));
     await tap(admin, named('checkbox', '소멸 대상과 일수를 확인했습니다.'));
     // Drop only the first committed response to exercise the actual retry control.
     const route = cycleRoute + '/apply';
@@ -131,13 +141,13 @@ async function run(browser) {
     assert.match(originalId, /^[\da-f-]{36}$/);
     assert.equal((await retried.json()).id, originalId);
     assert.equal(retried.request().postData(), originalBody, '동일한 명령과 미리보기로 결과 재확인');
-    await admin.waitForFunction(() => document.querySelector('main').innerText.includes('이미 반영 2명'));
+    await admin.waitForFunction(() => document.querySelector('main').innerText.includes('이미 반영 3명'));
     assert.equal(await admin.$(named('button', '원장에 반영')), null);
     result.replay = { originalHttp: 200, retryHttp: retried.status(), sameApplication: true };
     await admin.browserContext().close();
-    await balance(worker, 'posted', 15, boundary, true);
+    await balance(worker, 'posted', 18, boundary, true);
     comparison = await login(browser, cfg.comparison);
-    await balance(comparison, 'baseline', 12, [grant], true);
+    await balance(comparison, 'baseline', 15, [grant], true);
     await metrics(worker);
     const prior = await ledger(worker, 2025);
     assert.deepEqual(prior.entries.map(entry => entry[1]).sort((a, b) => a - b), [-3, -1.5, 4.5]);
@@ -153,7 +163,7 @@ async function run(browser) {
     await worker.waitForSelector('#annual-leave-part', { visible: true });
     await worker.select('#annual-leave-part', 'AM');
     await fill(worker, '#annual-half-date', cfg.leaveDate);
-    const usable = 'input[name=bucketId][aria-label*="사용 가능 15일"]';
+    const usable = 'input[name=bucketId][aria-label*="사용 가능 18일"]';
     const bucket = await worker.waitForSelector(usable, { visible: true });
     if (!await bucket.evaluate(input => input.checked)) await tap(worker, usable);
     await fill(worker, '#annual-reason', '가상 사원 오전 반차');
@@ -161,7 +171,7 @@ async function run(browser) {
     await worker.waitForSelector('.t-request-preview', { visible: true });
     const preview = await worker.$eval('.t-request-preview', section => section.innerText);
     assert.match(preview, /예상 차감 0\.5일/);
-    assert.match(preview, /사용 가능 15일/);
+    assert.match(preview, /사용 가능 18일/);
     const sent = await post(worker, '/me/requests/leave', '신청 제출', [302, 303]);
     requestId = new URL(sent.headers().location, cfg.baseUrl).searchParams.get('createdId');
     assert.match(requestId, /^[\da-f-]{36}$/);
@@ -169,13 +179,13 @@ async function run(browser) {
     await worker.waitForSelector('.t-request-detail-status[data-status=PENDING]', { visible: true });
     assert.equal(await worker.$('form[action$="/approve"]'), null);
     await screenshot(worker, 'leave-pending');
-    await balance(worker, 'pending', 15, boundary, false);
+    await balance(worker, 'pending', 18, boundary, false);
     assert.equal(days(result.balances.pending.summary['결재 대기']), 0.5);
   });
   await check('승인자가 오전 반차를 최종 승인하고 직원 원장에 반일 사용 반영', async () => {
     approver = await login(browser, cfg.approver);
     await approved(approver, worker, requestId, '합성 근무일 오전 반차 승인', 'leave-approval');
-    await balance(worker, 'approved', 14.5, [...boundary, use], true);
+    await balance(worker, 'approved', 17.5, [...boundary, use], true);
     assert.equal(days(result.balances.approved.summary['사용 예정']), 0.5);
   });
   await check('직원이 승인된 반차의 취소를 요청하고 아직 복원 전 잔액 확인', async () => {
@@ -189,13 +199,13 @@ async function run(browser) {
     await open(worker, '/requests/' + cancelId);
     await worker.waitForSelector('.t-request-detail-status[data-status=PENDING]', { visible: true });
     await screenshot(worker, 'cancel-pending');
-    await balance(worker, 'cancelPending', 14.5, [...boundary, use], false);
+    await balance(worker, 'cancelPending', 17.5, [...boundary, use], false);
   });
   await check('승인자가 취소를 최종 승인하고 직원 원장·근태 신청의 잔액 복원', async () => {
     await approved(approver, worker, cancelId, '합성 취소 승인', 'cancel-approval');
-    await balance(worker, 'restored', 15, [...boundary, use, restore], true);
+    await balance(worker, 'restored', 18, [...boundary, use, restore], true);
     assert.equal(days(result.balances.restored.summary['사용 예정']), 0);
-    await balance(comparison, 'baselineAfterCancellation', 12, [grant], false);
+    await balance(comparison, 'baselineAfterCancellation', 15, [grant], false);
   });
 }
 
