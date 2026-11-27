@@ -116,6 +116,12 @@ class AnnualLeaveCycleWebIT {
         postJson("/policy", Map.of(), employee).andExpect(status().isForbidden());
         postJson("/preview", Map.of("year", today.getYear()), employee).andExpect(status().isForbidden());
         postJson("/apply", Map.of(), employee).andExpect(status().isForbidden());
+        postJson("/monthly-preview", Map.of(), employee).andExpect(status().isForbidden());
+        postJson("/monthly-apply", Map.of(), employee).andExpect(status().isForbidden());
+        // E01은 입사 2년이 지나 월 연차 사용기한이 끝났다.
+        var monthly = json(postJson("/monthly-preview", Map.of(), admin).andExpect(status().isOk()));
+        assertTrue(monthly.path("rows").isArray() && monthly.path("rows").isEmpty());
+        assertFalse(monthly.path("canPost").asBoolean());
         mvc.perform(as(post(ADMIN + "/apply").contentType(MediaType.APPLICATION_JSON).content("{}"), admin))
                 .andExpect(status().isForbidden());
         mvc.perform(as(get(MINE).accept(PAGE).param("employeeId", admin.employeeId().toString()), employee))

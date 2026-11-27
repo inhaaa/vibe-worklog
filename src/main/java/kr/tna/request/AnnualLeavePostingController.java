@@ -26,10 +26,12 @@ import tools.jackson.databind.json.JsonMapper;
         produces = MediaType.APPLICATION_JSON_VALUE)
 public final class AnnualLeavePostingController {
     private final AnnualLeaveCycleService cycles;
+    private final EmploymentAccrualService monthly;
     private final ObjectReader input;
 
-    public AnnualLeavePostingController(AnnualLeaveCycleService cycles, JsonMapper json) {
+    public AnnualLeavePostingController(AnnualLeaveCycleService cycles, EmploymentAccrualService monthly, JsonMapper json) {
         this.cycles = cycles;
+        this.monthly = monthly;
         // A fractional year, month or revision must never select a different period by truncation.
         this.input = json.reader().without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
                 .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -54,6 +56,16 @@ public final class AnnualLeavePostingController {
     @PostMapping("/apply")
     Map<String, UUID> apply(@AuthenticationPrincipal TnaPrincipal actor, InputStream body) {
         return Map.of("id", cycles.post(actor, form(body, PostForm.class)));
+    }
+
+    @PostMapping("/monthly-preview")
+    EmploymentAccrualData.BulkPreview monthlyPreview(@AuthenticationPrincipal TnaPrincipal actor) {
+        return monthly.bulkPreview(actor);
+    }
+
+    @PostMapping("/monthly-apply")
+    Map<String, UUID> monthlyApply(@AuthenticationPrincipal TnaPrincipal actor, InputStream body) {
+        return Map.of("id", monthly.postBulk(actor, form(body, EmploymentAccrualData.BulkForm.class)));
     }
 
     private <T> T form(InputStream body, Class<T> type) {

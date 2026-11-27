@@ -15,7 +15,12 @@ public final class EmploymentAccrualData {
     public record OpeningSource(UUID bucketId, String sourceReference, BigDecimal creditedDays, BigDecimal linkedDays, List<LocalDate> accrualDates) { }
     public record Period(int monthNumber, LocalDate periodStart, LocalDate periodEnd, LocalDate accrualOn,
             int scheduledDays, int attendedDays, int leaveDays, int unresolvedDays, String decision, String reason, int grantedDays, String token,
-            UUID includedBucketId) { }
+            UUID includedBucketId, BigDecimal absenceDays) { }
+    public record BulkRow(UUID employeeId, String employeeNo, String employeeName, LocalDate joinedOn, Period period,
+            String decision, String finding) { }
+    public record BulkPreview(LocalDate today, List<BulkRow> rows, int fullCount, int notFullCount, int reviewCount,
+            String token, boolean canPost) { }
+    public record BulkForm(String token, String reason, UUID commandId) { }
     public record Preview(UUID employeeId, String employeeNo, String employeeName, LocalDate joinedOn, LocalDate leftOn,
             LocalDate today, LocalDate usableTo, boolean settled, List<Period> periods, List<OpeningSource> openingSources) { }
     public record PostForm(UUID employeeId, LocalDate accrualOn, String decision, String reason, String token, UUID commandId, UUID includedBucketId) {

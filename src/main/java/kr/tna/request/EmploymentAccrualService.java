@@ -98,22 +98,82 @@ public final class EmploymentAccrualService {
                         case "INCLUDED" -> "개근 · 기초에 포함";
                         default -> "미개근";
                     };
-                    String source = "%d개월차 %s~%s · 소정 %d일 · 출근 확인 %d일 · 승인 휴가 %d일 · 미확인 %d일 · %s".formatted(
-                            row.monthNumber(),row.periodStart(),row.periodEnd(),row.scheduledDays(),row.attendedDays(),
-                            row.leaveDays(),row.unresolvedDays(),finding);
-                    UUID tenant = actor.tenantId(), employee = form.employeeId(), id = UUID.randomUUID();
-                    int year = AnnualLeaveCycleData.currentYear(row.accrualOn(),basis.rule());
-                    UUID bucket = bucket(actor,basis,year);
-                    int quantity = form.decision().equals("FULL") ? 1 : 0;
-                    changed(mapper.insert(tenant,id,employee,basis.employee().joinedOn(),row,basis.usableTo(),year,
-                            form.decision(),quantity,bucket,reason,actor.accountId(),form.includedBucketId(),
-                            included == null ? null : included.sourceReference()));
-                    changed(mapper.movement(tenant,UUID.randomUUID(),bucket,employee,quantity,row.accrualOn(),id,source,reason,actor.accountId()));
-                    Map<String,Object> audit = new HashMap<>(Map.of("employeeId",employee,"accrualOn",row.accrualOn(),
-                            "decision",form.decision(),"grantedDays",quantity,"source",source,"bucketId",bucket));
+                    var saved = record(actor,basis,row,form.decision(),included,reason,finding);
+                    Map<String,Object> audit = new HashMap<>(Map.of("employeeId",form.employeeId(),"accrualOn",row.accrualOn(),
+                            "decision",form.decision(),"grantedDays",saved.quantity(),"source",saved.source(),"bucketId",saved.bucket()));
                     if (included != null) audit.put("includedBucketId",included.bucketId());
-                    return new OrgCommands.Change(id,null,audit);
+                    return new OrgCommands.Change(saved.id(),null,audit);
                 });
+    }
+
+    public BulkPreview bulkPreview(TnaPrincipal actor) {
+        return commands.readShared(actor, () -> bulk(actor));
+    }
+
+    public UUID postBulk(TnaPrincipal actor, BulkForm form) {
+        if (form == null || form.token() == null || !form.token().matches("[0-9a-f]{64}"))
+            throw OrgException.invalid("월 연차 미리보기를 다시 확인해 주세요.");
+        String reason = requiredText(form.reason(),500,"반영 사유");
+        return commands.execute(actor,form.commandId(),"MONTHLY_LEAVE_BULK","LEAVE_MONTHLY_REVIEW",
+                fingerprint(form.token(),reason),reason,() -> {
+                    var preview = bulk(actor);
+                    if (!form.token().equals(preview.token()))
+                        throw OrgException.conflict("근태 결과나 사원 정보가 바뀌었습니다. 월 연차 미리보기를 다시 확인해 주세요.");
+                    if (!preview.canPost()) throw OrgException.invalid("일괄 반영할 개근·미개근 판정이 없습니다.");
+                    var ids = new ArrayList<UUID>();
+                    for (var row : preview.rows()) {
+                        if (StatutoryLeave.NEEDS_REVIEW.equals(row.decision())) continue;
+                        // 같은 사원의 다음 달은 방금 기록한 판정의 묶음을 이어 쓰도록 근거를 다시 읽는다.
+                        var basis = basis(actor,row.employeeId());
+                        String finding = row.finding() + " · " + (StatutoryLeave.FULL.equals(row.decision()) ? "개근" : "미개근");
+                        ids.add(record(actor,basis,row.period(),row.decision(),null,reason,finding).id());
+                    }
+                    return new OrgCommands.Change(ids.getFirst(),null,Map.of("reviewIds",ids,"postedCount",ids.size(),
+                            "previewToken",preview.token()));
+                });
+    }
+
+    /** 발생일이 지났지만 판정하지 않은 월(설계 §5). 월 연차 사용기한이 끝난 사원은 사원별 화면에서 처리한다. */
+    private BulkPreview bulk(TnaPrincipal actor) {
+        LocalDate today = commands.today();
+        var rows = new ArrayList<BulkRow>();
+        var signature = new ArrayList<String>();
+        signature.add(fingerprint(actor.tenantId(),actor.accountId(),today));
+        for (UUID id : mapper.monthlyCandidates(actor.tenantId(),actor.employeeId(),today.minusMonths(13),today)) {
+            var basis = basis(actor,id);
+            if (basis.settled() || !basis.consistent() || basis.usableTo().isBefore(today)) continue;
+            var person = basis.employee();
+            for (var window : basis.windows()) {
+                if (basis.reviews().containsKey(window.monthNumber())) continue;
+                var period = period(actor,basis,window);
+                String decision = StatutoryLeave.monthly(new StatutoryLeave.Evidence(period.scheduledDays(),period.absenceDays(),period.unresolvedDays()));
+                String finding = StatutoryLeave.NEEDS_REVIEW.equals(decision) ? "판정 불가 %d일".formatted(period.unresolvedDays())
+                        : "자동 판정: 소정 %d일, 결근 %s일".formatted(period.scheduledDays(),period.absenceDays().stripTrailingZeros().toPlainString());
+                rows.add(new BulkRow(person.id(),person.employeeNo(),person.displayName(),person.joinedOn(),period,decision,finding));
+                signature.add(fingerprint(person.id(),window.accrualOn(),period.token(),decision));
+            }
+        }
+        int full = (int) rows.stream().filter(row -> StatutoryLeave.FULL.equals(row.decision())).count();
+        int notFull = (int) rows.stream().filter(row -> StatutoryLeave.NOT_FULL.equals(row.decision())).count();
+        return new BulkPreview(today,List.copyOf(rows),full,notFull,rows.size()-full-notFull,fingerprint(signature.toArray()),full+notFull>0);
+    }
+
+    private record Recorded(UUID id, UUID bucket, String source, int quantity) { }
+
+    /** 한 근무월의 판정과 MONTHLY_ACCRUAL 원장을 같은 묶음에 기록한다. 사원별 확정과 일괄 반영이 같이 쓴다. */
+    private Recorded record(TnaPrincipal actor, Basis basis, Period row, String decision, Source included, String reason, String finding) {
+        String source = "%d개월차 %s~%s · 소정 %d일 · 출근 확인 %d일 · 승인 휴가 %d일 · 미확인 %d일 · %s".formatted(
+                row.monthNumber(),row.periodStart(),row.periodEnd(),row.scheduledDays(),row.attendedDays(),
+                row.leaveDays(),row.unresolvedDays(),finding);
+        UUID tenant = actor.tenantId(), employee = basis.employee().id(), id = UUID.randomUUID();
+        int year = AnnualLeaveCycleData.currentYear(row.accrualOn(),basis.rule());
+        UUID bucket = bucket(actor,basis,year);
+        int quantity = decision.equals("FULL") ? 1 : 0;
+        changed(mapper.insert(tenant,id,employee,basis.employee().joinedOn(),row,basis.usableTo(),year,
+                decision,quantity,bucket,reason,actor.accountId(),included == null ? null : included.bucketId(),
+                included == null ? null : included.sourceReference()));
+        changed(mapper.movement(tenant,UUID.randomUUID(),bucket,employee,quantity,row.accrualOn(),id,source,reason,actor.accountId()));
+        return new Recorded(id,bucket,source,quantity);
     }
 
     private record Basis(Employee employee, AnnualLeaveCycleData.Rule rule, List<Window> windows, Map<Integer,Review> reviews,
@@ -142,6 +202,7 @@ public final class EmploymentAccrualService {
         var person = basis.employee();
         var dates = worktime.leaveAttendanceDays(actor,person.id(),window.periodStart(),window.periodEnd());
         int scheduled = 0, attended = 0, leave = 0, unresolved = 0;
+        BigDecimal absence = BigDecimal.ZERO;
         var signature = new ArrayList<String>();
         signature.add(fingerprint(actor.tenantId(),actor.accountId(),person,window,basis.rule(),basis.sources()));
         for (var day : dates) {
@@ -149,11 +210,12 @@ public final class EmploymentAccrualService {
             if (day.attended()) attended++;
             if (day.leave()) leave++;
             if (day.unresolved()) unresolved++;
+            absence = absence.add(BigDecimal.valueOf(day.absenceDays()));
             signature.add(fingerprint(day));
         }
         String token = basis.settled() || !basis.consistent() ? null : fingerprint(signature.toArray());
         return new Period(window.monthNumber(),window.periodStart(),window.periodEnd(),window.accrualOn(),scheduled,attended,
-                leave,unresolved,null,null,0,token,null);
+                leave,unresolved,null,null,0,token,null,absence.setScale(1));
     }
 
     private UUID bucket(TnaPrincipal actor, Basis basis, int year) {

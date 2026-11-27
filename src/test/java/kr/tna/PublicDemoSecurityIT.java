@@ -160,7 +160,7 @@ class PublicDemoSecurityIT extends LocalDemoWebIT {
                 .andExpect(ReactPageAssertions.data("/publicDemo", true));
         publicMvc.perform(post(path + "/preview").session(session).with(csrf())
                 .contentType("application/json").content("{\"year\":2026}")).andExpect(status().isOk());
-        for (String write : List.of("/policy", "/apply")) {
+        for (String write : List.of("/policy", "/apply", "/monthly-apply")) {
             publicMvc.perform(post(path + write).session(session).with(csrf())
                     .contentType("application/json").content("{}")).andExpect(status().isForbidden());
         }

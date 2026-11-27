@@ -31,6 +31,7 @@ export interface MonthlyPeriod {
   grantedDays: number | null;
   token: string | null;
   includedBucketId: string | null;
+  absenceDays?: number | null;
 }
 
 export interface EmploymentMonths extends Omit<EmploymentEmployee, 'id'> {

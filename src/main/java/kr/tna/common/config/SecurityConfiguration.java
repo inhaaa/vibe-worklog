@@ -48,6 +48,7 @@ public class SecurityConfiguration {
                                 "/admin/employees/onboarding/**", "/admin/employees/import/save", "/admin/holidays/save", "/admin/accounts/create", "/admin/accounts/reset", "/admin/employees/exports", "/admin/employees/*/account-reset",
                                 "/admin/employees/*/personnel/tabs/*/export",
                                 "/admin/leave-balances/annual-cycle/policy", "/admin/leave-balances/annual-cycle/apply",
+                                "/admin/leave-balances/annual-cycle/monthly-apply",
                                 "/admin/leave-balances/employment/**").denyAll();
                         authorize.requestMatchers(HttpMethod.POST, "/first-login").denyAll();
                         for (var employeeId : LocalDemoLogin.SHARED_EMPLOYEE_IDS) {

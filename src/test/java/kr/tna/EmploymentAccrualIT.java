@@ -357,6 +357,58 @@ class EmploymentAccrualIT {
         assertEquals(422, failure(() -> worktime.leaveAttendanceDays(admin, person.employeeId(), from.minusDays(60), through)));
     }
 
+    @Test void bulkMonthlyPreviewDecidesFromDailyAttendanceAndPostsOnlyDecidedRows() {
+        LocalDate first = LocalDate.of(2026,8,3), second = LocalDate.of(2026,9,7), third = LocalDate.of(2026,10,5);
+        var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, joined, today.minusDays(1), first, second, third);
+        var absent = member("W02", false, joined);
+        var unknown = member("W03", false, joined);
+        seed.attend(worker.employeeId());
+        seed.employee(absent.employeeId(), Set.of(second), seed.workdays());
+        seed.employee(unknown.employeeId(), Set.of(), List.of());
+        var preview = accrual.bulkPreview(admin);
+        assertEquals(List.of("FULL","FULL","FULL","FULL","NOT_FULL","FULL","NEEDS_REVIEW","NEEDS_REVIEW","NEEDS_REVIEW"),
+                preview.rows().stream().map(BulkRow::decision).toList());
+        assertEquals(List.of("W01","W01","W01","W02","W02","W02","W03","W03","W03"), preview.rows().stream().map(BulkRow::employeeNo).toList());
+        assertEquals("자동 판정: 소정 1일, 결근 0일", preview.rows().getFirst().finding());
+        assertEquals("자동 판정: 소정 1일, 결근 1일", preview.rows().get(4).finding());
+        assertEquals("판정 불가 1일", preview.rows().get(6).finding());
+        assertEquals(5, preview.fullCount());
+        assertEquals(1, preview.notFullCount());
+        assertEquals(3, preview.reviewCount());
+        assertTrue(preview.canPost());
+        var form = new BulkForm(preview.token(), "출근부 자동 판정 확인", UUID.randomUUID());
+        UUID id = accrual.postBulk(admin, form);
+        assertEquals(id, accrual.postBulk(admin, form));
+        assertEquals(6, db.queryForObject("SELECT count(*) FROM tna.leave_monthly_review WHERE tenant_id=?", Integer.class, tenant));
+        assertEquals(1, db.queryForObject("SELECT count(*) FROM tna.org_audit_event WHERE tenant_id=? AND action='MONTHLY_LEAVE_BULK'", Integer.class, tenant));
+        var ledger = annual.ledger(worker, null);
+        assertEquals(3, ledger.availableDays().intValueExact());
+        assertTrue(ledger.entries().stream().allMatch(e -> e.sourceReference().contains("자동 판정: 소정 1일, 결근 0일 · 개근")
+                && e.reason().equals("출근부 자동 판정 확인")));
+        assertEquals(1, ledger.entries().stream().map(AnnualLeaveCycleData.Entry::bucketId).distinct().count());
+        var after = accrual.bulkPreview(admin);
+        assertEquals(3, after.rows().size());
+        assertFalse(after.canPost());
+        assertEquals(422, failure(() -> accrual.postBulk(admin, new BulkForm(after.token(), "확인", UUID.randomUUID()))));
+        assertEquals("FULL", accrual.preview(admin, worker.employeeId()).periods().getFirst().decision());
+    }
+
+    @Test void bulkMonthlyPostRejectsChangedAttendanceAndOtherRoles() {
+        LocalDate first = LocalDate.of(2026,8,3), second = LocalDate.of(2026,9,7), third = LocalDate.of(2026,10,5);
+        var seed = AttendanceSeed.calendar(db, transactions, clocks, worktime, admin, joined, today.minusDays(1), first, second, third);
+        seed.employee(worker.employeeId(), Set.copyOf(seed.workdays()), List.of());   // 세 근무일 모두 기록 없음, 아직 계산 전
+        var before = accrual.bulkPreview(admin);
+        assertEquals(List.of("NEEDS_REVIEW","NEEDS_REVIEW","NEEDS_REVIEW"), before.rows().stream().map(BulkRow::decision).toList());
+        assertEquals(403, failure(() -> accrual.bulkPreview(worker)));
+        assertEquals(403, failure(() -> accrual.postBulk(worker, new BulkForm(before.token(), "직원 시도", UUID.randomUUID()))));
+        assertEquals(422, failure(() -> accrual.postBulk(admin, new BulkForm(before.token(), "판정 없음", UUID.randomUUID()))));
+        transactions.execute(tenant, () -> worktime.calculateDatesAsSystem(tenant, null, worker.employeeId(), List.of(first)));
+        var latest = accrual.bulkPreview(admin);
+        assertEquals("NOT_FULL", latest.rows().getFirst().decision());
+        assertEquals(409, failure(() -> accrual.postBulk(admin, new BulkForm(before.token(), "이전 미리보기", UUID.randomUUID()))));
+        assertEquals(0, db.queryForObject("SELECT count(*) FROM tna.leave_monthly_review WHERE tenant_id=?", Integer.class, tenant));
+    }
+
     private int failure(Runnable command) { return assertThrows(OrgException.class,command::run).status(); }
     private TnaPrincipal member(String no, boolean manager,LocalDate hired) {
         return member(tenant,no,manager,hired);

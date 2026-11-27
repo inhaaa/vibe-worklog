@@ -16,7 +16,7 @@ public interface EmploymentAccrualMapper {
             int unresolvedDays, String decision, String reason, int grantedDays, UUID includedBucketId) {
         Period period() {
             return new Period(monthNumber,periodStart,periodEnd,accrualOn,scheduledDays,attendedDays,leaveDays,
-                    unresolvedDays,decision,reason,grantedDays,null,includedBucketId);
+                    unresolvedDays,decision,reason,grantedDays,null,includedBucketId,null);
         }
     }
 
@@ -56,6 +56,15 @@ public interface EmploymentAccrualMapper {
         ORDER BY b.base_date,b.id
         """)
     List<Source> openingSources(UUID tenant, UUID employee, LocalDate today, LocalDate through, LocalDate firstAccrual);
+
+    @Select("""
+        SELECT e.id FROM tna.employee e
+        WHERE e.tenant_id=#{tenant} AND e.id<>#{self} AND e.joined_on>#{joinedAfter} AND e.joined_on<#{today}
+            AND (e.active OR e.left_on IS NOT NULL)
+            AND NOT EXISTS (SELECT 1 FROM tna.leave_exit_settlement x WHERE x.tenant_id=e.tenant_id AND x.employee_id=e.id)
+        ORDER BY e.employee_no,e.id
+        """)
+    List<UUID> monthlyCandidates(UUID tenant, UUID self, LocalDate joinedAfter, LocalDate today);
 
     @Select("SELECT EXISTS (SELECT 1 FROM tna.leave_exit_settlement WHERE tenant_id=#{tenant} AND employee_id=#{employee})")
     boolean settled(UUID tenant, UUID employee);
